@@ -17,8 +17,9 @@ export type Moment =
 	| "MapReveal" -- leans shown
 	| "Draft" -- a draft round in progress, some picks made
 	| "Plan" -- week 3 plan, with history behind it
-	| "ChoiceWeek" -- a plan whose week has a Choice event (Attack / Defend / Ignore)
+	| "ChoiceWeek" -- a plan whose week has a Choice event (stances A / B / C)
 	| "Resolve" -- the resolve animation after week 3
+	| "ChoiceResolve" -- the resolve animation right after a Choice week (both stances revealed)
 	| "DebatePrep" -- the week before a debate (prep due)
 	| "Debate" -- the debate sequence
 	| "Election" -- election night
@@ -33,6 +34,7 @@ Fixtures.MOMENTS = table.freeze({
 	"Plan",
 	"ChoiceWeek",
 	"Resolve",
+	"ChoiceResolve",
 	"DebatePrep",
 	"Debate",
 	"Election",
@@ -54,6 +56,13 @@ local function reached(session: Session.Session, moment: Moment): boolean
 		return phase == "Plan" and stage == "Input" and Events.isChoiceWeek(session.match)
 	elseif moment == "Resolve" then
 		return session.reveal == "Resolve" and session.match.week == 4
+	elseif moment == "ChoiceResolve" then
+		local log = session.match.eventLog
+		local last = log[#log]
+		return session.reveal == "Resolve"
+			and last ~= nil
+			and last.choices ~= nil
+			and last.week == session.match.week - 1
 	elseif moment == "DebatePrep" then
 		return phase == "Plan" and session.match.week == 8 and stage == "Input"
 	elseif moment == "Debate" then
@@ -96,8 +105,8 @@ end
 
 -- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
 -- as candidate `candidate` (default Dana Okafor) against Rex Calloway. ChoiceWeek
--- tries the next seeds in turn until one deals a Choice event into a plan week
--- (weeks 2 to 11), so the result is still fixed by the seed given.
+-- and ChoiceResolve try the next seeds in turn until one deals a Choice event
+-- into a plan week (weeks 2 to 11), so the result is still fixed by the seed given.
 function Fixtures.payload(
 	config: Config,
 	moment: Moment,
@@ -105,7 +114,7 @@ function Fixtures.payload(
 	candidate: string?
 ): Session.StatePayload
 	local first = seed or 18 -- 7 -> 18 with the 24-card deck (D-039): weeks 3 and 8 are still Windfalls
-	local tries = if moment == "ChoiceWeek" then 40 else 1
+	local tries = if moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
 	for k = 0, tries - 1 do
 		local payload = play(config, moment, first + k, candidate)
 		if payload then
