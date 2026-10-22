@@ -3,7 +3,7 @@
 -- through files, on the real server and client code (fake Roblox engine, simulated
 -- clock). Not a spec: `lune run tests` ignores it. Run from the repo root.
 --
---   lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 3] [--screen 1280x720]
+--   lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 5] [--screen 1280x720]
 --
 -- Player 1 and Player 2 join, both press Queue and get matched. Whenever a player
 -- must act (the debug UI status says "your move") the simulated clock stops, so
@@ -15,7 +15,9 @@
 --   state.txt       "starting", "running", "waiting p1", "waiting p1 p2" or "done"
 --   map.txt         static map data (EV, issues, region, neighbors, pool size), written once
 --   pN.screen.txt   what player N must answer now. First line "TURN: k": k grows by one with
---                   every new screen for that player (also after a rejection)
+--                   every new screen for that player (also after a rejection, not after
+--                   info commands such as show/help). Second line "REFRESH: r": r grows
+--                   when an info command rewrote the same turn's screen with its output
 --   pN.cmd.txt      written by the agent: one or more command lines. The harness types each
 --                   into the debug command box, then deletes the file
 --   pN.result.txt   the harness's verdict on the last command file ("TURN: k" it answered)
@@ -43,7 +45,7 @@ local StateData = require("@shared/Sim/StateData")
 -- ---------------------------------------------------------------- arguments
 
 local dir: string? = nil
-local seed, timeout, maxAttempts = 1, 600, 3
+local seed, timeout, maxAttempts = 1, 600, 5
 local screenSize = { x = 1280, y = 720 }
 local usageError: string? = nil
 do
@@ -92,7 +94,7 @@ if usageError or dir == nil then
 	if usageError then
 		print(`error: {usageError}`)
 	end
-	print("usage: lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 3]")
+	print("usage: lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 5]")
 	print("see tests/duel/README.md")
 	process.exit(2)
 end
@@ -178,11 +180,11 @@ export type Slot = {
 	latest: any?, -- last State payload
 	rejects: number, -- Rejected messages seen
 	lastReject: string?,
-	screens: number, -- screens written so far
+	screens: number, -- turns shown so far (the TURN number)
+	refreshes: number, -- rewrites of the current turn's screen after info commands
 	mark: number, -- how much of the UI log history earlier screens already showed
 	turn: Turn?,
 	lastSkip: string,
-	resolveEvents: { any }, -- server events of the last Resolve/Debate reveal
 	trend: { string },
 }
 
@@ -196,10 +198,10 @@ for n, peer in peers do
 		rejects = 0,
 		lastReject = nil,
 		screens = 0,
+		refreshes = 0,
 		mark = 0,
 		turn = nil,
 		lastSkip = "",
-		resolveEvents = {},
 		trend = {},
 	})
 end
@@ -216,11 +218,6 @@ do
 			if message.kind == "State" and message.state then
 				local payload = message.state
 				slot.latest = payload
-				if payload.stage == "Reveal" and payload.events and #payload.events > 0 then
-					if payload.reveal == "Resolve" then
-						slot.resolveEvents = payload.events
-					end
-				end
 			elseif message.kind == "Rejected" then
 				slot.rejects += 1
 				slot.lastReject = `{message.op or "?"}: {message.reason or "?"}`
@@ -529,16 +526,15 @@ local function planGuide(payload: any): { string }
 		out,
 		`Your ground game so far: {if #ownGotv > 0 then table.concat(ownGotv, ", ") else "none"}.`
 	)
+	-- This week's event and the next debate are on the board below; only what to
+	-- add to the plan is said here.
 	if view.event then
-		table.insert(out, `This week's event: {view.event.name} [{view.event.kind}]: {view.event.text}`)
 		if view.event.kind == "Choice" then
 			table.insert(
 				out,
 				'CHOICE WEEK: add "choice attack", "choice defend" or "choice ignore" to your plan (default ignore). Attack beats ignore, defend beats attack, ignore beats defend (small national swings).'
 			)
 		end
-	else
-		table.insert(out, "No event this week.")
 	end
 	local prepDue = table.find(C.DEBATE_WEEKS, view.week + 1) ~= nil
 	local prepText = ""
@@ -560,11 +556,6 @@ local function planGuide(payload: any): { string }
 				spread,
 				" "
 			)}). Leave it out to keep the default.`
-		)
-	elseif view.nextDebate then
-		table.insert(
-			out,
-			`Next debate: week {view.nextDebate.week}, topics {table.concat(view.nextDebate.topics, ", ")}. No prep to submit this week.`
 		)
 	end
 	table.insert(out, "")
@@ -650,11 +641,6 @@ local function recapLines(payload: any): { string }
 	return out
 end
 
-local function eventLines(slot: Slot): { string }
-	local payload = slot.latest
-	return Format.events(slot.resolveEvents, if payload then payload.you else slot.n)
-end
-
 local function buildScreen(slot: Slot, extraOutput: { string }): string
 	local payload = slot.latest
 	local view = payload.view
@@ -666,9 +652,19 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 		table.insert(out, text)
 	end
 	add(`TURN: {slot.screens}`)
+	add(`REFRESH: {slot.refreshes}`)
 	add(
 		`PLAYER: p{slot.n} ({slot.name}), seat P{you}     MATCH: {payload.matchId}     STEP: {payload.step}     ATTEMPT: {turn.attempts + 1} of {maxAttempts}`
 	)
+	if turn.attempts > 0 then
+		local left = maxAttempts - turn.attempts
+		add(
+			`!!! YOUR LAST COMMAND FILE WAS REJECTED: {left} attempt{if left == 1 then "" else "s"} left before the harness plays "{if turn.phase
+					== "Plan"
+				then "pass"
+				else "auto"}" for you !!!`
+		)
+	end
 	add(`STATUS: {ui.status}`)
 	add(
 		`ACTION NEEDED: {turn.label}. Write your command(s) to p{slot.n}.cmd.txt in the duel directory (tests/duel/send.sh does it).`
@@ -708,11 +704,6 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 		add("")
 		add(`Projected EV at the start of each plan (you-them): {table.concat(slot.trend, ", ")}`)
 	end
-	local fresh = eventLines(slot)
-	if #fresh > 0 then
-		add("")
-		add(`Server events of the last resolve: {table.concat(fresh, "; ")}`)
-	end
 	add("")
 	add("=== LOG SINCE YOUR LAST TURN ===")
 	local history = rig.history[slot.peer]
@@ -734,9 +725,16 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 	return table.concat(out, "\n") .. "\n"
 end
 
--- Starts (or restarts, after a rejection) the screen for a pending player.
-local function showScreen(slot: Slot, output: { string })
-	slot.screens += 1
+-- Starts (or restarts, after a rejection) the screen for a pending player. A
+-- refresh rewrites the same turn after info commands (show, help): TURN stays,
+-- REFRESH grows, so notes keyed by turn number stay right.
+local function showScreen(slot: Slot, output: { string }, refresh: boolean?)
+	if refresh then
+		slot.refreshes += 1
+	else
+		slot.screens += 1
+		slot.refreshes = 0
+	end
 	local turn = slot.turn :: Turn
 	turn.shownAt = nowSeconds()
 	local text = buildScreen(slot, output)
@@ -744,7 +742,6 @@ local function showScreen(slot: Slot, output: { string })
 	removeFile(path(`p{slot.n}.cmd.txt`))
 	writeAtomic(path(`p{slot.n}.screen.txt`), text)
 	slot.mark = #rig.history[slot.peer]
-	slot.resolveEvents = {}
 end
 
 -- ---------------------------------------------------------------- commands
@@ -871,10 +868,42 @@ local function runCommands(slot: Slot, commands: { string }): (boolean, boolean,
 	return locked, rejectedAny, report
 end
 
+local function writeResult(slot: Slot, turnNo: number, status: string, report: { string })
+	local out = { `TURN: {turnNo}`, `STATUS: {status}` }
+	for _, line in report do
+		table.insert(out, line)
+	end
+	writeAtomic(path(`p{slot.n}.result.txt`), table.concat(out, "\n") .. "\n")
+end
+
+-- The harness default for this turn: "pass" in a plan week, else "auto".
+local function defaultMove(turn: Turn): string
+	return if turn.phase == "Plan" then "pass" else "auto"
+end
+
+-- What a rejected screen and verdict say about the attempts left.
+local function attemptsLeft(turn: Turn): string
+	local left = maxAttempts - turn.attempts
+	return `{left} attempt{if left == 1 then "" else "s"} left before the harness plays "{defaultMove(turn)}" for you`
+end
+
+-- The verdict when the harness played the default: its own lines first, then
+-- what the player sent (so AUTO-SUBMITTED never reads as part of a rejection).
+local function autoSubmitted(slot: Slot, answered: number, harness: { string }, sent: { string })
+	local report = table.clone(harness)
+	if #sent > 0 then
+		table.insert(report, "--- your last command file, for reference ---")
+		for _, line in sent do
+			table.insert(report, line)
+		end
+	end
+	writeResult(slot, answered, "AUTO-SUBMITTED (this turn is over for you)", report)
+end
+
 -- The harness's own move when a player runs out of tries or time.
 local function defaultSubmit(slot: Slot, why: string): ({ string }, boolean)
 	local turn = slot.turn :: Turn
-	local first = if turn.phase == "Plan" then "pass" else "auto"
+	local first = defaultMove(turn)
 	note(`p{slot.n} {turn.label}: {why}; submitting {first}`)
 	Support.type(rig, slot.peer, first)
 	if not accepted(slot, turn) then
@@ -896,14 +925,6 @@ local function fallback(slot: Slot, why: string): { string }
 		fallbackFailures += 1
 	end
 	return report
-end
-
-local function writeResult(slot: Slot, turnNo: number, status: string, report: { string })
-	local out = { `TURN: {turnNo}`, `STATUS: {status}` }
-	for _, line in report do
-		table.insert(out, line)
-	end
-	writeAtomic(path(`p{slot.n}.result.txt`), table.concat(out, "\n") .. "\n")
 end
 
 -- ---------------------------------------------------------------- loop
@@ -983,19 +1004,27 @@ local function serve(slot: Slot, pending: { key: string, payload: any })
 		end
 		local answered = slot.screens
 		if #commands == 0 then
-			writeResult(slot, answered, "NOTHING TO DO: the command file was empty", {})
 			current.attempts += 1
 			if current.attempts >= maxAttempts then
 				local report = fallback(slot, "no valid command after the allowed attempts")
-				writeResult(slot, answered, "AUTO-SUBMITTED", report)
+				autoSubmitted(slot, answered, report, { "(your command file was empty)" })
 				removeFile(path(`p{slot.n}.screen.txt`))
 				slot.turn = nil
 			else
+				writeResult(
+					slot,
+					answered,
+					`NOTHING TO DO: the command file was empty; {attemptsLeft(current)}`,
+					{}
+				)
 				showScreen(slot, { "(your command file was empty)" })
 			end
 			return
 		end
 		local locked, rejected, report = runCommands(slot, commands)
+		-- The report already shows what these commands printed: keep it out of the
+		-- next screen's log.
+		slot.mark = #rig.history[slot.peer]
 		if locked then
 			writeResult(slot, answered, "ACCEPTED", report)
 			removeFile(path(`p{slot.n}.screen.txt`))
@@ -1007,30 +1036,31 @@ local function serve(slot: Slot, pending: { key: string, payload: any })
 			current.attempts += 1
 		end
 		if current.attempts >= maxAttempts then
-			table.insert(report, `HARNESS: that was attempt {current.attempts} of {maxAttempts}.`)
-			local more = fallback(slot, "too many rejected commands")
-			for _, line in more do
-				table.insert(report, line)
-			end
-			writeResult(slot, answered, "AUTO-SUBMITTED", report)
+			local harness = fallback(slot, `{maxAttempts} rejected command files on this turn`)
+			autoSubmitted(slot, answered, harness, report)
 			removeFile(path(`p{slot.n}.screen.txt`))
 			slot.turn = nil
 			return
 		end
-		writeResult(
-			slot,
-			answered,
-			if rejected then "REJECTED: nothing locked, try again" else "OK: not locked in yet",
-			report
-		)
-		showScreen(slot, report)
+		if rejected then
+			writeResult(slot, answered, `REJECTED: nothing locked; {attemptsLeft(current)}`, report)
+			showScreen(slot, report)
+		else
+			writeResult(
+				slot,
+				answered,
+				"OK: not locked in yet (info only: same TURN, the screen was refreshed with the output)",
+				report
+			)
+			showScreen(slot, report, true)
+		end
 		return
 	end
 	if nowSeconds() - current.shownAt >= timeout then
 		local answered = slot.screens
 		local report = fallback(slot, `no command within {timeout} s`)
 		removeFile(path(`p{slot.n}.cmd.txt`))
-		writeResult(slot, answered, "AUTO-SUBMITTED", report)
+		autoSubmitted(slot, answered, report, {})
 		removeFile(path(`p{slot.n}.screen.txt`))
 		slot.turn = nil
 	end
