@@ -116,11 +116,16 @@ describe("Candidates", function()
 		expect(hi - lo <= C.DEBATE_MAX_STAT_GAP):toBe(true)
 	end)
 
-	it("applies the roster overrides (revision 2 as retuned in D-022)", function()
+	it("applies the roster overrides (revision 2 as retuned in D-022, D-023)", function()
 		expect(Candidates.profile(C, "calloway").apPerWeek):toBe(4)
 		expect(Candidates.profile(C, "calloway").rallySupport):toBe(2.3)
-		expect(Candidates.profile(C, "hale").debateStat):toBe(2)
+		expect(Candidates.profile(C, "hale").debateStat):toBe(C.DEBATE_STAT) -- D-023: prep, not stat
+		expect(Candidates.profile(C, "hale").debatePrep):toBe(8)
 		expect(Candidates.profile(C, "hale").startCash):toBe(0)
+		expect(Candidates.profile(C, "venkat").debateStat):toBe(C.DEBATE_STAT) -- D-023: income, not stat
+		expect(Candidates.profile(C, "venkat").passiveIncome):toBe(3)
+		expect(Candidates.profile(C, "okafor").rallyMult):toBe(1)
+		expect(Candidates.profile(C, "okafor").fundraiseMult):toBe(1.5)
 		expect(Candidates.profile(C, "alvarado").startCash):toBe(20)
 		expect(Candidates.profile(C, "alvarado").passiveIncome):toBe(3.75)
 		expect(Candidates.profile(C, "reyes").momentumGainMult):toBe(1.65)

@@ -179,7 +179,7 @@ describe("Resolve: fundraisers", function()
 		oh.isHome, oh.owner = true, 1
 		match = run(match, { { kind = "Fundraise", state = "OH" } }, {})
 		local raw = 2 + 6 * 0.35
-		expect(match.players[1].raised):toBeCloseTo(raw * 1.3 * C.HOME_FUNDRAISE_MULT)
+		expect(match.players[1].raised):toBeCloseTo(raw * 1.5 * C.HOME_FUNDRAISE_MULT)
 		expect(at(match, "OH").capacity - at(match, "OH").pool):toBeCloseTo(
 			raw - at(match, "OH").capacity * C.POOL_REFILL
 		)

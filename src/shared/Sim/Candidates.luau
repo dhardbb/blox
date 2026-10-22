@@ -2,7 +2,7 @@
 -- The candidate roster as data. Each candidate is the default profile (built from
 -- Config) plus a few overrides, so a ninth candidate is a data change, not code.
 -- Values are revision 2 (docs/DESIGN.md D-011) as retuned by the first balance pass
--- (D-022). Names are fictional placeholders.
+-- (D-022, D-023). Names are fictional placeholders.
 
 local ConfigModule = require("./Config")
 
@@ -51,9 +51,9 @@ local ROSTER: { Entry } = {
 		id = "okafor",
 		name = "Dana Okafor",
 		archetype = "The Fundraiser",
-		perk = "Fundraisers yield +30%",
-		drawback = "Rallies -10%",
-		overrides = { fundraiseMult = 1.3, rallyMult = 0.9 },
+		perk = "Fundraisers yield +50%",
+		drawback = "None",
+		overrides = { fundraiseMult = 1.5 },
 	},
 	{
 		id = "calloway",
@@ -68,16 +68,16 @@ local ROSTER: { Entry } = {
 		name = "Priya Venkat",
 		archetype = "The Ad Wizard",
 		perk = "Media buys cost $2; repeat buys keep 70% of their value",
-		drawback = "Debate stat 0",
-		overrides = { mediaCost = 2, mediaSaturation = 0.7, debateStat = 0 },
+		drawback = "Income $3 a week instead of $4",
+		overrides = { mediaCost = 2, mediaSaturation = 0.7, passiveIncome = 3 },
 	},
 	{
 		id = "hale",
 		name = "Marcus Hale",
 		archetype = "The Debater",
-		perk = "Debate stat 2",
+		perk = "8 debate prep points instead of 6",
 		drawback = "Starts with no money",
-		overrides = { debateStat = 2, startCash = 0 },
+		overrides = { debatePrep = 8, startCash = 0 },
 	},
 	{
 		id = "alvarado",
