@@ -244,6 +244,7 @@ local EVENTS = {
 	ChildAdded = true,
 	PlayerAdded = true,
 	PlayerRemoving = true,
+	InputBegan = true,
 }
 
 local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
@@ -344,11 +345,40 @@ function methods.GetDescendants(self: any): { any }
 	return out
 end
 
+local GUI_OBJECTS = {
+	Frame = true,
+	ScrollingFrame = true,
+	TextLabel = true,
+	TextButton = true,
+	TextBox = true,
+	ImageLabel = true,
+	ImageButton = true,
+	CanvasGroup = true,
+}
+local GUI_BUTTONS = { TextButton = true, ImageButton = true }
+
 function methods.IsA(self: any, className: string): boolean
 	return self.ClassName == className
-		or (className == "GuiObject" and TEXT_CLASSES[self.ClassName] ~= nil)
+		or (className == "GuiObject" and GUI_OBJECTS[self.ClassName] ~= nil)
+		or (className == "GuiButton" and GUI_BUTTONS[self.ClassName] ~= nil)
 		or (className == "Instance")
 end
+
+function methods.GetAttribute(self: any, name: string): any
+	local attributes = rawget(self, "_attributes")
+	return if attributes then attributes[name] else nil
+end
+
+function methods.SetAttribute(self: any, name: string, value: any)
+	local attributes = rawget(self, "_attributes")
+	if attributes == nil then
+		attributes = {}
+		rawset(self, "_attributes", attributes)
+	end
+	attributes[name] = value
+end
+
+function methods.SetCoreGuiEnabled(_self: any, _kind: any, _enabled: boolean) end
 
 function methods.Destroy(self: any)
 	self.Parent = nil
@@ -649,7 +679,17 @@ local clientFolder: any = nil -- StarterPlayerScripts contents, mounted once per
 local function newGame(world: World, isServer: boolean): any
 	local game = newInstance(world, "DataModel", "Game")
 	local services = rawget(game, "_services")
-	for _, name in { "Players", "Workspace", "RunService", "ServerScriptService", "StarterPlayer" } do
+	for _, name in
+		{
+			"Players",
+			"Workspace",
+			"RunService",
+			"ServerScriptService",
+			"StarterPlayer",
+			"StarterGui",
+			"UserInputService",
+		}
+	do
 		local service = newInstance(world, name, name)
 		service.Parent = game
 		services[name] = service
@@ -724,10 +764,18 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 end
 
 -- A player joins: the server sees PlayerAdded, and the client scripts start.
-function FakeRoblox.join(world: World, name: string): Peer
+-- `attributes` are set on that client's workspace first (e.g. DebugScreen = "Plan"
+-- renders a fixture screen offline; see src/client/App.client.luau).
+function FakeRoblox.join(world: World, name: string, attributes: { [string]: any }?): Peer
 	local userId = world.nextUserId
 	world.nextUserId += 1
 	local peer = newPeer(world, name, false)
+	if attributes then
+		local clientWorkspace = peer.game:GetService("Workspace")
+		for key, value in attributes do
+			clientWorkspace:SetAttribute(key, value)
+		end
+	end
 
 	local function makePlayer(game: any): any
 		local player = newInstance(world, "Player", name)

@@ -4,6 +4,7 @@
 		"sim": "./src/shared/Sim",
 		"shared": "./src/shared",
 		"net": "./src/shared/Net",
+		"ui": "./src/shared/UI",
 		"testlib": "./tests/lib"
 	}
 }
