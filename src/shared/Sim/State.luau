@@ -41,6 +41,7 @@ export type StateSim = {
 	momentum: { number }, -- by player (public)
 	backlash: { number }, -- attack backlash meter by player
 	gotv: { number }, -- ground-game units by player (hidden from opponents)
+	debateShift: { number }, -- support each player gained from debates so far (hidden; harness counterfactual)
 	pollError: { number }, -- persistent public poll error on each share, zero-sum (hidden)
 	pollErrorUndecided: number, -- persistent error on undecided (hidden)
 	poll: Poll?, -- latest public poll (nil before the first one)

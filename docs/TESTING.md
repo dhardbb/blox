@@ -85,3 +85,13 @@ Start with **Test → Clients and Servers → Local Server, 2 Players → Start*
    The server Output shows `[270] rejected Submit from Player1 (...): NotInMatch` (or `StaleStep`/a plan reason during a match), and nothing changes.
 
 **Send back:** the server Output and both client Outputs (right-click → Copy all) from steps 1–3, any rejection or red error lines from the rest, a screenshot of one client mid-campaign, and how long the step 2 practice match took.
+
+## Balance pass 1 (unreleased)
+
+Numbers only; nothing new to click. Confirms the retuned roster loads in Roblox.
+
+1. Open `270.rbxl` and press **Play** (F5).
+   - Output shows the `[270] sim self-test:` line as in Phase 1, with no `FAILED` warning. The two EV numbers add up to 538.
+2. Press **Play** a few more times. Over several runs you should see different candidates named; any of the eight may appear and win.
+
+**Send back:** the self-test lines from three runs.

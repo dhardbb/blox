@@ -1,7 +1,8 @@
 --!strict
 -- The candidate roster as data. Each candidate is the default profile (built from
 -- Config) plus a few overrides, so a ninth candidate is a data change, not code.
--- Values are revision 2 (docs/DESIGN.md D-011). Names are fictional placeholders.
+-- Values are revision 2 (docs/DESIGN.md D-011) as retuned by the first balance pass
+-- (D-022, D-023). Names are fictional placeholders.
 
 local ConfigModule = require("./Config")
 
@@ -50,51 +51,51 @@ local ROSTER: { Entry } = {
 		id = "okafor",
 		name = "Dana Okafor",
 		archetype = "The Fundraiser",
-		perk = "Fundraisers yield +30%",
-		drawback = "Rallies -10%",
-		overrides = { fundraiseMult = 1.3, rallyMult = 0.9 },
+		perk = "Fundraisers yield +50%",
+		drawback = "None",
+		overrides = { fundraiseMult = 1.5 },
 	},
 	{
 		id = "calloway",
 		name = "Rex Calloway",
 		archetype = "The Barnstormer",
 		perk = "4 AP per week",
-		drawback = "Rallies +2.2 instead of +3.0; media buys cost $4",
-		overrides = { apPerWeek = 4, rallySupport = 2.2, mediaCost = 4 },
+		drawback = "Rallies +2.3 instead of +3.0; media buys cost $4",
+		overrides = { apPerWeek = 4, rallySupport = 2.3, mediaCost = 4 },
 	},
 	{
 		id = "venkat",
 		name = "Priya Venkat",
 		archetype = "The Ad Wizard",
 		perk = "Media buys cost $2; repeat buys keep 70% of their value",
-		drawback = "Debate stat 0",
-		overrides = { mediaCost = 2, mediaSaturation = 0.7, debateStat = 0 },
+		drawback = "Income $3 a week instead of $4",
+		overrides = { mediaCost = 2, mediaSaturation = 0.7, passiveIncome = 3 },
 	},
 	{
 		id = "hale",
 		name = "Marcus Hale",
 		archetype = "The Debater",
-		perk = "Debate stat 2",
-		drawback = "Starts with $4 instead of $8",
-		overrides = { debateStat = 2, startCash = 4 },
+		perk = "8 debate prep points instead of 6",
+		drawback = "Starts with no money",
+		overrides = { debatePrep = 8, startCash = 0 },
 	},
 	{
 		id = "alvarado",
 		name = "June Alvarado",
 		archetype = "The Insider",
-		perk = "Starts with $18",
-		drawback = "Income $3 a week instead of $4",
-		overrides = { startCash = 18, passiveIncome = 3 },
+		perk = "Starts with $20",
+		drawback = "Income $3.75 a week instead of $4",
+		overrides = { startCash = 20, passiveIncome = 3.75 },
 	},
 	{
 		id = "reyes",
 		name = "Tomas Reyes",
 		archetype = "The Insurgent",
-		perk = "Underdog bonuses doubled; momentum gained +50%",
+		perk = "Underdog bonuses doubled; momentum gained +65%",
 		drawback = "Momentum fades faster; weaker rallies and fundraisers while far ahead",
 		overrides = {
 			underdogScale = 2,
-			momentumGainMult = 1.5,
+			momentumGainMult = 1.65,
 			momentumDecay = 0.25,
 			frontrunnerEV = 40,
 			frontrunnerRallyMult = 0.9,
@@ -106,16 +107,16 @@ local ROSTER: { Entry } = {
 		name = "Helen Strand",
 		archetype = "The Pollster",
 		perk = "Two free internal polls per week",
-		drawback = "Media buys -10%",
-		overrides = { freePolls = 2, mediaMult = 0.9 },
+		drawback = "Media buys -15%",
+		overrides = { freePolls = 2, mediaMult = 0.85 },
 	},
 	{
 		id = "begay",
 		name = "Walt Begay",
 		archetype = "The Organizer",
 		perk = "Ground game costs $1 per unit and caps at 6 per state",
-		drawback = "Rallies +2.4 instead of +3.0",
-		overrides = { gotvCost = 1, gotvMaxUnits = 6, rallySupport = 2.4 },
+		drawback = "Rallies +2.9 instead of +3.0",
+		overrides = { gotvCost = 1, gotvMaxUnits = 6, rallySupport = 2.9 },
 	},
 }
 

@@ -30,6 +30,28 @@ describe("Config", function()
 		end
 	end)
 
+	it("a debate sweep is meaningful, never decisive (D-019)", function()
+		-- A 3-0 sweep moves the population-weighted average by under one point, so it
+		-- cannot by itself outrun election-day noise in a tied state.
+		local sweep = C.DEBATE_TOPICS * C.DEBATE_TOPIC_WIN + C.DEBATE_SWEEP
+		expect(sweep < 1):toBe(true)
+		expect(sweep >= 0.5):toBe(true)
+		expect(C.DEBATE_GAFFE <= C.DEBATE_TOPIC_WIN):toBe(true)
+		-- The roll dilutes a one-point edge: with a 0..6 roll, +1 wins 57% and loses 31%.
+		expect(C.DEBATE_ROLL_MAX >= 2 * C.DEBATE_PLATFORM_BONUS):toBe(true)
+	end)
+
+	it("ground game beats a poorly matched media buy per dollar (D-021)", function()
+		-- Hidden, unsaturating and placed late, GOTV must be the better use of a dollar
+		-- somewhere, or nobody buys it. Compare with a media buy on a mismatched issue.
+		local gotvPerDollar = C.GOTV_PER_UNIT / C.GOTV_COST
+		local mediaMargin = C.MEDIA_SUPPORT * C.ISSUE_MULT_NEITHER * (2 - C.GAIN_FROM_UNDECIDED)
+		expect(gotvPerDollar > mediaMargin / C.MEDIA_COST):toBe(true)
+		-- ... but not a well matched one, so it stays a late-game sink, not the default.
+		local bestMedia = C.MEDIA_SUPPORT * C.ISSUE_MULT_BOTH * (2 - C.GAIN_FROM_UNDECIDED)
+		expect(gotvPerDollar < bestMedia / C.MEDIA_COST):toBe(true)
+	end)
+
 	it("worst-case match fits the 17.5-minute budget (D-005)", function()
 		local worst = C.TIMER_SELECT
 			+ C.TIMER_MAP_REVEAL
@@ -94,11 +116,22 @@ describe("Candidates", function()
 		expect(hi - lo <= C.DEBATE_MAX_STAT_GAP):toBe(true)
 	end)
 
-	it("applies revision-2 overrides", function()
+	it("applies the roster overrides (revision 2 as retuned in D-022, D-023)", function()
 		expect(Candidates.profile(C, "calloway").apPerWeek):toBe(4)
-		expect(Candidates.profile(C, "calloway").rallySupport):toBe(2.2)
-		expect(Candidates.profile(C, "hale").debateStat):toBe(2)
-		expect(Candidates.profile(C, "hale").startCash):toBe(4)
+		expect(Candidates.profile(C, "calloway").rallySupport):toBe(2.3)
+		expect(Candidates.profile(C, "hale").debateStat):toBe(C.DEBATE_STAT) -- D-023: prep, not stat
+		expect(Candidates.profile(C, "hale").debatePrep):toBe(8)
+		expect(Candidates.profile(C, "hale").startCash):toBe(0)
+		expect(Candidates.profile(C, "venkat").debateStat):toBe(C.DEBATE_STAT) -- D-023: income, not stat
+		expect(Candidates.profile(C, "venkat").passiveIncome):toBe(3)
+		expect(Candidates.profile(C, "okafor").rallyMult):toBe(1)
+		expect(Candidates.profile(C, "okafor").fundraiseMult):toBe(1.5)
+		expect(Candidates.profile(C, "alvarado").startCash):toBe(20)
+		expect(Candidates.profile(C, "alvarado").passiveIncome):toBe(3.75)
+		expect(Candidates.profile(C, "reyes").momentumGainMult):toBe(1.65)
+		expect(Candidates.profile(C, "strand").mediaMult):toBe(0.85)
+		expect(Candidates.profile(C, "begay").rallySupport):toBe(2.9)
+		expect(Candidates.profile(C, "begay").gotvCost):toBe(1)
 		expect(Candidates.profile(C, "reyes").momentumDecay):toBe(0.25)
 		expect(Candidates.profile(C, "reyes").frontrunnerEV):toBe(40)
 		expect(Candidates.profile(C, "okafor").frontrunnerEV):toBe(nil)

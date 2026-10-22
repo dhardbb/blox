@@ -176,4 +176,46 @@ describe("Debates", function()
 		local result = Debate.resolve(C, match)
 		expect(result.prep[2]):toEqual({ 2, 2, 2 })
 	end)
+
+	it("records the support each debate moved, per state and player", function()
+		for seed = 1, 10 do
+			local match = Fixtures.advanceTo(Fixtures.campaign({ seed = seed }), "Debate", 4)
+			match.players[1].debatePrep = { 4, 2, 0 }
+			match.players[2].debatePrep = { 0, 2, 4 }
+			local before = {}
+			for i, s in match.states do
+				before[i] = table.clone(s.support)
+				expect(s.debateShift):toEqual({ 0, 0 })
+			end
+			local result = Debate.resolve(C, match)
+			local moved = false
+			for i, s in match.states do
+				for p = 1, 2 do
+					expect(s.debateShift[p]):toBeCloseTo(s.support[p] - before[i][p], 1e-9)
+					if math.abs(s.debateShift[p]) > 1e-9 then
+						moved = true
+					end
+				end
+			end
+			expect(moved):toBe(result.national[1] ~= 0 or result.national[2] ~= 0)
+		end
+	end)
+
+	it("the election can be recounted without the debates' shifts", function()
+		local match = board(function(s)
+			s.support, s.undecided = { 45, 45 }, 10
+			s.debateShift = { 0, 0 }
+		end)
+		local oh = State.get(match, "OH")
+		oh.support = { 46, 44 }
+		oh.debateShift = { 1.5, -0.5 } -- the debate turned a 44.5-44.5 tie into 46-44
+		local with = Election.count(C, match, { noise = false })
+		local without = Election.count(C, match, { noise = false, debates = false })
+		expect(with.ev[1]):toBe(17)
+		expect(without.ev[1]):toBe(0)
+		expect(without.ev[2]):toBe(0) -- 44.5 each: an exact tie awards nobody
+		-- The same seeded noise is used in both counts.
+		local noisy = Election.count(C, match, { debates = false })
+		expect(noisy.ev[1] + noisy.ev[2] <= 538):toBe(true)
+	end)
 end)

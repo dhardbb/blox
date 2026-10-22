@@ -103,7 +103,18 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 			end
 		end
 	end
+	-- Apply the national shifts and record what each state's support actually moved
+	-- by, so the harness can recount the election without the debates.
+	local before: { { number } } = {}
+	for i, s in match.states do
+		before[i] = table.clone(s.support)
+	end
 	Support.national(config, match.states, national)
+	for i, s in match.states do
+		for p = 1, n do
+			s.debateShift[p] += s.support[p] - before[i][p]
+		end
+	end
 
 	for _, player in match.players do
 		player.debatePrep = nil
