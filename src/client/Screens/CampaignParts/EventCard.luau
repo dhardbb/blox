@@ -1,7 +1,7 @@
 --!strict
 -- The two cards about the week (UI overhaul §3.4):
 --
--- The event card, a Collapsible: "Event · Windfall · Donor retreat ▾" with the
+-- The event card, a Collapsible: "Event · Windfall · Donor retreat +" with the
 -- effect line always under it (so collapsed it is still two lines), and the
 -- flavor text, the map note and, in Choice weeks, the three answer chips in its
 -- body. Expanded by default in Choice, Spotlight and Regional weeks, collapsed

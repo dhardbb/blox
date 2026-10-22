@@ -428,7 +428,7 @@ function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }
 	return button
 end
 
--- A 44x44 secondary button for a glyph: "×", "+", "−", "▾".
+-- A 44x44 secondary button for a glyph: "×", "+", "−".
 function Kit.iconButton(glyph: string, onActivate: () -> (), props: { [string]: any }?): TextButton
 	return Kit.button(
 		glyph,

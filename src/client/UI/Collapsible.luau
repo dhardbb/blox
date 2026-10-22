@@ -1,7 +1,7 @@
 --!strict
 -- A panel whose 44 px title row toggles its body (docs/DESIGN.md D-030): the
 -- event card, the week card, the state list, the Draft board on phones. The
--- title row reads "Title ▾" when collapsed and "Title ▴" when expanded. The
+-- title row reads "Title +" when collapsed and "Title –" when expanded. The
 -- panel grows with its body (AutomaticSize Y), so it belongs in a list layout.
 --
 --   local card = Collapsible.new(parent, { title = "Week card", expanded = false,
@@ -17,8 +17,8 @@ local Kit = require(script.Parent.Kit)
 
 local Collapsible = {}
 
-local COLLAPSED = "▾"
-local EXPANDED = "▴"
+local COLLAPSED = "+" -- Gotham has no ▾/▴ (they render as boxes)
+local EXPANDED = "–"
 
 export type Options = {
 	title: string,

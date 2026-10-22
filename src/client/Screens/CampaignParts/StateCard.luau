@@ -10,9 +10,9 @@
 --   ▲ you 2.0 · them 1.0        0 / 4 · pool size $8.9
 --   Top issues: Jobs, Schools
 --   Message for rallies and ads
---   [Jobs ×1.5] [Schools ×1.2] [Health ×1.0] [More ▾]
+--   [Jobs ×1.5] [Schools ×1.2] [Health ×1.0] [More +]
 --   [Rally] [Fundraise] [Ad $3.0] / [Attack ad] [Poll] [Ground game +1] / [Region poll] [Pivot]
---   All states · sorted closest ▾
+--   All states · sorted closest
 --
 -- During a reveal the card stays up read-only (numbers, no actions), so a player
 -- can inspect a state while the results play.
@@ -215,7 +215,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		issueChips[issue] = button
 	end
 	local moreChip: TextButton
-	moreChip = Kit.button("More ▾", function()
+	moreChip = Kit.button("More +", function()
 		if moreChip.Active == false then
 			return
 		end
@@ -514,7 +514,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 			Kit.setEnabled(button, canEdit)
 		end
 		moreChip.Visible = extra > 0
-		moreChip.Text = if model.moreIssues then "Fewer ▴" else "More ▾"
+		moreChip.Text = if model.moreIssues then "Fewer –" else "More +"
 		Kit.setEnabled(moreChip, canEdit)
 		moreGrid.Visible = model.moreIssues and extra > 0
 	end

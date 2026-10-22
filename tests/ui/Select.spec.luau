@@ -182,7 +182,7 @@ describe("Select fits above the pinned bar", function()
 			bottom(issues) <= bottom(scroll),
 			`issues end at {bottom(issues)}, the scroll at {bottom(scroll)}`
 		)
-		check(not Rig.contains(status(peer), "▾"), `status points below the fold: {status(peer)}`)
+		check(not Rig.contains(status(peer), "(scroll down)"), `status points below the fold: {status(peer)}`)
 		expect(strictAudit(world, peer)):toBe(0)
 		Rig.noErrors(world)
 	end)
@@ -196,7 +196,10 @@ describe("Select fits above the pinned bar", function()
 		local issues = Rig.need(peer, "Select", "Issues")
 		check(bottom(issues) > bottom(Rig.need(peer, "Select", "Scroll")), "the phone needs no scrolling")
 		local text = status(peer)
-		check(Rig.contains(text, "Still to pick:") and Rig.contains(text, "▾"), `status line: {text}`)
+		check(
+			Rig.contains(text, "Still to pick:") and Rig.contains(text, "(scroll down)"),
+			`status line: {text}`
+		)
 		expect(strictAudit(world, peer)):toBe(0)
 		Rig.noErrors(world)
 	end)
@@ -205,7 +208,7 @@ describe("Select fits above the pinned bar", function()
 		local world, peer = Rig.fixture("Select", Rig.PHONE)
 		expect(Rig.textOf(peer, "Select", "Color_Teal")):toBe("Te")
 		Rig.tap(world, peer, "Select", "Color_Teal")
-		expect(Rig.textOf(peer, "Select", "Color_Teal")):toBe("✓ Te")
+		expect(Rig.textOf(peer, "Select", "Color_Teal")):toBe("• Te")
 		local _, wide = Rig.fixture("Select", nil)
 		expect(Rig.textOf(wide, "Select", "Color_Emerald")):toBe("Emerald")
 		Rig.noErrors(world)
@@ -261,7 +264,7 @@ describe("Select action bar", function()
 		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 		Rig.pickAll(world, peer)
 		local chip = Rig.need(peer, "Select", "Issue_Jobs")
-		check(string.sub(tostring(chip.Text), 1, 3) == "✓", `picked chip reads {chip.Text}`)
+		check(string.sub(tostring(chip.Text), 1, 3) == "•", `picked chip reads {chip.Text}`)
 		check(
 			Rig.contains(tostring(chip.Text), "EV") and not Rig.contains(tostring(chip.Text), "\n"),
 			"two-line chip"
@@ -269,7 +272,7 @@ describe("Select action bar", function()
 		check(not same(chip.BackgroundColor3, Kit.colors.accent), "a picked chip is filled with the accent")
 		expect(chip:GetAttribute("Selected")):toBe(true)
 		check(
-			Rig.contains(tostring(Rig.need(peer, "Select", "Color_Teal").Text), "✓"),
+			Rig.contains(tostring(Rig.need(peer, "Select", "Color_Teal").Text), "•"),
 			"no check on the color"
 		)
 		expect(Rig.need(peer, "Select", "Candidate_hale"):GetAttribute("Selected")):toBe(true)

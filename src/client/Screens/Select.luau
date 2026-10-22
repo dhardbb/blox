@@ -7,7 +7,7 @@
 -- scroll area, and the pinned ActionBar with "Lock in". The scroll content is
 -- stacked with explicit pixel positions (no list layout), so the fake engine
 -- can measure it and the status line knows when the issues are below the fold
--- ("Still to pick: 2 issues ▾"). On 16:9 everything fits without scrolling; on
+-- ("Still to pick: 2 issues (scroll down)"). On 16:9 everything fits without scrolling; on
 -- a phone the issues scroll.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -37,7 +37,7 @@ local HINT_H = 20 -- px, the platform hint on one line
 local HINT_H_PORTRAIT = 34 -- px, the platform hint wrapped to two lines
 local SELECTED_STROKE = 3 -- px, the outline of the picked card and swatch
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
-local CHECK = "✓ "
+local CHECK = "• " -- the Gotham font has no ✓
 
 -- Where each block of the scroll content sits, for one orientation.
 type Stack = {
@@ -396,7 +396,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if missingIssues > 0 then
 				table.insert(missing, plural(missingIssues, "issue"))
 			end
-			local below = if missingIssues > 0 and issuesBelowFold() then " ▾" else ""
+			local below = if missingIssues > 0 and issuesBelowFold() then " (scroll down)" else ""
 			bar:setStatus(`Still to pick: {table.concat(missing, ", ")}{below}`, "muted")
 		end
 	end

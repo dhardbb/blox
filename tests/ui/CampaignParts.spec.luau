@@ -147,6 +147,11 @@ describe("Campaign parts: debate prep (B2)", function()
 			local prep, plan, lock = need(peer, "PrepPanel"), need(peer, "PlanList"), need(peer, "LockIn")
 			check(shown(prep), "no debate prep in the week before a debate")
 			check(prep.LayoutOrder < plan.LayoutOrder, "prep is listed after the plan")
+			-- The state card is tall; below it, prep would be scrolled out of sight (Studio, v0.4.0).
+			check(
+				prep.LayoutOrder < need(peer, "StateCard").LayoutOrder,
+				"prep is listed after the state card"
+			)
 			check(prep.AbsolutePosition.Y < lock.AbsolutePosition.Y, "prep is below Lock in")
 			check(
 				prep.AbsolutePosition.Y >= 0 and prep.AbsolutePosition.Y < size.screen.y,

@@ -56,9 +56,9 @@ local BACK_SECONDS = 4 -- how long "Opponent: back" shows after a reconnect
 local ORDER = {
 	reveal = 0,
 	choiceEvent = 1, -- the event card in a Choice week: the answer comes first
-	card = 2,
-	event = 3,
-	prep = 4, -- above the plan, so it is seen before Lock in (B2)
+	prep = 2, -- only shown when prep is due; above the tall state card so it is seen (B2)
+	card = 3,
+	event = 4,
 	plan = 5,
 	week = 6,
 }
