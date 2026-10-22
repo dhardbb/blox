@@ -229,20 +229,20 @@ Measured with everything above in place; "before" is the roster-wide win rate un
 
 Specs that encoded the old numbers were updated with them (Tomas momentum, Hale's starting cash, Okafor's fundraiser multiplier).
 
-### D-023 — Three perk shapes (proposed, needs approval)
+### D-023 — Three perk shapes (approved Oct 22, 2026)
 
-Tuning alone could not fix these; each is the smallest change that measured inside 45–55%. Pure-tuning alternatives and their numbers are listed so the humans can choose.
+Approved by the humans on Oct 22, 2026, as proposed below (the perk changes, not the tuning-only alternatives). Tuning alone could not fix these; each is the smallest change that measured inside 45–55%. Pure-tuning alternatives and their numbers are listed so the humans can choose.
 
 1. **Marcus Hale: "debate stat 2" → "8 prep points instead of 6".** A flat +1 on every topic score is not a decision and cannot be made small: at 0.2 per topic he was 66%, at 0.15 (debates deciding only 10% of matches) still 62%. Extra prep is a choice of where to stack and is bounded by `DEBATE_MAX_PER_TOPIC`. With prep 8 and $0 start: 51% (prep 8 at $4: 59%). Tuning-only alternative: stat 2 with $0 start → 59%.
 2. **Priya Venkat: drawback "debate stat 0" → "income $3".** Stat 0 was a lottery drawback and worth nothing once debates were small (she was 59% with it, 77% with debates off). Income $3 alone: 52–53%. Both together: 43%. Her perk is untouched.
 3. **Dana Okafor: drawback "rallies −10%" removed; perk +30% → +50%.** The bot's rally-or-fundraise choice is threshold-sensitive: rallies ×0.9 → 41%, ×0.95 → 42%, ×1.0 → 48–51%. Fundraising multipliers barely register (1.3 and 1.5 measured the same with the drawback in place), so +50% is a buff for humans at no measured cost. Tuning-only alternative: ×0.95 and +50% → 42%. If a drawback is wanted, "income $3" measured 42% (too much) and nothing between was tried.
 
 
-### D-024 — The blowout target is structural; a revised target (for the humans)
+### D-024 — The blowout target is structural; revised target (approved Oct 22, 2026)
 
 "≤ 15% decided by 40+ EV" is not reachable with winner-take-all. A per-week trace of true EV in okafor-vs-okafor mirrors with debates off (perfect symmetry, no perk or stat edge) shows the margin jump from 23 EV after the draft to about 50 EV after week 1 and then wander at 55–60 EV for the rest of the campaign, with about 150 EV within ±3 true points every week and the true-EV leader changing four times a match: not a snowball, a wide random walk. Whoever is a point ahead in the tipping-point states takes all of them. That symmetric floor is 61% decided by 40+ EV with a median margin of 52; the final package sits on it (60.4%, median 52, p25/p75 24/88, down from 80.5% and 108). Reducing the national debate shift and killing the Hale/Venkat edge is what moved it; `LEAN_STATE_COUNT` 50 buys another 2–3 points at the cost of the comeback target (D-019).
 
-*Proposed revised target:* ≤ 65% decided by 40+ EV, median margin ≤ 60 EV, and ≤ 25% decided by 100+ EV (now about 20%), with the comeback rate (38%) and "week-12 projected leader loses" (27%) as the real anti-snowball checks. Getting lower would need a mechanic (a bot or player that concentrates on tipping-point states converges; proportional allocation for some states; smaller leans of larger count) rather than a number.
+*Revised target (approved by the humans on Oct 22, 2026; the harness checks it):* ≤ 65% decided by 40+ EV, median margin ≤ 60 EV, and ≤ 25% decided by 100+ EV (now about 20%), with the comeback rate (38%) and "week-12 projected leader loses" (27%) as the real anti-snowball checks. Getting lower would need a mechanic (a bot or player that concentrates on tipping-point states converges; proportional allocation for some states; smaller leans of larger count) rather than a number.
 
 ### D-025 — Balance pass 1: final harness report (Oct 22, 2026)
 

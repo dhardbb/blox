@@ -84,7 +84,7 @@ end
 
 local priorityWins, comebacks, comebackEligible = 0, 0, 0
 local margins: { number } = {}
-local blowouts, invalid = 0, 0
+local blowouts, routs, invalid = 0, 0, 0
 local unspent, gotvSpend = 0, 0
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
 local gotvDecided, debateDecided, debateShiftEV, projectionWrong = 0, 0, 0, 0
@@ -119,6 +119,9 @@ for seed = 1, N do
 	table.insert(margins, margin)
 	if margin >= 40 then
 		blowouts += 1
+	end
+	if margin >= 100 then
+		routs += 1
 	end
 	invalid += r.invalid
 	unspent += (r.unspent[1] + r.unspent[2]) / 2
@@ -236,11 +239,16 @@ line(
 	"20-40%",
 	comebackRate >= 0.2 and comebackRate <= 0.4
 )
+local medianMargin = margins[math.ceil(#margins / 2)]
 line(
 	"Mean / median final EV margin",
-	string.format("%.0f / %.0f", meanMargin, margins[math.ceil(#margins / 2)])
+	string.format("%.0f / %.0f", meanMargin, medianMargin),
+	"median <= 60",
+	medianMargin <= 60
 )
-line("Decided by 40+ EV", pct(blowouts / N), "<= 15%", blowouts / N <= 0.15)
+-- Revised target (D-024): winner-take-all makes "<= 15% by 40+ EV" unreachable.
+line("Decided by 40+ EV", pct(blowouts / N), "<= 65%", blowouts / N <= 0.65)
+line("Decided by 100+ EV", pct(routs / N), "<= 25%", routs / N <= 0.25)
 line("Average money unspent at the end", string.format("$%.1f", unspent / N))
 line("Invalid bot inputs", tostring(invalid), "0", invalid == 0)
 local deciles = {}
