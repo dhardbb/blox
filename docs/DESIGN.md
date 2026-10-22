@@ -121,3 +121,9 @@ Values were estimated in contested-state margin points (MP), where 1 AP ≈ 6 MP
 - **Adjacency is shared land borders only.** Water-only neighbors (MI–MN, NY–RI) and the Four Corners point contacts (AZ–CO, UT–NM) are excluded, DC borders MD and VA, and Alaska and Hawaii have no neighbors (flight only). *Why:* a rule a player can check by looking at a map.
 - **Top issues are generic game data,** balanced so each issue is a top issue for 100–170 EV (current spread 106–160). Texas uses Farms instead of Technology to keep Technology from covering 180 EV. A spec enforces the band.
 - **Fundraising pools are derived, not stored:** capacity will be computed in `Config.luau` from state population (the next step), so pool tuning stays in one file.
+
+### D-015 — Pool capacity formula; POOL_MAX 14 → 12 (Oct 22, 2026, tuning)
+
+Capacity = min(`POOL_MAX`, `POOL_BASE` + `POOL_PER_MILLION` × population), computed by `Config.poolCapacity`. `POOL_MAX` drops from 14 to 12; only Texas (13.3) and California (14) change.
+
+*Why:* D-012 says no state, home included, may fund three fundraisers in one week. The smallest yield is 2 + 6 × 0.35 = 4.1 at starting support, so three need 12.3. At 14, a California home (41% support, 4.5 per fundraiser) could fund three. *Check:* `tests/sim/Config.spec` asserts every capacity is below three starting-support yields.

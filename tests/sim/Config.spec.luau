@@ -4,6 +4,7 @@
 local Test = require("@testlib/Test")
 local Config = require("@sim/Config")
 local Candidates = require("@sim/Candidates")
+local StateData = require("@sim/StateData")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -49,6 +50,16 @@ describe("Config", function()
 		expect(function()
 			(C.DRAFT_PRIORITY :: any)[1] = 2
 		end):toThrow()
+	end)
+
+	it("no state's pool funds three fundraisers at starting support (D-012)", function()
+		local smallestYield = C.FUNDRAISER_BASE + C.FUNDRAISER_PER_SHARE * C.BASE_SUPPORT / 100
+		for _, s in StateData.list do
+			local capacity = Config.poolCapacity(C, s.pop)
+			if capacity >= 3 * smallestYield then
+				error(`{s.id} pool {capacity} funds three fundraisers`)
+			end
+		end
 	end)
 
 	it("with() overrides known keys and rejects typos", function()

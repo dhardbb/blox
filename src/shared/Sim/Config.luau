@@ -56,7 +56,7 @@ local Config = {
 	FUNDRAISER_PER_SHARE = 6, -- extra yield x (your support / 100)
 	POOL_BASE = 6, -- state fundraising pool capacity: base
 	POOL_PER_MILLION = 0.25, -- plus this per million population
-	POOL_MAX = 14, -- capped so no state funds three fundraisers in one week (D-012)
+	POOL_MAX = 12, -- capped so no state funds three fundraisers in one week (D-012, D-015)
 	POOL_REFILL = 0.25, -- share of capacity refilled each week
 	MEDIA_COST = 3, -- money per media buy
 	MEDIA_SUPPORT = 1.6, -- base support from a media buy
@@ -158,6 +158,11 @@ local function with(base: Config, changes: { [string]: any }): Config
 	return table.freeze(copy)
 end
 
+-- Fundraising pool capacity of a state with `pop` million people (D-014).
+local function poolCapacity(config: Config, pop: number): number
+	return math.min(config.POOL_MAX, config.POOL_BASE + config.POOL_PER_MILLION * pop)
+end
+
 for _, value in Config :: any do
 	if type(value) == "table" then
 		table.freeze(value)
@@ -168,4 +173,5 @@ local defaults = table.freeze(Config)
 return table.freeze({
 	defaults = defaults,
 	with = with,
+	poolCapacity = poolCapacity,
 })
