@@ -4,7 +4,7 @@
 # "New" means its "TURN: k" or "REFRESH: r" line differs from the last screen this
 # script printed for that player (remembered in DIR/.pN.seen). TURN grows with
 # every new turn and after a rejection; REFRESH grows when info commands (show,
-# help) rewrote the same turn's screen with their output. After a match ends it
+# help, rules, bank) rewrote the same turn's screen with their output. After a match ends it
 # prints result.txt. `cat DIR/pN.screen.txt` re-reads the current screen without
 # waiting.
 dir="${1:?usage: wait.sh DIR N}"

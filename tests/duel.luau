@@ -20,7 +20,9 @@
 --                   when an info command rewrote the same turn's screen with its output
 --   pN.cmd.txt      written by the agent: one or more command lines. The harness types each
 --                   into the debug command box, then deletes the file
---   pN.result.txt   the harness's verdict on the last command file ("TURN: k" it answered)
+--   pN.result.txt   the harness's verdict on the last command file ("TURN: k" it answered):
+--                   ACCEPTED, REJECTED (uses an attempt), INFO (info lines only, such as
+--                   show/rules/help: never an attempt) or AUTO-SUBMITTED
 --   result.txt      the match result, written just before state.txt says "done"
 -- tests/duel/README.md has the protocol and a rules summary; tests/duel/wait.sh and
 -- send.sh wrap the file dance in two shell commands.
@@ -43,6 +45,7 @@ local Format = require("@shared/DebugUI/Format")
 local Numbers = require("@shared/UI/Numbers")
 local PlanDraft = require("@shared/UI/PlanDraft")
 local StateData = require("@shared/Sim/StateData")
+local Verdict = require("./duel/Verdict")
 
 -- ---------------------------------------------------------------- arguments
 
@@ -173,6 +176,8 @@ export type Turn = {
 	attempts: number, -- rejected command files so far
 	shownAt: number, -- real time the current screen appeared
 	output: { string }, -- what the last command file printed, shown on the next screen
+	focus: string?, -- the state of the last "show ST": WHAT TO DO previews it
+	focusShown: boolean, -- the last command file's output already holds that show
 }
 
 export type Slot = {
@@ -498,7 +503,7 @@ local function draftGuide(payload: any): { string }
 	return out
 end
 
-local function planGuide(payload: any): { string }
+local function planGuide(payload: any, turn: Turn): { string }
 	local view = payload.view
 	local you = payload.you
 	local me = view.players[you]
@@ -574,14 +579,24 @@ local function planGuide(payload: any): { string }
 			)}). Leave it out to keep the default.`
 		)
 	end
-	if location and me.candidate then
-		table.insert(
-			out,
-			`WHAT EACH ACTION WOULD DO in {location} (expected values; "show ST" gives this for any state):`
-		)
-		local message = PlanDraft.bestIssue(C, view, location)
-		for _, entry in Explain.previews(C, view, PlanDraft.new(), location, message) do
-			table.insert(out, `  {entry.text}`)
+	-- Previews follow the last "show ST" of this turn, else where the candidate is.
+	local previewAt = turn.focus or location
+	if previewAt and me.candidate then
+		if turn.focus and turn.focusShown then
+			table.insert(
+				out,
+				`WHAT EACH ACTION WOULD DO in {previewAt}: in the output of your "show {previewAt}" above ("show ST" for any other state).`
+			)
+		else
+			local why = if turn.focus then `your last "show {previewAt}"` else "where your candidate is"
+			table.insert(
+				out,
+				`WHAT EACH ACTION WOULD DO in {previewAt} ({why}; expected values; "show ST" gives this for any state):`
+			)
+			local message = PlanDraft.bestIssue(C, view, previewAt)
+			for _, entry in Explain.previews(C, view, PlanDraft.new(), previewAt, message) do
+				table.insert(out, `  {entry.text}`)
+			end
 		end
 	end
 	table.insert(out, "")
@@ -726,7 +741,7 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 	elseif view.phase == "Draft" then
 		guide = draftGuide(payload)
 	else
-		guide = planGuide(payload)
+		guide = planGuide(payload, turn)
 	end
 	for _, line in guide do
 		add(line)
@@ -788,16 +803,7 @@ end
 
 -- ---------------------------------------------------------------- commands
 
-local INFO = { show = true, help = true, bank = true, resync = true, skip = true }
-local BLOCKED = {
-	practice = true,
-	queue = true,
-	host = true,
-	join = true,
-	leave = true,
-	pick = true,
-	autoplay = true,
-}
+-- Which lines are info only, and the verdict names: tests/duel/Verdict.luau.
 
 -- What the server's reason codes mean, for the agent reading the verdict.
 local GLOSS: { [string]: string } = {
@@ -868,7 +874,8 @@ local function runCommands(slot: Slot, commands: { string }): (boolean, boolean,
 		end
 		local head = string.lower(string.match(command, "^%S+") or "")
 		table.insert(report, `> {command}`)
-		if BLOCKED[head] then
+		local kind = Verdict.kind(command)
+		if kind == "Blocked" then
 			rejectedAny = true
 			table.insert(report, `  REJECTED: "{head}" is not available in a duel`)
 			continue
@@ -886,10 +893,12 @@ local function runCommands(slot: Slot, commands: { string }): (boolean, boolean,
 			locked = true
 			table.insert(report, "  ACCEPTED: locked in")
 			table.insert(submitted, { week = turn.label, who = slot.n, text = command })
-		elseif INFO[head] then
+		elseif kind == "Info" then
 			table.insert(
 				report,
-				if rejectedNow then `  rejected (no harm done): {explain(slot.lastReject)}` else "  ok"
+				if rejectedNow
+					then `  info only, not available now (no harm done): {explain(slot.lastReject)}`
+					else "  info"
 			)
 			for _, line in printed do
 				table.insert(report, `  {line}`)
@@ -1019,6 +1028,8 @@ local function serve(slot: Slot, pending: { key: string, payload: any })
 			attempts = 0,
 			shownAt = nowSeconds(),
 			output = {},
+			focus = nil,
+			focusShown = false,
 		}
 		if payload.view.phase == "Plan" then
 			local ev = payload.view.projectedEV
@@ -1045,6 +1056,7 @@ local function serve(slot: Slot, pending: { key: string, payload: any })
 			end
 		end
 		local answered = slot.screens
+		current.focusShown = false
 		if #commands == 0 then
 			current.attempts += 1
 			if current.attempts >= maxAttempts then
@@ -1064,6 +1076,12 @@ local function serve(slot: Slot, pending: { key: string, payload: any })
 			return
 		end
 		local locked, rejected, report = runCommands(slot, commands)
+		local focus = Verdict.focus(commands)
+		if focus then
+			current.focus = focus
+			current.focusShown = true
+		end
+		local outcome = Verdict.outcome(rejected)
 		-- The report already shows what these commands printed: keep it out of the
 		-- next screen's log.
 		slot.mark = #rig.history[slot.peer]
@@ -1074,7 +1092,7 @@ local function serve(slot: Slot, pending: { key: string, payload: any })
 			print(`[duel] p{slot.n} locked: {current.label}`)
 			return
 		end
-		if rejected then
+		if outcome.usesAttempt then
 			current.attempts += 1
 		end
 		if current.attempts >= maxAttempts then
@@ -1084,17 +1102,12 @@ local function serve(slot: Slot, pending: { key: string, payload: any })
 			slot.turn = nil
 			return
 		end
-		if rejected then
-			writeResult(slot, answered, `REJECTED: nothing locked; {attemptsLeft(current)}`, report)
-			showScreen(slot, report)
-		else
-			writeResult(
-				slot,
-				answered,
-				"OK: not locked in yet (info only: same TURN, the screen was refreshed with the output)",
-				report
-			)
+		if outcome.refresh then
+			writeResult(slot, answered, outcome.status, report)
 			showScreen(slot, report, true)
+		else
+			writeResult(slot, answered, `{outcome.status}; {attemptsLeft(current)}`, report)
+			showScreen(slot, report)
 		end
 		return
 	end
