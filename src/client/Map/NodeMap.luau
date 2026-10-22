@@ -5,6 +5,10 @@
 -- The nine small Northeast states stand in a ladder at the right edge
 -- (MapLayout.LADDER), each with a thin leader line to where it really is.
 --
+-- A screen's marks can add a badge in any color ("+1.5" in a player's color),
+-- a glow behind the circle and a word in the arrow band ("FLIP"): the Choice
+-- preview and the reveals use them to show which states moved (D-042).
+--
 -- Each state is one invisible tap target (a TextButton named by the state id)
 -- at least Kit.MAP_NODE_MIN px in both directions. Everything drawn for the
 -- state lives inside it, top to bottom: the badge band, the circle with its
@@ -29,11 +33,15 @@ local MAX_RING_PX = 5 -- ring width at 30+ undecided
 local LABEL_H = 0.4 -- label band height, share of the tap target
 local BAND_H = 0.3 -- badge band (top) and arrow band (bottom), share of the tap target
 local ARROWS = { up = "▲", down = "▼" }
+local HALO_SCALE = 1.45 -- the glow's diameter, share of the circle's (at most the tap target)
+local HALO_SOFT = 0.6 -- glow transparency for a state that moves
+local HALO_STRONG = 0.2 -- glow transparency for a state whose poll leader changes
 
 type Node = {
 	id: string,
 	hit: TextButton,
 	circle: Frame,
+	halo: Frame,
 	ring: UIStroke,
 	label: TextLabel,
 	badge: TextLabel,
@@ -133,6 +141,22 @@ function NodeMap.new(): MapInterface.Map
 			Parent = nodeLayer,
 		})
 		Kit.new("UISizeConstraint", { MinSize = Vector2.new(MIN_TAP, MIN_TAP), Parent = hit })
+		-- The glow sits behind the circle (lower ZIndex among the node's children).
+		local halo = Kit.new("Frame", {
+			Name = "Halo",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			-- Never wider than the tap target, so it stays inside the map.
+			Size = UDim2.fromScale(math.min(1, k * HALO_SCALE), math.min(1, k * HALO_SCALE)),
+			BackgroundColor3 = Kit.colors.accent,
+			BackgroundTransparency = HALO_SOFT,
+			BorderSizePixel = 0,
+			ZIndex = 2,
+			Visible = false,
+			Parent = hit,
+		})
+		Kit.new("UIAspectRatioConstraint", { AspectRatio = 1, Parent = halo })
+		Kit.round().Parent = halo
 		local circle = Kit.new("Frame", {
 			Name = "Circle",
 			AnchorPoint = Vector2.new(0.5, 0.5),
@@ -197,6 +221,7 @@ function NodeMap.new(): MapInterface.Map
 			id = n.id,
 			hit = hit,
 			circle = circle,
+			halo = halo,
 			ring = ring,
 			label = label,
 			badge = badge,
@@ -233,10 +258,24 @@ function NodeMap.new(): MapInterface.Map
 		end
 		node.badge.Visible = mark ~= nil and mark.badge ~= nil
 		node.badge.Text = if mark and mark.badge then mark.badge else ""
-		local glyph = if mark and mark.arrow then ARROWS[mark.arrow] else nil
-		node.arrow.Visible = glyph ~= nil
-		node.arrow.Text = glyph or ""
-		node.arrow.TextColor3 = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
+		node.badge.TextColor3 = if mark and mark.badgeColor then mark.badgeColor else Kit.colors.accent
+		local halo = if mark then mark.halo else nil
+		node.halo.Visible = halo ~= nil
+		if halo then
+			node.halo.BackgroundColor3 = halo
+			node.halo.BackgroundTransparency = if mark and mark.haloStrong then HALO_STRONG else HALO_SOFT
+		end
+		-- A note ("FLIP") takes the arrow band; otherwise the momentum arrow.
+		if mark and mark.note then
+			node.arrow.Visible = true
+			node.arrow.Text = mark.note
+			node.arrow.TextColor3 = mark.noteColor or Kit.colors.text
+		else
+			local glyph = if mark and mark.arrow then ARROWS[mark.arrow] else nil
+			node.arrow.Visible = glyph ~= nil
+			node.arrow.Text = glyph or ""
+			node.arrow.TextColor3 = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
+		end
 	end
 
 	local map = {} :: any

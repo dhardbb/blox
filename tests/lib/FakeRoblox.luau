@@ -378,6 +378,7 @@ local EVENTS = {
 	PlayerAdded = true,
 	PlayerRemoving = true,
 	InputBegan = true,
+	InputEnded = true,
 }
 
 local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
