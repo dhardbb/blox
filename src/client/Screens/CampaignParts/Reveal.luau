@@ -7,7 +7,8 @@
 -- map still showing last week's polls until "New public polls are in", then a
 -- summary of the biggest swings and the projected EV.
 -- Debate: one row per topic, revealed every DEBATE_BEAT seconds, each with the
--- two scores as thin bars and the verdict; then national support and the
+-- two scores as thin bars, the verdict and each side's score split into prep,
+-- platform, stat and roll (Shared/UI/Explain); then national support and the
 -- callouts (Gaffe!, Sweep!).
 --
 --   local reveal = Reveal.new(parent, model, order, hooks)
@@ -20,13 +21,14 @@
 --   reveal:status(p) -> string   the action bar's status line during a reveal
 --
 -- Element names: RevealPanel, RevealTitle, RevealLines, RevealLine<k>,
--- DebateRows, DebateRow<t>, DebateTopic<t>, DebateBars<t>, RevealSummary.
+-- DebateRows, DebateRow<t>, DebateTopic<t>, DebateBars<t>, DebateParts<t>, RevealSummary.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SharedFolder = ReplicatedStorage.Shared
 local ConfigModule = require(SharedFolder.Sim.Config)
 local Events = require(SharedFolder.Sim.Events)
+local Explain = require(SharedFolder.UI.Explain)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
 local SimState = require(SharedFolder.Sim.State)
 local ViewModule = require(SharedFolder.Sim.View)
@@ -176,7 +178,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		})
 	end
 
-	type TopicRow = { row: Frame, label: TextLabel, mine: Frame, theirs: Frame }
+	type TopicRow = { row: Frame, label: TextLabel, mine: Frame, theirs: Frame, parts: TextLabel }
 	local debateBox = stack(root, 3, "DebateRows", Kit.space.sm)
 	local topicRows: { TopicRow } = {}
 	for t = 1, config.DEBATE_TOPICS do
@@ -219,6 +221,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			label = label,
 			mine = bar("YouScore", 0),
 			theirs = bar("ThemScore", SCORE_BAR_H + Kit.space.xs),
+			parts = Kit.caption("", { Name = `DebateParts{t}`, LayoutOrder = 3, Parent = row }),
 		}
 	end
 	local summary = Kit.text("", {
@@ -357,6 +360,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				local theirs = result.scores[them] and result.scores[them][t] or 0
 				entry.label.Text =
 					`{Model.issueName(result.topics[t])}: you {mine} - {theirs} them · {verdict}`
+				entry.parts.Text = Explain.debateLine(config, view, result, t)
 				entry.mine.BackgroundColor3 = Kit.playerColor(view, you)
 				entry.theirs.BackgroundColor3 = Kit.playerColor(view, them)
 				entry.mine.Size = UDim2.fromScale(math.clamp(mine / best, 0, 1), 1)

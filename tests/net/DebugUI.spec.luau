@@ -290,3 +290,54 @@ describe("Format color clash (playtest 1, bug 6)", function()
 		expect(string.find(Format.board(payload, 0), "coin flip", 1, true)):toBe(nil)
 	end)
 end)
+
+describe("Format explanations (playtest 2: the numbers were opaque)", function()
+	local Explain = require("@ui/Explain")
+	local PlanDraft = require("@ui/PlanDraft")
+	local State = require("@sim/State")
+
+	local function has(text: string, part: string)
+		if string.find(text, part, 1, true) == nil then
+			error(`"{text}" lacks "{part}"`, 0)
+		end
+	end
+
+	it("tags a lean from the viewer's side", function()
+		local payload = Fixtures.payload(C, "Plan")
+		local s = payload.view.states[State.indexOf.OH]
+		s.lean, s.leanTo = 4, payload.you
+		expect(table.find(Format.stateTags(s, payload.you), "leans you +4") ~= nil):toBe(true)
+		s.leanTo = 3 - payload.you
+		expect(table.find(Format.stateTags(s, payload.you), "leans them +4") ~= nil):toBe(true)
+	end)
+
+	it("explains a state and previews each action there with show", function()
+		local payload = Fixtures.payload(C, "Plan")
+		local view = payload.view
+		local text = Format.state(payload, "OH")
+		local s = view.states[State.indexOf.OH]
+		has(text, Explain.leanText(view, s))
+		has(text, Explain.momentumNote(C, view, s))
+		local message = PlanDraft.bestIssue(C, view, "OH")
+		for _, entry in Explain.previews(C, view, PlanDraft.new(), "OH", message) do
+			has(text, entry.text)
+		end
+	end)
+
+	it("prints every help section with rules", function()
+		expect(Commands.parse("rules")):toEqual({ kind = "Local", action = "rules" })
+		local payload = Fixtures.payload(C, "Plan")
+		local text = Format.rules(payload)
+		for _, section in Explain.help(C, payload.view) do
+			has(text, `== {section.title} ==`)
+			has(text, section.lines[1])
+		end
+		has(Format.rules(nil), "standard ones")
+	end)
+
+	it("says what an underdog tier gives on the board", function()
+		local payload = Fixtures.payload(C, "Plan")
+		payload.view.players[payload.you].underdogTier = 2
+		has(Format.board(payload, 0), Explain.underdogText(C, payload.view, payload.you) :: string)
+	end)
+end)

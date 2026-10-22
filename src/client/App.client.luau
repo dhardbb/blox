@@ -19,6 +19,7 @@ local Fixtures = require(Shared.UI.Fixtures)
 
 local _DebugPanel = require(script.Parent.DebugPanel) -- builds the hidden debug panel
 local Kit = require(script.Parent.UI.Kit)
+local Help = require(script.Parent.UI.Help)
 local Net = require(script.Parent.Net)
 local Router = require(script.Parent.Router)
 local Store = require(script.Parent.Store)
@@ -77,6 +78,10 @@ local ctx: Types.Ctx = {
 		return size.Y > size.X
 	end,
 }
+
+-- The "How it works" overlay: above the screens, below the toast (ZIndex 40 < 50).
+local help = Help.mount(background, ctx)
+ctx.help = help.open
 
 local fixture = workspace:GetAttribute("DebugScreen")
 if type(fixture) == "string" then

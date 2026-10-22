@@ -38,8 +38,10 @@ local Candidates = require("@shared/Sim/Candidates")
 local Config = require("@shared/Sim/Config")
 local Issues = require("@shared/Sim/Issues")
 local Drafted = require("@shared/UI/Drafted")
+local Explain = require("@shared/UI/Explain")
 local Format = require("@shared/DebugUI/Format")
 local Numbers = require("@shared/UI/Numbers")
+local PlanDraft = require("@shared/UI/PlanDraft")
 local StateData = require("@shared/Sim/StateData")
 
 -- ---------------------------------------------------------------- arguments
@@ -302,7 +304,9 @@ local function statesTable(payload: any): { string }
 		end
 		return a.r.id < b.r.id
 	end)
+	local C = Config.defaults
 	local out = {
+		`Momentum keeps {math.floor(C.MOMENTUM_DECAY * 100 + 0.5)}% a week (your candidate may differ); each week the leader in a state gains {C.DRIFT_RATE} support per point of lead (max {C.DRIFT_CAP}). "leans you +4" = the state started 4 points of margin your way.`,
 		"ID  EV  issues                  poll (you-them, u=undecided)  momentum you/them  tags",
 	}
 	for _, row in rows do
@@ -323,13 +327,21 @@ local function statesTable(payload: any): { string }
 			end
 		end
 		if s.leanTo then
-			table.insert(tags, `lean {if s.leanTo == you then "+" else "-"}{s.lean}`)
+			table.insert(tags, Explain.leanText(view, s))
 		end
 		if s.gotv > 0 then
-			table.insert(tags, `your gotv {s.gotv}`)
+			table.insert(
+				tags,
+				`your gotv {s.gotv} (+{Numbers.points(s.gotv * C.GOTV_PER_UNIT)} margin on election night)`
+			)
 		end
 		if s.backlash > 0 then
-			table.insert(tags, `your backlash {s.backlash}`)
+			table.insert(
+				tags,
+				`your backlash {s.backlash} of {C.BACKLASH_THRESHOLD} (once full, your next attack here also costs you {Numbers.points(
+					C.BACKLASH_PENALTY
+				)})`
+			)
 		end
 		if matchesPlatform(r, me.platform) then
 			table.insert(tags, "platform match")
@@ -355,9 +367,12 @@ end
 local function mapText(): string
 	local payload = slots[1].latest
 	local out = {
-		"MAP: 50 states + DC, 538 EV, 270 wins. Winner-take-all. 'adjacent' states are a free route hop;",
-		"anything else costs a $2 flight. AK and HI have no neighbors (flights only).",
-		"pool = state fundraising pool capacity in $ (refills 25% per week).",
+		`MAP: 50 states + DC, 538 EV, {Config.defaults.EV_TO_WIN} wins. Winner-take-all. 'adjacent' states are a free route hop;`,
+		`anything else costs a {Numbers.cost(Config.defaults.FLIGHT_COST)} flight. AK and HI have no neighbors (flights only).`,
+		`pool = state fundraising pool capacity in $ (refills {math.floor(
+			Config.defaults.POOL_REFILL * 100 + 0.5
+		)}% per week, shared by both players).`,
+		"The 'rules' command prints how every action, poll, debate, event and election night works, with the numbers.",
 		"",
 	}
 	for i, r in StateData.list do
@@ -430,7 +445,7 @@ local function draftGuide(payload: any): { string }
 			`STRONGHOLD: +{C.STRONGHOLD_BONUS} support there (+{C.STRONGHOLD_BONUS_BIG} if {C.BIG_STATE_EV}+ EV).`
 	else
 		rule =
-			`NOMINATE a battleground: it loses ALL draft bonuses (back to 35/35/30 plus its lean) and gets x{C.BATTLEGROUND_MULT} on every campaign effect all game, for both players. A home state cannot be nominated; an opponent's stronghold can.`
+			`NOMINATE a battleground: it loses ALL draft bonuses (back to {C.BASE_SUPPORT}/{C.BASE_SUPPORT}/{C.BASE_UNDECIDED} plus its lean) and gets x{C.BATTLEGROUND_MULT} on every campaign effect all game, for both players. A home state cannot be nominated; an opponent's stronghold can.`
 	end
 	local priority = view.draftPriority
 	local out = {
@@ -475,9 +490,7 @@ local function draftGuide(payload: any): { string }
 				row.r.ev,
 				table.concat(row.r.issues, "/"),
 				row.r.region,
-				if row.s.leanTo
-					then `lean {if row.s.leanTo == you then "+" else "-"}{row.s.lean}`
-					else "no lean",
+				Explain.leanText(view, row.s),
 				owner
 			)
 		)
@@ -532,8 +545,11 @@ local function planGuide(payload: any): { string }
 		if view.event.kind == "Choice" then
 			table.insert(
 				out,
-				'CHOICE WEEK: add "choice attack", "choice defend" or "choice ignore" to your plan (default ignore). Attack beats ignore, defend beats attack, ignore beats defend (small national swings).'
+				'CHOICE WEEK: add "choice attack", "choice defend" or "choice ignore" to your plan (default ignore). National points for you, by their answer:'
 			)
+			for _, line in Explain.choiceLines(C) do
+				table.insert(out, `  {line}`)
+			end
 		end
 	end
 	local prepDue = table.find(C.DEBATE_WEEKS, view.week + 1) ~= nil
@@ -558,6 +574,16 @@ local function planGuide(payload: any): { string }
 			)}). Leave it out to keep the default.`
 		)
 	end
+	if location and me.candidate then
+		table.insert(
+			out,
+			`WHAT EACH ACTION WOULD DO in {location} (expected values; "show ST" gives this for any state):`
+		)
+		local message = PlanDraft.bestIssue(C, view, location)
+		for _, entry in Explain.previews(C, view, PlanDraft.new(), location, message) do
+			table.insert(out, `  {entry.text}`)
+		end
+	end
 	table.insert(out, "")
 	table.insert(
 		out,
@@ -578,7 +604,14 @@ local function planGuide(payload: any): { string }
 		out,
 		"  pass                          empty plan (AP lost, money banks; default prep / ignore)"
 	)
-	table.insert(out, "  show ST                       details of one state (free, does not lock you in)")
+	table.insert(
+		out,
+		"  show ST                       one state: numbers, what lean/momentum mean there, each action's expected effect (free)"
+	)
+	table.insert(
+		out,
+		"  rules                         how every action, poll, debate, event and election night works (free)"
+	)
 	table.insert(
 		out,
 		"  auto                          the built-in bot fills this step for you (locks you in)"
@@ -624,6 +657,11 @@ local function recapLines(payload: any): { string }
 	local out = {}
 	for _, debate in view.debates do
 		table.insert(out, Format.debate(debate, you))
+		if debate.week == view.week then
+			for t, topic in debate.topics do
+				table.insert(out, `  {topic}: {Explain.debateLine(Config.defaults, view, debate, t)}`)
+			end
+		end
 	end
 	for _, e in view.eventLog do
 		if e.choices and e.national then

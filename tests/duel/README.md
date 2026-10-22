@@ -25,12 +25,12 @@ Exit code: 0 the match finished, 1 a script error happened, 3 the harness gave u
 |---|---|---|
 | `state.txt` | harness | `starting`, `running`, `waiting p1`, `waiting p1 p2` or `done` |
 | `map.txt` | harness | static map data (EV, issues, region, neighbors, pool size), written once |
-| `pN.screen.txt` | harness | what player N must answer now. Line 1 `TURN: k` grows with every new turn and after a rejection; line 2 `REFRESH: r` grows when info commands (`show`, `help`, `bank`) rewrote the same turn's screen with their output (TURN stays) |
+| `pN.screen.txt` | harness | what player N must answer now. Line 1 `TURN: k` grows with every new turn and after a rejection; line 2 `REFRESH: r` grows when info commands (`show`, `rules`, `help`, `bank`) rewrote the same turn's screen with their output (TURN stays) |
 | `pN.cmd.txt` | player | one or more command lines; the harness types each into the debug command box, then deletes the file |
 | `pN.result.txt` | harness | the verdict on the last command file (`ACCEPTED` / `REJECTED` and why) |
 | `result.txt` | harness | the match result, written just before `state.txt` says `done` |
 
-All writes are atomic (temp file, then rename). The commands are the debug panel's (`help` lists them); each screen shows examples. `wait.sh` returns when TURN or REFRESH changes, so it is safe to call after an info command too.
+All writes are atomic (temp file, then rename). The commands are the debug panel's (`help` lists them; `rules` explains every action, poll, debate, event and election night with the current numbers; `show ST` adds what each action would do in that state); each screen shows examples. `wait.sh` returns when TURN or REFRESH changes, so it is safe to call after an info command too.
 
 ## What a screen holds
 

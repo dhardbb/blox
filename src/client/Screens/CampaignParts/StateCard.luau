@@ -8,10 +8,15 @@
 --   you 35 – 37 them · 28 und.  +3 them
 --   Momentum                    Ground game
 --   ▲ you 2.0 · them 1.0        0 / 4 · pool size $8.9
+--   You lead momentum: about +0.6 support drifts to you next week. ...
+--   Your attack backlash here: 1 of 3. ...           (only with backlash)
 --   Top issues: Jobs, Schools
 --   Message for rallies and ads
 --   [Jobs ×1.5] [Schools ×1.2] [Health ×1.0] [More +]
 --   [Rally] [Fundraise] [Ad $3.0] / [Attack ad] [Poll] [Ground game +1] / [Region poll] [Pivot]
+--   What each action does here –
+--     Rally: about +3.9 you, -1.2 them here (Jobs ×1.5); +2 momentum; 1 AP
+--     ... one line per action button (Shared/UI/Explain) ...
 --   All states · sorted closest
 --
 -- During a reveal the card stays up read-only (numbers, no actions), so a player
@@ -21,7 +26,8 @@
 --   card:render(p) · card:closeList() · card.root (Frame "StateCard")
 --
 -- Element names (tests and agents use them): CardTitle, CardTags, CardPoll,
--- CardLean, CardMomentum, CardGround, CardInternal, CardIssues, Issue<issue>
+-- CardLean, CardMomentum, CardMomentumNote, CardBacklash, CardGround,
+-- CardInternal, CardIssues, ActionPreview (PreviewToggle, Preview<button name>), Issue<issue>
 -- (message chips), MessageMore, Rally, Fundraise, Ad, Attack, Poll, Gotv,
 -- RegionPoll, PivotButton, PivotDrop<issue>, PivotAdd<issue>, PivotCancel,
 -- ActionHint, StatesToggle, StatePicker, Sort_<mode>, Row_<id>.
@@ -29,6 +35,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SharedFolder = ReplicatedStorage.Shared
+local Explain = require(SharedFolder.UI.Explain)
 local Issues = require(SharedFolder.Sim.Issues)
 local Plan = require(SharedFolder.Sim.Plan)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
@@ -179,11 +186,19 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	local leanValue = stat(row1, 2, "Lean", "CardLean")
 	local momentumValue = stat(row2, 1, "Momentum", "CardMomentum")
 	local groundValue = stat(row2, 2, "Ground game", "CardGround")
+	local momentumNote = Kit.caption("", { Name = "CardMomentumNote", LayoutOrder = 3, Parent = details })
+	local backlashNote = Kit.caption("", {
+		Name = "CardBacklash",
+		LayoutOrder = 4,
+		TextColor3 = Kit.colors.danger,
+		Visible = false,
+		Parent = details,
+	})
 	local internalCell, internalValue = Kit.stat(details, "Your internal poll", "", "CardInternalCell")
-	internalCell.LayoutOrder = 3
+	internalCell.LayoutOrder = 5
 	internalValue.Name = "CardInternal"
 	internalValue.TextColor3 = Kit.colors.good
-	local issuesLine = Kit.caption("", { Name = "CardIssues", LayoutOrder = 4, Parent = details })
+	local issuesLine = Kit.caption("", { Name = "CardIssues", LayoutOrder = 6, Parent = details })
 
 	-- ------------------------------------------------------------ message chips
 
@@ -266,6 +281,28 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	end, { variant = "secondary", Name = "PivotCancel", LayoutOrder = 3, Parent = pivotPanel })
 
 	local hint = Kit.caption("", { Name = "ActionHint", LayoutOrder = 6, Parent = actionsBox })
+
+	-- What each button would do here, worked out by Shared/UI/Explain: one line
+	-- per button, so it works on touch (no hover needed).
+	local preview = Collapsible.new(actionsBox, {
+		title = "What each action does here",
+		name = "ActionPreview",
+		order = 7,
+		expanded = true,
+		onToggle = function()
+			model.render()
+		end,
+	})
+	preview.toggle.Name = "PreviewToggle"
+	local previewLines: { [string]: TextLabel } = {}
+	for k, entry in ACTIONS do
+		previewLines[entry.name] = Kit.caption("", {
+			Name = `Preview{entry.name}`,
+			LayoutOrder = k,
+			TextColor3 = Kit.colors.text,
+			Parent = preview.body,
+		})
+	end
 
 	-- ------------------------------------------------------------ state list
 
@@ -574,6 +611,15 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		end
 		hint.Text = hintText
 			or "Rally and Fundraise move your candidate (1 AP each). Ads, polls and ground game cost money."
+		if preview:isExpanded() then
+			local message: Issue = Model.messageIssue(model, view, id)
+			for _, entry in Explain.previews(config, view, model.draft, id, message) do
+				local line = previewLines[entry.name]
+				if line then
+					line.Text = entry.text
+				end
+			end
+		end
 	end
 
 	local function renderList(p: Payload)
@@ -659,11 +705,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 			pollValue.Text = if poll
 				then `you {poll.support[me] or 0} – {poll.support[rival] or 0} them · {poll.undecided} undecided`
 				else "No public poll yet"
-			if s.leanTo ~= nil and s.lean > 0 then
-				leanValue.Text = `+{s.lean} {if s.leanTo == me then "you" else "them"}`
-			else
-				leanValue.Text = "none"
-			end
+			leanValue.Text = Explain.leanText(view, s)
 			local mine, theirs = s.momentum[me] or 0, s.momentum[rival] or 0
 			local lead = mine - theirs
 			local glyph = if math.abs(lead) >= 0.05 then "▲ " else ""
@@ -672,6 +714,10 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 				then Kit.playerColor(view, me)
 				elseif lead <= -0.05 then Kit.playerColor(view, rival)
 				else Kit.colors.text
+			momentumNote.Text = Explain.momentumNote(config, view, s)
+			local backlash = Explain.backlashNote(config, view, s)
+			backlashNote.Text = backlash or ""
+			backlashNote.Visible = backlash ~= nil
 			local profile = PlanDraft.profile(config, view)
 			local planned = Model.plannedUnits(model, id)
 			groundValue.Text = `{s.gotv} / {profile.gotvMaxUnits}`
