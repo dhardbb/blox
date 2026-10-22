@@ -199,6 +199,7 @@ local lobby: Remotes.LobbyStatus? = nil
 local ratingChange: Remotes.RatingChange? = nil -- after the last rated match
 local autoplay = false
 local autoKey = "" -- "matchId:step" of the last state autoplay acted on (steps restart each match)
+local lastSubmit: any? = nil -- the last Submit input sent, to explain a NotEnoughMoney rejection
 local logLines: { string } = {}
 local rng = Rng.new(player.UserId % 2147483647 + 1)
 
@@ -249,6 +250,7 @@ local function runAuto()
 	if payload.stage == "Input" then
 		local input = autoInput(payload)
 		if input then
+			lastSubmit = input
 			matchRequest("Submit", input)
 		end
 	elseif payload.reveal == "Resolve" or (payload.stage == "Show" and payload.view.phase == "Election") then
@@ -276,6 +278,9 @@ local function command(text: string)
 	else
 		local op = parsed.op :: string
 		if op == "Submit" or op == "Bank" or op == "Skip" then
+			if op == "Submit" then
+				lastSubmit = parsed.input
+			end
 			matchRequest(op, parsed.input)
 		else
 			request({ op = op, code = parsed.code, pick = parsed.pick, events = parsed.events })
@@ -316,7 +321,7 @@ toClient.OnClientEvent:Connect(function(message: Remotes.Message)
 	elseif message.kind == "Notice" then
 		say(NOTICES[message.notice or ""] or (message.notice or "notice"))
 	elseif message.kind == "Rejected" then
-		say(`rejected {message.op or "?"}: {message.reason or "?"}`)
+		say(Format.rejected(current, message.op, message.reason, lastSubmit))
 	end
 	render()
 end)

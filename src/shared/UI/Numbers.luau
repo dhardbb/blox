@@ -25,6 +25,11 @@ function Numbers.money(amount: number): string
 	return string.format("$%.1f", value)
 end
 
+-- A price: rounded up to tenths (costs are whole or tenths, so this is exact).
+function Numbers.cost(amount: number): string
+	return string.format("$%.1f", math.ceil((amount - SLACK) * 10) / 10)
+end
+
 -- Support, momentum and other points: one decimal, rounded, never "-0.0".
 function Numbers.points(value: number): string
 	if math.abs(value) < 0.05 then

@@ -819,6 +819,22 @@ describe("Campaign rejections with a full message log", function()
 		)
 		Rig.noErrors(world)
 	end)
+
+	it("explains a NotEnoughMoney rejection with cost and cash (playtest 1, bug 2)", function()
+		local world, peer = Rig.practice(3)
+		Rig.toPlanInput(world, peer)
+		local broke = {}
+		for _ = 1, 12 do
+			table.insert(broke, { kind = "RegionPoll", region = "Pacific" })
+		end
+		Rig.sabotageSubmits(world, peer, { actions = broke })
+		Rig.tap(world, peer, "Campaign", "LockIn", 1)
+		check(Rig.enabled(peer, "Campaign", "LockIn"), "Lock in stays disabled after a rejection")
+		local status = Rig.textOf(peer, "Campaign", "BarStatus")
+		check(Rig.contains(status, "Plan costs $"), status)
+		check(Rig.contains(status, ", you have $"), status)
+		Rig.noErrors(world)
+	end)
 end)
 
 describe("Campaign with a disconnected opponent", function()

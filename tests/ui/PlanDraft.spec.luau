@@ -101,3 +101,62 @@ describe("PlanDraft.shortProblem", function()
 		end
 	end)
 end)
+
+-- A state that is neither the candidate's location nor adjacent to it (a flight).
+local function farFrom(location: string?): string
+	for _, record in StateData.list do
+		if record.id ~= location and not Plan.isAdjacent(location, record.id) then
+			return record.id
+		end
+	end
+	error("no far state")
+end
+
+describe("PlanDraft.moneyText (playtest 1, bug 2)", function()
+	it("says what the plan costs, what you have, and which items cost money", function()
+		local view = Fixtures.payload(C, "Plan").view
+		local me = view.players[view.you]
+		local profile = PlanDraft.profile(C, view)
+		me.cash = 4.96
+		local far = farFrom(me.location)
+		local draft = PlanDraft.new()
+		PlanDraft.add(draft, { kind = "Rally", state = far, issue = "Jobs" })
+		PlanDraft.add(draft, { kind = "Media", state = far, issue = "Jobs" })
+		PlanDraft.add(draft, { kind = "RegionPoll", region = "Pacific" })
+		expect(PlanDraft.problem(C, view, draft)):toBe(Plan.Reason.NotEnoughMoney)
+		local total = C.FLIGHT_COST + profile.mediaCost + C.REGION_POLL_COST
+		expect(PlanDraft.moneyText(C, view, draft)):toBe(
+			string.format(
+				"Plan costs $%.1f, you have $4.9 (1 flight $%.1f, 1 ad $%.1f, 1 region poll $%.1f).",
+				total,
+				C.FLIGHT_COST,
+				profile.mediaCost,
+				C.REGION_POLL_COST
+			)
+		)
+	end)
+
+	it("lists items that add up to the plan's cost, free polls left out", function()
+		local view = Fixtures.payload(C, "Plan").view
+		local me = view.players[view.you]
+		local profile = PlanDraft.profile(C, view)
+		local far = farFrom(me.location)
+		local draft = PlanDraft.new()
+		PlanDraft.add(draft, { kind = "Fundraise", state = far })
+		PlanDraft.add(draft, { kind = "Rally", state = farFrom(far), issue = "Jobs" })
+		PlanDraft.add(draft, { kind = "Attack", state = far, issue = "Jobs" })
+		PlanDraft.add(draft, { kind = "Gotv", state = far, units = 2 })
+		for k = 1, profile.freePolls + 2 do
+			PlanDraft.add(draft, { kind = "Poll", state = StateData.list[k].id })
+		end
+		local sum = 0
+		for _, item in PlanDraft.costItems(C, view, draft) do
+			sum += item.amount
+		end
+		expect(math.abs(sum - PlanDraft.cost(C, view, draft).cash) < 1e-9):toBe(true)
+		local text = PlanDraft.moneyText(C, view, draft)
+		check(string.find(text, "2 polls", 1, true) ~= nil, text)
+		check(string.find(text, "1 attack ad", 1, true) ~= nil, text)
+		check(string.find(text, "2 ground game", 1, true) ~= nil, text)
+	end)
+end)

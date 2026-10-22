@@ -15,6 +15,7 @@ export type Message = {
 	id: number, -- only grows: compare ids, never counts
 	text: string,
 	rejected: boolean, -- the server turned a request down
+	reason: string?, -- the rejection's reason code
 }
 
 export type State = {
@@ -38,7 +39,7 @@ export type Store = {
 	get: () -> State,
 	dismissResult: () -> (),
 	setPrePick: (pick: any) -> (),
-	say: (text: string, rejected: boolean?) -> (),
+	say: (text: string, rejected: boolean?, reason: string?) -> (),
 }
 
 export type Ctx = {

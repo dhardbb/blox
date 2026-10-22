@@ -8,6 +8,7 @@ local Events = require("../Sim/Events")
 local Issues = require("../Sim/Issues")
 local StateData = require("../Sim/StateData")
 local Numbers = require("../UI/Numbers")
+local PlanDraft = require("../UI/PlanDraft")
 local Profile = require("../Net/Profile")
 local View = require("../Sim/View")
 local Remotes = require("../Net/Remotes")
@@ -310,6 +311,24 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		)
 	end
 	return table.concat(lines, "\n")
+end
+
+-- The log line for a rejected request. A plan turned down for money says what it
+-- costs and what you have, worked out here from the plan we sent and our own View
+-- (the server only sends the reason code).
+function Format.rejected(payload: Session.StatePayload?, op: string?, reason: string?, input: any?): string
+	local text = `rejected {op or "?"}: {reason or "?"}`
+	if reason ~= "NotEnoughMoney" or payload == nil or payload.view.phase ~= "Plan" then
+		return text
+	end
+	if type(input) ~= "table" or type(input.actions) ~= "table" then
+		return text
+	end
+	local ok, detail = pcall(PlanDraft.moneyText, Config.defaults, payload.view, input :: any)
+	if ok and type(detail) == "string" then
+		return `{text}. {detail}`
+	end
+	return text
 end
 
 -- Details of one state.

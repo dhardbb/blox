@@ -5,6 +5,7 @@ local Test = require("@testlib/Test")
 local Bot = require("@sim/Bot")
 local Commands = require("@shared/DebugUI/Commands")
 local Config = require("@sim/Config")
+local Fixtures = require("@ui/Fixtures")
 local Format = require("@shared/DebugUI/Format")
 local Match = require("@sim/Match")
 local Rng = require("@sim/Rng")
@@ -192,6 +193,33 @@ describe("Format", function()
 	it("formats a rating change", function()
 		expect(Format.ratingChange({ matchId = "m1", before = 1032, after = 1048 })):toBe(
 			"Rating 1032 → 1048"
+		)
+	end)
+end)
+
+describe("Format.rejected (playtest 1, bug 2)", function()
+	it("explains NotEnoughMoney with the plan's cost and the cash", function()
+		local payload = Fixtures.payload(C, "Plan")
+		local view = payload.view
+		local me = view.players[view.you]
+		me.cash = 4.96
+		local input = Commands.parse("plan rpoll pacific; rpoll mountain").input
+		local text = Format.rejected(payload, "Submit", "NotEnoughMoney", input)
+		expect(text):toBe(
+			string.format(
+				"rejected Submit: NotEnoughMoney. Plan costs $%.1f, you have $4.9 (2 region polls $%.1f).",
+				2 * C.REGION_POLL_COST,
+				2 * C.REGION_POLL_COST
+			)
+		)
+	end)
+
+	it("keeps other rejections short, and never throws on odd input", function()
+		local payload = Fixtures.payload(C, "Plan")
+		expect(Format.rejected(payload, "Submit", "NotEnoughAP", nil)):toBe("rejected Submit: NotEnoughAP")
+		expect(Format.rejected(nil, nil, nil, nil)):toBe("rejected ?: ?")
+		expect(Format.rejected(payload, "Submit", "NotEnoughMoney", { actions = { { kind = "Gotv" } } })):toBe(
+			"rejected Submit: NotEnoughMoney"
 		)
 	end)
 end)

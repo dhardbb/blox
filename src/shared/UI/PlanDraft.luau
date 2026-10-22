@@ -8,6 +8,7 @@ local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
 local Events = require("../Sim/Events")
 local Issues = require("../Sim/Issues")
+local Numbers = require("./Numbers")
 local Plan = require("../Sim/Plan")
 local Resolve = require("../Sim/Resolve")
 local StateData = require("../Sim/StateData")
@@ -80,6 +81,70 @@ function PlanDraft.remaining(config: Config, view: View, draft: Draft): (number,
 	local cost = PlanDraft.cost(config, view, draft)
 	local profile = PlanDraft.profile(config, view)
 	return profile.apPerWeek - cost.ap, (view.players[view.you].cash or 0) - cost.cash
+end
+
+-- One money line of a plan: "1 flight" costing $2.
+export type CostItem = { label: string, count: number, amount: number }
+
+local function plural(n: number, word: string): string
+	return `{n} {word}{if n == 1 then "" else "s"}`
+end
+
+-- What the plan spends money on, grouped, in a fixed order; the amounts add up to
+-- PlanDraft.cost(...).cash. Polls covered by the free weekly polls are left out.
+function PlanDraft.costItems(config: Config, view: View, draft: Draft): { CostItem }
+	local profile = PlanDraft.profile(config, view)
+	local cost = PlanDraft.cost(config, view, draft)
+	local ads, attacks, polls, regionPolls, units = 0, 0, 0, 0, 0
+	for _, action in draft.actions do
+		local kind = action.kind
+		if kind == "Media" then
+			ads += 1
+		elseif kind == "Attack" then
+			attacks += 1
+		elseif kind == "Poll" then
+			polls += 1
+		elseif kind == "RegionPoll" then
+			regionPolls += 1
+		elseif kind == "Gotv" then
+			units += action.units or 0
+		end
+	end
+	local paidPolls = math.max(0, polls - profile.freePolls)
+	local items: { CostItem } = {}
+	local function item(count: number, word: string, each: number)
+		if count > 0 and each > 0 then
+			table.insert(items, { label = plural(count, word), count = count, amount = count * each })
+		end
+	end
+	item(cost.flights, "flight", config.FLIGHT_COST)
+	item(ads, "ad", profile.mediaCost)
+	item(attacks, "attack ad", profile.mediaCost)
+	item(paidPolls, "poll", config.INTERNAL_POLL_COST)
+	item(regionPolls, "region poll", config.REGION_POLL_COST)
+	if units > 0 and profile.gotvCost > 0 then
+		table.insert(
+			items,
+			{ label = `{units} ground game`, count = units, amount = units * profile.gotvCost }
+		)
+	end
+	return items
+end
+
+-- "Plan costs $5.0, you have $4.9 (1 flight $2.0, 1 ad $3.0)." Cash is floored
+-- like every money display, so the two numbers always explain the rejection.
+function PlanDraft.moneyText(config: Config, view: View, draft: Draft): string
+	local cost = PlanDraft.cost(config, view, draft)
+	local cash = view.players[view.you].cash or 0
+	local parts = {}
+	for _, entry in PlanDraft.costItems(config, view, draft) do
+		table.insert(parts, `{entry.label} {Numbers.cost(entry.amount)}`)
+	end
+	local text = `Plan costs {Numbers.cost(cost.cash)}, you have {Numbers.money(cash)}`
+	if #parts > 0 then
+		text ..= ` ({table.concat(parts, ", ")})`
+	end
+	return text .. "."
 end
 
 -- The first problem the server would reject the draft for, or nil. Mirrors the

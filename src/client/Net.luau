@@ -88,7 +88,7 @@ function Net.start()
 		elseif message.kind == "Notice" then
 			Store.say(NOTICES[message.notice or ""] or (message.notice or "Notice"))
 		elseif message.kind == "Rejected" then
-			Store.say(Net.reasonText(message.reason), true)
+			Store.say(Net.reasonText(message.reason), true, message.reason)
 		end
 	end)
 	Net.send("Resync")

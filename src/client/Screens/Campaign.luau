@@ -345,6 +345,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return text
 	end
 
+	-- Why the plan can't lock in. Money problems say what the plan costs and what
+	-- you have, from the plan and the View (the server sends only the code).
+	local function problemText(p: Payload, reason: string): string
+		if reason == Plan.Reason.NotEnoughMoney then
+			return PlanDraft.moneyText(config, p.view, model.draft)
+		end
+		return ctx.net.reasonText(reason)
+	end
+
 	local function renderBar(p: Payload, now: number)
 		local primary = bar.primary
 		bar:setOpponent(opponentText(p, now))
@@ -358,7 +367,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				bar:setStatus("Locked in · waiting for opponent", "ok")
 			elseif problem then
 				bar:setPrimary(PlanDraft.shortProblem(problem), false)
-				bar:setStatus(ctx.net.reasonText(problem), "bad")
+				bar:setStatus(problemText(p, problem), "bad")
 			else
 				bar:setPrimary("Lock in", true)
 				local turnedDown = rejection
@@ -518,7 +527,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				local turnedDown = Messages.rejectionAfter(state, lockMessageId)
 				if turnedDown ~= nil then
 					model.lockStep = nil
-					rejection = { step = p.step, text = turnedDown.text }
+					rejection = {
+						step = p.step,
+						text = if turnedDown.reason
+							then problemText(p, turnedDown.reason)
+							else turnedDown.text,
+					}
 				end
 			end
 		elseif model.draftStep ~= nil then

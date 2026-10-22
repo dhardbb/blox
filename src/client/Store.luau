@@ -14,6 +14,7 @@ export type Message = {
 	id: number,
 	text: string,
 	rejected: boolean, -- the server turned a request down (Net's "Rejected")
+	reason: string?, -- the rejection's reason code, for screens that explain it
 }
 
 export type State = {
@@ -74,9 +75,12 @@ function Store.setLobby(lobby: Remotes.LobbyStatus)
 	changed()
 end
 
-function Store.say(text: string, rejected: boolean?)
+function Store.say(text: string, rejected: boolean?, reason: string?)
 	lastMessageId += 1
-	table.insert(state.messages, { id = lastMessageId, text = text, rejected = rejected == true })
+	table.insert(
+		state.messages,
+		{ id = lastMessageId, text = text, rejected = rejected == true, reason = reason }
+	)
 	while #state.messages > MAX_MESSAGES do
 		table.remove(state.messages, 1)
 	end
