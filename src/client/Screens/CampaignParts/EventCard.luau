@@ -3,25 +3,36 @@
 --
 -- The event card, a Collapsible: "Event · Windfall · Donor retreat +" with the
 -- effect line always under it (so collapsed it is still two lines), and the
--- flavor text, the map note and, in Choice weeks, the three answer chips in its
--- body, with what each answer pays against each of theirs (Shared/UI/Explain,
--- from Config's payoff matrix). Expanded by default in Choice, Spotlight and Regional weeks, collapsed
--- otherwise; the player's own toggle holds for the rest of the week. Hidden
--- during every reveal (B1). In Choice weeks it moves above the state card.
+-- flavor text and the map note in its body. Expanded by default in Choice,
+-- Spotlight and Regional weeks, collapsed otherwise; the player's own toggle
+-- holds for the rest of the week. Hidden during every reveal (B1). In Choice
+-- weeks it moves above the state card.
+--
+-- Choice weeks (D-039, D-042): "States you need" (Shared/UI/Swing, from the
+-- public poll), the three stances as full-width chips ("A · Side with the
+-- staff", "C · Offer to mediate (hedge, default)"; the selection is an accent
+-- outline), the one-line summary of the stance on the map, and under "Every
+-- state, stance by stance" the full lists for nerds (Explain.choiceLines).
+-- While the card is open the map previews the selected stance; holding a chip
+-- previews that one without selecting it. Collapsing the card gives the
+-- normal map back.
 --
 -- The week card, a Collapsible: last week's public moves by the opponent, their
 -- money bracket, either side's underdog tier and what it gives, last week's
--- event, what you raised, your internal polls, this week's debate topic by
--- topic (prep, platform, stat and roll), the next debate, the latest messages. Expanded on 16:9, collapsed on phones.
+-- event (a Choice week: both stances, what they moved and flipped), what you
+-- raised, your internal polls, this week's debate topic by topic (prep,
+-- platform, stat and roll, then what each topic swung), the next debate, the
+-- latest messages. Expanded on 16:9, collapsed on phones.
 --
 --   local event = EventCard.new(parent, model)        event:render(p, order)
+--                                                      event:showsStances() -> boolean
 --   local week = EventCard.week(parent, model, order) week:render(p); week:setPortrait(portrait)
 --
 -- Element names: EventCard (attributes EventKind, EventName), EventToggle,
--- EventEffect, EventText, EventMapNote, ChoiceRow, ChoiceAttack, ChoiceDefend,
--- ChoiceIgnore, ChoiceNote, ChoicePayHead, ChoicePay1..3; WeekCard, WeekToggle,
--- FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog, FeedEvent,
--- FeedRaised, FeedPolls, FeedLastDebate, FeedDebate, FeedMessages.
+-- EventEffect, EventText, EventMapNote, ChoiceNeed, ChoiceRow, ChoiceA, ChoiceB,
+-- ChoiceC, ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3; WeekCard,
+-- WeekToggle, FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog,
+-- FeedEvent, FeedRaised, FeedPolls, FeedLastDebate, FeedDebate, FeedMessages.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -31,11 +42,11 @@ local Events = require(SharedFolder.Sim.Events)
 local Explain = require(SharedFolder.UI.Explain)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
 local SharedTypes = require(SharedFolder.Types)
+local Swing = require(SharedFolder.UI.Swing)
 local ViewModule = require(SharedFolder.Sim.View)
 
 local Collapsible = require(script.Parent.Parent.Parent.UI.Collapsible)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
-local Layout = require(script.Parent.Parent.Common.Layout)
 local Model = require(script.Parent.Model)
 
 type View = ViewModule.View
@@ -47,6 +58,7 @@ local FEED_MESSAGES = 3 -- latest messages listed in the week card
 export type EventCard = {
 	root: Frame,
 	render: (self: EventCard, p: Model.Payload, order: number) -> (),
+	showsStances: (self: EventCard) -> boolean,
 }
 
 export type WeekCard = {
@@ -62,7 +74,13 @@ end
 
 function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	local config = model.config
-	local card = Collapsible.new(parent, { title = "Event", name = "EventCard" })
+	local card = Collapsible.new(parent, {
+		title = "Event",
+		name = "EventCard",
+		onToggle = function()
+			model.render()
+		end,
+	})
 	card.toggle.Name = "EventToggle"
 	-- The effect line sits between the title row and the body: always shown.
 	card.body.LayoutOrder = 3
@@ -85,9 +103,26 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	})
 	local flavor = Kit.caption("", { Name = "EventText", LayoutOrder = 1, Parent = card.body })
 	local mapNote = Kit.caption("", { Name = "EventMapNote", LayoutOrder = 2, Parent = card.body })
-	local answerRow, answerLayout = Layout.grid(card.body, "ChoiceRow", 3)
-	Layout.setGrid(answerLayout, #Events.CHOICES, Kit.MIN_TOUCH, Kit.space.sm)
+	local need = Kit.caption("", {
+		Name = "ChoiceNeed",
+		LayoutOrder = 3,
+		TextColor3 = Kit.colors.text,
+		Parent = card.body,
+	})
+	-- The stances, one full-width chip each, so long names stay readable on phones.
+	local answerRow = Kit.box({
+		Name = "ChoiceRow",
+		LayoutOrder = 4,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = card.body,
+	})
+	Kit.list("Vertical", Kit.space.sm).Parent = answerRow
 	local choiceButtons: { [string]: TextButton } = {}
+	local function held(input: InputObject): boolean
+		local kind = input.UserInputType.Name
+		return kind == "MouseButton1" or kind == "Touch"
+	end
 	for k = 1, #Events.CHOICES do
 		local answer: SharedTypes.Choice = Events.CHOICES[k]
 		local button: TextButton
@@ -96,27 +131,49 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 				return
 			end
 			model.draft.choice = answer
+			model.peekChoice = nil
 			model.render()
 		end, {
 			variant = "chip",
 			Name = `Choice{answer}`,
 			LayoutOrder = k,
-			Size = answerLayout.CellSize,
+			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = answerRow,
 		})
+		-- Press and hold: preview this stance on the map without picking it.
+		button.InputBegan:Connect(function(input: InputObject)
+			if held(input) and model.peekChoice ~= answer then
+				model.peekChoice = answer
+				model.render()
+			end
+		end)
+		button.InputEnded:Connect(function(input: InputObject)
+			if held(input) and model.peekChoice == answer then
+				model.peekChoice = nil
+				model.render()
+			end
+		end)
 		choiceButtons[answer] = button
 	end
-	local choiceNote = Kit.caption("", { Name = "ChoiceNote", LayoutOrder = 4, Parent = card.body })
-	local payHead = Kit.caption("Where each stance moves support:", {
-		Name = "ChoicePayHead",
+	local summary = Kit.text("", {
+		Name = "ChoiceSummary",
 		LayoutOrder = 5,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Font = Kit.font.medium,
+		Parent = card.body,
+	})
+	local choiceNote = Kit.caption("", { Name = "ChoiceNote", LayoutOrder = 6, Parent = card.body })
+	local payHead = Kit.caption("Every state, stance by stance:", {
+		Name = "ChoicePayHead",
+		LayoutOrder = 7,
 		Parent = card.body,
 	})
 	local payLines: { TextLabel } = {}
 	for k = 1, #Events.CHOICES do
 		payLines[k] = Kit.caption("", {
 			Name = `ChoicePay{k}`,
-			LayoutOrder = 5 + k,
+			LayoutOrder = 7 + k,
 			TextColor3 = Kit.colors.text,
 			Parent = card.body,
 		})
@@ -126,6 +183,9 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 
 	local eventCard: EventCard = {
 		root = card.root,
+		showsStances = function(_self: EventCard): boolean
+			return card.root.Visible and card:isExpanded() and answerRow.Visible
+		end,
 		render = function(_self: EventCard, p: Model.Payload, order: number)
 			local event = Model.shownEvent(p)
 			local upcoming = if p.reveal == nil then p.view.nextEvent else nil
@@ -164,9 +224,12 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			local choosing = event.kind == "Choice" and Model.planning(p)
 			answerRow.Visible = choosing
 			choiceNote.Visible = choosing
+			need.Visible = choosing
+			summary.Visible = choosing
 			local isChoice = event.kind == "Choice"
 			payHead.Visible = isChoice
-			for k, line in Explain.choiceLines(config, event, p.view.players[p.view.you].platform) do
+			local view = p.view
+			for k, line in Explain.choiceLines(config, event, view.players[view.you].platform) do
 				local label = payLines[k]
 				if label then
 					label.Text = line
@@ -176,12 +239,29 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			if not choosing then
 				return
 			end
+			need.Text = Swing.needText(config, view)
 			choiceNote.Text = PlanDraft.choiceNote(config)
 			local canEdit = Model.editable(model, p)
+			local stances = event.stances
+			if stances then
+				local hedge: SharedTypes.Choice = Events.defaultChoice()
+				for _, stance in stances do
+					local button = choiceButtons[stance.id]
+					if button then
+						button.Text = if stance.id == hedge
+							then `{stance.id} · {stance.name} (hedge, default)`
+							else `{stance.id} · {stance.name}`
+					end
+				end
+			end
 			for answer, button in choiceButtons do
 				Kit.setSelected(button, model.draft.choice == answer)
 				Kit.setEnabled(button, canEdit)
 			end
+			local shownStance: SharedTypes.Choice = model.peekChoice
+				or model.draft.choice
+				or Events.defaultChoice()
+			summary.Text = Swing.stanceSummary(config, view, Swing.stance(config, view, shownStance))
 		end,
 	}
 	return eventCard
@@ -277,6 +357,10 @@ function EventCard.week(parent: Instance, model: Model.Model, order: number): We
 			theirUnderdog.Text = theirs or ""
 			theirUnderdog.Visible = theirs ~= nil
 			local eventLine = PlanDraft.lastEventLine(view)
+			local choiceResult = Swing.lastChoice(view)
+			if eventLine and choiceResult then
+				eventLine ..= "\n" .. table.concat(Swing.choiceLines(config, view, choiceResult), "\n")
+			end
 			lastEvent.Text = eventLine or ""
 			lastEvent.Visible = eventLine ~= nil
 			raised.Text = `You raised {Model.money(view.raised)} from fundraisers last week.`
@@ -309,6 +393,22 @@ function EventCard.week(parent: Instance, model: Model.Model, order: number): We
 						rows,
 						`{Model.issueName(topic)} ({verdict}): {Explain.debateLine(config, view, result, t)}`
 					)
+				end
+				-- Then what each topic moved, in words (the reveal said it too).
+				for t = 1, #result.topics do
+					local entry = Swing.debateTopic(config, view, result, t)
+					table.insert(rows, entry.line)
+					for _, gaffe in entry.gaffeLines do
+						table.insert(rows, gaffe)
+					end
+				end
+				local other = Swing.debateOther(view, result)
+				if #other > 0 then
+					local phrases: { string } = {}
+					for _, flip in other do
+						table.insert(phrases, Swing.flipPhrase(view, flip))
+					end
+					table.insert(rows, `Also, from the points every state got: {table.concat(phrases, ", ")}`)
 				end
 				lastDebate.Text = `This week's debate: {table.concat(rows, "\n")}`
 				lastDebate.Visible = true

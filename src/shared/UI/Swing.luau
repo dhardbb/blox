@@ -18,6 +18,7 @@
 --   Swing.stance(config, view, id) -> Preview          one stance on the map, your side only
 --   Swing.stanceSummary(config, view, preview) -> string
 --   Swing.flipPhrase(view, flip) -> string             "PA flipped to you (+19 EV)"
+--   Swing.flips(pollFlips) -> { Flip }                 the same flips with each state's EV
 --   Swing.debateTopic(config, view, result, t) -> Topic   (flips credited to the first topic that moved the state)
 --   Swing.debateOther(view, result) -> { Flip }        flips no topic's states explain (the flat part)
 --   Swing.net(moves, view) -> { [string]: number }     points toward you minus toward the rival, per state
@@ -43,7 +44,7 @@ type View = ViewModule.View
 
 local Swing = {}
 
-Swing.CLOSE = 5 -- points of public-poll margin, either way, that make a state "in play" (display only)
+Swing.CLOSE = Explain.IN_PLAY -- points of public-poll margin, either way, that make a state "in play" (display only)
 Swing.LIST_MAX = 5 -- states named in one list before "+N more"
 
 export type Flip = { state: string, from: number, to: number, ev: number }
@@ -220,7 +221,8 @@ function Swing.flipPhrase(view: View, flip: Flip): string
 	return `{flip.state} flipped to them ({flip.ev} EV)`
 end
 
-local function withEv(flips: { SimState.PollFlip }?): { Flip }
+-- Poll flips with each state's EV.
+function Swing.flips(flips: { SimState.PollFlip }?): { Flip }
 	local out: { Flip } = {}
 	if flips then
 		for _, flip in flips do
@@ -229,6 +231,7 @@ local function withEv(flips: { SimState.PollFlip }?): { Flip }
 	end
 	return out
 end
+local withEv = Swing.flips
 
 -- ---------------------------------------------------------------- stances
 
@@ -359,7 +362,8 @@ local function creditFlips(result: SimState.DebateResult): ({ { SimState.PollFli
 	end
 	local rest: { SimState.PollFlip } = {}
 	local topicSets: { { [string]: boolean } } = {}
-	for t, topic in result.topics do
+	for t = 1, #result.topics do
+		local topic: Types.Issue = result.topics[t]
 		local set: { [string]: boolean } = {}
 		for _, id in Debate.topicStates(topic) do
 			set[id] = true
@@ -389,7 +393,7 @@ local function creditFlips(result: SimState.DebateResult): ({ { SimState.PollFli
 end
 
 function Swing.debateTopic(config: Config, view: View, result: SimState.DebateResult, t: number): Topic
-	local topic = result.topics[t]
+	local topic: Types.Issue = result.topics[t]
 	local winner = result.winners[t] or 0
 	local states = byEv(Debate.topicStates(topic))
 	local byTopic = creditFlips(result)
@@ -534,7 +538,8 @@ function Swing.choiceLines(_config: Config, view: View, entry: SimState.EventRes
 	end
 	local you, them = view.you, rivalOf(view)
 	local out: { string } = {}
-	local mine, theirs = choices[you], choices[them]
+	local mine: Types.Choice? = choices[you]
+	local theirs: Types.Choice? = choices[them]
 	if mine then
 		table.insert(out, `You took {stanceName(mine)}: {sideText(moves, you)}.`)
 	end

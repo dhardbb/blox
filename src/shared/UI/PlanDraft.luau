@@ -368,7 +368,8 @@ function PlanDraft.eventEffect(config: Config, event: ViewModule.EventView): str
 			config.EVENT_WINDFALL_MULT
 		)} this week`
 	end
-	return "Take a stance: A / B / C"
+	local issue = Issues.displayName[event.issue :: Types.Issue] or "?"
+	return `Take a stance on {issue}: each state reacts by its own top issues`
 end
 
 -- The states a Spotlight or Regional event singles out, as a set of state ids
@@ -399,26 +400,20 @@ function PlanDraft.eventMapNote(event: ViewModule.EventView): string?
 	return nil
 end
 
--- One sentence on how a stance lands, from Config (D-039).
+-- How a stance lands, from Config (D-039), in two sentences. The event card's
+-- map preview and summary (Shared/UI/Swing) show it for this event.
 function PlanDraft.choiceNote(config: Config): string
-	return `Only states with this issue as a top issue react, by their other top issue: {points(
-		config.STANCE_POINTS
-	)} where a stance is liked, {points(-config.STANCE_POINTS)} where it is not, {points(config.STANCE_HEDGE)} otherwise. C is the hedge: {points(
-		config.STANCE_HEDGE
-	)} in every state with the issue, nothing elsewhere. Other states move {points(config.STANCE_SPILL)} per top issue a side likes and {points(
+	return `States with the issue react by their other top issue ({points(config.STANCE_POINTS)} or {points(
+		-config.STANCE_POINTS
+	)}); every other state moves {points(config.STANCE_SPILL)} per top issue a side likes, {points(
 		-config.STANCE_SPILL
-	)} per one it dislikes. A candidate who runs on the issue is heard ×{config.STANCE_PLATFORM_MULT} there. Stances stay secret until the week resolves.`
+	)} per one it dislikes. The hedge (C) is {points(config.STANCE_HEDGE)} in the issue's states only. Running on the issue: ×{config.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
 end
 
 PlanDraft.points = points
 
--- "took stance A" for a Choice stance.
-function PlanDraft.choiceVerb(choice: string): string
-	return `took stance {choice}`
-end
-
--- Last week's resolved event for the week card, or nil. A Choice event names
--- both stances and the support each side's stance asked for, summed over states.
+-- Last week's resolved event for the week card, or nil. A Choice week's stances
+-- and what they moved are Swing.choiceLines' job.
 function PlanDraft.lastEventLine(view: View): string?
 	local entry = nil
 	for _, result in view.eventLog do
@@ -430,25 +425,7 @@ function PlanDraft.lastEventLine(view: View): string?
 		return nil
 	end
 	local event = Events.byId[entry.id]
-	local name = if event then event.name else "an event"
-	local choices, moves = entry.choices, entry.moves
-	if choices == nil or moves == nil then
-		return `Last week's event: {name}.`
-	end
-	local you = view.you
-	local them = if you == 1 then 2 else 1
-	local mine, theirs = choices[you], choices[them]
-	if mine == nil or theirs == nil then
-		return `Last week's event: {name}.`
-	end
-	local net = { 0, 0 }
-	for _, move in moves do
-		net[1] += move.points[you] or 0
-		net[2] += move.points[them] or 0
-	end
-	return `Last week's event: {name}. You {PlanDraft.choiceVerb(mine)}, they {PlanDraft.choiceVerb(theirs)}: {#moves} states moved, {points(
-		net[1]
-	)} / {points(net[2])} points in all.`
+	return `Last week's event: {if event then event.name else "an event"}.`
 end
 
 return table.freeze(PlanDraft)

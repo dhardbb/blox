@@ -13,11 +13,18 @@ local Plan = require("@sim/Plan")
 local PlanDraft = require("@ui/PlanDraft")
 local State = require("@sim/State")
 local StateData = require("@sim/StateData")
+local Swing = require("@ui/Swing")
 local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
+
+local function check(condition: boolean, message: string)
+	if not condition then
+		error(message, 0)
+	end
+end
 
 describe("Colors", function()
 	it("has a color for every pickable player color", function()
@@ -264,16 +271,18 @@ describe("PlanDraft weekly events", function()
 		expect(windfall):toBe(
 			"Fundraisers in states where you trail in the public poll raise ×1.2 this week"
 		)
-		expect(PlanDraft.eventEffect(C, event("Choice", nil, nil))):toBe("Take a stance: A / B / C")
+		expect(PlanDraft.eventEffect(C, event("Choice", "Jobs", nil))):toBe(
+			"Take a stance on Jobs: each state reacts by its own top issues"
+		)
 		local more = Config.with(C, { EVENT_SPOTLIGHT_MULT = 2 })
 		expect(PlanDraft.eventEffect(more, event("Spotlight", "Jobs", nil))):toBe(
 			"Rallies and ads about Jobs are worth ×2 this week"
 		)
 		expect(PlanDraft.choiceNote(C)):toBe(
 			-- Numbers follow D-039 (stances).
-			`Only states with this issue as a top issue react, by their other top issue: +{C.STANCE_POINTS} where a stance is liked, -{C.STANCE_POINTS} where it is not, +{C.STANCE_HEDGE} otherwise. C is the hedge: +{C.STANCE_HEDGE} in every state with the issue, nothing elsewhere. Other states move {PlanDraft.points(
+			`States with the issue react by their other top issue (+{C.STANCE_POINTS} or -{C.STANCE_POINTS}); every other state moves {PlanDraft.points(
 				C.STANCE_SPILL
-			)} per top issue a side likes and {PlanDraft.points(-C.STANCE_SPILL)} per one it dislikes. A candidate who runs on the issue is heard ×{C.STANCE_PLATFORM_MULT} there. Stances stay secret until the week resolves.`
+			)} per top issue a side likes, {PlanDraft.points(-C.STANCE_SPILL)} per one it dislikes. The hedge (C) is +{C.STANCE_HEDGE} in the issue's states only. Running on the issue: ×{C.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
 		)
 	end)
 
@@ -310,24 +319,23 @@ describe("PlanDraft weekly events", function()
 		local event = Events.at(match) :: Events.Definition
 		local logged = after.eventLog[#after.eventLog]
 		local moves = logged.moves :: { State.StateMove }
-		local net = { 0, 0 }
-		for _, move in moves do
-			net[1] += move.points[1]
-			net[2] += move.points[2]
-		end
 		local mine = View.build(C, after, 1)
 		expect(mine.week):toBe(week + 1)
-		expect(PlanDraft.lastEventLine(mine)):toBe(
-			`Last week's event: {event.name}. You took stance B, they took stance A: {#moves} states moved, {Numbers.signed(
-				net[1]
-			)} / {Numbers.signed(net[2])} points in all.`
-		)
+		expect(PlanDraft.lastEventLine(mine)):toBe(`Last week's event: {event.name}.`)
+		-- The stances and their points are Swing's lines (D-042), from each side.
+		local stanceB = (Events.stance(event, "B") :: Events.Stance).name
+		local stanceA = (Events.stance(event, "A") :: Events.Stance).name
+		local mineLines = Swing.choiceLines(C, mine, Swing.lastChoice(mine) :: any)
+		check(string.find(mineLines[1], `You took B · {stanceB}`, 1, true) ~= nil, mineLines[1])
+		check(string.find(mineLines[2], `They took A · {stanceA}`, 1, true) ~= nil, mineLines[2])
+		local gain = 0
+		for _, move in moves do
+			gain += math.max(0, move.points[1])
+		end
+		check(string.find(mineLines[1], `: {Numbers.signed(gain)} in `, 1, true) ~= nil, mineLines[1])
 		local theirs = View.build(C, after, 2)
-		expect(PlanDraft.lastEventLine(theirs)):toBe(
-			`Last week's event: {event.name}. You took stance A, they took stance B: {#moves} states moved, {Numbers.signed(
-				net[2]
-			)} / {Numbers.signed(net[1])} points in all.`
-		)
+		local theirLines = Swing.choiceLines(C, theirs, Swing.lastChoice(theirs) :: any)
+		check(string.find(theirLines[1], `You took A · {stanceA}`, 1, true) ~= nil, theirLines[1])
 	end)
 
 	it("names a resolved event that has no Choice", function()

@@ -41,6 +41,10 @@ type Profile = Candidates.Profile
 
 local Explain = {}
 
+-- Public-poll margin (points, either way) within which a state is "in play", a
+-- state you need (D-042). Display only; Shared/UI/Swing uses it too.
+Explain.IN_PLAY = 5
+
 -- ---------------------------------------------------------------- text helpers
 
 -- A multiplier: 1.5 -> "×1.5", 1.15 -> "×1.15", 2 -> "×2.0".
@@ -1011,13 +1015,13 @@ function Explain.help(config: Config, view: View?): { Section }
 	section("debates", "Debates", {
 		`Debates open weeks {table.concat(debateWeeks, " and ")}, on {c.DEBATE_TOPICS} topics shown in advance. In the week before, spread {me.debatePrep} prep points over them (at most {c.DEBATE_MAX_PER_TOPIC} on one).`,
 		`Each topic: prep + {c.DEBATE_PLATFORM_BONUS} if it is on your platform + debate stat ({me.debateStat}) + a roll of 0 to {c.DEBATE_ROLL_MAX}. Higher total wins the topic; a tie gives it to nobody.`,
-		`Winning a topic: {signed(c.DEBATE_TOPIC_WIN)} in every state where it is a top issue, {signed(
+		`Winning a topic: {signed(c.DEBATE_TOPIC_WIN)} in every state where it is a top issue, plus {signed(
 			c.DEBATE_TOPIC_NATIONAL
-		)} everywhere else. Winning all: {signed(c.DEBATE_SWEEP)} more in every state and +{num(
+		)} in every state. Winning all: {signed(c.DEBATE_SWEEP)} more in every state and +{num(
 			c.DEBATE_SWEEP_MOMENTUM
 		)} momentum in every battleground. Losing a topic you gave 0 prep: {signed(-c.DEBATE_GAFFE)} in its states (a gaffe).`,
 		`The roll is big. Level: {oddsText(c, 0)}. 2 points ahead: {oddsText(c, 2)}. 4 ahead: {oddsText(c, 4)}.`,
-		"The polls are republished right after the debate, so the map shows what it moved.",
+		"The polls are republished right after the debate. The debate screen names the states each topic swung, badges them on the map, and calls out every state whose poll leader flipped (FLIP).",
 	})
 
 	local choice = Explain.choiceLines(c)
@@ -1028,10 +1032,11 @@ function Explain.help(config: Config, view: View?): { Section }
 		)}. Windfall: fundraisers {times(c.EVENT_WINDFALL_MULT)} in states where you trail in the public poll. An event adds at most {num(
 			c.EVENT_CAP
 		)} per state per week.`,
-		"Choice: a dispute over one issue; both take a stance (A, B or C) in secret. Only states where that issue is a top issue react, by their other top issue:",
+		"Choice: a dispute over one issue; both take a stance (A, B or C) in secret. States where the issue is a top issue react by their other top issue; every other state hears a side a little through its own top issues:",
 		choice[1],
 		choice[2],
 		choice[3],
+		`The event card shows a stance on the map: badges in your color where you gain, red where you lose, FLIP where the poll leader would change (on today's polls, before their stance). It lists the states you need: within {Explain.IN_PLAY} points in the public poll, either way. Hold a stance to peek at it; collapse the card for the normal map.`,
 	})
 
 	section("election", "Election night", {

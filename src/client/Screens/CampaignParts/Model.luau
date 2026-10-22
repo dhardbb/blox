@@ -18,6 +18,7 @@ local PlanDraft = require(SharedFolder.UI.PlanDraft)
 local Session = require(SharedFolder.Net.Session)
 local StateData = require(SharedFolder.Sim.StateData)
 local StateOrder = require(SharedFolder.UI.StateOrder)
+local Swing = require(SharedFolder.UI.Swing)
 local SharedTypes = require(SharedFolder.Types)
 local ViewModule = require(SharedFolder.Sim.View)
 
@@ -29,6 +30,8 @@ type Issue = SharedTypes.Issue
 
 export type Payload = Session.StatePayload
 export type PivotStage = "drop" | "add"
+-- What a reveal asks the map to show: net points toward you per state, and flips.
+export type RevealSwing = { net: { [string]: number }, flips: { Swing.Flip } }
 
 export type Model = {
 	config: Config,
@@ -45,6 +48,9 @@ export type Model = {
 	skipStep: number?, -- step we pressed Skip for
 	sortMode: StateOrder.Mode,
 	portrait: boolean,
+	peekChoice: SharedTypes.Choice?, -- a stance chip being held: previewed, not selected
+	stanceMap: boolean, -- the event card is open in a Choice week, so the map previews a stance
+	revealSwing: RevealSwing?, -- what a reveal shows moved on the map, else nil
 	messages: { Types.Message },
 	render: () -> (),
 	selectState: (id: string) -> (),
@@ -198,6 +204,23 @@ function Part.actionText(config: Config, action: Plan.Action, flight: boolean): 
 		text ..= ` ✈ {Part.money(config.FLIGHT_COST)}`
 	end
 	return text
+end
+
+-- The stance the map previews in a Choice week: the one held, else the one
+-- selected, else the hedge. Nil when there is nothing to preview.
+function Part.previewStance(model: Model, p: Payload): SharedTypes.Choice?
+	if not Part.planning(p) or not PlanDraft.isChoiceWeek(p.view) or not model.stanceMap then
+		return nil
+	end
+	local held: SharedTypes.Choice? = model.peekChoice
+	if held then
+		return held
+	end
+	local chosen: SharedTypes.Choice? = model.draft.choice
+	if chosen then
+		return chosen
+	end
+	return "C"
 end
 
 -- This week's event, or nil while any reveal plays: the Resolve reveal carries

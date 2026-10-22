@@ -1,11 +1,13 @@
 --!strict
 -- Results: who won and why, the final electoral votes and states, both
--- candidates, the closest states and the debate topics each side won. The
+-- candidates, what decided it (the states debates and Choice stances flipped on
+-- the polls, and which of them held on election night: Shared/UI/Swing, D-042),
+-- the closest states and the debate topics each side won. The
 -- player leaves with Back to lobby or goes straight into another match.
 --
 -- Layout (docs/UI-OVERHAUL.md §3.6): a scrolling column (banner, EV bar with
--- the 270 tick, both players side by side, the closest states and the debates
--- as Collapsibles) over the pinned ActionBar: "Play vs Bot again" / "Play
+-- the 270 tick, both players side by side, what decided it, the closest states
+-- and the debates as Collapsibles) over the pinned ActionBar: "Play vs Bot again" / "Play
 -- again" (primary) and "Back to lobby".
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
+local Swing = require(ReplicatedStorage.Shared.UI.Swing)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local Collapsible = require(script.Parent.Parent.UI.Collapsible)
@@ -299,6 +302,22 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		for index, player in players do
 			playerPanel(versus, current, player, index)
+		end
+
+		-- What decided it: what debates and stances flipped, and the final gap.
+		if election then
+			local card = Collapsible.new(column, {
+				title = "What decided it",
+				expanded = true,
+				name = "Decided",
+				order = nextOrder(),
+			})
+			for index, line in Swing.decided(ctx.config, view) do
+				label(card.body, line, {
+					Name = `Decided_{index}`,
+					LayoutOrder = index,
+				})
+			end
 		end
 
 		-- The closest states, closest first.

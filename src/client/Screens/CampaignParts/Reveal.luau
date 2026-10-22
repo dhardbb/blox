@@ -5,23 +5,31 @@
 --
 -- Resolve: the week's events one line at a time (the newest REVEAL_LINES), the
 -- map still showing last week's polls until "New public polls are in", then a
--- summary of the biggest swings and the projected EV.
+-- summary of the biggest swings and the projected EV. After a Choice week, once
+-- the stances are read out, both sides' stances in words and any poll leader
+-- they flipped as a big callout, with the moved states badged on the map.
 -- Debate: one row per topic, revealed every DEBATE_BEAT seconds, each with the
--- two scores as thin bars, the verdict and each side's score split into prep,
--- platform, stat and roll (Shared/UI/Explain); then national support and the
--- callouts (Gaffe!, Sweep!).
+-- two scores as thin bars, the verdict, what the topic swung ("Your Jobs win
+-- swung OH, MI, PA (+1.0 each) - PA flipped to you (+19 EV)", heading size when
+-- a state flipped), any gaffe, and each side's score split into prep, platform,
+-- stat and roll (Shared/UI/Explain); the map badges the states as each topic
+-- lands (Shared/UI/Swing, D-042). Then flips no topic explains, the points every
+-- state got and the callouts (Gaffe!, Sweep!).
 --
 --   local reveal = Reveal.new(parent, model, order, hooks)
 --     hooks.caption(text)   the line over the map
 --     hooks.paint(view)     repaint the map from this view's polls
 --     hooks.focus(id?)      highlight a state on the map
+--     hooks.swing(swing?)   badge what moved on the map (nil: the usual marks)
 --   reveal:remember(view)   the last plan-stage view (the polls before a resolve)
 --   reveal:render(p)        shows the panel during a reveal
 --   reveal:tick(p, now)     starts a new reveal and moves it along
 --   reveal:status(p) -> string   the action bar's status line during a reveal
 --
 -- Element names: RevealPanel, RevealTitle, RevealLines, RevealLine<k>,
--- DebateRows, DebateRow<t>, DebateTopic<t>, DebateBars<t>, DebateParts<t>, RevealSummary.
+-- RevealChoice, RevealChoiceFlip, DebateRows, DebateRow<t>, DebateTopic<t>,
+-- DebateBars<t>, DebateSwing<t>, DebateGaffe<t>, DebateParts<t>, DebateOther,
+-- RevealSummary.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -30,6 +38,7 @@ local ConfigModule = require(SharedFolder.Sim.Config)
 local Events = require(SharedFolder.Sim.Events)
 local Explain = require(SharedFolder.UI.Explain)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
+local Swing = require(SharedFolder.UI.Swing)
 local SimState = require(SharedFolder.Sim.State)
 local ViewModule = require(SharedFolder.Sim.View)
 
@@ -54,6 +63,7 @@ export type Hooks = {
 	caption: (text: string) -> (),
 	paint: (view: View) -> (),
 	focus: (id: string?) -> (),
+	swing: (swing: Model.RevealSwing?) -> (),
 }
 
 export type Reveal = {
@@ -64,7 +74,7 @@ export type Reveal = {
 	status: (self: Reveal, p: Payload) -> string,
 }
 
-type Item = { caption: string, state: string?, polls: boolean }
+type Item = { caption: string, state: string?, polls: boolean, choice: boolean }
 
 -- One line for a resolve event, or nil for events the reveal does not show.
 local function eventCaption(config: ConfigModule.Config, view: View, event: Event): string?
@@ -99,15 +109,19 @@ local function eventCaption(config: ConfigModule.Config, view: View, event: Even
 	elseif kind == "Polls" then
 		return "New public polls are in"
 	elseif kind == "Choice" then
-		-- The event's Choice answers, revealed with the week (D-027).
-		local name = "Event"
+		-- The event's stances, revealed with the week (D-027, D-039).
+		local name, stanceName = "Event", event.issue or "C"
 		for _, result in view.eventLog do
 			local definition = Events.byId[result.id]
 			if result.week == view.week - 1 and definition then
 				name = definition.name
+				local stance = Events.stance(definition, (event.issue or "C") :: any)
+				if stance then
+					stanceName = `{stance.id} · {stance.name}`
+				end
 			end
 		end
-		return `{name}: {who} {PlanDraft.choiceVerb(event.issue or "C")} ({PlanDraft.points(amount)} points over the states that reacted)`
+		return `{name}: {who} took stance {stanceName}`
 	end
 	return nil
 end
@@ -166,6 +180,24 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	local title = Kit.heading("", { Name = "RevealTitle", LayoutOrder = 1, Parent = root })
 
 	local lineBox = stack(root, 2, "RevealLines", Kit.space.xs)
+	local choiceText = Kit.text("", {
+		Name = "RevealChoice",
+		LayoutOrder = 3,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Visible = false,
+		Parent = root,
+	})
+	local choiceFlip = Kit.text("", {
+		Name = "RevealChoiceFlip",
+		LayoutOrder = 4,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Font = Kit.font.bold,
+		TextSize = Kit.size.heading,
+		Visible = false,
+		Parent = root,
+	})
 	local lines: { TextLabel } = {}
 	for k = 1, REVEAL_LINES do
 		lines[k] = Kit.text("", {
@@ -178,8 +210,16 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		})
 	end
 
-	type TopicRow = { row: Frame, label: TextLabel, mine: Frame, theirs: Frame, parts: TextLabel }
-	local debateBox = stack(root, 3, "DebateRows", Kit.space.sm)
+	type TopicRow = {
+		row: Frame,
+		label: TextLabel,
+		mine: Frame,
+		theirs: Frame,
+		swing: TextLabel,
+		gaffe: TextLabel,
+		parts: TextLabel,
+	}
+	local debateBox = stack(root, 5, "DebateRows", Kit.space.sm)
 	local topicRows: { TopicRow } = {}
 	for t = 1, config.DEBATE_TOPICS do
 		local row = stack(debateBox, t, `DebateRow{t}`, Kit.space.xs)
@@ -221,12 +261,37 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			label = label,
 			mine = bar("YouScore", 0),
 			theirs = bar("ThemScore", SCORE_BAR_H + Kit.space.xs),
-			parts = Kit.caption("", { Name = `DebateParts{t}`, LayoutOrder = 3, Parent = row }),
+			swing = Kit.text("", {
+				Name = `DebateSwing{t}`,
+				LayoutOrder = 3,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Parent = row,
+			}),
+			gaffe = Kit.text("", {
+				Name = `DebateGaffe{t}`,
+				LayoutOrder = 4,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				TextColor3 = Kit.colors.danger,
+				Visible = false,
+				Parent = row,
+			}),
+			parts = Kit.caption("", { Name = `DebateParts{t}`, LayoutOrder = 5, Parent = row }),
 		}
 	end
+	local debateOther = Kit.text("", {
+		Name = "DebateOther",
+		LayoutOrder = config.DEBATE_TOPICS + 1,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Font = Kit.font.bold,
+		Visible = false,
+		Parent = debateBox,
+	})
 	local summary = Kit.text("", {
 		Name = "RevealSummary",
-		LayoutOrder = 4,
+		LayoutOrder = 6,
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		TextColor3 = Kit.colors.accent,
@@ -259,9 +324,17 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		for _, event in p.events do
 			local text = eventCaption(config, view, event)
 			if text then
-				table.insert(items, { caption = text, state = event.state, polls = event.kind == "Polls" })
+				table.insert(items, {
+					caption = text,
+					state = event.state,
+					polls = event.kind == "Polls",
+					choice = event.kind == "Choice",
+				})
 			end
 		end
+		choiceText.Visible = false
+		choiceFlip.Visible = false
+		hooks.swing(nil)
 		local old = planView
 		oldView = if old and old.week == view.week - 1 then old else nil
 		title.Text = `Week {math.max(1, view.week - 1)} results`
@@ -286,17 +359,35 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		local texts: { string } = {}
 		local pollsIn = oldView == nil
 		local focus: string? = nil
+		local choiceShown = false
 		for k = 1, count do
 			local item = items[k]
 			table.insert(texts, item.caption)
 			if item.polls then
 				pollsIn = true
 			end
+			if item.choice then
+				choiceShown = true
+			end
 			if item.state then
 				focus = item.state
 			end
 		end
 		showLines(texts)
+		-- Once the stances are read out: what both moved, on the panel and the map.
+		local entry = if choiceShown then Swing.lastChoice(view) else nil
+		if entry then
+			choiceText.Text = table.concat(Swing.choiceLines(config, view, entry), "\n")
+			choiceText.Visible = true
+			local flips = Swing.flips(entry.flips)
+			local phrases: { string } = {}
+			for _, flip in flips do
+				table.insert(phrases, Swing.flipPhrase(view, flip))
+			end
+			choiceFlip.Text = `Stances flipped {table.concat(phrases, ", ")}`
+			choiceFlip.Visible = #phrases > 0
+			hooks.swing({ net = Swing.net(entry.moves, view), flips = flips })
+		end
 		local last = items[count]
 		hooks.caption(if last then last.caption else "New public polls are in")
 		hooks.paint(if pollsIn then view else oldView :: View)
@@ -321,6 +412,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		for _, entry in topicRows do
 			entry.row.Visible = false
 		end
+		debateOther.Visible = false
+		hooks.swing(nil)
 	end
 
 	local function tickDebate(p: Payload, now: number)
@@ -361,16 +454,45 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				entry.label.Text =
 					`{Model.issueName(result.topics[t])}: you {mine} - {theirs} them · {verdict}`
 				entry.parts.Text = Explain.debateLine(config, view, result, t)
+				local moved = Swing.debateTopic(config, view, result, t)
+				entry.swing.Text = moved.line
+				-- A flip is the headline: heading size and bold.
+				local flipped = #moved.flips > 0
+				entry.swing.TextSize = if flipped then Kit.size.heading else Kit.size.body
+				entry.swing.Font = if flipped then Kit.font.bold else Kit.font.body
+				entry.gaffe.Text = table.concat(moved.gaffeLines, "\n")
+				entry.gaffe.Visible = #moved.gaffeLines > 0
 				entry.mine.BackgroundColor3 = Kit.playerColor(view, you)
 				entry.theirs.BackgroundColor3 = Kit.playerColor(view, them)
 				entry.mine.Size = UDim2.fromScale(math.clamp(mine / best, 0, 1), 1)
 				entry.theirs.Size = UDim2.fromScale(math.clamp(theirs / best, 0, 1), 1)
 			end
 		end
+		-- The map badges what the topics so far moved, and their flips.
+		local flips: { Swing.Flip } = {}
+		for t = 1, count do
+			for _, flip in Swing.debateTopic(config, view, result, t).flips do
+				table.insert(flips, flip)
+			end
+		end
+		local other: { Swing.Flip } = if count >= topics then Swing.debateOther(view, result) else {}
+		for _, flip in other do
+			table.insert(flips, flip)
+		end
+		hooks.swing({ net = Swing.debateNet(config, view, result, count), flips = flips })
+		hooks.paint(view)
 		local latest = topicRows[count]
 		hooks.caption(if latest then latest.label.Text else "Debate")
 		if count < topics then
 			return
+		end
+		if #other > 0 then
+			local phrases: { string } = {}
+			for _, flip in other do
+				table.insert(phrases, Swing.flipPhrase(view, flip))
+			end
+			debateOther.Text = `And from the points every state got: {table.concat(phrases, ", ")}`
+			debateOther.Visible = true
 		end
 		local callouts: { string } = {}
 		for p2 = 1, #view.players do
@@ -397,7 +519,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				)
 			end
 		end
-		summary.Text = `National support: you {PlanDraft.points(result.national[you] or 0)} · them {PlanDraft.points(
+		summary.Text = `Every state also got: you {PlanDraft.points(result.national[you] or 0)} · them {PlanDraft.points(
 			result.national[them] or 0
 		)}.` .. (if #callouts > 0 then " " .. table.concat(callouts, " ") else "")
 	end
@@ -412,6 +534,10 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			root.Visible = show
 			lineBox.Visible = p.reveal == "Resolve"
 			debateBox.Visible = p.reveal == "Debate"
+			if p.reveal ~= "Resolve" then
+				choiceText.Visible = false
+				choiceFlip.Visible = false
+			end
 		end,
 		tick = function(_self: Reveal, p: Payload, now: number)
 			if p.reveal == "Resolve" then

@@ -23,6 +23,8 @@ local MapLayout = require(Shared.UI.MapLayout)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local Session = require(Shared.Net.Session)
+local SharedTypes = require(Shared.Types)
+local Swing = require(Shared.UI.Swing)
 local ViewModule = require(Shared.Sim.View)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
@@ -37,6 +39,7 @@ local PlanList = require(script.Parent.CampaignParts.PlanList)
 local Prep = require(script.Parent.CampaignParts.Prep)
 local Reveal = require(script.Parent.CampaignParts.Reveal)
 local StateCard = require(script.Parent.CampaignParts.StateCard)
+local SwingMarks = require(script.Parent.CampaignParts.SwingMarks)
 local TopBar = require(script.Parent.CampaignParts.TopBar)
 local Types = require(script.Parent.Types)
 
@@ -82,6 +85,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		skipStep = nil,
 		sortMode = "Closest",
 		portrait = false,
+		peekChoice = nil,
+		stanceMap = false,
+		revealSwing = nil,
 		messages = {},
 		render = function() end,
 		selectState = function(_id: string) end,
@@ -198,6 +204,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		focus = function(id: string?)
 			map:select(id)
 		end,
+		swing = function(swing: Model.RevealSwing?)
+			model.revealSwing = swing
+		end,
 	})
 	local eventCard = EventCard.new(side, model)
 	local card = StateCard.new(side, model, ORDER.card)
@@ -282,6 +291,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					arrowColor = if leader then Kit.playerColor(view, leader) else nil,
 				}
 			end
+		end
+		-- A reveal shows what moved; a Choice week previews the stance (D-042).
+		local swing = model.revealSwing
+		local stance: SharedTypes.Choice? = if live then Model.previewStance(model, live) else nil
+		if swing then
+			marks = SwingMarks.reveal(view, swing.net, swing.flips, marks)
+		elseif stance then
+			marks = SwingMarks.preview(view, Swing.stance(config, view, stance), marks)
 		end
 		map:setMarks(marks :: any)
 	end
@@ -408,7 +425,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		caption.TextColor3 = Kit.colors.muted
-		if Model.planning(p) and Model.isLocked(model, p) then
+		local stance = Model.previewStance(model, p)
+		if stance then
+			caption.Text =
+				`Map: stance {stance} · badge = support for you · red = a loss · FLIP = poll leader changes`
+		elseif Model.planning(p) and Model.isLocked(model, p) then
 			caption.Text = "Locked in · waiting for opponent"
 		elseif Model.planning(p) then
 			caption.Text = "Tap a state to see its polls and plan actions there"
@@ -426,15 +447,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		local view = p.view
 		local now = ctx.now()
+		if p.reveal == nil then
+			model.revealSwing = nil
+		end
 		reveal:render(p)
+		card:render(p)
+		local choosing = Model.planning(p) and PlanDraft.isChoiceWeek(view)
+		eventCard:render(p, if choosing then ORDER.choiceEvent else ORDER.event)
+		-- The open event card in a Choice week turns the map into the stance preview.
+		model.stanceMap = choosing and eventCard:showsStances()
+		if not model.stanceMap then
+			model.peekChoice = nil
+		end
 		if p.reveal == nil or p.reveal == "Debate" then
 			paintMapFor(view, view)
 			map:select(model.selected)
 		end
 		paintRoute(p)
-		card:render(p)
-		local choosing = Model.planning(p) and PlanDraft.isChoiceWeek(view)
-		eventCard:render(p, if choosing then ORDER.choiceEvent else ORDER.event)
 		prep:render(p)
 		planList:render(p)
 		weekCard:render(p)
