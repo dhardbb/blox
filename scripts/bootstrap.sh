@@ -22,11 +22,17 @@ fi
 
 for tool in rojo lune stylua selene; do
 	want="$(version_of "$tool")"
-	if command -v "$tool" >/dev/null 2>&1 && "$tool" --version | grep -q "$want"; then
+	if command -v "$tool" >/dev/null 2>&1 && "$tool" --version | grep -q "$want" \
+		&& { [ "$tool" != stylua ] || stylua --help | grep -q Luau; }; then
 		echo "$tool $want already installed."
 	else
 		echo "Building $tool $want from crates.io..."
-		cargo install --locked "$tool@$want"
+		if [ "$tool" = stylua ]; then
+			# Release binaries include Luau syntax; the crates.io default build does not.
+			cargo install --locked --force "$tool@$want" --features luau
+		else
+			cargo install --locked "$tool@$want"
+		fi
 	fi
 done
 echo "Toolchain ready (luau-lsp runs in CI only)."

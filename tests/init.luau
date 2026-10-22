@@ -42,7 +42,9 @@ for _, arg in process.args do
 end
 local clock = os.clock()
 local passed, failed = Test.run(filter)
-print(string.format("%d passed, %d failed (%d spec files, %.2fs)", passed, failed, #specs, os.clock() - clock))
+print(
+	string.format("%d passed, %d failed (%d spec files, %.2fs)", passed, failed, #specs, os.clock() - clock)
+)
 
 if failed > 0 or passed == 0 then
 	process.exit(1)
