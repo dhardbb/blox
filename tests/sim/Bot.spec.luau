@@ -5,9 +5,12 @@
 local Test = require("@testlib/Test")
 local Fixtures = require("@testlib/Fixtures")
 local Play = require("@testlib/Play")
+local Bot = require("@sim/Bot")
 local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
 local Election = require("@sim/Election")
+local Rng = require("@sim/Rng")
+local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -63,5 +66,28 @@ describe("Bot", function()
 		for p = 1, 2 do
 			expect(record.unspent[p] < 15):toBe(true)
 		end
+	end)
+
+	it("banks ground game from week 7, not only in the last weeks (D-021)", function()
+		-- Both players' GOTV spend is recorded as plans are submitted, so a unit placed
+		-- in week 7 or 8 shows up as spend before week 9 in at least one of these games.
+		local early = 0
+		for seed = 11, 14 do
+			local match = Fixtures.advanceTo(Fixtures.campaign({ seed = seed }), "Plan", 7)
+			local rng = Rng.new(seed)
+			for week = 7, 8 do
+				for p = 1, 2 do
+					local view = View.build(C, match, p)
+					local plan = Bot.act(C, view, rng, match.players[p].candidate, "Balanced")
+					for _, action in plan.actions do
+						if action.kind == "Gotv" then
+							early += action.units
+						end
+					end
+				end
+				match = Fixtures.advanceTo(match, "Plan", week + 1)
+			end
+		end
+		expect(early > 0):toBe(true)
 	end)
 end)

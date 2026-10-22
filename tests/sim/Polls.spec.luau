@@ -89,7 +89,9 @@ describe("Underdog rubber band", function()
 		end
 	end
 
-	it("switches on at the threshold and off only 20 EV below it", function()
+	it("switches on at the threshold and off only 30 EV below it", function()
+		expect(C.UNDERDOG_SMOOTHING):toBe(0.4)
+		expect(C.UNDERDOG_HYSTERESIS):toBe(30)
 		local match = Fixtures.campaign({ seed = 6 })
 		local trailer = match.players[1]
 		trailer.lead, trailer.underdogTier = nil, 0
@@ -99,29 +101,34 @@ describe("Underdog rubber band", function()
 		expect(trailer.underdogTier):toBe(2)
 		expect(match.players[2].underdogTier):toBe(0)
 
-		-- Dead-heat polls halve the smoothed gap each week: 269, 134.5, 67.25, 33.6, 16.8.
+		-- Dead-heat polls keep 60% of the smoothed gap each week (D-020):
+		-- 322.8, 193.7, 116.2, 69.7, 41.8, 25.1, 15.1, 9.0. Tier 2 holds down to 70,
+		-- tier 1 down to 10.
 		setPolls(match, false)
 		local tiers = {}
-		for _ = 1, 5 do
+		for _ = 1, 8 do
 			Polls.updateUnderdog(C, match)
 			table.insert(tiers, trailer.underdogTier)
 		end
-		expect(tiers):toEqual({ 2, 2, 1, 1, 0 })
+		expect(tiers):toEqual({ 2, 2, 2, 1, 1, 1, 1, 0 })
 	end)
 
 	it("hysteresis holds a tier just under its threshold", function()
 		local match = Fixtures.campaign({ seed = 6 })
 		local player = match.players[1]
 		setPolls(match, false)
-		player.lead, player.underdogTier = -90, 2 -- smooths to a 45 gap: under 80, so tier 1
+		player.lead, player.underdogTier = -90, 2 -- smooths to a 54 gap: under 70, so tier 1
 		Polls.updateUnderdog(C, match)
 		expect(player.underdogTier):toBe(1)
-		player.lead, player.underdogTier = -170, 2 -- smooths to 85: still >= 80, stays tier 2
+		player.lead, player.underdogTier = -130, 2 -- smooths to 78: still >= 70, stays tier 2
 		Polls.updateUnderdog(C, match)
 		expect(player.underdogTier):toBe(2)
-		player.lead, player.underdogTier = -60, 0 -- smooths to 30: below 40, tier 0 stays off
+		player.lead, player.underdogTier = -60, 0 -- smooths to 36: below 40, tier 0 stays off
 		Polls.updateUnderdog(C, match)
 		expect(player.underdogTier):toBe(0)
+		player.lead, player.underdogTier = -60, 1 -- 36 is under 40 but over 10: tier 1 holds
+		Polls.updateUnderdog(C, match)
+		expect(player.underdogTier):toBe(1)
 	end)
 
 	it("multipliers by tier, doubled bonus for Tomas", function()
