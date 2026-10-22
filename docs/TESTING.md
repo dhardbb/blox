@@ -173,7 +173,9 @@ In Studio (**Local Server, 2 Players**):
 
 **Send back:** anything that looks off, with a screenshot and the Output lines starting with `[270]`.
 
-## UI overhaul WP0: the design system (unreleased)
+## UI overhaul (v0.4.0)
+
+### Foundation (design system)
 
 Groundwork only: the screens are redesigned by the next four packages. This build should look and play like v0.3.1.
 
@@ -187,3 +189,107 @@ Groundwork only: the screens are redesigned by the next four packages. This buil
    - The Output shows `[270] UI audit Campaign: 0 problem(s), N pending, M text size(s)` once after the screen appears and again after the rotation, plus a few `[270] UI audit Campaign pending ...` lines. No `WARN` lines.
 
 **Send back:** the Output lines starting with `[270] UI audit`, and a screenshot of the toast from step 2.
+
+### Map
+
+Map (Draft, Campaign, Election). Test at phone portrait (e.g. iPhone 14 emulator, 390 wide) and at 16:9 (1280x720 or the Studio default).
+
+1. Start a practice match and wait for "The map for this match" (MapReveal).
+   - Must see: a column of nine circles at the right edge of the map labeled VT, NH, MA, RI, CT, NJ, DE, MD, DC from top to bottom, each with a thin grey line running left toward New England / the Mid-Atlantic.
+   - Must see: every state's two letters readable, no circle covering another, ME next to NY, AK and HI bottom left.
+2. In the Draft, tap RI, then DE, then DC in the column (phone portrait).
+   - Each tap selects the state you tapped (yellow ring). Tell us if a tap ever picks the neighbor above or below instead.
+3. Tap a few small inland states (e.g. DE's neighbor MD, WV, CT, NH, VT) and a big one next to a small one (PA next to NJ in the column, TX next to OK).
+   - The tapped state is selected every time.
+4. During the Draft and Campaign, look at the badges (H, B, 1, 2, G2, *).
+   - They sit at the top edge of the circle, readable, not hidden behind the next state.
+5. In Campaign, pick a state in the column (e.g. MA) and plan a Rally route through NJ and PA.
+   - The route line goes to the column circle and back; nothing is drawn outside the map.
+6. Rotate the phone emulator to landscape during the Campaign.
+   - The map shrinks but every circle and its label stay inside the map.
+
+Send back: one screenshot of MapReveal at phone portrait and one at 16:9, any state that was hard to tap (which one, which screen, what got selected instead), and the Output lines starting with "[270] UI audit" (there should be no WARN lines mentioning NodeMap, a state id, Label, Badge or Arrow).
+
+### Lobby, Select and Results
+
+Test each screen twice: at 16:9 (Studio's default window, or Device: 1920x1080) and at phone portrait (Device emulator: iPhone 14 or any 390x844).
+
+**Lobby**
+1. Open the place and press Play. You should see "270" in large yellow, a one-line pitch, a grey record line, then "Play vs Bot" (yellow, taller), "Find Match" and "Host Private Match" (grey), "Have a code?", and a dark code box with a grey Join.
+2. Check that no other button is yellow and that nothing scrolls on either size.
+3. Type `AB` in the code box and tap Join. A toast with a red outline should appear at the top: "Enter the 5-character code…". It goes away after about 5 s.
+4. Tap Host Private Match. The code should show large on a dark panel, with a red-outlined Cancel. Tap Cancel to go back.
+5. Send back: one screenshot per size, idle and hosting.
+
+**Select** (tap Play vs Bot)
+1. At 16:9, without scrolling, you should see 8 candidate cards (4x2), 6 colors in one row, and 8 issue chips (4x2), with the Lock in bar at the bottom. The timer is at the top right.
+2. Before you pick anything, Lock in should be grey and read "Pick a candidate". The status above it should read "Still to pick: a candidate, a color, 3 issues". On a phone it ends in "▾".
+3. Pick a candidate, then a color. The card gets a yellow outline and the swatch gets a white outline and "✓". Lock in should change to "Pick a color", then "Pick 3 more issues".
+4. Pick 3 issues. Each shows "✓" and a yellow outline, not a yellow fill. Tap a 4th: the status should show "You already have 3; tap one to swap it" for 3 s.
+5. Tap Lock in. The status should read "Locked in · waiting for opponent" in green, and the picks stop responding.
+6. Let the timer run under 10 s on a later match. The timer should turn red.
+7. On a phone: the colors read Cr / Co / Em / Am / Vi / Te. The issues are below the fold, Lock in stays visible, and one flick reaches the issues.
+8. Play a second match. Your last pick should be preloaded and the status should say "Your last pick is loaded · Lock in or change it".
+9. Send back: screenshots of steps 1, 4 and 7, and anything cut off or overlapping inside a candidate card, especially The Insurgent and The Ad Wizard on a phone.
+
+**Results** (finish a match, or Autoplay in the debug panel)
+1. You should see "You won" or "You lost" in large type, a muted reason line, and the EV bar with a thin white tick at 270. Below are both player panels side by side, then "Closest states ▴" and "Debate topics won … ▴" open.
+2. Tap a section title. It should fold. Tap again to open it.
+3. At the bottom, "Back to lobby" (grey, narrow) and "Play vs Bot again" (yellow) should stay pinned while the rest scrolls.
+4. Send back: screenshots at both sizes.
+
+The Studio Output should show `[270] UI audit Lobby|Select|Results: 0 problem(s), 0 pending` on every screen at both sizes. Send back any `WARN [270] UI audit` line.
+
+### Campaign
+
+Run in Studio twice: once with the device emulator at a phone in **portrait** (e.g. iPhone 14, 390x844), once at a plain **16:9** window. Start "Play vs Bot".
+
+1. **Week 1 plan, phone portrait.** Without scrolling you should see: the header (week, stage, timer) and the score row under it (your name and EV, the bar, theirs, money, AP), the map, the state card down to the action grid, and the **Lock in** bar at the bottom. Lock in must be visible without touching the screen. Screenshot it.
+2. Tap a state on the map, then **Rally**, **Fundraise** in another state, **Ad**. The bar's status line should change ("AP 2/3 · $... left · 1 flight"). Scroll the side column: "Your plan · 2 of 3 AP" lists the three lines.
+3. Tap a different **message chip** (e.g. "Health ×1.0"), then Rally: the new plan line names that issue. Tap **More ▾**: the remaining issues appear.
+4. Tap **Region poll** on a state: the plan line reads "Region poll · <region>" and the button greys out ("polled"). (Week 1 has no money; try it from week 2.)
+5. Make a plan you can't afford (e.g. several Ads): **Lock in** turns grey and reads "Not enough money"; the status line says why in red. Remove a line with ×: Lock in comes back.
+6. Tap **Clear** once: it reads "Clear? tap again". Wait 4 seconds: it goes back to "Clear". Tap twice quickly: the plan empties.
+7. Tap **Pivot**: the grid is replaced by "Drop which issue?"; tap **Cancel** and the grid comes back.
+8. Tap **Lock in**: it reads "Locked in", the status line "Locked in · waiting for opponent", the opponent line "Opponent: locked in" once the bot locks.
+9. **Results reveal**: the reveal panel is at the top, the state card under it with no buttons; tap a state on the map and the card follows. The bar's button reads **Skip**; tap it: "Waiting for opponent…".
+10. **Week 3 and week 8** (the weeks before a debate): **Debate prep** is right under the event card and above "Your plan", on both phone and 16:9, without scrolling past Lock in. Push one topic to 4: its + greys out and the row says "+: max 4". The status line ends with "prep 4/1/1".
+11. **A Choice week** (an event that asks Attack/Defend/Ignore): the event card is the first panel, open, with three answer chips; Ignore has a yellow outline (not a yellow fill). Only **Lock in** is filled yellow anywhere on screen.
+12. **Debate reveal** (weeks 4 and 9): no event card and no "Choose how to respond" text anywhere; the three topics appear one by one with two thin score bars; the bar shows "Debate · topic N of 3" and no button.
+13. Let the timer run down: it turns red at 0:09.
+14. **16:9**: the header is a single row; the week card is open at the bottom of the side column; the state list ("All states · sorted closest ▾") stays open after picking a state. On the phone the week card starts collapsed and the list closes after a pick.
+
+Send back: the screenshots from steps 1, 9, 10 (week 3 and week 8), 11 and 12 at both sizes, and the Output lines that start with `[270] UI audit Campaign` (they should say `0 problem(s)`).
+
+### Draft and Election night
+
+Run each in Studio twice: once in the device emulator as a phone in portrait (e.g. iPhone 14, 390 x 844) and once at 16:9 (e.g. 1920 x 1080 or the default window). Offline fixtures: in the command bar run `workspace:SetAttribute("DebugScreen", "MapReveal")` (then `"Draft"`, then `"Election"`) before **Play**. Live: **Practice** and play through.
+
+Map reveal (`MapReveal`)
+1. Look at the header: "The map for this match" (phone: "The map") on the left, the countdown on the right in yellow.
+2. Right panel (16:9) / under the map (phone): "You have priority in round 1." (or "They have…"), the three lines on how the draft works, and the legend row with your color and theirs.
+3. There is no Lock in button. Nothing is yellow-filled.
+4. Phone: at the end of the panel there is a "Draft board ▾" row. Tap it: it opens and shows "You … home —" and "Them … home —".
+
+Draft round (`Draft`, or any round in Practice)
+1. Header: "Round 4 of 8 · Stronghold" (phone: "Round 4 of 8") and the help line "Stronghold: +8 support there…".
+2. Phone: right under the map you see the priority line, then the two chips "1st: —" "2nd: —", then the state list starting with California. You should not have to scroll to reach the list.
+3. Tap a state in the list: the 1st chip reads "1st: CA" (or the state you tapped) with a × next to it; the bar at the bottom says "Tap a backup (optional)" and the yellow button says "Lock in".
+4. Tap a state that is already drafted (a row with a "their stronghold" tag, or a dimmed map node): the bar's status line turns red and says e.g. "OH: already drafted". Wait 5 seconds: it is still there. Tap another (legal) state: the red line goes away.
+5. Tap "1st: …" (it gets a yellow outline), then tap a different state: that state replaces your 1st choice.
+6. Tap the × next to the 1st chip: your 2nd choice moves up. Tap × again: "1st: —", and the button reads "Pick a state" in grey.
+7. Pick one state and tap **Lock in**: the button reads "Locked in" (grey), the status line is green "Locked in · waiting for opponent", the × buttons disappear.
+8. With 10 s or less left, the timer turns red.
+9. After both lock in: the reveal shows "You got …" and "They got …" side by side, each outlined in that player's color, and no button at the bottom.
+10. 16:9: the legend row and a two-line draft board ("You … home CA · strongholds … · battlegrounds …") sit under the map. Phone: they are inside the "Draft board ▾" card at the end of the list.
+11. Rotate the emulator (portrait ↔ landscape) mid-round: the layout follows within half a second and your picks stay.
+
+Election night (`Election`, or the end of a Practice match with Autoplay off)
+1. Header: "Election night" with "N of 51 states called" next to it, and "Results in 0:32" counting down on the right.
+2. Under it one strip: your EV number and name on the left, theirs on the right, "270 to win" in the middle, and one bar with a white tick near the middle. The tick does not stick out above or below the bar.
+3. The Calls list fills from the top (newest first). Scroll to the bottom: the oldest row is fully visible above the bar, not cut off.
+4. The bottom bar: "Safe states first, closest last" on the left, "Opponent: watching" (or "skipped" against the bot, which skips at once) on the right, and a yellow "Skip to results" button.
+5. Two-player test (Test → Clients and Servers, 2 players): on player 2 tap Skip to results. Player 1's bar says "Opponent: skipped"; player 2's button says "Waiting for opponent…" in grey.
+6. At the end the strip is replaced by "<name> wins 289–249" with a colored outline.
+
+Send back: one screenshot of each step marked with a phone or 16:9 at the top (MapReveal 1, Draft 2, 4, 9, 10, Election 2, 3, 6), plus the Output lines that start with `[270] UI audit Draft` and `[270] UI audit Election` (they should say `0 problem(s)`; the map may still list pending notes until WP1 lands).
