@@ -353,12 +353,7 @@ local function times(mult: number): string
 end
 
 -- National points with a sign, never "-0.0".
-local function points(value: number): string
-	if math.abs(value) < 0.05 then
-		return "+0.0"
-	end
-	return string.format("%+.1f", value)
-end
+local points = Numbers.signed
 
 -- What this week's event does, in plain words, with the numbers from Config.
 function PlanDraft.eventEffect(config: Config, event: ViewModule.EventView): string

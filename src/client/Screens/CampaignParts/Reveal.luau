@@ -393,11 +393,9 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				)
 			end
 		end
-		summary.Text = string.format(
-			"National support: you %+.1f · them %+.1f.",
-			result.national[you] or 0,
+		summary.Text = `National support: you {PlanDraft.points(result.national[you] or 0)} · them {PlanDraft.points(
 			result.national[them] or 0
-		) .. (if #callouts > 0 then " " .. table.concat(callouts, " ") else "")
+		)}.` .. (if #callouts > 0 then " " .. table.concat(callouts, " ") else "")
 	end
 
 	local reveal: Reveal = {

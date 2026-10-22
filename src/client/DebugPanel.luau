@@ -299,11 +299,10 @@ toClient.OnClientEvent:Connect(function(message: Remotes.Message)
 		local isNew = current == nil or current.step ~= payload.step or current.matchId ~= payload.matchId
 		current = payload
 		if isNew and #payload.events > 0 then
-			local kinds = {}
-			for _, event in payload.events do
-				table.insert(kinds, event.kind)
+			local lines = Format.events(payload.events, payload.you)
+			if #lines > 0 then
+				say(`events: {table.concat(lines, "; ")}`)
 			end
-			say(`events: {table.concat(kinds, " ")}`)
 		end
 		if payload.stage == "Over" and payload.result then
 			say(`match over: {payload.result.reason}`)

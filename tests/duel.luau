@@ -35,6 +35,7 @@ local Support = require("./e2e/Support")
 local Candidates = require("@shared/Sim/Candidates")
 local Config = require("@shared/Sim/Config")
 local Issues = require("@shared/Sim/Issues")
+local Format = require("@shared/DebugUI/Format")
 local Numbers = require("@shared/UI/Numbers")
 local StateData = require("@shared/Sim/StateData")
 
@@ -628,32 +629,14 @@ local function recapLines(payload: any): { string }
 	local you = payload.you
 	local out = {}
 	for _, debate in view.debates do
-		local parts = {}
-		for t, topic in debate.topics do
-			local w = debate.winners[t]
-			table.insert(
-				parts,
-				`{topic} {if w == you then "you" elseif w == 0 then "tie" else "them"} (prep {debate.prep[you][t]}/{debate.prep[if you
-						== 1
-					then 2
-					else 1][t]})`
-			)
-		end
-		table.insert(
-			out,
-			`Debate week {debate.week}: {table.concat(parts, ", ")}; national +{string.format(
-				"%.1f",
-				debate.national[you]
-			)} you, +{string.format("%.1f", debate.national[if you == 1 then 2 else 1])} them`
-		)
+		table.insert(out, Format.debate(debate, you))
 	end
 	for _, e in view.eventLog do
 		if e.choices and e.national then
 			local them = if you == 1 then 2 else 1
 			table.insert(
 				out,
-				`Event week {e.week} ({e.id}): you {e.choices[you]} ({string.format("%+.1f", e.national[you])}), them {e.choices[them]} ({string.format(
-					"%+.1f",
+				`Event week {e.week} ({e.id}): you {e.choices[you]} ({Numbers.signed(e.national[you])}), them {e.choices[them]} ({Numbers.signed(
 					e.national[them]
 				)})`
 			)
@@ -665,21 +648,8 @@ local function recapLines(payload: any): { string }
 end
 
 local function eventLines(slot: Slot): { string }
-	local out = {}
-	for _, event in slot.resolveEvents do
-		if event.kind ~= "Polls" then
-			local who = if event.player then `P{event.player}` else ""
-			table.insert(
-				out,
-				trim(
-					`{who} {event.kind} {event.state or ""} {event.issue or ""}{if event.amount
-						then ` ({event.amount})`
-						else ""}`
-				)
-			)
-		end
-	end
-	return out
+	local payload = slot.latest
+	return Format.events(slot.resolveEvents, if payload then payload.you else slot.n)
 end
 
 local function buildScreen(slot: Slot, extraOutput: { string }): string

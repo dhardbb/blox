@@ -13,6 +13,7 @@ local Profile = require("../Net/Profile")
 local View = require("../Sim/View")
 local Remotes = require("../Net/Remotes")
 local Session = require("../Net/Session")
+local State = require("../Sim/State")
 local Types = require("../Types")
 
 local Format = {}
@@ -126,6 +127,96 @@ function Format.event(event: View.EventView): string
 	return `{event.name} ({rule}). {event.text}`
 end
 
+local PICK_NOUN: { [string]: string } = { Home = "home", Stronghold = "stronghold" }
+
+-- "P1 (you)" or "P2".
+local function seatName(p: number?, you: number): string
+	if p == nil then
+		return "?"
+	end
+	return if p == you then `P{p} (you)` else `P{p}`
+end
+
+local function plural(n: number, word: string): string
+	return `{n} {word}{if n == 1 then "" else "s"}`
+end
+
+-- One server event as a short line, or nil for events with nothing to say. The
+-- list comes from the payload, which only holds what this player may see
+-- (View.events): public events plus their own private ones.
+function Format.eventLine(event: State.Event, you: number): string?
+	local kind = event.kind
+	local who = seatName(event.player, you)
+	local where = event.state or "?"
+	local issue = event.issue or "?"
+	local amount = event.amount or 0
+	if kind == "Pick" then
+		if issue == "Nominate" then
+			return `{who} nominated {where} (battleground)`
+		end
+		return `{who} picked {where} ({PICK_NOUN[issue] or string.lower(issue)})`
+	elseif kind == "Rally" then
+		return `{who} rallied in {where} on {issue}`
+	elseif kind == "Fundraise" then
+		return `{who} held a fundraiser in {where}`
+	elseif kind == "Media" then
+		return `{who} ran an ad in {where} on {issue}`
+	elseif kind == "Attack" then
+		return `{who} ran an attack ad in {where} on {issue}`
+	elseif kind == "Backlash" then
+		return `backlash for {who} in {where}`
+	elseif kind == "Pivot" then
+		return `{who} pivoted the platform to {issue}`
+	elseif kind == "Flights" then
+		return `{who} took {plural(amount, "flight")}`
+	elseif kind == "Raised" then
+		return `you raised {Numbers.money(amount)}`
+	elseif kind == "InternalPolls" then
+		return `your {plural(amount, "internal poll")} came back`
+	elseif kind == "Choice" then
+		return `{who} answered {issue} ({Numbers.signed(amount)} national)`
+	elseif kind == "DebateTopic" then
+		if event.player == nil or event.player == 0 then
+			return `debate: {issue} tied`
+		end
+		return `debate: {who} won {issue}`
+	elseif kind == "Polls" then
+		return "new public polls"
+	elseif kind == "Selected" then
+		return nil
+	end
+	return kind
+end
+
+-- Every event line of a payload's event list, in order.
+function Format.events(events: { State.Event }, you: number): { string }
+	local out = {}
+	for _, event in events do
+		local line = Format.eventLine(event, you)
+		if line then
+			table.insert(out, line)
+		end
+	end
+	return out
+end
+
+-- One resolved debate: who won each topic, both preps, and the national points.
+function Format.debate(debate: State.DebateResult, you: number): string
+	local them = if you == 1 then 2 else 1
+	local parts = {}
+	for t, topic in debate.topics do
+		local w = debate.winners[t]
+		local prep = `{debate.prep[you][t]}/{debate.prep[them][t]}`
+		table.insert(
+			parts,
+			`{topic} {if w == you then "you" elseif w == 0 then "tie" else "them"} (prep {prep})`
+		)
+	end
+	return `Debate week {debate.week}: {table.concat(parts, ", ")}; national {Numbers.signed(
+		debate.national[you] or 0
+	)} you, {Numbers.signed(debate.national[them] or 0)} them`
+end
+
 -- The full board summary.
 function Format.board(payload: Session.StatePayload, now: number, rating: Remotes.RatingChange?): string
 	local view = payload.view
@@ -202,12 +293,12 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		local definition = Events.byId[lastEvent.id]
 		add(
 			string.format(
-				"Last week's event %s: you %s (%+.1f), them %s (%+.1f)",
+				"Last week's event %s: you %s (%s), them %s (%s)",
 				if definition then definition.name else lastEvent.id,
 				lastEvent.choices[you],
-				lastEvent.national[you],
+				Numbers.signed(lastEvent.national[you]),
 				lastEvent.choices[them],
-				lastEvent.national[them]
+				Numbers.signed(lastEvent.national[them])
 			)
 		)
 	end

@@ -223,3 +223,55 @@ describe("Format.rejected (playtest 1, bug 2)", function()
 		)
 	end)
 end)
+
+describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
+	it("says what each player picked in a draft reveal, not just 'Pick Pick'", function()
+		local lines = Format.events({
+			{ kind = "Pick", player = 1, state = "OH", issue = "Home" },
+			{ kind = "Pick", player = 2, state = "PA", issue = "Home" },
+		}, 2)
+		expect(lines):toEqual({ "P1 picked OH (home)", "P2 (you) picked PA (home)" })
+		lines = Format.events({
+			{ kind = "Pick", player = 2, state = "TX", issue = "Stronghold" },
+			{ kind = "Pick", player = 1, state = "FL", issue = "Nominate" },
+		}, 1)
+		expect(lines):toEqual({ "P2 picked TX (stronghold)", "P1 (you) nominated FL (battleground)" })
+	end)
+
+	it("formats money and points in event lines", function()
+		local lines = Format.events({
+			{ kind = "Raised", player = 1, amount = 13.550725999999997, private = true },
+			{ kind = "Choice", player = 2, issue = "Attack", amount = -0.2 },
+			{ kind = "Rally", player = 2, state = "OH", issue = "Jobs" },
+			{ kind = "Flights", player = 1, amount = 1 },
+			{ kind = "Polls" },
+		}, 1)
+		expect(lines):toEqual({
+			"you raised $13.5",
+			"P2 answered Attack (-0.2 national)",
+			"P2 rallied in OH on Jobs",
+			"P1 (you) took 1 flight",
+			"new public polls",
+		})
+		for _, line in lines do
+			expect(string.find(line, "%d%.%d%d") == nil):toBe(true)
+		end
+	end)
+
+	it("prints debate national points with one sign each", function()
+		local text = Format.debate(
+			{
+				week = 9,
+				topics = { "Transit", "Environment", "Safety" },
+				prep = { { 4, 2, 0 }, { 2, 2, 2 } },
+				scores = { { 8, 5, 3 }, { 8, 7, 6 } },
+				winners = { 0, 2, 2 },
+				national = { -0.2, 0.4 },
+			} :: any,
+			1
+		)
+		expect(text):toBe(
+			"Debate week 9: Transit tie (prep 4/2), Environment them (prep 2/2), Safety them (prep 0/2); national -0.2 you, +0.4 them"
+		)
+	end)
+end)
