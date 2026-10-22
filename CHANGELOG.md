@@ -2,6 +2,21 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased — screens for stances and debates
+
+The client pass for D-039 to D-041, version 0.6.0 ("Issue-based choices"). Design log: `docs/DESIGN.md` D-042. No rules, Config numbers, payloads or `Sim/` files changed.
+
+- **Choice weeks show the stance on the map.** The event card lists the three stances as full-width chips ("A · Side with the staff", "C · Offer to mediate (hedge, default)"). While the card is open the map previews the selected stance: states that gain glow in your color with "+1.5" badges, states that lose show red "-1.5" badges, states whose poll leader would change say FLIP. Hold a chip to peek at a stance without picking it; collapse the card for the normal map.
+- **"States you need".** Every state within 5 points in the public poll, either way, with your projected EV. Each stance gets one summary line: "Stance A · …: +6.0 in 9 states (4 you need: OH, PA…) · -3.0 in 5 states (2 you lead: KY by 3…) · could flip PA (+19 EV), lose WI (-10 EV)". The full per-state lists stay under "Every state, stance by stance".
+- **Debates say what they did.** Each topic in the debate reveal reads "Your Jobs win swung OH, MI, PA (+1.0 each) - PA flipped to you (+19 EV)" (big when a state flips), gaffes read "Their gaffe on Safety: -0.6 in TX, AZ…", and the map badges and FLIPs the states as each topic lands. The week card keeps the prep/platform/stat/roll breakdown and adds the same lines.
+- **The week after a Choice event**, the resolve reveal and the week card say what both stances moved and flipped, and the map badges it.
+- **Results: "What decided it".** What debates and stances flipped on the polls, for whom, which of those states held on election night, and the final gap.
+- **Help and text.** "How it works" describes the spillover, the +0.1 a topic win adds in every state, and the map previews; the effect line reads "Take a stance on Jobs: each state reacts by its own top issues". The rules pass's stopgaps (`PlanDraft` Choice note, verb and last-event line, the Reveal caption) are gone.
+- **Debug board and duel harness.** The F2 board prints the states you need and one summary per stance in a Choice week, both stances afterwards, and each debate topic's swing and flips. `tests/duel.luau` no longer errors in Choice weeks; its screens list every state each stance moves, its examples take `choice a`, and the README explains Choice weeks and debates. Scripted smoke matches (pass and example) finish with exit 0.
+- **For developers.** New `Shared/UI/Swing` (pure) and `CampaignParts/SwingMarks`; `MapInterface.Mark` gains `badgeColor`, `halo`, `haloStrong`, `note`, `noteColor`; new fixture moment `ChoiceResolve`; the fake engine fires `InputEnded`. New specs `tests/ui/Swing.spec` and `tests/ui/Stances.spec` (previews, flip callouts, results section, strict UI audit of the Choice week, both reveals and Results at 1280x720, 844x390 and 390x844). Specs: 691.
+
+**To test:** `docs/TESTING.md`, "Screens for stances and debates". Nothing needed from the humans.
+
 ## Unreleased — issue-based choices and debates
 
 Rules pass approved by the designers: Choice events and debates are skill-based, tied to each state's issues, and visibly move states. Design log: `docs/DESIGN.md` "Issue-based choices and debates" (D-039 to D-041), with the before/after harness table in D-041. `docs/PLAN.md` "Debates" and "Events" describe the new mechanics.

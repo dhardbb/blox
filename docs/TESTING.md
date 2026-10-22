@@ -327,9 +327,41 @@ Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on
 
 **Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
 
+## Screens for stances and debates (v0.6.0)
+
+The screens for D-039 to D-041 (`DESIGN.md` D-042). **Play vs Bot** is enough; do each step once on 16:9 (Studio window) and once on a phone (**Test → Device → an iPhone**, portrait, then landscape).
+
+1. **A Choice week previews the stance on the map.** Play until the event card reads "Event · Choice · …" (it sits first in the side column).
+   - Three full-width chips: "A · …", "B · …", "C · … (hedge, default)". C has the outline; nothing is gold except Lock in.
+   - Above them, "States you need (within 5 points …): you trail … · you lead … You project N EV; 270 wins."
+   - The map shows stance C: some states glow in your color with "+0.5" badges, the rest are faded. The line over the map starts "Map: stance C".
+2. Tap **A**.
+   - A's chip gets the outline. States that gain glow in your color with "+1.5" / "+0.5" badges, states that lose show red "-0.5" / "-1.5" badges. Any state marked **FLIP** would change poll leader.
+   - The summary under the chips reads "Stance A · …: +X in N states (K you need: …) · -Y in M states (L you lead: …) · could flip … / no poll leader would change". Check two badges against the "Every state, stance by stance" lists below it.
+3. **Hold** B (press and keep the finger or mouse down).
+   - The map and the summary show B while you hold; let go and they go back to A. A stays selected.
+4. Tap the event card's title row to collapse it.
+   - The map goes back to the usual H/B/G marks and momentum arrows. Expand it again: the preview is back.
+5. Lock in with A. Watch the week's results.
+   - Once the stance lines are read out ("…: You took stance A · …"), the panel adds "You took A · …: +X in N states, -Y in M states." and "They took …", then either "On the polls you both saw, the stances flipped: …" (with a big callout line) or "…flipped no state". The map badges the states toward you (your color) or them (their color).
+   - Next week's week card says the same under "Last week's event".
+6. **The debate (week 4, and week 9).** Put 4/2/0 prep in week 3 so a gaffe is possible.
+   - Each topic row adds "Your … win swung XX, YY, ZZ (+1.0 each)" or "Their …" or "… was a tie"; when a state changed leader the line is **bigger and bold** and ends "- PA flipped to you (+19 EV)". A gaffe adds a red line "Your gaffe on …: -0.6 in …".
+   - As each topic lands, the map badges its states and marks FLIP where the leader changed.
+   - After the last topic: "Every state also got: you +0.1 · them +0.1." and, if any, "And from the points every state got: …".
+7. **Results.** Finish the match.
+   - A "What decided it" panel: "Debates: … flipped to you (+N EV) · … to them (N EV) · kept on election night: …", the same for "Choice stances", and "Final gap: …".
+8. **Help.** Tap **?** → Events and Debates.
+   - Events says every other state hears a stance through its own top issues and explains the map preview (badges, red, FLIP, states within 5 points). Debates says a topic win adds +0.1 in every state and that the debate screen names the states it swung.
+9. **Phone portrait and landscape.** Repeat steps 1, 2 and 6 on the iPhone.
+   - The chips are full width and readable; nothing is cut off; Lock in stays on screen; the map badges are legible on the big states.
+10. **F2.** In a Choice week press F2: the board has "States you need …" and three "Stance A/B/C · …" lines matching the event card.
+
+**Send back:** screenshots of steps 2 and 6 on 16:9 and on the phone, one stance summary next to the week's actual poll changes (did the named states move that way?), the Results panel, and the Output lines starting with `[270] UI audit`.
+
 ## Issue-based choices and debates (unreleased)
 
-Rules only (`DESIGN.md` D-039 to D-041); the campaign screens for them are a separate client pass, so until that lands the stance buttons read **A / B / C** and the F2 board (`show`, `rules`) is where the numbers are. Two-player test (**Test → Clients and Servers, 2 players**), or **Play vs Bot** where a step says so.
+Rules only (`DESIGN.md` D-039 to D-041). The screens for them are the section above (v0.6.0): the stance chips now carry names, and the lines quoted below are still in "Every state, stance by stance" and on the F2 board. Two-player test (**Test → Clients and Servers, 2 players**), or **Play vs Bot** where a step says so.
 
 1. **A Choice week is a stance on an issue.** Reach a Choice week (the event card names a dispute, e.g. "Plant at a crossroads", and its issue). Open the card.
    - Three lines, one per stance, list every state the stance moves and by how much, e.g. "A · Stand with the plant: +1.5 in GA, IN, MI … · +0.5 in … · -0.5 in … · -1.5 in AL, KY, PA …". The ±1.5 states have that issue as a top issue; the ±0.5 ones hear it through their own issues; C (the hedge) lists only the issue's states, all at +0.5. If the issue is on your platform, the issue's states read ×1.5 (up to 2.0).
