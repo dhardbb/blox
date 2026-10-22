@@ -10,7 +10,7 @@ Run from the repo root. All four must be clean before any commit.
 lune run tests                                   # every spec; filter: lune run tests Rng
 lune run tests/harness/balance.luau              # balance report (from Phase 1)
 mkdir -p build && rojo build -o build/270.rbxl   # place file
-stylua --check src tests && selene --config selene.sim.toml src/shared/Sim tests && selene src
+stylua --check src tests && selene --config selene.sim.toml src/shared/Sim src/shared/Net tests && selene src
 ```
 
 Type check (CI runs it; locally only if luau-lsp is installed):
@@ -26,7 +26,7 @@ Toolchain: `rokit install`, or `scripts/bootstrap.sh` if GitHub release download
 ## Layout
 
 - `src/shared/Sim/`: the game rules as pure Luau. Takes (config, seed, inputs), returns (newState, events).
-- `src/shared/Net/`: remote names and payload schemas.
+- `src/shared/Net/`: remote names, request schemas, and the pure server core: `Session` (one live match: timers, lock-ins, time bank, skips, disconnect grace, forfeits, bots, per-seat State messages) and `Lobby` (queue, private codes, practice). Pure like `Sim/`: callers pass `now`, so it is tested in `tests/net/`.
 - `src/server/`: match lifecycle, lobby, turn timers, replication, DataStore.
 - `src/client/`: screens, map, components. Renders the per-player `View` only.
 - `tests/sim/*.spec.luau`: Lune specs. `tests/lib/Test.luau`: describe/it/expect.
@@ -34,7 +34,7 @@ Toolchain: `rokit install`, or `scripts/bootstrap.sh` if GitHub release download
 
 ## Non-negotiable rules
 
-- `Sim/` never references `game`, `workspace`, `script`, `Instance`, `Enum`, `task`, `os`, `math.random`, `Random.new`, `tick`, `wait`, or any Roblox global. `tests/sim/Purity.spec.luau` and `selene.sim.toml` enforce this.
+- `Sim/` and `Net/` never reference `game`, `workspace`, `script`, `Instance`, `Enum`, `task`, `os`, `math.random`, `Random.new`, `tick`, `wait`, or any Roblox global. `tests/sim/Purity.spec.luau` and `selene.sim.toml` enforce this.
 - `--!strict` at the top of every Luau file.
 - Shared code requires siblings by string path (`require("./Rng")`, `require("../Types")`). Server and client code may use instance paths (`ReplicatedStorage.Shared.Sim.X`). The `.luaurc` aliases (`@sim`, `@shared`, `@testlib`) are for tests only: Roblox does not read `.luaurc`.
 - All randomness comes from the per-match seed via `Sim/Rng.luau`. Same seed + same inputs = same match.

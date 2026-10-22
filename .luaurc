@@ -3,6 +3,7 @@
 	"aliases": {
 		"sim": "./src/shared/Sim",
 		"shared": "./src/shared",
+		"net": "./src/shared/Net",
 		"testlib": "./tests/lib"
 	}
 }

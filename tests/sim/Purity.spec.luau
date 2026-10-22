@@ -8,7 +8,8 @@ local Test = require("@testlib/Test")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
-local SIM_DIR = "src/shared/Sim"
+-- The simulation and the pure networking core (sessions, lobby, schemas).
+local PURE_DIRS = { "src/shared/Sim", "src/shared/Net" }
 
 local FORBIDDEN: { { pattern: string, label: string } } = {
 	{ pattern = "%f[%w_]game%f[^%w_]", label = "game" },
@@ -37,9 +38,11 @@ end
 
 local function simFiles(): { string }
 	local files = { "src/shared/Types.luau" }
-	for _, entry in fs.readDir(SIM_DIR) do
-		if string.match(entry, "%.luau$") then
-			table.insert(files, `{SIM_DIR}/{entry}`)
+	for _, dir in PURE_DIRS do
+		for _, entry in fs.readDir(dir) do
+			if string.match(entry, "%.luau$") then
+				table.insert(files, `{dir}/{entry}`)
+			end
 		end
 	end
 	table.sort(files)

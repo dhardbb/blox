@@ -19,7 +19,7 @@ jobs:
 
       - name: Lint simulation and tests (Selene, plain Luau)
         if: ${{ !cancelled() }}
-        run: selene --config selene.sim.toml src/shared/Sim tests
+        run: selene --config selene.sim.toml src/shared/Sim src/shared/Net tests
 
       - name: Lint game code (Selene, Roblox std)
         if: ${{ !cancelled() }}
