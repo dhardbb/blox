@@ -9,6 +9,7 @@ Run from the repo root. All four must be clean before any commit.
 ```sh
 lune run tests                                   # every spec; filter: lune run tests Rng
 lune run tests/harness/balance.luau              # balance report (from Phase 1)
+lune run tests/play.luau -- "p1: practice" "p1! Autoplay" "until p1 match over" "screen p1"   # play headlessly
 mkdir -p build && rojo build -o build/270.rbxl   # place file
 stylua --check src tests && selene --config selene.sim.toml src/shared/Sim src/shared/Net src/shared/DebugUI tests && selene src
 ```
@@ -31,6 +32,11 @@ Toolchain: `rokit install`, or `scripts/bootstrap.sh` if GitHub release download
 - `src/client/`: screens, map, components. Renders the per-player `View` only.
 - `tests/sim/*.spec.luau`: Lune specs. `tests/lib/Test.luau`: describe/it/expect.
 - `tests/harness/`: bot-vs-bot balance harness.
+- `tests/lib/FakeRoblox.luau`: a fake Roblox engine that runs the real `src/server` and `src/client` scripts under Lune with simulated players and a simulated clock. `tests/e2e/` plays whole matches through it; `tests/play.luau` lets an agent play step by step and read each player's screen (usage in its header). It fakes remotes, Players, the task library and a rough UI layout, not rendering or the real engine.
+
+## Testing in real Roblox Studio
+
+Studio is installed on the humans' Mac and the official Roblox Studio MCP server is registered with Claude Code (`claude mcp list` shows `Roblox_Studio`). With Studio open and **Assistant → settings → Enable Studio as MCP server** on, an agent can start and stop play tests, read the Output, run Luau (`execute_luau`), take screenshots and send input. Use it after the headless tests pass, to confirm behavior in the real engine. Live code sync: `rojo serve` in the repo, then the Rojo plugin's **Connect** in Studio.
 
 ## Non-negotiable rules
 

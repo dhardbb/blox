@@ -42,7 +42,9 @@ function Format.status(payload: Session.StatePayload?, lobby: Remotes.LobbyStatu
 	local view = payload.view
 	local me = view.players[payload.you]
 	local label = view.phase
-	if view.phase == "Plan" or view.phase == "Debate" then
+	if payload.reveal == "Draft" then
+		label = "Draft"
+	elseif view.phase == "Plan" or view.phase == "Debate" then
 		label = `Week {view.week} {view.phase}`
 	elseif view.phase == "Draft" then
 		label =

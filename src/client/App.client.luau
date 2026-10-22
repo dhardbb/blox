@@ -70,6 +70,7 @@ local function label(order: number, height: UDim, size: number): TextLabel
 end
 
 local status = label(1, UDim.new(0, 40), 18)
+status.Name = "Status"
 status.TextColor3 = Color3.fromRGB(255, 214, 102)
 
 local scroll = Instance.new("ScrollingFrame")
@@ -92,9 +93,11 @@ board.TextWrapped = true
 board.TextXAlignment = Enum.TextXAlignment.Left
 board.TextYAlignment = Enum.TextYAlignment.Top
 board.Text = "Waiting for the server..."
+board.Name = "Board"
 board.Parent = scroll
 
 local log = label(3, UDim.new(0, 100), 14)
+log.Name = "Log"
 log.TextColor3 = Color3.fromRGB(160, 200, 255)
 
 local row = Instance.new("Frame")
@@ -117,6 +120,7 @@ local function button(order: number, text: string, parent: Instance, width: UDim
 	b.Font = Enum.Font.GothamMedium
 	b.TextSize = 16
 	b.Text = text
+	b.Name = text
 	b.Parent = parent
 	return b
 end
@@ -137,6 +141,7 @@ inputLayout.Padding = UDim.new(0, 6)
 inputLayout.SortOrder = Enum.SortOrder.LayoutOrder
 inputLayout.Parent = inputRow
 local box = Instance.new("TextBox")
+box.Name = "CommandBox"
 box.LayoutOrder = 1
 box.Size = UDim2.new(1, -126, 1, 0)
 box.BackgroundColor3 = Color3.fromRGB(36, 40, 52)

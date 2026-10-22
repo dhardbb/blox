@@ -2,6 +2,17 @@
 
 One section per feature, newest last. Each item: what to do, what should happen, what to send back. Send back the **Output** window log (right-click → Copy all) and any screenshots listed, with the commit hash or version you tested.
 
+## Testing without Studio (agents)
+
+Every playtest flow below also runs headlessly. `tests/lib/FakeRoblox.luau` runs the real server and client scripts with simulated players. `lune run tests` includes `tests/e2e/` (whole matches, typed plans, time bank, private codes, disconnects, cheating payloads). To play by hand, step by step:
+
+```sh
+lune run tests/play.luau -- "p1: practice" "p1! Autoplay" "until p1 match over" "screen p1" "logs"
+lune run tests/play.luau -- --seed 7 "p1: queue" "p2: queue" "p1: select hale teal jobs farms safety" "p2! Auto" "autoto Week 1 Plan · Input 120" "p1: plan rally TX jobs; fund TX" "screen p1"
+```
+
+The fake engine does not render anything and is not the real engine. Before calling a feature done, confirm it in Studio.
+
 ## Getting the build into Studio
 
 Either:
