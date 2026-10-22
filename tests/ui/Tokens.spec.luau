@@ -18,8 +18,6 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local FOLDERS = { "src/client/Screens", "src/client/Map" }
 
 local PENDING: { [string]: number } = {
-	-- WP1 (map)
-	["src/client/Map/NodeMap.luau"] = 2,
 	-- WP2 (Lobby, Select, Results)
 	["src/client/Screens/Lobby.luau"] = 3,
 	["src/client/Screens/Select.luau"] = 2,

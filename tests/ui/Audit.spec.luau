@@ -249,9 +249,26 @@ describe("UI audit output and the transition list", function()
 		local t = tree()
 		local map = t.Kit.box({ Name = "NodeMap", Size = UDim2.fromOffset(200, 100), Parent = t.root })
 		t.Kit.new("TextButton", { Name = "RI", Text = "", Size = UDim2.fromOffset(30, 30), Parent = map })
-		check(t.Audit.PENDING.NodeMap.mapNodes == true, "map nodes are no longer pending; update this spec")
+		-- The map itself is strict since WP1; pretend it is pending to test the filing.
+		local saved = t.Audit.PENDING.NodeMap
+		t.Audit.PENDING.NodeMap = { mapNodes = true }
 		expect(t.Audit.run(t.root, "Brand new screen")):toBe(0)
 		expect(t.Audit.run(t.root, "Brand new screen", { strict = true })):toBe(1)
+		t.Audit.PENDING.NodeMap = saved
+		expect(t.Audit.run(t.root, "Brand new screen")):toBe(1)
+	end)
+
+	it("does not judge a rotated segment by its unrotated box", function()
+		local t = tree()
+		local line = t.Kit.new("Frame", {
+			AnchorPoint = FakeRoblox.types.Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(390, 150),
+			Size = UDim2.fromOffset(200, 2),
+			Parent = t.root,
+		})
+		expectRules(t, { "contained" })
+		line.Rotation = 80
+		expectRules(t, {})
 	end)
 
 	it("prints the number of distinct text sizes", function()

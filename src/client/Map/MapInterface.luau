@@ -12,6 +12,9 @@ export type Mark = {
 	ring: Color3?, -- outline color (e.g. a drafted state's owner)
 	badge: string?, -- one short glyph shown above the node (e.g. "H" home, "B" battleground)
 	dim: boolean?, -- fade the node (e.g. not pickable this round)
+	-- Momentum: a ▲ (or ▼) under the node. Show it for the leader only, in their color.
+	arrow: ("up" | "down")?,
+	arrowColor: Color3?, -- the arrow's color (default: the text color)
 }
 
 export type Map = {

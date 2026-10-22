@@ -18,7 +18,8 @@
 --   contained     a visible object pokes more than 1 px outside the screen, outside its
 --                 parent (when the parent has no list/grid layout and no AutomaticSize),
 --                 or, under a ScrollingFrame, outside the frame's width (vertical
---                 overflow is what scrolling is for)
+--                 overflow is what scrolling is for). Rotated objects (map border and
+--                 route segments) are skipped: their AbsoluteSize is the unrotated box.
 --   primary       not exactly one visible button with attribute PrimaryAction (zero is
 --                 fine when the screen root has attribute PrimaryOptional = true), or the
 --                 primary sits in a ScrollingFrame or outside the screen
@@ -61,8 +62,6 @@ export type Options = {
 -- Rules each screen still breaks while the overhaul is in progress. Each work
 -- package empties (deletes) its own entries; keep one entry per line.
 Audit.PENDING = {
-	-- WP1 (map): NodeMap tap targets under 36 px, label/badge sizes, badges overhanging nodes.
-	NodeMap = { mapNodes = true, typeScale = true, contained = true },
 	-- WP2: Lobby, Select, Results.
 	Lobby = { primary = true, typeScale = true },
 	Select = { primary = true, oneAccent = true },
@@ -246,7 +245,9 @@ function Audit.check(root: Instance): ({ Finding }, number)
 			end
 		end
 
-		if rootRect and size.X > 0 and size.Y > 0 then
+		local rotation = (gui :: any).Rotation
+		local rotated = rotation ~= nil and rotation ~= 0
+		if rootRect and size.X > 0 and size.Y > 0 and not rotated then
 			local rect = rectOf(gui)
 			local scroller = scrollerOf(inst)
 			local escapes = if scroller
