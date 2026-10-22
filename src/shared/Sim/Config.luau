@@ -144,6 +144,7 @@ local Config = {
 	-- Meta
 	ELO_K = 32, -- rating K-factor
 	ELO_START = 1000, -- starting rating
+	ELO_FLOOR = 100, -- ratings never fall below this (D-028)
 	MATCHES_PER_SERVER = 10, -- concurrent matches per server (20 players)
 }
 

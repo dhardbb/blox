@@ -5,6 +5,7 @@
 local Candidates = require("../Sim/Candidates")
 local Config = require("../Sim/Config")
 local StateData = require("../Sim/StateData")
+local Profile = require("../Net/Profile")
 local Remotes = require("../Net/Remotes")
 local Session = require("../Net/Session")
 
@@ -23,6 +24,16 @@ local function secondsLeft(deadline: number, now: number): number
 	return math.max(0, math.ceil(deadline - now))
 end
 
+-- "Rating 1032 (12-7)" for the lobby line.
+function Format.profile(profile: Profile.Summary): string
+	return `Rating {profile.rating} ({profile.wins}-{profile.losses})`
+end
+
+-- "Rating 1032 → 1048" after a rated match.
+function Format.ratingChange(change: Remotes.RatingChange): string
+	return `Rating {change.before} → {change.after}`
+end
+
 -- One-line status for the top bar: the match while one is running, else the lobby.
 function Format.status(payload: Session.StatePayload?, lobby: Remotes.LobbyStatus?, now: number): string
 	if payload == nil or payload.stage == "Over" then
@@ -32,6 +43,9 @@ function Format.status(payload: Session.StatePayload?, lobby: Remotes.LobbyStatu
 		local text = `Lobby: {lobby.state}`
 		if lobby.code then
 			text ..= ` · your code {lobby.code} (the other player types: join {lobby.code})`
+		end
+		if lobby.profile then
+			text ..= ` · {Format.profile(lobby.profile)}`
 		end
 		text ..= ` · {lobby.queued} in queue`
 		if lobby.full then
@@ -75,7 +89,7 @@ local function marginText(poll: { support: { number }, undecided: number }?, you
 end
 
 -- The full board summary.
-function Format.board(payload: Session.StatePayload, now: number): string
+function Format.board(payload: Session.StatePayload, now: number, rating: Remotes.RatingChange?): string
 	local view = payload.view
 	local you = payload.you
 	local them = if you == 1 then 2 else 1
@@ -121,6 +135,9 @@ function Format.board(payload: Session.StatePayload, now: number): string
 				elseif result.winner == 0 then `No result{why}`
 				else `You lost{why}`
 		)
+		if rating and rating.matchId == payload.matchId then
+			add(Format.ratingChange(rating))
+		end
 	end
 	local election = view.election
 	if election then
