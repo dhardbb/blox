@@ -7,9 +7,10 @@
 --
 -- "States you need" is defined on public information only: a state is in play
 -- when its public-poll margin between you and your best rival is within
--- Swing.CLOSE points either way (a lead that small holds only about 3 times in 4
--- on election night, Explain.leadWinChance). A stance that gains there helps;
--- a stance that loses where you lead puts a state you rely on at risk.
+-- Swing.CLOSE points either way (Explain.IN_PLAY; the line quotes how often a
+-- lead that size holds on election night, Explain.leadWinChance). A stance that
+-- gains there helps; a stance that loses where you lead puts a state you rely
+-- on at risk.
 --
 --   Swing.CLOSE                                        in-play margin, points
 --   Swing.margin(view, id) -> number?                  you minus best rival, public poll
@@ -196,9 +197,9 @@ function Swing.needText(config: Config, view: View): string
 		table.insert(parts, `tied {list(tied)}`)
 	end
 	local head =
-		`States you need (within {Swing.CLOSE} points in the public poll, where a lead holds only about {math.floor(
+		`States you need (within {Swing.CLOSE} points in the public poll; a {Swing.CLOSE}-point lead holds about {math.floor(
 			Explain.leadWinChance(config, Swing.CLOSE) * 100 + 0.5
-		)}%)`
+		)}% on election night)`
 	local ev = view.projectedEV[view.you] or 0
 	local tail = ` You project {ev} EV; {config.EV_TO_WIN} wins.`
 	if #parts == 0 then
