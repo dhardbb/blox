@@ -22,6 +22,12 @@ export type Region =
 	| "Mountain"
 	| "Pacific"
 
+-- Weekly event types (Sim/Events.luau, DESIGN.md D-027).
+export type EventKind = "Spotlight" | "Regional" | "Windfall" | "Choice"
+
+-- A player's secret response to a Choice event.
+export type Choice = "Attack" | "Defend" | "Ignore"
+
 -- Static data for one state (see Sim/StateData.luau).
 export type StateRecord = {
 	id: string, -- postal code, e.g. "OH"

@@ -1,11 +1,14 @@
 --!strict
 -- Weekly resolution in a fixed order: costs and flights, rallies, fundraisers,
--- media and attacks, pivots, momentum, drift, then upkeep and polls.
+-- media and attacks, pivots, the Choice event, momentum, drift, then upkeep and
+-- polls. This week's event (Sim/Events) boosts rallies, media and fundraisers
+-- within EVENT_CAP per player, state and week (D-027).
 --
 -- Every step reads one start-of-step snapshot and applies all players' effects
 -- together (D-001), so the order of players in the match never matters.
 
 local ConfigModule = require("./Config")
+local Events = require("./Events")
 local Plan = require("./Plan")
 local Polls = require("./Polls")
 local Rng = require("./Rng")
@@ -85,6 +88,9 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 	local week = match.week
 	local closing = Resolve.closingMult(config, week)
 	local gained: { [number]: { number } } = {} -- momentum gained this week [state][player]
+	local event = Events.at(match)
+	local supportLedger: Events.Ledger = {} -- event support granted [state][player]
+	local moneyLedger: Events.Ledger = {} -- event money granted [state][player]
 
 	local function addMomentum(i: number, p: number, amount: number)
 		local list = gained[i]
@@ -101,7 +107,8 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 		local plan = plans[p]
 		local cost = Plan.cost(config, match, p, plan)
 		player.cash -= cost.cash
-		cards[p] = { rallies = {}, fundraisers = {}, media = {}, pivot = nil, flights = cost.flights }
+		cards[p] =
+			{ rallies = {}, fundraisers = {}, media = {}, pivot = nil, flights = cost.flights, choice = nil }
 		for _, action in plan.actions do
 			if action.kind == "Rally" or action.kind == "Fundraise" then
 				player.location = action.state
@@ -134,6 +141,8 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 					* frontrunner
 					* closing
 				local gain = profile.rallySupport * mult * Support.saturation(config, s.support[p])
+				local eventMult = Events.supportMult(config, event, "Rally", issue, i)
+				gain += Events.grant(config, supportLedger, i, p, gain * (eventMult - 1))
 				local entry = slot(batch, i, s)
 				entry.du += Support.addGain(config, s, p, gain, entry.delta)
 				addMomentum(i, p, config.RALLY_MOMENTUM)
@@ -183,6 +192,9 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 			local home = if s.isHome and s.owner == request.p then config.HOME_FUNDRAISE_MULT else 1
 			local frontrunner = if player.frontrunner then profile.frontrunnerFundMult else 1
 			local money = take * profile.fundraiseMult * home * underdogFund * frontrunner
+			-- Windfall reads the start-of-week public poll, the one both players saw.
+			local eventMult = Events.fundMult(config, event, s.poll, request.p)
+			money += Events.grant(config, moneyLedger, i, request.p, money * (eventMult - 1))
 			player.cash += money
 			player.raised += money
 		end
@@ -244,6 +256,8 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 						* mult
 						* common
 						* Support.saturation(config, s.support[p])
+					local eventMult = Events.supportMult(config, event, "Media", issue, i)
+					gain += Events.grant(config, supportLedger, i, p, gain * (eventMult - 1))
 					entry.du += Support.addGain(config, s, p, gain, entry.delta)
 					addMomentum(i, p, config.MEDIA_MOMENTUM * factor)
 				end
@@ -279,6 +293,34 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 	end
 	if anyPivot then
 		Support.national(config, match.states, national)
+	end
+
+	-- 5b. The Choice event: every player's secret answer resolves together through
+	-- the payoff matrix, as one national shift. Every event is logged publicly.
+	if event ~= nil then
+		local result: State.EventResult = { week = week, id = event.id, choices = nil, national = nil }
+		if event.kind == "Choice" then
+			local choices: { Types.Choice } = {}
+			for p in match.players do
+				choices[p] = plans[p].choice or "Ignore"
+			end
+			local payoffs = Events.choicePayoffs(config, choices)
+			local any = false
+			for p in match.players do
+				cards[p].choice = choices[p]
+				any = any or payoffs[p] ~= 0
+				table.insert(
+					events,
+					{ kind = "Choice", player = p, issue = choices[p] :: string, amount = payoffs[p] }
+				)
+			end
+			if any then
+				Support.national(config, match.states, payoffs)
+			end
+			result.choices = choices
+			result.national = payoffs
+		end
+		table.insert(match.eventLog, result)
 	end
 
 	-- 6. Momentum: decay, add this week's gains (scaled per candidate), clamp.

@@ -120,8 +120,24 @@ local Config = {
 	UNDERDOG_SMOOTHING = 0.4, -- EMA weight on the newest week's projected gap (0.5 -> 0.4, D-020)
 	UNDERDOG_HYSTERESIS = 30, -- EV below a threshold before leaving its tier (20 -> 30, D-020)
 
-	-- Events (Phase 5)
-	EVENT_CAP = 2, -- maximum points of effect from one event
+	-- Events (Phase 5, D-027)
+	EVENTS_ENABLED = true, -- draw a weekly event deck (private lobbies may turn it off)
+	EVENT_FIRST_WEEK = 2, -- first week with an event (none in week 1)
+	EVENT_LAST_WEEK = 11, -- last week with an event (none in week 12)
+	EVENT_CAP = 2, -- most an event adds for one player in one state per week (support points; $ for Windfall); Choice payoffs are clamped to +/- this
+	EVENT_SPOTLIGHT_MULT = 1.3, -- rallies and positive media on the spotlight issue, every state
+	EVENT_REGIONAL_MULT = 1.5, -- rallies in the event's region
+	EVENT_WINDFALL_MULT = 1.2, -- fundraisers where the fundraiser trails in the public poll (PLAN 1.5 -> 1.2, D-027: cheap media turned it into a Venkat edge)
+	-- Choice payoff matrix: national points for the row choice against the column choice
+	CHOICE_ATTACK_ATTACK = -0.2, -- both attack: mutual mudslinging
+	CHOICE_ATTACK_DEFEND = -0.3, -- attack into a prepared defense backfires
+	CHOICE_ATTACK_IGNORE = 0.2, -- attack lands on an opponent who ignored it
+	CHOICE_DEFEND_ATTACK = 0, -- a defense that was needed costs nothing
+	CHOICE_DEFEND_DEFEND = -0.2, -- both defend: wasted effort
+	CHOICE_DEFEND_IGNORE = -0.2, -- defending against nothing costs a little
+	CHOICE_IGNORE_ATTACK = -0.2, -- ignoring an attack lets it land
+	CHOICE_IGNORE_DEFEND = 0, -- ignoring while the opponent wastes effort costs nothing
+	CHOICE_IGNORE_IGNORE = 0, -- both ignore: nothing happens
 
 	-- Timers (D-005)
 	TIMER_SELECT = 30, -- candidate, color and platform
