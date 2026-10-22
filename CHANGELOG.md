@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased — playtest 2 fixes
+
+Four small bugs from the second agent playtest. No rules, payloads or `Sim/` files changed.
+
+- **`ad` works as a plan command.** The debug command box takes the names the game shows (D-030): `ad MI jobs`, `attack ad PA jobs` (or `attackad`), `fundraise OH`, next to the old `media`/`attack`/`fund`. `help` and the duel screens' commands and examples use the new names.
+- **Info commands are never a rejection.** In the duel harness, `rules` (and every info line: `show`, `help`, `bank`, `resync`, `skip`) gets the verdict `INFO: not locked in yet, no attempt used`, at Select, Draft and Plan alike; before, `rules` read "REJECTED: nothing locked" and used an attempt.
+- **The duel screen follows `show`.** After `show NY` the refreshed screen's "WHAT EACH ACTION WOULD DO" points at NY (its numbers are in the command output on the same screen) instead of the candidate's state.
+- **Momentum drift is quoted at its real size.** Momentum first keeps 50% (Reyes 25%), then the leader gains 0.6 per point of what is left, so a lead you see drifts 0.3 support per point next week. The state card note, "How it works", the debug board and the duel table all say so; `tests/ui/Momentum.spec.luau` checks the text against a real sim week.
+
+**To test:** `docs/TESTING.md`, "Playtest 2 fixes".
+
 ## 0.5.0 — Balance pass 2 and explained numbers (Oct 22, 2026)
 
 ### Balance pass 2

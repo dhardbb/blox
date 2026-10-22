@@ -356,3 +356,9 @@ Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on
     - `rules` prints the help text; `show OH` adds the lean, momentum and the eight action lines.
 
 **Send back:** any preview number that looked wrong after the week resolved (state, action, what the line said, what the poll did), screenshots of the help screen on a phone, and the Output lines starting with `[270] UI audit`.
+
+## Playtest 2 fixes (unreleased)
+
+1. Open a practice match, press **F2** for the debug panel, and at Week 1 Plan type `plan ad <your state> jobs`. Should: lock in like `media` did (if you have $3). Send back: the log line.
+2. In the campaign, select a state where one side has momentum (the ▲ on the map). Should: the state card says "about +X support drifts to … next week" and "Drift: … about 0.3 support next week per point of momentum lead shown now …". Next week, check the state moved by about that much if nobody campaigned there. Send back: a screenshot of the card, and the two polls.
+3. Open "?" (How it works) → "Leans, momentum, backlash, underdog". Should: the same drift sentence, with your candidate's numbers (Tomas Reyes: 25% kept, 0.15 per point). Send back: a screenshot.
