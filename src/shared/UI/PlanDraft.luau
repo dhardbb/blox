@@ -191,6 +191,71 @@ function PlanDraft.bestAttackIssue(config: Config, view: View, id: string): (Typ
 	return best, bestMult
 end
 
+-- One message chip on the state card: an issue and its rally multiplier here.
+export type MessageChoice = { issue: Types.Issue, mult: number }
+
+PlanDraft.MESSAGE_CHOICES = 5 -- most message chips the state card shows before "More"
+
+-- The message chips for state `id`: the best issue first, then the state's two
+-- top issues and your platform, deduplicated, by multiplier (ties keep that
+-- order), at most MESSAGE_CHOICES of them.
+function PlanDraft.messageChoices(config: Config, view: View, id: string): { MessageChoice }
+	local platform: { Types.Issue } = view.players[view.you].platform or {}
+	local issues = stateIssues(id)
+	local pool: { Types.Issue } = {}
+	local function offer(issue: Types.Issue)
+		if not table.find(pool, issue) then
+			table.insert(pool, issue)
+		end
+	end
+	offer((PlanDraft.bestIssue(config, view, id)))
+	for k = 1, #issues do
+		offer(issues[k])
+	end
+	for k = 1, #platform do
+		offer(platform[k])
+	end
+	local ranked: { { issue: Types.Issue, mult: number, at: number } } = {}
+	for k = 1, #pool do
+		local issue: Types.Issue = pool[k]
+		table.insert(
+			ranked,
+			{ issue = issue, mult = Resolve.issueMult(config, platform, issues, issue), at = k }
+		)
+	end
+	table.sort(ranked, function(a, b)
+		if math.abs(a.mult - b.mult) > 1e-9 then
+			return a.mult > b.mult
+		end
+		return a.at < b.at
+	end)
+	local out: { MessageChoice } = {}
+	for k = 1, math.min(#ranked, PlanDraft.MESSAGE_CHOICES) do
+		table.insert(out, { issue = ranked[k].issue, mult = ranked[k].mult })
+	end
+	return out
+end
+
+-- The region a state belongs to (what a Region poll there covers), or nil.
+function PlanDraft.regionOf(id: string): Types.Region?
+	local record = StateData.byId[id]
+	return if record then record.region else nil
+end
+
+-- A plan problem in a few words, for the disabled Lock in button.
+local SHORT_PROBLEM: { [string]: string } = {
+	[Plan.Reason.TooManyActions] = "Too many actions",
+	[Plan.Reason.NotEnoughAP] = "Not enough AP",
+	[Plan.Reason.NotEnoughMoney] = "Not enough money",
+	[Plan.Reason.GotvCap] = "Ground game over the limit",
+	[Plan.Reason.DuplicatePoll] = "One poll per state",
+	[Plan.Reason.PivotUsed] = "Pivot already used",
+}
+
+function PlanDraft.shortProblem(reason: string?): string
+	return SHORT_PROBLEM[reason or ""] or "Fix your plan"
+end
+
 function PlanDraft.add(draft: Draft, action: Plan.Action)
 	table.insert(draft.actions, action)
 end
