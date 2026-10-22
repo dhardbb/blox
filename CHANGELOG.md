@@ -2,6 +2,16 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased — Phase 1: Simulation core (in progress)
+
+- `Sim/Rng`: seeded xoshiro128** generator with named substreams; matches reference vectors.
+- `Sim/StateData`, `Sim/Issues`, `Types`: 51 states (EV sums to 538, symmetric land-border adjacency, nine regions, balanced generic issues). See `docs/DESIGN.md` D-014.
+- `Sim/Config`: every tunable from `docs/PLAN.md` revision 2, with variants for the balance harness.
+- `Sim/Candidates`: the eight candidates as data (revision-2 values).
+- CI runs on every branch and reports every failing check, not just the first.
+
+Nothing new to test in Studio yet; the game still only prints its version.
+
 ## 0.0.1 — Phase 0: Scaffold (Oct 22, 2026)
 
 - Rojo project (`default.project.json`): `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayerScripts.Client`.

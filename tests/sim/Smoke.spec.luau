@@ -9,12 +9,12 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 describe("Smoke", function()
 	it("loads Config", function()
-		expect(Config.WEEKS):toBe(12)
+		expect(Config.defaults.WEEKS):toBe(12)
 	end)
 
 	it("Config is frozen", function()
 		expect(function()
-			(Config :: any).WEEKS = 1
+			(Config.defaults :: any).WEEKS = 1
 		end):toThrow()
 	end)
 

@@ -1,0 +1,180 @@
+--!strict
+-- The candidate roster as data. Each candidate is the default profile (built from
+-- Config) plus a few overrides, so a ninth candidate is a data change, not code.
+-- Values are revision 2 (docs/DESIGN.md D-011). Names are fictional placeholders.
+
+local ConfigModule = require("./Config")
+
+type Config = ConfigModule.Config
+
+-- Everything about a candidate the simulation reads. Multipliers default to 1.
+export type Profile = {
+	id: string,
+	name: string,
+	archetype: string,
+	perk: string,
+	drawback: string,
+	apPerWeek: number,
+	startCash: number,
+	passiveIncome: number,
+	rallySupport: number, -- base support per rally
+	rallyMult: number,
+	fundraiseMult: number, -- applied after the pool cap; the bonus does not drain the pool
+	mediaCost: number,
+	mediaMult: number, -- effect of media buys (positive and attack)
+	mediaSaturation: number, -- value of each extra buy in the same state and week
+	freePolls: number, -- free single-state internal polls per week
+	gotvCost: number,
+	gotvMaxUnits: number,
+	momentumGainMult: number,
+	momentumDecay: number, -- share of momentum kept each week
+	underdogScale: number, -- scales the bonus part of underdog multipliers (2 = doubled)
+	frontrunnerEV: number?, -- when leading by this much projected EV, the frontrunner mults apply
+	frontrunnerRallyMult: number,
+	frontrunnerFundMult: number,
+	debateStat: number,
+	debatePrep: number,
+}
+
+type Entry = {
+	id: string,
+	name: string,
+	archetype: string,
+	perk: string,
+	drawback: string,
+	overrides: { [string]: number },
+}
+
+local ROSTER: { Entry } = {
+	{
+		id = "okafor",
+		name = "Dana Okafor",
+		archetype = "The Fundraiser",
+		perk = "Fundraisers yield +30%",
+		drawback = "Rallies -10%",
+		overrides = { fundraiseMult = 1.3, rallyMult = 0.9 },
+	},
+	{
+		id = "calloway",
+		name = "Rex Calloway",
+		archetype = "The Barnstormer",
+		perk = "4 AP per week",
+		drawback = "Rallies +2.2 instead of +3.0; media buys cost $4",
+		overrides = { apPerWeek = 4, rallySupport = 2.2, mediaCost = 4 },
+	},
+	{
+		id = "venkat",
+		name = "Priya Venkat",
+		archetype = "The Ad Wizard",
+		perk = "Media buys cost $2; repeat buys keep 70% of their value",
+		drawback = "Debate stat 0",
+		overrides = { mediaCost = 2, mediaSaturation = 0.7, debateStat = 0 },
+	},
+	{
+		id = "hale",
+		name = "Marcus Hale",
+		archetype = "The Debater",
+		perk = "Debate stat 2",
+		drawback = "Starts with $4 instead of $8",
+		overrides = { debateStat = 2, startCash = 4 },
+	},
+	{
+		id = "alvarado",
+		name = "June Alvarado",
+		archetype = "The Insider",
+		perk = "Starts with $18",
+		drawback = "Income $3 a week instead of $4",
+		overrides = { startCash = 18, passiveIncome = 3 },
+	},
+	{
+		id = "reyes",
+		name = "Tomas Reyes",
+		archetype = "The Insurgent",
+		perk = "Underdog bonuses doubled; momentum gained +50%",
+		drawback = "Momentum fades faster; weaker rallies and fundraisers while far ahead",
+		overrides = {
+			underdogScale = 2,
+			momentumGainMult = 1.5,
+			momentumDecay = 0.25,
+			frontrunnerEV = 40,
+			frontrunnerRallyMult = 0.9,
+			frontrunnerFundMult = 0.85,
+		},
+	},
+	{
+		id = "strand",
+		name = "Helen Strand",
+		archetype = "The Pollster",
+		perk = "Two free internal polls per week",
+		drawback = "Media buys -10%",
+		overrides = { freePolls = 2, mediaMult = 0.9 },
+	},
+	{
+		id = "begay",
+		name = "Walt Begay",
+		archetype = "The Organizer",
+		perk = "Ground game costs $1 per unit and caps at 6 per state",
+		drawback = "Rallies +2.4 instead of +3.0",
+		overrides = { gotvCost = 1, gotvMaxUnits = 6, rallySupport = 2.4 },
+	},
+}
+
+local Candidates = {}
+
+Candidates.ids = table.freeze((function()
+	local ids = {}
+	for i, entry in ROSTER do
+		ids[i] = entry.id
+	end
+	return ids
+end)())
+
+local byId: { [string]: Entry } = {}
+for _, entry in ROSTER do
+	byId[entry.id] = entry
+end
+
+function Candidates.exists(id: string): boolean
+	return byId[id] ~= nil
+end
+
+-- Full profile for a candidate under a given config.
+function Candidates.profile(config: Config, id: string): Profile
+	local entry = byId[id]
+	assert(entry, `unknown candidate {id}`)
+	local profile: Profile = {
+		id = entry.id,
+		name = entry.name,
+		archetype = entry.archetype,
+		perk = entry.perk,
+		drawback = entry.drawback,
+		apPerWeek = config.AP_PER_WEEK,
+		startCash = config.START_CASH,
+		passiveIncome = config.PASSIVE_INCOME,
+		rallySupport = config.RALLY_SUPPORT,
+		rallyMult = 1,
+		fundraiseMult = 1,
+		mediaCost = config.MEDIA_COST,
+		mediaMult = 1,
+		mediaSaturation = config.MEDIA_SATURATION,
+		freePolls = 0,
+		gotvCost = config.GOTV_COST,
+		gotvMaxUnits = config.GOTV_MAX_UNITS,
+		momentumGainMult = 1,
+		momentumDecay = config.MOMENTUM_DECAY,
+		underdogScale = 1,
+		frontrunnerEV = nil,
+		frontrunnerRallyMult = 1,
+		frontrunnerFundMult = 1,
+		debateStat = config.DEBATE_STAT,
+		debatePrep = config.DEBATE_PREP,
+	}
+	local writable = profile :: any
+	for key, value in entry.overrides do
+		assert(writable[key] ~= nil or key == "frontrunnerEV", `unknown profile field {key} on {id}`)
+		writable[key] = value
+	end
+	return table.freeze(profile)
+end
+
+return table.freeze(Candidates)

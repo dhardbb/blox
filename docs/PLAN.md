@@ -378,7 +378,7 @@ None of these are in scope until the 1v1 game is balanced and finished, but seve
 
 ## Your first session
 
-*Status (Oct 22, 2026): steps 1–2 done, step 3 (Phase 0) in progress. See `CHANGELOG.md`.*
+*Status (Oct 22, 2026): steps 1–3 done (Phase 0, CI green). Phase 1 in progress: `Rng`, `StateData`, `Config` and `Candidates` done; next is the `Match` state machine. See `CHANGELOG.md`.*
 
 Do these in order and stop after step 1 for answers.
 
