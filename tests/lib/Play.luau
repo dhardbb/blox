@@ -26,6 +26,8 @@ export type Record = {
 	invalid: number, -- bot inputs the validator rejected (should be 0)
 	trueLeaderWeek8: number, -- 0 if tied
 	unspent: { number },
+	raised: { number }, -- money each player's fundraisers raised over the match
+	raisedByWeek: { number }, -- both players' fundraiser money by campaign week (front-loading check)
 	tierChanges: number,
 	underdogWeeks: number, -- player-weeks with an underdog tier on
 	underdogWrong: number, -- ... where that player was truly ahead by 20+ EV
@@ -92,6 +94,8 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	local projectionWrong = false
 	local projectedLeader = 0
 	local gotvSpend = { 0, 0 }
+	local raised = { 0, 0 }
+	local raisedByWeek = table.create(config.WEEKS, 0)
 
 	while match.phase ~= "Done" do
 		local inputs = {}
@@ -121,6 +125,10 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		end
 		if before == "Plan" then
 			local week = match.week - 1
+			for p, player in match.players do
+				raised[p] += player.raised
+				raisedByWeek[week] += player.raised
+			end
 			local trueEV = Election.trueEV(config, match)
 			if week == 8 then
 				trueLeaderWeek8 = leader(trueEV)
@@ -186,6 +194,8 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		invalid = invalid,
 		trueLeaderWeek8 = trueLeaderWeek8,
 		unspent = { match.players[1].cash, match.players[2].cash },
+		raised = raised,
+		raisedByWeek = raisedByWeek,
 		tierChanges = tierChanges,
 		underdogWeeks = underdogWeeks,
 		underdogWrong = underdogWrong,

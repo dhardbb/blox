@@ -91,6 +91,8 @@ local priorityWins, comebacks, comebackEligible = 0, 0, 0
 local margins: { number } = {}
 local blowouts, routs, invalid = 0, 0, 0
 local unspent, gotvSpend = 0, 0
+local raisedTotal = 0
+local raisedEarly, raisedLate = 0, 0 -- weeks 1-3 and 10-12, both players
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
 local gotvDecided, debateDecided, debateShiftEV, projectionWrong = 0, 0, 0, 0
 local tossupDraft, tossupElection, spread = 0, 0, 0
@@ -131,6 +133,11 @@ for seed = 1, N do
 	invalid += r.invalid
 	unspent += (r.unspent[1] + r.unspent[2]) / 2
 	gotvSpend += (r.gotvSpend[1] + r.gotvSpend[2]) / 2
+	raisedTotal += (r.raised[1] + r.raised[2]) / 2
+	for week = 1, 3 do
+		raisedEarly += r.raisedByWeek[week]
+		raisedLate += r.raisedByWeek[config.WEEKS - 3 + week]
+	end
 	tierChanges += r.tierChanges
 	underdogWeeks += r.underdogWeeks
 	underdogWrong += r.underdogWrong
@@ -255,6 +262,11 @@ line(
 line("Decided by 40+ EV", pct(blowouts / N), "<= 65%", blowouts / N <= 0.65)
 line("Decided by 100+ EV", pct(routs / N), "<= 25%", routs / N <= 0.25)
 line("Average money unspent at the end", string.format("$%.1f", unspent / N))
+line("Average money raised per player", string.format("$%.1f", raisedTotal / N))
+-- D-034: flat, not front-loaded. Weeks 1-3 against weeks 10-12 (week 12's money is
+-- never spent, so the bot fundraises less then).
+local frontLoad = raisedEarly / math.max(1e-9, raisedLate)
+line("Raised in weeks 1-3 / weeks 10-12", string.format("%.2f", frontLoad), "<= 1.5", frontLoad <= 1.5)
 line("Invalid bot inputs", tostring(invalid), "0", invalid == 0)
 local deciles = {}
 for _, q in { 0.1, 0.25, 0.5, 0.75, 0.9 } do
