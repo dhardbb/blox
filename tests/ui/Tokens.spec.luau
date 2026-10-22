@@ -17,10 +17,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local FOLDERS = { "src/client/Screens", "src/client/Map" }
 
-local PENDING: { [string]: number } = {
-	-- WP3 (Campaign)
-	["src/client/Screens/Campaign.luau"] = 2,
-}
+local PENDING: { [string]: number } = {}
 
 -- What a screen file may not contain, as Lua patterns.
 local RULES: { { name: string, pattern: string } } = {

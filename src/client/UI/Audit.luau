@@ -61,10 +61,7 @@ export type Options = {
 
 -- Rules each screen still breaks while the overhaul is in progress. Each work
 -- package empties (deletes) its own entries; keep one entry per line.
-Audit.PENDING = {
-	-- WP3: Campaign.
-	Campaign = { primary = true, oneAccent = true },
-} :: { [string]: { [Rule]: boolean } }
+Audit.PENDING = {} :: { [string]: { [Rule]: boolean } }
 
 -- The rules in the order they are reported.
 local RULES: { Rule } = {
