@@ -61,6 +61,7 @@ export type PlayerState = {
 	id: string, -- opaque id from the server (e.g. a UserId as a string)
 	candidate: string,
 	color: string,
+	pickedColor: string, -- the color asked for at Select; differs from color after a clash
 	platform: { Types.Issue },
 	profile: Candidates.Profile,
 	cash: number, -- exact cash (opponents see only a bracket)

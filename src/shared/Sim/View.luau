@@ -40,6 +40,7 @@ export type PlayerView = {
 	id: string,
 	candidate: string?, -- nil until Select ends
 	color: string?,
+	pickedColor: string?, -- yours only: the color you asked for (another if it clashed)
 	platform: { Types.Issue }?,
 	home: string?,
 	strongholds: { string },
@@ -112,6 +113,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 			id = player.id,
 			candidate = if selected then player.candidate else nil,
 			color = if selected then player.color else nil,
+			pickedColor = if mine and selected then player.pickedColor else nil,
 			platform = if selected then table.clone(player.platform) else nil,
 			home = player.home,
 			strongholds = table.clone(player.strongholds),

@@ -50,6 +50,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 			id = id,
 			candidate = placeholder,
 			color = "",
+			pickedColor = "",
 			platform = {},
 			profile = Candidates.profile(config, placeholder),
 			cash = 0,
@@ -217,8 +218,9 @@ local function collect(config: Config, match: MatchState, inputs: { [number]: an
 	return out
 end
 
--- Colors are unique: on a clash a seeded order decides, and anyone left out gets
--- the first free color.
+-- Colors are unique: on a clash a seeded order decides (no seat is favored,
+-- D-001), and anyone left out gets the first free color. The color asked for is
+-- kept as pickedColor so the client can say why it changed.
 local function resolveSelect(config: Config, match: MatchState, selections: { Selection }): { Event }
 	local events: { Event } = {}
 	local order = {}
@@ -242,6 +244,7 @@ local function resolveSelect(config: Config, match: MatchState, selections: { Se
 		local player = match.players[p]
 		player.candidate = choice.candidate
 		player.color = color
+		player.pickedColor = choice.color
 		player.platform = table.clone(choice.platform)
 		player.profile = Candidates.profile(config, choice.candidate)
 		player.cash = player.profile.startCash

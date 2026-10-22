@@ -275,3 +275,18 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 		)
 	end)
 end)
+
+describe("Format color clash (playtest 1, bug 6)", function()
+	it("puts the actual color on the board and explains the clash", function()
+		local payload = Fixtures.payload(C, "Plan")
+		local me = payload.view.players[payload.you]
+		local other = payload.view.players[3 - payload.you]
+		me.pickedColor = other.color
+		me.color = if other.color == "Crimson" then "Cobalt" else "Crimson"
+		local board = Format.board(payload, 0)
+		expect(string.find(board, `({me.color})`, 1, true) ~= nil):toBe(true)
+		expect(string.find(board, "coin flip gave it to them", 1, true) ~= nil):toBe(true)
+		me.pickedColor = me.color
+		expect(string.find(Format.board(payload, 0), "coin flip", 1, true)):toBe(nil)
+	end)
+end)

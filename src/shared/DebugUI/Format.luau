@@ -7,6 +7,7 @@ local Config = require("../Sim/Config")
 local Events = require("../Sim/Events")
 local Issues = require("../Sim/Issues")
 local StateData = require("../Sim/StateData")
+local Colors = require("../UI/Colors")
 local Numbers = require("../UI/Numbers")
 local PlanDraft = require("../UI/PlanDraft")
 local Profile = require("../Net/Profile")
@@ -252,6 +253,10 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		end
 		text ..= string.format("  bank %ds", seat.bank)
 		add(text)
+	end
+	local clash = Colors.clashNotice(view)
+	if clash then
+		add(`NOTE: {clash}`)
 	end
 	add(string.format("Projected EV  you %d - %d them", view.projectedEV[you], view.projectedEV[them]))
 

@@ -5,6 +5,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
@@ -30,6 +31,7 @@ local Store = {}
 
 local MAX_MESSAGES = 20
 local lastMessageId = 0 -- id of the newest message ever said
+local clashNoticeFor: string? = nil -- match whose color-clash notice was shown
 
 local state: State = {
 	payload = nil,
@@ -67,6 +69,13 @@ function Store.setPayload(payload: Session.StatePayload)
 		state.resultSeen = false
 	end
 	state.payload = payload
+	-- A color clash at Select: say once per match why the color changed (a toast).
+	local notice = Colors.clashNotice(payload.view)
+	if notice ~= nil and clashNoticeFor ~= payload.matchId then
+		clashNoticeFor = payload.matchId
+		Store.say(notice)
+		return -- say() already told the listeners
+	end
 	changed()
 end
 

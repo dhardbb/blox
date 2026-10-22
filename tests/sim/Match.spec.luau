@@ -113,3 +113,44 @@ describe("Match", function()
 		end):toThrow("cannot advance")
 	end)
 end)
+
+describe("color clashes (playtest 1, bug 6)", function()
+	local View = require("@sim/View")
+	local function pick(color: string): any
+		return { candidate = "okafor", color = color, platform = { "Jobs", "Farms", "Safety" } }
+	end
+
+	it("records the color each player asked for and shows it only to them", function()
+		local match = Match.advance(C, Match.new(C, 4, { "a", "b" }), { pick("Cobalt"), pick("Cobalt") })
+		local kept = if match.players[1].color == "Cobalt" then 1 else 2
+		local moved = 3 - kept
+		expect(match.players[kept].color):toBe("Cobalt")
+		expect(match.players[moved].color):toBe("Crimson") -- the first free color
+		for p = 1, 2 do
+			expect(match.players[p].pickedColor):toBe("Cobalt")
+			local view = View.build(C, match, p)
+			expect(view.players[p].pickedColor):toBe("Cobalt")
+			expect(view.players[3 - p].pickedColor):toBe(nil)
+		end
+	end)
+
+	it("hides picks during Select and leaves a clash-free pick alone", function()
+		local fresh = Match.new(C, 4, { "a", "b" })
+		expect(View.build(C, fresh, 1).players[1].pickedColor):toBe(nil)
+		local match = Match.advance(C, fresh, { pick("Teal"), pick("Amber") })
+		expect(match.players[1].color):toBe("Teal")
+		expect(match.players[2].color):toBe("Amber")
+		expect(match.players[1].pickedColor):toBe("Teal")
+	end)
+
+	it("settles a clash by the seed, not by seat (D-001)", function()
+		local wins = { 0, 0 }
+		for seed = 1, 400 do
+			local match = Match.advance(C, Match.new(C, seed, { "a", "b" }), { pick("Teal"), pick("Teal") })
+			local p = if match.players[1].color == "Teal" then 1 else 2
+			wins[p] += 1
+		end
+		-- 400 fair coin flips land within 160..240 with overwhelming probability.
+		expect(wins[1] > 160 and wins[2] > 160):toBe(true)
+	end)
+end)

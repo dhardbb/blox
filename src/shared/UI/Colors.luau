@@ -71,6 +71,18 @@ function Colors.of(name: string?): RGB
 	return if name ~= nil and Colors.player[name] ~= nil then Colors.player[name] else Colors.neutral
 end
 
+-- Why your color is not the one you picked, or nil. Two players who pick the
+-- same color at Select: a seeded coin flip keeps it for one, the other gets the
+-- first free color (Match resolveSelect, D-001). Reads only your own View.
+function Colors.clashNotice(view: any): string?
+	local me = view.players[view.you]
+	if me == nil or me.pickedColor == nil or me.color == nil or me.pickedColor == me.color then
+		return nil
+	end
+	local wanted, got = me.pickedColor, me.color
+	return `Your opponent also picked {wanted} and the coin flip gave it to them: you are {got} this match.`
+end
+
 Colors.FULL_MARGIN = 12 -- poll margin (points) at which a state shows its leader's full color
 
 -- Fill for a state from its public poll: neutral at a tie, moving to the leader's
