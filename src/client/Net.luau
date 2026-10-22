@@ -50,6 +50,8 @@ function Net.start()
 			Store.setPayload(message.state)
 		elseif message.kind == "Lobby" and message.lobby then
 			Store.setLobby(message.lobby)
+		elseif message.kind == "Rating" and message.rating then
+			Store.setRating(message.rating)
 		elseif message.kind == "Notice" then
 			Store.say(NOTICES[message.notice or ""] or (message.notice or "Notice"))
 		elseif message.kind == "Rejected" then

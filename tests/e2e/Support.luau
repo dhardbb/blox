@@ -68,10 +68,11 @@ function Support.new(root: string, seed: number?, screen: { x: number, y: number
 	return { world = world, peers = {}, history = {}, last = {}, logBoxes = {} }
 end
 
--- Adds a player and lets their client start up. `attributes` go on that client's
--- workspace (e.g. DebugText = true shows the debug panel).
-function Support.join(rig: Rig, name: string, attributes: { [string]: any }?): FakeRoblox.Peer
-	local peer = FakeRoblox.join(rig.world, name, attributes)
+-- Adds a player and lets their client start up. `extra` is a user id (brings a
+-- returning player back) or attributes for that client's workspace (e.g.
+-- DebugText = true shows the debug panel).
+function Support.join(rig: Rig, name: string, extra: any?): FakeRoblox.Peer
+	local peer = FakeRoblox.join(rig.world, name, extra)
 	table.insert(rig.peers, peer)
 	rig.history[peer] = {}
 	rig.last[peer] = {}

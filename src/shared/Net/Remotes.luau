@@ -5,6 +5,7 @@
 -- message is one table with a `kind`. Net/Schemas validates requests at runtime.
 
 local Lobby = require("./Lobby")
+local Profile = require("./Profile")
 local Session = require("./Session")
 
 local Remotes = {}
@@ -41,14 +42,23 @@ export type LobbyStatus = {
 	code: string?, -- while hosting
 	queued: number, -- players waiting in the public queue
 	full: boolean, -- the server has no room for another match
+	profile: Profile.Summary?, -- the player's saved rating and record; absent until it has loaded
+}
+
+-- Rating change after a rated match (message kind "Rating").
+export type RatingChange = {
+	matchId: string,
+	before: number,
+	after: number,
 }
 
 -- Server -> client messages.
 export type Message = {
-	kind: "Lobby" | "State" | "Notice" | "Rejected",
+	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected",
 	lobby: LobbyStatus?,
 	state: Session.StatePayload?,
 	notice: string?, -- e.g. "OpponentDisconnected"
+	rating: RatingChange?, -- Rating: sent once when a rated match ends
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

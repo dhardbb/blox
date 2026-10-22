@@ -278,3 +278,35 @@ Still red: the blowout share (structural, revised target in D-024), the wrong-le
 - **Rate limit:** 40 requests per player per 10 s, well above what play needs (a whole plan is one request).
 - **Reconnect window:** a player who comes back during an Input stage they haven't locked is guaranteed `RECONNECT_WINDOW` (15 s, new in `Sim/Config`) from the moment they return, even if their deadline already passed while grace held the stage open. Only their own deadline moves; it doesn't spend time bank or show the opponent anything, and it resets with the next Input stage. A rate-limited player is warned and told once per window; the rest of their requests are dropped silently.
 - **If a match throws:** `MatchService` abandons it (`Session.abort`, result `Abandoned`) and frees the lobby, so a bug can't trap players in a stuck match.
+
+## Phase 5: ratings and saved stats
+
+### D-028 — Elo rating, the saved profile, and session-locked DataStore saves (Oct 22, 2026, branch `phase5-data`)
+
+**Rating** (`Net/Rating.luau`, pure). Standard Elo with `ELO_K` 32 and `ELO_START` 1000 from `Sim/Config`, and one new number, `ELO_FLOOR` 100 (nobody can fall below it). Ratings are whole numbers. The change is rounded half away from zero, so both players of a match always move by equal and opposite amounts and each side can be computed on its own from the two pre-match ratings. Only the floor can break that symmetry (a player at the floor creates rating points instead of losing them). An election can't tie (`Election.count` flips a seeded coin on an exact popular-vote tie), so there is no draw path; a result with winner 0 is treated as unrated.
+
+**What is rated.** Queued and private human-versus-human matches that end by `Election` or `Forfeit`. A match is rated only if both players' saved ratings were loaded and writable when it started; otherwise it is logged as unrated and nobody's rating moves. A forfeit costs the player who left even after they have left the server: their stored record is updated on its own thread (`DataService.update` returns `"Offline"`). Practice against the bot never moves the rating; it adds to a separate `practice = { games, wins, losses }` total and is kept out of `perCandidate` and `recent`, so those stay honest ladder stats. An `Abandoned` match changes nothing.
+
+**The record.** DataStore `PlayerData_v1`, key `Player_<UserId>`:
+
+```
+{ lock = { jobId = string, at = unix seconds }?,
+  data = { version = 1, rating, games, wins, losses,
+           perCandidate = { [candidateId] = { wins, losses } },
+           recent = { { at, opponentRating, candidate, opponentCandidate, won, evFor?, evAgainst?, reason } },  -- last 10, oldest first
+           practice = { games, wins, losses } } }
+```
+
+`Profile.migrate` accepts nil, garbage and any older version (no version, or a version before 1, is read field by field and the unreadable fields default). A record saved by a newer version of the game is shown but never overwritten.
+
+**Session locking** (`server/DataService.luau`). Loading is one `UpdateAsync` that writes `lock = { jobId = game.JobId, at = os.time() }` and returns the migrated profile. If another server's lock is younger than 120 s the load retries 4 times with backoff (1.5, 3, 6 s), then reads the profile with `GetAsync` and leaves it read-only (logged; nothing is saved, the match is unrated). A lock older than 120 s belongs to a crashed server and is taken over. Every save refreshes the lock; leaving or shutting down clears it. A save that finds another server's fresh lock does not write and the player goes read-only. `UpdateAsync` callbacks reset their state on entry (Roblox may call them more than once), never yield, and return plain tables. Errors are retried 5 times with exponential backoff (1, 2, 4, 8 s).
+
+**When it saves.** On load (the lock), when a match ends (in memory at once, written on a background thread), on `PlayerRemoving`, and in `game:BindToClose`, which waits at most 25 s of Roblox's 30. It never runs inside a turn: `MatchService` reads ratings from memory and every request is on its own thread.
+
+**Unpublished places.** DataStores error in an unpublished Studio place (or with API access off). The first request that fails with that error switches the whole service to an in-memory store with the single warning `[270] DataStore unavailable (publish the place and enable Studio API access to save); using memory`. Play works; nothing survives. This fallback is Studio-only (`RunService:IsStudio()`); a live server keeps retrying instead of silently dropping saves.
+
+**Wire.** `Remotes.LobbyStatus.profile` is an optional `{ rating, games, wins, losses }` (absent until the profile loads, or if it can't). A new message kind `"Rating"` carries `rating = { matchId, before, after }` and is sent once to each human after a rated match. The debug UI shows `Rating 1032 (12-7)` in the lobby line and `Rating 1032 → 1048` in the log and on the result board.
+
+**Known limits.** A player who leaves a rated match and joins another server before the match ends can't be charged the forfeit (their record is locked there; the update is retried 4 times, then dropped with a warning). The lock is not refreshed on a timer, only by saves, which is enough because a player can't be in two servers and the lock only guards the moments around a server hop. A server crash loses only what changed since the last match end. Request budgets (`GetRequestBudgetForRequestType`) aren't tracked: a player causes about three requests per match.
+
+**Roblox APIs used** (checked against the creator-docs reference): `DataStoreService:GetDataStore(name)`; `GlobalDataStore:UpdateAsync(key, transform)` and `:GetAsync(key)` (`DataStore` inherits both); `DataModel:BindToClose(fn)` (30 s limit, functions run in parallel); `DataModel.JobId` (empty in Studio, so the lock owner there is `"studio"`); `RunService:IsStudio()`; `Players.PlayerAdded`/`PlayerRemoving`.

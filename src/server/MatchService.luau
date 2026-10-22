@@ -11,8 +11,10 @@ local RunService = game:GetService("RunService")
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
 local Lobby = require(ReplicatedStorage.Shared.Net.Lobby)
+local Profile = require(ReplicatedStorage.Shared.Net.Profile)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
+local DataService = require(script.Parent.DataService)
 local Replication = require(script.Parent.Replication)
 
 local MatchService = {}
@@ -26,6 +28,7 @@ local lobby = Lobby.new(config)
 local sessions: { [string]: Session.Session } = {}
 local matchOf: { [string]: string } = {} -- player id -> match id
 local prePicks: { [string]: any } = {}
+local ratingsAtStart: { [string]: { [string]: number } } = {} -- match id -> player id -> rating; rated matches only
 local random = Random.new()
 local matchCount = 0
 
@@ -44,8 +47,58 @@ local function sendLobby(id: string)
 		code = code,
 		queued = #lobby.queue,
 		full = lobby.active >= lobby.capacity,
+		profile = DataService.summary(id),
 	}
 	Replication.send(id, { kind = "Lobby", lobby = status })
+end
+
+-- Applies a finished match to each human's saved profile and tells them how
+-- their rating moved. Only a human-vs-human match decided by an election or a
+-- forfeit is rated (and only if both ratings were known at the start); against
+-- the bot it only adds to the practice record; an abandoned match changes nothing.
+local function settle(session: Session.Session)
+	local starts = ratingsAtStart[session.id]
+	ratingsAtStart[session.id] = nil
+	local result = session.result :: Session.Result
+	if result.reason == "Abandoned" or result.winner == 0 then
+		return
+	end
+	local election = session.match.election
+	local at = os.time()
+	for me, seat in session.seats do
+		if seat.kind ~= "Human" then
+			continue
+		end
+		local them = if me == 1 then 2 else 1
+		local input: Profile.Result = {
+			at = at,
+			reason = result.reason,
+			rated = starts ~= nil,
+			won = result.winner == me,
+			candidate = session.match.players[me].candidate,
+			opponentCandidate = session.match.players[them].candidate,
+			opponentRating = if starts then starts[session.seats[them].id] else nil,
+			evFor = if election then election.ev[me] else nil,
+			evAgainst = if election then election.ev[them] else nil,
+		}
+		local change: Profile.Change? = nil
+		local how = DataService.update(seat.id, function(profile: Profile.Profile): Profile.Profile
+			local updated, applied = Profile.applyResult(profile, input, config)
+			change = applied
+			return updated
+		end)
+		if how == "Skipped" and starts then
+			warn(`[270] match {session.id}: could not record the result for player {seat.id}`)
+		end
+		local applied = change
+		if how == "Live" and applied and applied.rated then
+			Replication.send(seat.id, {
+				kind = "Rating",
+				rating = { matchId = session.id, before = applied.before, after = applied.after },
+			})
+			print(`[270] player {seat.id} rating {applied.before} -> {applied.after} (match {session.id})`)
+		end
+	end
 end
 
 -- Sends a session's queued messages; ends the match in the lobby once it is over.
@@ -65,6 +118,13 @@ local function flush(session: Session.Session)
 			end
 		end
 		Lobby.ended(lobby, ids)
+		local settled, err = pcall(function(): string?
+			settle(session)
+			return nil
+		end)
+		if not settled then
+			warn(`[270] match {session.id}: could not apply the result to saved data: {err}`)
+		end
 		for _, id in ids do
 			sendLobby(id)
 		end
@@ -137,6 +197,21 @@ local function startMatch(outcome: Lobby.Outcome)
 		return
 	end
 	sessions[matchId] = session
+	if outcome.kind == "Match" then
+		-- Rated only if every player's saved rating is loaded and writable now.
+		local ratings: { [string]: number } = {}
+		for _, id in outcome.players do
+			local rating = DataService.rating(id)
+			if rating then
+				ratings[id] = rating
+			end
+		end
+		if #outcome.players == 2 and ratings[outcome.players[1]] and ratings[outcome.players[2]] then
+			ratingsAtStart[matchId] = ratings
+		else
+			print(`[270] match {matchId} is unrated: a player's saved data is not available`)
+		end
+	end
 	for _, id in outcome.players do
 		matchOf[id] = matchId
 		sendLobby(id)
@@ -218,6 +293,12 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 end
 
 function MatchService.start()
+	DataService.start()
+	DataService.onLoaded(function(id: string)
+		if matchOf[id] == nil then
+			sendLobby(id)
+		end
+	end)
 	for _, player in Players:GetPlayers() do
 		sendLobby(idOf(player))
 	end

@@ -14,6 +14,7 @@ export type State = {
 	messages: { string }, -- newest last, for toasts and the debug panel
 	resultSeen: boolean, -- the player dismissed the last match's result screen
 	prePick: any?, -- the selection remembered for the next Select
+	rating: Remotes.RatingChange?, -- the rating change after the last rated match
 }
 
 local Store = {}
@@ -26,6 +27,7 @@ local state: State = {
 	messages = {},
 	resultSeen = false,
 	prePick = nil,
+	rating = nil,
 }
 local listeners: { (State) -> () } = {}
 
@@ -73,6 +75,11 @@ end
 
 function Store.dismissResult()
 	state.resultSeen = true
+	changed()
+end
+
+function Store.setRating(change: Remotes.RatingChange)
+	state.rating = change
 	changed()
 end
 

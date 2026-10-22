@@ -228,6 +228,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextColor3 = Kit.colors.muted,
 			TextXAlignment = Enum.TextXAlignment.Center,
 		})
+		label(column, "", {
+			Name = "RatingChange",
+			LayoutOrder = nextOrder(),
+			TextColor3 = Kit.colors.accent,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Visible = false,
+		})
 
 		-- Electoral vote bar.
 		if election then
@@ -358,6 +365,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if current and current ~= rendered then
 				rendered = current
 				render(current)
+			end
+			-- Rated matches: "Rating 1000 → 1016 (+16)", once the server sends it.
+			local change = state.rating
+			local line = parent:FindFirstChild("RatingChange", true) :: TextLabel?
+			if line and current and change and change.matchId == current.matchId then
+				local delta = change.after - change.before
+				line.Text =
+					`Rating {change.before} → {change.after} ({if delta >= 0 then "+" else ""}{delta})`
+				line.Visible = true
 			end
 		end,
 		tick = function(_now: number)

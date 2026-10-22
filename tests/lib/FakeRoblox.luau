@@ -8,10 +8,14 @@
 -- Roblox-style argument copying, Players (PlayerAdded/Removing, LocalPlayer,
 -- PlayerGui), RunService.Heartbeat/RenderStepped, workspace:GetServerTimeNow,
 -- the task library, Random, Enum, Color3/UDim/UDim2/Vector2, and a rough
--- AbsoluteSize/TextFits layout so the debug UI's size checks run.
+-- AbsoluteSize/TextFits layout so the debug UI's size checks run. Also
+-- DataStoreService (a world-level key/value table with switches for an
+-- unpublished place and transient failures: world.data), game.JobId,
+-- game:BindToClose (FakeRoblox.shutdown runs the handlers), and os.time on the
+-- simulated clock.
 --
 -- What it does not fake: rendering, physics, real replication of anything but
--- remotes, DataStores, or Studio. Real-engine checks still need Studio
+-- remotes, or Studio. Real-engine checks still need Studio
 -- (docs/TESTING.md). Used by tests/e2e and tests/play.luau.
 
 local fs = require("@lune/fs")
@@ -35,6 +39,18 @@ export type Peer = {
 	inbox: { { any } }, -- queued remote messages to deliver
 }
 
+-- The fake DataStoreService's world-level state. Tests flip the switches.
+export type DataState = {
+	stores: { [string]: { [string]: any } }, -- store name -> key -> value (deep copies)
+	unpublished: boolean, -- every request fails as in an unpublished Studio place
+	unpublishedMessage: string, -- the error text for that
+	failures: number, -- the next N requests fail with a transient error
+	reruns: number, -- the next N UpdateAsync calls run their callback twice (a write conflict)
+	latency: number, -- simulated seconds each request takes
+	requests: number, -- requests made so far
+	writes: number, -- successful writes so far
+}
+
 export type World = {
 	clock: number,
 	seed: number,
@@ -49,6 +65,9 @@ export type World = {
 	errors: { string },
 	wireWarnings: { string },
 	nextUserId: number,
+	data: DataState,
+	jobId: string, -- the server's game.JobId
+	closeHandlers: { () -> () }, -- game:BindToClose callbacks
 }
 
 -- ---------------------------------------------------------------- data types
@@ -232,6 +251,116 @@ local function copyArgs(world: World, args: { any }): { any }
 		out[k] = wireCopy(world, args[k], `arg{k}`)
 	end
 	return out
+end
+
+-- ---------------------------------------------------------------- data stores
+
+local function deepCopy(value: any): any
+	if type(value) ~= "table" then
+		return value
+	end
+	local out = {}
+	for key, child in value do
+		out[key] = deepCopy(child)
+	end
+	return out
+end
+
+-- Errors the way a DataStore refuses values it can't serialize.
+local function checkStorable(value: any, path: string)
+	local kind = type(value)
+	if kind == "number" then
+		if value ~= value or value == math.huge or value == -math.huge then
+			error(`DataStore: cannot store a non-finite number at {path}`, 0)
+		end
+	elseif kind == "table" then
+		if getmetatable(value) ~= nil then
+			error(`DataStore: cannot store an Instance or object at {path}`, 0)
+		end
+		local numeric, text = 0, 0
+		for key, child in value do
+			if type(key) == "number" then
+				numeric += 1
+			elseif type(key) == "string" then
+				text += 1
+			else
+				error(`DataStore: cannot store a {type(key)} key at {path}`, 0)
+			end
+			checkStorable(child, `{path}.{tostring(key)}`)
+		end
+		if numeric > 0 and (text > 0 or #value ~= numeric) then
+			error(`DataStore: cannot store a mixed or sparse table at {path}`, 0)
+		end
+	elseif kind ~= "string" and kind ~= "boolean" then
+		error(`DataStore: cannot store a {kind} at {path}`, 0)
+	end
+end
+
+-- Yields the calling script for the simulated request time.
+local function requestDelay(world: World)
+	local peer = world.current
+	assert(peer, "a DataStore request must come from a script")
+	schedule(world, world.clock + world.data.latency, coroutine.running(), peer, {})
+	coroutine.yield()
+end
+
+-- Counts the request, waits, and raises the configured failure, if any.
+local function beginRequest(world: World)
+	local data = world.data
+	data.requests += 1
+	requestDelay(world)
+	if data.unpublished then
+		error(data.unpublishedMessage, 0)
+	end
+	if data.failures > 0 then
+		data.failures -= 1
+		error("503: DataStore request failed (simulated transient error)", 0)
+	end
+end
+
+local function newDataStore(world: World, name: string): any
+	local keys = world.data.stores[name]
+	if keys == nil then
+		keys = {}
+		world.data.stores[name] = keys
+	end
+	local store = {}
+	function store.GetAsync(_self: any, key: string): (any, any)
+		beginRequest(world)
+		return deepCopy(keys[key]), if keys[key] ~= nil then {} else nil
+	end
+	function store.SetAsync(_self: any, key: string, value: any): ()
+		checkStorable(value, "value")
+		beginRequest(world)
+		keys[key] = deepCopy(value)
+		world.data.writes += 1
+	end
+	function store.UpdateAsync(_self: any, key: string, transform: (any, any) -> any): (any, any)
+		beginRequest(world)
+		if world.data.reruns > 0 then
+			-- Another server wrote in between: Roblox discards this result and calls again.
+			world.data.reruns -= 1
+			transform(deepCopy(keys[key]), {})
+		end
+		local old = deepCopy(keys[key])
+		local new = transform(old, {})
+		if new == nil then
+			return old, nil
+		end
+		checkStorable(new, "value")
+		keys[key] = deepCopy(new)
+		world.data.writes += 1
+		return deepCopy(new), {}
+	end
+	return store
+end
+
+local function newDataStoreService(world: World): any
+	return {
+		GetDataStore = function(_self: any, name: string, _scope: string?): any
+			return newDataStore(world, name)
+		end,
+	}
 end
 
 -- ---------------------------------------------------------------- instances
@@ -418,6 +547,16 @@ function methods.GetServerTimeNow(self: any): number
 	return (rawget(self, "_world") :: World).clock
 end
 
+-- DataModel
+function methods.BindToClose(self: any, callback: () -> ())
+	table.insert((rawget(self, "_world") :: World).closeHandlers, callback)
+end
+
+-- RunService: the fake always runs "in Studio" (there is no live server to test).
+function methods.IsStudio(_self: any): boolean
+	return true
+end
+
 function methods.IsServer(self: any): boolean
 	local world: World = rawget(self, "_world")
 	return world.current == nil or (world.current :: Peer).isServer
@@ -596,6 +735,10 @@ local function stdEnv(world: World, peer: Peer, path: string, inst: any): { [str
 			fake.clock = function(): number
 				return world.clock
 			end
+			-- Unix time on the simulated clock, so lock ages and `at` stamps follow sim time.
+			fake.time = function(): number
+				return math.floor(world.clock)
+			end
 			return fake
 		end)(),
 		print = function(...: any)
@@ -711,6 +854,8 @@ local function newGame(world: World, isServer: boolean): any
 		services[name] = service
 	end
 	services.ReplicatedStorage = world.shared
+	services.DataStoreService = newDataStoreService(world)
+	rawget(game, "_props").JobId = if isServer then world.jobId else ""
 	if isServer then
 		local spsParent = newInstance(world, "StarterPlayerScripts", "StarterPlayerScripts")
 		spsParent.Parent = services.StarterPlayer
@@ -756,6 +901,18 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		errors = {},
 		wireWarnings = {},
 		nextUserId = 1,
+		data = {
+			stores = {},
+			unpublished = false,
+			unpublishedMessage = "You must publish this place to the web to access DataStore.",
+			failures = 0,
+			reruns = 0,
+			latency = 0.2,
+			requests = 0,
+			writes = 0,
+		},
+		jobId = "job-1",
+		closeHandlers = {},
 	} :: World
 	world.shared = newInstance(world, "ReplicatedStorage", "ReplicatedStorage")
 	local sharedFolder = newInstance(world, "Folder", "Shared")
@@ -780,11 +937,16 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 end
 
 -- A player joins: the server sees PlayerAdded, and the client scripts start.
--- `attributes` are set on that client's workspace first (e.g. DebugScreen = "Plan"
--- renders a fixture screen offline; see src/client/App.client.luau).
-function FakeRoblox.join(world: World, name: string, attributes: { [string]: any }?): Peer
-	local userId = world.nextUserId
-	world.nextUserId += 1
+-- `extra` is either a user id (a number: brings back a returning player; default a
+-- new one) or a table of attributes set on that client's workspace first (e.g.
+-- DebugScreen = "Plan" renders a fixture screen offline; see src/client/App.client.luau).
+function FakeRoblox.join(world: World, name: string, extra: any?): Peer
+	local userId: number? = if type(extra) == "number" then extra else nil
+	local attributes: { [string]: any }? = if type(extra) == "table" then extra else nil
+	local id = userId or world.nextUserId
+	if id >= world.nextUserId then
+		world.nextUserId = id + 1
+	end
 	local peer = newPeer(world, name, false)
 	if attributes then
 		local clientWorkspace = peer.game:GetService("Workspace")
@@ -795,7 +957,7 @@ function FakeRoblox.join(world: World, name: string, attributes: { [string]: any
 
 	local function makePlayer(game: any): any
 		local player = newInstance(world, "Player", name)
-		player.UserId = userId
+		player.UserId = id
 		player.DisplayName = name
 		local gui = newInstance(world, "PlayerGui", "PlayerGui")
 		gui.Parent = player
@@ -927,6 +1089,23 @@ function FakeRoblox.runUntil(world: World, predicate: () -> boolean, limit: numb
 		waited += stepSize
 	end
 	return predicate()
+end
+
+-- The server is closing: runs every game:BindToClose callback in parallel, then
+-- up to Roblox's 30 simulated seconds for them to finish. Returns true if they all did.
+function FakeRoblox.shutdown(world: World): boolean
+	local finished = 0
+	local handlers = table.clone(world.closeHandlers)
+	for _, handler in handlers do
+		spawnOn(world, world.server, function()
+			handler()
+			finished += 1
+		end)
+	end
+	FakeRoblox.runUntil(world, function()
+		return finished == #handlers
+	end, 30)
+	return finished == #handlers
 end
 
 -- ---------------------------------------------------------------- client UI helpers

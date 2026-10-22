@@ -183,6 +183,7 @@ end)
 
 local current: Session.StatePayload? = nil
 local lobby: Remotes.LobbyStatus? = nil
+local ratingChange: Remotes.RatingChange? = nil -- after the last rated match
 local autoplay = false
 local autoKey = "" -- "matchId:step" of the last state autoplay acted on (steps restart each match)
 local logLines: { string } = {}
@@ -200,7 +201,7 @@ local function render()
 	status.Text = Format.status(current, lobby, workspace:GetServerTimeNow())
 	local payload = current
 	if payload then
-		board.Text = Format.board(payload, workspace:GetServerTimeNow())
+		board.Text = Format.board(payload, workspace:GetServerTimeNow(), ratingChange)
 	end
 end
 
@@ -296,6 +297,9 @@ toClient.OnClientEvent:Connect(function(message: Remotes.Message)
 		end
 	elseif message.kind == "Lobby" then
 		lobby = message.lobby
+	elseif message.kind == "Rating" and message.rating then
+		ratingChange = message.rating
+		say(Format.ratingChange(message.rating))
 	elseif message.kind == "Notice" then
 		say(NOTICES[message.notice or ""] or (message.notice or "notice"))
 	elseif message.kind == "Rejected" then

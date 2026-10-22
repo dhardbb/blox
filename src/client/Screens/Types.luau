@@ -17,6 +17,7 @@ export type State = {
 	messages: { string },
 	resultSeen: boolean,
 	prePick: any?,
+	rating: any?, -- Remotes.RatingChange after the last rated match
 }
 
 export type Net = {

@@ -55,6 +55,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = content,
 	})
 
+	local record = Kit.text("", {
+		Name = "Record",
+		LayoutOrder = nextOrder(),
+		Size = UDim2.new(1, 0, 0, 24),
+		TextScaled = true,
+		TextSize = Kit.size.large,
+		Font = Kit.font.medium,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Visible = false,
+		Parent = content,
+	})
+
 	local toast = Kit.text("", {
 		Name = "Toast",
 		LayoutOrder = nextOrder(),
@@ -245,6 +257,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local lobby = state.lobby
 		local status = if lobby then lobby.state else "Idle"
 		isFull = lobby ~= nil and lobby.full == true
+		local profile = if lobby then lobby.profile else nil
+		record.Visible = profile ~= nil
+		if profile then
+			record.Text = `Rating {profile.rating} · {profile.wins} won, {profile.losses} lost`
+		end
 
 		fullBanner.Visible = isFull and status == "Idle"
 		for _, button in buttons do

@@ -132,4 +132,18 @@ describe("Format", function()
 		expect(string.find(text, "join AB3CD", 1, true) ~= nil):toBe(true)
 		expect(Format.status(nil, nil, 0)):toBe("Connecting...")
 	end)
+
+	it("shows the saved rating in the lobby line once it has loaded", function()
+		local profile = { rating = 1032, games = 19, wins = 12, losses = 7 }
+		local text = Format.status(nil, { state = "Idle", queued = 0, full = false, profile = profile }, 0)
+		expect(string.find(text, "Rating 1032 (12-7)", 1, true) ~= nil):toBe(true)
+		local bare = Format.status(nil, { state = "Idle", queued = 0, full = false }, 0)
+		expect(string.find(bare, "Rating", 1, true)):toBe(nil)
+	end)
+
+	it("formats a rating change", function()
+		expect(Format.ratingChange({ matchId = "m1", before = 1032, after = 1048 })):toBe(
+			"Rating 1032 → 1048"
+		)
+	end)
 end)
