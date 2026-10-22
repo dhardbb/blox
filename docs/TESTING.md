@@ -27,3 +27,17 @@ Two-player tests use **Test → Clients and Servers → Local Server, 2 Players 
 3. Optional, Rojo sync: with `rojo serve` running and the plugin connected, change `VERSION` in `src/shared/Version.luau`, press Play again, and confirm the new version prints.
 
 **Send back:** the Output log from step 1 and the Explorer screenshot from step 2.
+
+## Phase 1: Simulation core (v0.1.0)
+
+There's still no game UI. This checks that the simulation, which so far has only run under Lune, also runs inside Roblox.
+
+1. Open `270.rbxl` and press **Play** (F5).
+   - Output shows `[270] server up: v0.1.0 (1 Simulation core), 12 weeks`.
+   - Within a second or two, Output shows a line like `[270] sim self-test: seed 1761091234: Dana Okafor 281 - 257 Rex Calloway, winner Dana Okafor, 25 phases in 140 ms`.
+   - The two EV numbers add up to 538.
+   - No red errors, and no `sim self-test FAILED` warning.
+2. Stop and press **Play** again. The seed changes, so the candidates and score should usually change too.
+3. In the Explorer, check that `ReplicatedStorage > Shared > Sim` contains `Bot`, `Debate`, `Draft`, `Election`, `Leans`, `Match`, `Plan`, `Polls`, `Resolve`, `State`, `Support` and `View`, next to the Phase 0 modules.
+
+**Send back:** the two Output lines from step 1 (and the `FAILED` warning in full, if you see one), plus the milliseconds figure from both runs.

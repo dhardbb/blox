@@ -378,7 +378,7 @@ None of these are in scope until the 1v1 game is balanced and finished, but seve
 
 ## Your first session
 
-*Status (Oct 22, 2026): steps 1–3 done (Phase 0, CI green). Phase 1 in progress: `Rng`, `StateData`, `Config` and `Candidates` done; next is the `Match` state machine. See `CHANGELOG.md`.*
+*Status (Oct 22, 2026): steps 1–4 done. Phase 1 (simulation core) is complete: match state machine, draft, plans, resolve, View with the no-leak test, election, bot, and the balance harness. First harness results and open balance questions are in `DESIGN.md` D-017. Next: Phase 2 (server and networking). See `CHANGELOG.md`.*
 
 Do these in order and stop after step 1 for answers.
 

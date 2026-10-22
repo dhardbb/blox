@@ -2,15 +2,28 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased — Phase 1: Simulation core (in progress)
+## 0.1.0 — Phase 1: Simulation core (Oct 22, 2026)
+
+The whole game runs headless: two bots can play a full match, and the balance harness reports on thousands of them. There's no UI yet.
 
 - `Sim/Rng`: seeded xoshiro128** generator with named substreams; matches reference vectors.
 - `Sim/StateData`, `Sim/Issues`, `Types`: 51 states (EV sums to 538, symmetric land-border adjacency, nine regions, balanced generic issues). See `docs/DESIGN.md` D-014.
-- `Sim/Config`: every tunable from `docs/PLAN.md` revision 2, with variants for the balance harness.
-- `Sim/Candidates`: the eight candidates as data (revision-2 values).
-- CI runs on every branch and reports every failing check, not just the first.
+- `Sim/Config`: every tunable from `docs/PLAN.md` revision 2, with variants for the balance harness; pool capacity derived from population, capped at $12 (D-015).
+- `Sim/Candidates`: the eight candidates as data (revision-2 values) and the six player colors.
+- `Sim/Match`: the state machine (Select → MapReveal → 8 draft rounds → 12 weeks with debates in weeks 4 and 9 → Election → Done). Pure: each step returns a new state, and missing or invalid inputs get defaults.
+- `Sim/Leans`, `Sim/Draft`: seeded, mirrored public leans; the blind ranked-top-2 draft with A B B A B A A B priority, auto-fill, bonuses, and battleground resets.
+- `Sim/Plan`: plan schema and validation with reason codes (AP, money, route flights, GOTV caps, pivot, polls, debate prep). Fuzzed so it never throws.
+- `Sim/Resolve`, `Sim/Support`, `Sim/Polls`: weekly resolution under the snapshot rule (D-001): rallies, pooled fundraisers, media saturation, attacks and backlash, pivots, momentum and drift, AR(1) public polls, underdog tiers with hysteresis, internal polls.
+- `Sim/Debate`, `Sim/Election`: seeded topics and rolls, sweeps and gaffes; GOTV, election noise, tiebreaks, reveal order.
+- `Sim/View`: the only exit for sim state. A spec walks every view of a full match for hidden fields, and checks that changing any hidden value leaves a view byte-identical.
+- `Sim/Bot`: heuristic bot playing from its own View, plus six restricted styles for the dominance checks.
+- `tests/harness/balance.luau`: 2,000 bot-vs-bot matches plus side checks in about 70 s; prints every PLAN.md metric against its target. First results and open balance questions are in `docs/DESIGN.md` D-017.
+- 156 specs. CI runs on every branch and reports every failing check, not just the first.
+- Server startup now plays one bot-vs-bot match as a self-test and prints the result.
 
-Nothing new to test in Studio yet; the game still only prints its version.
+**Test:** `docs/TESTING.md` → Phase 1.
+
+**Needed from the humans:** answers to the balance questions in `docs/DESIGN.md` D-017 (debate strength, the blowout target).
 
 ## 0.0.1 — Phase 0: Scaffold (Oct 22, 2026)
 

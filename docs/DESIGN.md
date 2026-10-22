@@ -145,3 +145,41 @@ Places where `PLAN.md` left a choice open. None changes a mechanic's intent; fla
 - **Colors** are unique per match; on a clash a seeded order decides and the other player gets the first free color.
 - **Noise for N players:** poll error and election noise are zero-sum per-player components with sd σ/√2, which is exactly the margin formula in 1v1 and needs no change for 4-player mode.
 - **What a player sees of their own hidden data:** their own GOTV units, internal poll results, backlash meters and fundraiser yields are in their `View`. Opponents' are not. Pool levels are hidden from everyone, because a pool's drop reveals the fundraiser's true support.
+
+### D-017 — Bot heuristics and the first harness baseline (Oct 22, 2026, no Config changes)
+
+**Bot.** It plays from its own `View` only. A state is worth `EV × pdf(margin/σ)/σ` per point of margin: expected EV per point, so big close states matter most. σ combines poll error (or ±1 after an internal poll), election noise, and 2 points of variance per week left. AP goes greedily to the best rally or fundraiser on the route, then money goes to the best media buy, attack or (from week 9) GOTV unit per dollar. The bot buys one paid internal poll a week from week 4, of the closest big state. A dollar is valued at 0.4 × the best media buy per dollar: at 1.0 the bot over-fundraised and lost 82% to the rally-only bot, and at 3 polls a week it lost 69% to the never-poll bot. Bot tunables live in `Bot.tuning`, not `Config`, because they aren't gameplay numbers.
+
+**Baseline, 2,000 matches, default Config** (`lune run tests/harness/balance.luau`, 67 s including side checks):
+
+| Check | Result | Target |
+|---|---|---|
+| Candidates | Okafor 49, Calloway 52, **Venkat 20**, **Hale 89**, Alvarado 46, Reyes 53, Strand 55, **Begay 37** | 45–55% |
+| Worst matchup | Venkat vs Hale 3% | 40–60% |
+| Priority A win rate | 51.4% | 47–53% ✓ |
+| Comeback rate | 25.3% | 20–40% ✓ |
+| Decided by 40+ EV | **80.5%** (median margin 108 EV) | ≤ 15% |
+| Tossup EV at election / noise spread | 10.3% / 16.6 EV | ≤ 30% / ≤ 25 ✓ |
+| Leaned states that flip / lean–win correlation | 30.4% / −0.03 | 20–40% / \|r\| < 0.05 ✓ |
+| Underdog bonus to a true 20+ leader / tier changes | 8.9% / **4.1 per match** | < 10% ✓ / ≤ 3 |
+| GOTV changes the winner | **1.8%** (bots spend ~$3 each) | ≥ 10% |
+| Debates change the winner | 49.6% | ≥ 10% ✓ (but see below) |
+| Random bot / fundraise-only / rally-only / attack-only / never-poll / sandbag vs balanced | 0 / 4 / 46 / 45 / 53 / 42% | ≤ 5, < 55, ≤ 50 (sandbag) ✓ |
+
+**Variant runs (500 matches each):**
+
+| Variant | Hale | Venkat | 40+ EV |
+|---|---|---|---|
+| Defaults | 88% | 17% | 80% |
+| Debates off | 53% | **77%** | 56% |
+| `DEBATE_TOPIC_WIN` 0.3, `SWEEP` 0.2, `GAFFE` 0.2 | 82% | 41% | 66% |
+| Same, plus `LEAN_STATE_COUNT` 50 | 72% | 50% | 60% |
+
+**Findings, for the humans** (no numbers were changed; these need a decision):
+
+1. **Debates decide too much, and the debate stat decides debates.** Hale's +1 stat wins 64% of topics and Venkat's −1 loses 83%. A national shift moves every state at once, including the ~20 unleaned states that start exactly 35/35, so 0.8 points per topic swings many states together. Even at 0.3 per topic Hale wins 82%. Options: (a) keep debate stats equal and make Hale's perk something else (extra prep points, say); (b) apply debate shifts only to battlegrounds and states within ±5 in the polls; (c) cut `DEBATE_TOPIC_WIN` to about 0.3 and narrow the stat gap to 1.
+2. **Priya Venkat's cheap media is the strongest perk once debates are neutral** (77% with debates off). Her debate-0 drawback is currently doing all the balancing.
+3. **Blowouts.** Even without debates, 56% of matches end 40+ EV apart. The "≤ 15% decided by 40+ EV" target may not be reachable with winner-take-all and correlated national swings. It needs either a model change (all 51 states leaned, or smaller national effects) or a looser target.
+4. **GOTV rarely matters (1.8%) and Walt Begay is at 37%.** Partly the bot (it values GOTV conservatively), partly that blowout margins dwarf a few GOTV points. Revisit after 1 and 3.
+5. **Underdog tiers flip 4.1 times a match** (target ≤ 3). Projected EV swings because many states poll near 50–50. Raising `UNDERDOG_HYSTERESIS` from 20 to 30 is the obvious tuning knob.
+6. **The "debates change the winner" metric is confounded.** In a paired replay with debates off, the bots react to a different board, so the two matches diverge. A 0.3-point debate still "changes" about 50% of winners, which is mostly chaos. Replace it with a counterfactual that removes only the debates' support deltas from the final state.
