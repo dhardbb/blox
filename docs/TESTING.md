@@ -293,3 +293,18 @@ Election night (`Election`, or the end of a Practice match with Autoplay off)
 6. At the end the strip is replaced by "<name> wins 289–249" with a colored outline.
 
 Send back: one screenshot of each step marked with a phone or 16:9 at the top (MapReveal 1, Draft 2, 4, 9, 10, Election 2, 3, 6), plus the Output lines that start with `[270] UI audit Draft` and `[270] UI audit Election` (they should say `0 problem(s)`; the map may still list pending notes until WP1 lands).
+
+## Playtest 1 fixes (v0.4.1)
+
+1. **Play vs Bot**, reach a plan week and fundraise once (Fundraise in your home state), then lock in. In the next week, look at your money in the top bar.
+   - It shows one decimal and never more than you have: a plan that costs exactly the shown amount locks in.
+2. Queue Ads until the plan costs more than your money (add a state you need to fly to, if you can).
+   - Lock in is grey and reads "Not enough money"; the bar says "Plan costs $X, you have $Y (...)" and lists the flights and ads.
+3. Two-player test (Test → Clients and Servers, 2 players): on both clients pick the **same color** at Select and lock in.
+   - One player keeps it. The other sees a toast "Your opponent also picked ... and the coin flip gave it to them: you are ... this match." The map and names use the actual colors on both clients.
+4. In the same test, during the two Nominate rounds, nominate one of the other player's strongholds.
+   - On the Draft board that player's line lists it under "nominated by ..." and not under "strongholds". In the campaign, the state card for it says "Battleground" and "Was your stronghold" / "Was their stronghold".
+5. Press **F2** (debug text panel) during the Draft and after week 1.
+   - The log names the picks ("P1 picked OH (home)") and last week's events in words; money has one decimal and no long decimals anywhere; debate lines read "national -0.2 you, +0.4 them".
+
+**Send back:** a screenshot of anything that looks off (especially a money amount that seems wrong, or a toast that is cut off on a phone), with the Output lines starting with `[270]`.

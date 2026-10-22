@@ -2,6 +2,20 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased — playtest 1 fixes (0.4.1)
+
+Fixes from the first agent-vs-agent playtest (three matches through `tests/duel.luau`). No rules or `Sim/Config.luau` numbers changed. Every game fix has a spec that failed before it. Specs: 600.
+
+- **Money never shows rounded up.** Cash is fractional (fundraisers raise amounts like $13.55) and every display rounded to the nearest $0.1, so $4.96 read "$5.0" and a $5 plan was rejected. All money now floors to $0.1 (debug UI, campaign screens, duel harness): you can always spend what you see. New shared `UI/Numbers` module.
+- **"Not enough money" says why.** The campaign bar and the debug log now read e.g. "Plan costs $7.0, you have $4.9 (1 flight $2.0, 1 ad $3.0, 1 region poll $3.0)", for the local check and for a server rejection. Worked out on the client from your own plan and View; the wire is unchanged.
+- **Readable event lines.** The debug log says what happened instead of "events: Pick Pick" or raw floats: "P1 picked OH (home)", "P2 (you) nominated FL (battleground)", "you raised $13.5", "P2 answered Attack (-0.2 national)". Signed numbers have one sign ("-0.2", "+0.4"; was "+-0.2").
+- **Color clash notice.** When both players pick the same color, the seeded coin flip still decides who keeps it (no seat favored) and the other still gets the first free color, but now they are told: a toast when the match starts ("Your opponent also picked Cobalt and the coin flip gave it to them: you are Crimson this match."), a debug log line, and a NOTE on the debug board. Your own pick is in your View as `pickedColor` (D-031).
+- **Nominated strongholds.** A stronghold the opponent nominated lost its bonus and is a battleground, but screens still listed it as a stronghold. The draft board, the debug board ("Your draft" line, "SH P1 nominated" tag), the campaign state card ("Was your stronghold") and the duel harness now list it apart.
+- **Duel harness.** `show`/`help` no longer bump TURN (a REFRESH line does instead, and `wait.sh` follows it); each fact appears once per screen; `--attempts` defaults to 5 and a rejected screen says how many are left; AUTO-SUBMITTED leads its verdict instead of sitting under REJECTED. `tests/duel/README.md` updated.
+- **Version** 0.4.1.
+
+**To test:** `docs/TESTING.md`, "Playtest 1 fixes (v0.4.1)". Nothing needed from the humans.
+
 ## 0.4.0 — UI overhaul (Oct 22, 2026)
 
 Every screen redone on one design system (`docs/DESIGN.md` D-030, plan in `docs/UI-OVERHAUL.md`): five text sizes, one yellow button per screen (the main action, pinned at the bottom so it never scrolls away), a standard header with the countdown, toasts for every message, and a map whose small Northeast states sit in a labeled column. The layout audit now enforces all of it on every screen at 16:9 and phone sizes. No rules, numbers or payloads changed. Specs: 573.
