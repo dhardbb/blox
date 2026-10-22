@@ -26,9 +26,6 @@ local PENDING: { [string]: number } = {
 	["src/client/Screens/Results.luau"] = 1,
 	-- WP3 (Campaign)
 	["src/client/Screens/Campaign.luau"] = 2,
-	-- WP4 (Draft, Election)
-	["src/client/Screens/Draft.luau"] = 10,
-	["src/client/Screens/DraftParts/StateList.luau"] = 6,
 }
 
 -- What a screen file may not contain, as Lua patterns.

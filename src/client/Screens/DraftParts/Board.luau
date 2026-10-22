@@ -1,8 +1,8 @@
 --!strict
 -- The Draft screen's two small summaries: a legend for the map colors and a board
--- of what each candidate has drafted so far. Both are plain frames that size
--- themselves to their text, so the screen can drop them under the map or into the
--- scrolling panel.
+-- of what each candidate has drafted so far. Both are transparent frames that
+-- size themselves to their text, so the screen can drop them under the map, into
+-- the scrolling panel, or into the portrait "Draft board" card.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -27,6 +27,11 @@ export type Legend = {
 
 local Board = {}
 
+local LINE_H = 20 -- px, one board line (grows if the detail wraps)
+local WHO_W = 52 -- px, "You" / "Them"
+local SWATCH = 16 -- px, a legend key's dot
+local LEGEND_TINT = 0.6 -- how far a legend dot leans toward the player's color
+
 local function auto(): { [string]: any }
 	return { Size = UDim2.fromScale(1, 0), AutomaticSize = Enum.AutomaticSize.Y }
 end
@@ -48,17 +53,13 @@ function Board.candidateName(config: Config, view: View.View, p: number): string
 	return if p == view.you then "You" else "Opponent"
 end
 
--- What each candidate has drafted: home, strongholds, nominated battlegrounds.
+-- What each candidate has drafted, one line each: "You  Dana Okafor · home CA ·
+-- strongholds TX, OH · battlegrounds PA". Transparent: the holder (the strip
+-- under the map, or the portrait "Draft board" card) provides the surface.
 function Board.newSummary(): Summary
-	local root = Kit.panel(auto())
+	local root = Kit.box(auto())
 	root.Name = "Board"
-	Kit.list("Vertical", 6).Parent = root
-	Kit.text("Draft board", {
-		Name = "BoardTitle",
-		Font = Kit.font.bold,
-		LayoutOrder = 0,
-		Parent = root,
-	})
+	Kit.list("Vertical", Kit.space.xs).Parent = root
 
 	local blocks: { [number]: { name: TextLabel, detail: TextLabel } } = {}
 
@@ -69,51 +70,54 @@ function Board.newSummary(): Summary
 		for p, player in view.players do
 			local block = blocks[p]
 			if block == nil then
-				local frame = Kit.box(auto())
-				frame.Name = `BoardPlayer{p}`
-				frame.LayoutOrder = p
-				frame.Parent = root
-				Kit.list("Vertical", 2).Parent = frame
+				local frame = Kit.box({
+					Name = `BoardPlayer{p}`,
+					LayoutOrder = p,
+					Size = UDim2.new(1, 0, 0, LINE_H),
+					AutomaticSize = Enum.AutomaticSize.Y,
+					Parent = root,
+				})
 				local name = Kit.text("", {
 					Name = "Name",
+					Size = UDim2.fromOffset(WHO_W, LINE_H),
 					Font = Kit.font.bold,
-					LayoutOrder = 1,
-					AutomaticSize = Enum.AutomaticSize.Y,
-					Size = UDim2.fromScale(1, 0),
 					Parent = frame,
 				})
-				local detail = Kit.text("", {
+				local detail = Kit.caption("", {
 					Name = "Detail",
-					TextSize = Kit.size.caption,
-					TextColor3 = Kit.colors.muted,
-					LayoutOrder = 2,
-					AutomaticSize = Enum.AutomaticSize.Y,
-					Size = UDim2.fromScale(1, 0),
+					Position = UDim2.fromOffset(WHO_W, 0),
+					Size = UDim2.new(1, -WHO_W, 0, LINE_H),
+					TextYAlignment = Enum.TextYAlignment.Center,
 					Parent = frame,
 				})
 				block = { name = name, detail = detail }
 				blocks[p] = block
 			end
-			local who = if p == view.you then "You" else "Them"
-			block.name.Text = `{who} · {Board.candidateName(config, view, p)}`
+			block.name.Text = if p == view.you then "You" else "Them"
 			block.name.TextColor3 = colors[p] or Kit.colors.text
 			block.detail.Text =
-				`Home {player.home or "—"}  ·  Strongholds {listText(player.strongholds)}  ·  Battlegrounds {listText(
-					player.nominations
-				)}`
+				`{Board.candidateName(config, view, p)} · home {player.home or "—"} · strongholds {listText(
+					player.strongholds
+				)} · battlegrounds {listText(player.nominations)}`
 		end
 	end
 
 	return summary :: Summary
 end
 
--- Which color means what on the map.
+-- Which color means what on the map: one 44 px row with the two leans, and a
+-- caption line for rings and badges.
 function Board.newLegend(): Legend
 	local root = Kit.box(auto())
 	root.Name = "Legend"
-	Kit.list("Vertical", 4).Parent = root
+	Kit.list("Vertical", Kit.space.xs).Parent = root
 
-	local row = Kit.box({ Name = "LegendRow", Size = UDim2.new(1, 0, 0, 26), LayoutOrder = 1, Parent = root })
+	local row = Kit.box({
+		Name = "LegendRow",
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		LayoutOrder = 1,
+		Parent = root,
+	})
 	local swatches: { Frame } = {}
 	local labels: { TextLabel } = {}
 	for k = 1, 2 do
@@ -126,30 +130,21 @@ function Board.newLegend(): Legend
 		swatches[k] = Kit.new("Frame", {
 			Name = "Swatch",
 			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 2, 0.5, 0),
-			Size = UDim2.fromOffset(16, 16),
+			Position = UDim2.fromScale(0, 0.5),
+			Size = UDim2.fromOffset(SWATCH, SWATCH),
 			BorderSizePixel = 0,
 			Parent = half,
 		})
 		Kit.round().Parent = swatches[k]
 		labels[k] = Kit.text("", {
 			Name = "Label",
-			Position = UDim2.fromOffset(24, 0),
-			Size = UDim2.new(1, -26, 1, 0),
-			TextScaled = true,
+			Position = UDim2.fromOffset(SWATCH + Kit.space.sm, 0),
+			Size = UDim2.new(1, -(SWATCH + Kit.space.sm), 1, 0),
 			TextSize = Kit.size.caption,
 			Parent = half,
 		})
 	end
-	local note = Kit.text("", {
-		Name = "LegendNote",
-		TextSize = Kit.size.caption,
-		TextColor3 = Kit.colors.muted,
-		LayoutOrder = 2,
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Size = UDim2.fromScale(1, 0),
-		Parent = root,
-	})
+	local note = Kit.caption("", { Name = "LegendNote", LayoutOrder = 2, Parent = root })
 
 	local legend = {} :: any
 	legend.root = root
@@ -165,7 +160,7 @@ function Board.newLegend(): Legend
 		local sides = { view.you, them }
 		for k, p in sides do
 			swatches[k].BackgroundColor3 =
-				Kit.color(Colors.mix(Colors.neutral, rgb[p] or Colors.neutral, 0.6))
+				Kit.color(Colors.tint(Colors.neutral, rgb[p] or Colors.neutral, LEGEND_TINT))
 			local who = if p == view.you then "you" else "them"
 			labels[k].Text = if polled then `Polls lead toward {who}` else `Leans toward {who} (+N)`
 		end

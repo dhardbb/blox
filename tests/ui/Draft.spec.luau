@@ -4,7 +4,9 @@
 -- list and map pickers fill the ranked top 2, illegal states are refused, Lock In
 -- submits, reveals show both picks, and a live practice match drafts through the
 -- screen and on to week 1. Also the v0.3.1 bug-hunt cases: auto-submit, a
--- retry after a rejection, and the disconnected opponent.
+-- retry after a rejection, and the disconnected opponent. The UI overhaul
+-- (WP4) cases measure the explicitly positioned boxes: the portrait split, the
+-- list ahead of the board, the pinned action bar, and a strict audit.
 
 local process = require("@lune/process")
 
@@ -75,6 +77,17 @@ end
 
 local function textOf(peer: FakeRoblox.Peer, name: string): string
 	return tostring(need(peer, name).Text)
+end
+
+-- The header's title line.
+local function titleOf(peer: FakeRoblox.Peer): string
+	local header = need(peer, "Header")
+	for _, inst in header:GetDescendants() do
+		if inst.Name == "Title" then
+			return tostring(inst.Text)
+		end
+	end
+	error("the Draft header has no title", 0)
 end
 
 local function tap(world: FakeRoblox.World, peer: FakeRoblox.Peer, name: string)
@@ -174,21 +187,21 @@ describe("Draft screen: fixtures", function()
 
 	it("shows the map heading and no pickers during the map reveal", function()
 		local _world, peer = mount("MapReveal")
-		expect(textOf(peer, "Header")):toBe("The map for this match")
+		expect(titleOf(peer)):toBe("The map for this match")
 		expect(need(peer, "Slots").Visible):toBe(false)
-		expect(need(peer, "LockBar").Visible):toBe(false)
+		expect(need(peer, "ActionBar").Visible):toBe(false)
 		check(contains(textOf(peer, "Priority"), "priority"), textOf(peer, "Priority"))
 	end)
 
 	it("describes the round and who has priority", function()
 		local _world, peer = mount("Draft")
-		local header = textOf(peer, "Header")
+		local header = titleOf(peer)
 		check(contains(header, "Round 4 of 8"), header)
-		check(contains(header, "STRONGHOLD"), header)
+		check(contains(header, "Stronghold"), header)
 		check(contains(textOf(peer, "Explain"), "+8"), textOf(peer, "Explain"))
 		local priority = textOf(peer, "Priority")
 		check(contains(priority, "have priority"), priority)
-		expect(need(peer, "LockBar").Visible):toBe(true)
+		expect(need(peer, "ActionBar").Visible):toBe(true)
 	end)
 
 	it("has a tappable row for every state, biggest first, and a map node", function()
@@ -214,9 +227,11 @@ describe("Draft screen: fixtures", function()
 	it("puts the legend and board under the map on wide screens and in the panel on phones", function()
 		local _w1, wide = mount("Draft")
 		expect(need(wide, "Board").Parent.Name):toBe("Below")
+		expect(need(wide, "Legend").Parent.Name):toBe("Below")
 		local _w2, phone = mount("Draft", PHONE)
-		expect(need(phone, "Board").Parent.Name):toBe("PanelScroll")
-		expect(need(phone, "Legend").Parent.Name):toBe("PanelScroll")
+		expect(need(phone, "Board"):FindFirstAncestor("BoardCard") ~= nil):toBe(true)
+		expect(need(phone, "Legend"):FindFirstAncestor("BoardCard") ~= nil):toBe(true)
+		expect(need(phone, "BoardCard").Parent.Name):toBe("PanelScroll")
 	end)
 end)
 
@@ -225,34 +240,32 @@ describe("Draft screen: picking", function()
 		local world, peer = mount("Draft")
 		local a, b = sampleStates(draftPayload())
 		tap(world, peer, `Row_{a}`)
-		check(contains(textOf(peer, "Choice1"), `({a})`), textOf(peer, "Choice1"))
-		check(contains(textOf(peer, "Choice2"), "tap a state"), textOf(peer, "Choice2"))
+		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
+		expect(textOf(peer, "Choice2")):toBe("2nd: —")
 		tap(world, peer, `Row_{b}`)
-		check(contains(textOf(peer, "Choice2"), `({b})`), textOf(peer, "Choice2"))
+		expect(textOf(peer, "Choice2")):toBe(`2nd: {b}`)
 		-- A third state replaces the backup, not the first choice.
 		local c = select(3, sampleStates(draftPayload()))
 		expect(c ~= a):toBe(true)
 		tap(world, peer, `Row_{a}`)
-		check(
-			contains(textOf(peer, "Choice1"), `({b})`),
-			"the backup should move up: " .. textOf(peer, "Choice1")
-		)
-		check(contains(textOf(peer, "Choice2"), "tap a state"), textOf(peer, "Choice2"))
+		expect(textOf(peer, "Choice1")):toBe(`1st: {b}`)
+		expect(textOf(peer, "Choice2")):toBe("2nd: —")
 		noErrors(world)
 	end)
 
-	it("takes a tap on a map node too, and clears with the clear buttons", function()
+	it("takes a tap on a map node too, and clears with the × buttons", function()
 		local world, peer = mount("Draft")
 		local a, b = sampleStates(draftPayload())
 		tap(world, peer, a)
-		check(contains(textOf(peer, "Choice1"), `({a})`), textOf(peer, "Choice1"))
+		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
 		tap(world, peer, `Row_{b}`)
 		tap(world, peer, "Clear1")
-		check(contains(textOf(peer, "Choice1"), `({b})`), "clearing the 1st choice promotes the backup")
+		expect(textOf(peer, "Choice1")):toBe(`1st: {b}`)
 		tap(world, peer, `Row_{a}`)
-		tap(world, peer, "ClearChoices")
-		check(contains(textOf(peer, "Choice1"), "tap a state"), textOf(peer, "Choice1"))
-		check(contains(textOf(peer, "Choice2"), "tap a state"), textOf(peer, "Choice2"))
+		tap(world, peer, "Clear2")
+		expect(textOf(peer, "Choice2")):toBe("2nd: —")
+		tap(world, peer, "Clear1")
+		expect(textOf(peer, "Choice1")):toBe("1st: —")
 		noErrors(world)
 	end)
 
@@ -262,10 +275,7 @@ describe("Draft screen: picking", function()
 		tap(world, peer, `Row_{a}`)
 		tap(world, peer, "Choice1")
 		tap(world, peer, `Row_{b}`)
-		check(
-			contains(textOf(peer, "Choice1"), `({b})`),
-			"the aimed slot takes the pick: " .. textOf(peer, "Choice1")
-		)
+		expect(textOf(peer, "Choice1")):toBe(`1st: {b}`)
 		noErrors(world)
 	end)
 
@@ -273,13 +283,10 @@ describe("Draft screen: picking", function()
 		local world, peer = mount("Draft")
 		local _a, _b, taken = sampleStates(draftPayload())
 		tap(world, peer, `Row_{taken}`)
-		check(
-			contains(textOf(peer, "Choice1"), "tap a state"),
-			"an illegal state was picked: " .. textOf(peer, "Choice1")
-		)
+		expect(textOf(peer, "Choice1")):toBe("1st: —")
 		tap(world, peer, taken)
-		check(contains(textOf(peer, "Choice1"), "tap a state"), "an illegal map tap was picked")
-		check(contains(textOf(peer, "Hint"), "already"), textOf(peer, "Hint"))
+		expect(textOf(peer, "Choice1")):toBe("1st: —")
+		check(contains(textOf(peer, "BarStatus"), "already"), textOf(peer, "BarStatus"))
 		noErrors(world)
 	end)
 
@@ -288,8 +295,9 @@ describe("Draft screen: picking", function()
 		local a = sampleStates(draftPayload())
 		tap(world, peer, "LockIn")
 		check(not logged(peer, "DEBUG_UI submit"), "locked in with nothing chosen")
+		expect(textOf(peer, "LockIn")):toBe("Pick a state")
 		tap(world, peer, `Row_{a}`)
-		expect(textOf(peer, "LockIn")):toBe("Lock In")
+		expect(textOf(peer, "LockIn")):toBe("Lock in")
 	end)
 end)
 
@@ -301,10 +309,9 @@ describe("Draft screen: locking in", function()
 		tap(world, peer, `Row_{b}`)
 		tap(world, peer, "LockIn")
 		check(logged(peer, "[270] DEBUG_UI submit"), "no submit line: " .. table.concat(peer.log, " | "))
-		expect(textOf(peer, "LockIn")):toBe("Locked")
-		check(contains(textOf(peer, "LockStatus"), "Locked"), textOf(peer, "LockStatus"))
-		check(contains(textOf(peer, "LockStatus"), "waiting for opponent"), textOf(peer, "LockStatus"))
-		check(contains(textOf(peer, "OpponentStatus"), "Opponent"), textOf(peer, "OpponentStatus"))
+		expect(textOf(peer, "LockIn")):toBe("Locked in")
+		expect(textOf(peer, "BarStatus")):toBe("Locked in · waiting for opponent")
+		check(contains(textOf(peer, "BarOpponent"), "Opponent"), textOf(peer, "BarOpponent"))
 		-- Locked means locked: more taps change nothing and nothing is sent twice.
 		local sent = 0
 		for _, line in peer.log do
@@ -314,7 +321,7 @@ describe("Draft screen: locking in", function()
 		end
 		tap(world, peer, "Clear1")
 		tap(world, peer, "LockIn")
-		check(contains(textOf(peer, "Choice1"), `({a})`), "a locked choice changed")
+		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
 		local after = 0
 		for _, line in peer.log do
 			if contains(line, "DEBUG_UI submit") then
@@ -329,10 +336,10 @@ describe("Draft screen: locking in", function()
 		local world, peer = mount("Draft")
 		local a = sampleStates(draftPayload())
 		tap(world, peer, `Row_{a}`)
-		check(contains(textOf(peer, "Hint"), "No backup"), textOf(peer, "Hint"))
+		check(contains(textOf(peer, "BarStatus"), "backup"), textOf(peer, "BarStatus"))
 		tap(world, peer, "LockIn")
 		check(logged(peer, "[270] DEBUG_UI submit"), "no submit line")
-		expect(textOf(peer, "LockIn")):toBe("Locked")
+		expect(textOf(peer, "LockIn")):toBe("Locked in")
 	end)
 end)
 
@@ -343,9 +350,9 @@ describe("Draft screen: reveal and rounds", function()
 		local a, b = sampleStates(base)
 		push(world, peer, revealOf(base, a, b))
 		noErrors(world)
-		expect(textOf(peer, "Header")):toBe("Round 4 of 8 — picks revealed")
+		expect(titleOf(peer)):toBe("Round 4 of 8 · picks revealed")
 		expect(need(peer, "RevealBox").Visible):toBe(true)
-		expect(need(peer, "LockBar").Visible):toBe(false)
+		expect(need(peer, "ActionBar").Visible):toBe(false)
 		expect(need(peer, "Slots").Visible):toBe(false)
 		expect(tostring(need(peer, "YouPick"):FindFirstChild("Title").Text)):toBe(`You got {a}`)
 		expect(tostring(need(peer, "ThemPick"):FindFirstChild("Title").Text)):toBe(`They got {b}`)
@@ -390,12 +397,12 @@ describe("Draft screen: reveal and rounds", function()
 			end
 		end
 		push(world, peer, nextRound)
-		check(contains(textOf(peer, "Header"), "Round 5 of 8"), textOf(peer, "Header"))
-		check(contains(textOf(peer, "Choice1"), "tap a state"), textOf(peer, "Choice1"))
-		expect(textOf(peer, "LockIn") ~= "Locked"):toBe(true)
+		check(contains(titleOf(peer), "Round 5 of 8"), titleOf(peer))
+		expect(textOf(peer, "Choice1")):toBe("1st: —")
+		expect(textOf(peer, "LockIn") ~= "Locked in"):toBe(true)
 		-- The two states just drafted are no longer pickable.
 		tap(world, peer, `Row_{a}`)
-		check(contains(textOf(peer, "Choice1"), "tap a state"), "a drafted state was picked")
+		expect(textOf(peer, "Choice1")):toBe("1st: —")
 		noErrors(world)
 	end)
 
@@ -416,7 +423,7 @@ describe("Draft screen: reveal and rounds", function()
 		end
 		push(world, peer, last)
 		noErrors(world)
-		expect(textOf(peer, "Header")):toBe("Round 8 of 8 — picks revealed")
+		expect(titleOf(peer)):toBe("Round 8 of 8 · picks revealed")
 		check(contains(textOf(peer, "Explain"), "campaign"), textOf(peer, "Explain"))
 	end)
 end)
@@ -516,7 +523,7 @@ describe("Draft rejections with a full message log", function()
 		Rig.sabotageSubmits(world, peer, { choices = { "ZZ" } })
 		Rig.tap(world, peer, "Draft", `Row_{Rig.safeState(Rig.payloadOf(world, peer).view)}`)
 		Rig.tap(world, peer, "Draft", "LockIn", 1)
-		expect(Rig.textOf(peer, "Draft", "LockIn")):toBe("Lock In")
+		expect(Rig.textOf(peer, "Draft", "LockIn")):toBe("Lock in")
 		check(Rig.enabled(peer, "Draft", "LockIn"), "Lock In stays disabled after a rejection")
 		Rig.noErrors(world)
 	end)
@@ -527,17 +534,172 @@ describe("Draft with a disconnected opponent", function()
 		local world, peer = Rig.fixture("Draft", nil)
 		local base = Rig.payloadOf(world, peer)
 		local them = 3 - base.you
-		local before = Rig.textOf(peer, "Draft", "OpponentStatus")
+		local before = Rig.textOf(peer, "Draft", "BarOpponent")
 		local away = Rig.deepCopy(base)
 		away.seats[them].connected = false
 		away.seats[them].graceUntil = world.clock + 20
 		Rig.push(world, peer, away)
 		check(
-			Rig.contains(Rig.textOf(peer, "Draft", "OpponentStatus"), "disconnected"),
-			Rig.textOf(peer, "Draft", "OpponentStatus")
+			Rig.contains(Rig.textOf(peer, "Draft", "BarOpponent"), "disconnected"),
+			Rig.textOf(peer, "Draft", "BarOpponent")
 		)
 		Rig.push(world, peer, Rig.deepCopy(base))
-		expect(Rig.textOf(peer, "Draft", "OpponentStatus")):toBe(before)
+		expect(Rig.textOf(peer, "Draft", "BarOpponent")):toBe(before)
 		Rig.noErrors(world)
 	end)
+end)
+
+-- ------------------------------------------------------------------ UI overhaul (WP4)
+
+-- Every audit finding off the map (the map is WP1's), with the PENDING list ignored.
+local function strictFindings(world: FakeRoblox.World, peer: FakeRoblox.Peer): { string }
+	local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
+	local out = {}
+	for _, finding in Audit.check(FakeRoblox.find(peer, "Draft")) do
+		if not finding.onMap then
+			table.insert(out, `{finding.rule}: {finding.message}`)
+		end
+	end
+	return out
+end
+
+local function bottom(inst: any): number
+	return inst.AbsolutePosition.Y + inst.AbsoluteSize.Y
+end
+
+-- The child of PanelScroll that holds `inst`.
+local function panelChild(inst: any): any
+	local node = inst
+	while node ~= nil and node.Parent ~= nil and node.Parent.Name ~= "PanelScroll" do
+		node = node.Parent
+	end
+	check(node ~= nil and node.Parent ~= nil, `{inst.Name} is not in the panel`)
+	return node
+end
+
+describe("Draft screen: UI overhaul (WP4)", function()
+	for _, phone in { false, true } do
+		local label = if phone then "on a phone" else "at 16:9"
+		it(`passes the strict audit {label} in every mode`, function()
+			for _, moment in { "MapReveal", "Draft" } do
+				local world, peer = mount(moment, if phone then PHONE else nil)
+				local problems = strictFindings(world, peer)
+				check(#problems == 0, `{moment}: ` .. table.concat(problems, " | "))
+				if moment == "Draft" then
+					local a, b = sampleStates(draftPayload())
+					tap(world, peer, `Row_{a}`)
+					tap(world, peer, `Row_{b}`)
+					local picked = strictFindings(world, peer)
+					check(#picked == 0, "with two picks: " .. table.concat(picked, " | "))
+					push(world, peer, revealOf(draftPayload(), a, b))
+					local revealed = strictFindings(world, peer)
+					check(#revealed == 0, "reveal: " .. table.concat(revealed, " | "))
+				end
+				noErrors(world)
+			end
+		end)
+
+		it(`pins Lock in on screen and out of the scroll {label}`, function()
+			local _world, peer = mount("Draft", if phone then PHONE else nil)
+			local lock = need(peer, "LockIn")
+			expect(lock:GetAttribute("PrimaryAction")):toBe(true)
+			local node = lock.Parent
+			while node ~= nil do
+				check(node.ClassName ~= "ScrollingFrame", `Lock in scrolls inside {node.Name}`)
+				node = node.Parent
+			end
+			local screen = FakeRoblox.find(peer, "Draft")
+			check(bottom(lock) <= bottom(screen), "Lock in is below the screen")
+			check(lock.AbsolutePosition.Y >= bottom(need(peer, "PanelScroll")), "Lock in overlaps the panel")
+		end)
+	end
+
+	it(
+		"puts the state list right after the slots in portrait, the board collapsed at the end (B10)",
+		function()
+			local _world, peer = mount("Draft", PHONE)
+			local list = need(peer, "StateList")
+			expect(list.Parent.Name):toBe("PanelScroll")
+			local slots = need(peer, "Slots")
+			check(slots.LayoutOrder < list.LayoutOrder, "the slots are not above the list")
+			local card = panelChild(need(peer, "Board"))
+			expect(card.Name):toBe("BoardCard")
+			check(list.LayoutOrder < card.LayoutOrder, "the board comes before the state list")
+			for _, child in need(peer, "PanelScroll"):GetChildren() do
+				if child:IsA("GuiObject") and child ~= card then
+					check(child.LayoutOrder < card.LayoutOrder, `{child.Name} is after the board`)
+				end
+			end
+			local toggle = card:FindFirstChild("Toggle")
+			expect(toggle:GetAttribute("Expanded")):toBe(false)
+		end
+	)
+
+	it("splits a phone screen with pixel math, no dead band (B11)", function()
+		local _world, peer = mount("Draft", PHONE)
+		local screen = FakeRoblox.find(peer, "Draft")
+		local width, height = screen.AbsoluteSize.X, screen.AbsoluteSize.Y
+		local mapArea, panel = need(peer, "MapArea"), need(peer, "Panel")
+		local want = math.floor(math.min(width / 1.6, 0.34 * height))
+		expect(mapArea.AbsoluteSize.Y):toBe(want)
+		expect(panel.AbsolutePosition.Y):toBe(bottom(mapArea) + 8)
+		expect(bottom(panel)):toBe(bottom(screen))
+		expect(mapArea.AbsolutePosition.Y):toBe(bottom(need(peer, "Header")) + 8)
+	end)
+
+	it("keeps the 16:9 map at 0.66 of its column with the legend and board under it", function()
+		local _world, peer = mount("Draft")
+		local mapArea, holder = need(peer, "MapArea"), need(peer, "MapHolder")
+		expect(math.abs(holder.AbsoluteSize.Y - 0.66 * mapArea.AbsoluteSize.Y) < 1):toBe(true)
+		expect(need(peer, "Legend").Parent.Name):toBe("Below")
+		expect(need(peer, "Board").Parent.Name):toBe("Below")
+	end)
+
+	it("keeps an illegal-tap reason in the bar until the next tap", function()
+		local world, peer = mount("Draft")
+		local a, _b, taken = sampleStates(draftPayload())
+		tap(world, peer, `Row_{taken}`)
+		local reason = textOf(peer, "BarStatus")
+		check(contains(reason, taken) and contains(reason, "already"), reason)
+		FakeRoblox.run(world, 6)
+		expect(textOf(peer, "BarStatus")):toBe(reason)
+		tap(world, peer, `Row_{a}`)
+		check(not contains(textOf(peer, "BarStatus"), "already"), textOf(peer, "BarStatus"))
+	end)
+
+	it("has 44x44 × buttons and no Clear both", function()
+		local world, peer = mount("Draft", PHONE)
+		expect(findIn(peer, "ClearChoices")):toBe(nil)
+		local a, b = sampleStates(draftPayload())
+		tap(world, peer, `Row_{a}`)
+		tap(world, peer, `Row_{b}`)
+		for _, name in { "Clear1", "Clear2" } do
+			local button = need(peer, name)
+			expect(button.AbsoluteSize.X):toBe(44)
+			expect(button.AbsoluteSize.Y):toBe(44)
+			expect(button.Visible):toBe(true)
+		end
+		tap(world, peer, "Clear2")
+		expect(need(peer, "Clear2").Visible):toBe(false)
+	end)
+
+	for _, phone in { false, true } do
+		it(
+			`fills the map reveal panel with the legend and how the draft works ({if phone
+				then "phone"
+				else "16:9"})`,
+			function()
+				local world, peer = mount("MapReveal", if phone then PHONE else nil)
+				local screen = FakeRoblox.find(peer, "Draft")
+				expect(screen:GetAttribute("PrimaryOptional")):toBe(true)
+				expect(need(peer, "ActionBar").Visible):toBe(false)
+				expect(panelChild(need(peer, "Legend")).Name):toBe("Legend")
+				check(need(peer, "Legend").Visible ~= false, "the legend is hidden")
+				check(contains(textOf(peer, "Priority"), "priority in round 1"), textOf(peer, "Priority"))
+				local how = need(peer, "HowItWorks")
+				check(how.Visible ~= false and contains(tostring(how.Text), "priority"), tostring(how.Text))
+				noErrors(world)
+			end
+		)
+	end
 end)

@@ -69,8 +69,6 @@ Audit.PENDING = {
 	Results = { primary = true, typeScale = true },
 	-- WP3: Campaign.
 	Campaign = { primary = true, oneAccent = true },
-	-- WP4: Draft, Election.
-	Draft = { primary = true, typeScale = true },
 } :: { [string]: { [Rule]: boolean } }
 
 -- The rules in the order they are reported.
