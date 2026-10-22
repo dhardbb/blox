@@ -41,3 +41,13 @@ There's still no game UI. This checks that the simulation, which so far has only
 3. In the Explorer, check that `ReplicatedStorage > Shared > Sim` contains `Bot`, `Debate`, `Draft`, `Election`, `Leans`, `Match`, `Plan`, `Polls`, `Resolve`, `State`, `Support` and `View`, next to the Phase 0 modules.
 
 **Send back:** the two Output lines from step 1 (and the `FAILED` warning in full, if you see one), plus the milliseconds figure from both runs.
+
+## Balance pass 1 (unreleased)
+
+Numbers only; nothing new to click. Confirms the retuned roster loads in Roblox.
+
+1. Open `270.rbxl` and press **Play** (F5).
+   - Output shows the `[270] sim self-test:` line as in Phase 1, with no `FAILED` warning. The two EV numbers add up to 538.
+2. Press **Play** a few more times. Over several runs you should see different candidates named; any of the eight may appear and win.
+
+**Send back:** the self-test lines from three runs.

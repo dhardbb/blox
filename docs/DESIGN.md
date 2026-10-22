@@ -175,7 +175,7 @@ Places where `PLAN.md` left a choice open. None changes a mechanic's intent; fla
 | `DEBATE_TOPIC_WIN` 0.3, `SWEEP` 0.2, `GAFFE` 0.2 | 82% | 41% | 66% |
 | Same, plus `LEAN_STATE_COUNT` 50 | 72% | 50% | 60% |
 
-**Findings, for the humans** (no numbers were changed; these need a decision):
+**Findings, for the humans** (no numbers were changed; these need a decision). *Acted on in balance pass 1, D-018 to D-025.*
 
 1. **Debates decide too much, and the debate stat decides debates.** Hale's +1 stat wins 64% of topics and Venkat's −1 loses 83%. A national shift moves every state at once, including the ~20 unleaned states that start exactly 35/35, so 0.8 points per topic swings many states together. Even at 0.3 per topic Hale wins 82%. Options: (a) keep debate stats equal and make Hale's perk something else (extra prep points, say); (b) apply debate shifts only to battlegrounds and states within ±5 in the polls; (c) cut `DEBATE_TOPIC_WIN` to about 0.3 and narrow the stat gap to 1.
 2. **Priya Venkat's cheap media is the strongest perk once debates are neutral** (77% with debates off). Her debate-0 drawback is currently doing all the balancing.
@@ -183,3 +183,87 @@ Places where `PLAN.md` left a choice open. None changes a mechanic's intent; fla
 4. **GOTV rarely matters (1.8%) and Walt Begay is at 37%.** Partly the bot (it values GOTV conservatively), partly that blowout margins dwarf a few GOTV points. Revisit after 1 and 3.
 5. **Underdog tiers flip 4.1 times a match** (target ≤ 3). Projected EV swings because many states poll near 50–50. Raising `UNDERDOG_HYSTERESIS` from 20 to 30 is the obvious tuning knob.
 6. **The "debates change the winner" metric is confounded.** In a paired replay with debates off, the bots react to a different board, so the two matches diverge. A 0.3-point debate still "changes" about 50% of winners, which is mostly chaos. Replace it with a counterfactual that removes only the debates' support deltas from the final state.
+
+## Balance pass 1 (Oct 22, 2026, branch `balance-pass-1`)
+
+Worked from the D-017 baseline with the harness, a scratch per-week trace of true EV, and isolated candidate pairs at 2,000–4,000 matches (per-candidate noise ≈ ±2 points at 2,000 harness matches, ±6 per matchup cell). Every number below is bot-vs-bot; the bot values money low (a dollar at 0.4 of the best media buy), which is correct in this economy (raising it to 0.55 makes the rally-only bot beat the balanced bot 55%, at 1.0 it wins 94%), but it means money-shaped perks and drawbacks register weakly. Treat money-shaped numbers as the ones most likely to move again after human playtests.
+
+### D-018 — "Debates change the winner" is now a counterfactual recount (tuning, harness only)
+
+`Debate.resolve` records, per state and player, the support each debate actually moved (`StateSim.debateShift`, hidden: `View` never copies it and the no-leak spec forbids the key). `Election.count` takes `debates = false` and recounts the final board with those shifts subtracted and the same seeded election noise, exactly like the GOTV check. The paired replay with debates switched off was dropped: the bots react to a different board, so the two matches diverge and the number mostly measured chaos.
+
+*Numbers:* on the D-017 baseline the paired replay said 49.6%; the recount says **41.6% of winners change and the debates swing 61 EV on average** (an okafor-vs-okafor mirror, so no stat edge at all, still gave 40% and 51 EV). Pure luck in the debate rolls was deciding two matches in five.
+
+### D-019 — Debates: roll 0..6, 0.2 per topic (tuning)
+
+`DEBATE_ROLL_MAX` 2 → 6, `DEBATE_TOPIC_WIN` 0.8 → 0.2, `DEBATE_SWEEP` 0.5 → 0.2, `DEBATE_GAFFE` 0.5 → 0.2. A 3-0 sweep is now worth 0.8 national points (was 2.9); `tests/sim/Config.spec` pins "under one point".
+
+*Why:* two findings. (1) Against a 0..2 roll, a +1 debate stat wins 67% of topics and loses 11% (net +1.67 topics per debate); even +2 prep on one topic wins it 89%. (2) The national shift is leveraged by the winner-take-all map: about 13 undrafted, unleaned states (77 EV) finish the campaign at exactly 35/35 and any national shift decides all of them together, and about 150 EV sits within ±3 points every week. Hale vs Okafor measured 64% with debates off, 63.5% at 0.05 per topic, 67% at 0.1, 76% at 0.25 and 75% at 0.4: the effect saturates once a 2-1 result moves the tied block past election noise. Raising only the roll (0..4) left Hale at 88%. Each topic is now worth roughly 12 EV of close states rather than 50.
+
+*Result (final harness):* debates change the winner in 16.2% of matches (target ≥ 10%) and swing 15.2 EV on average; topic win rates are 41–44% for everyone except Hale (53%, D-023). *Rejected:* `LEAN_STATE_COUNT` 50 removes the tied block (debates decide 12%, swing 11 EV, blowouts 58%) but pushes the comeback rate to 42–44% (target ≤ 40%) and tossup EV at the election down to 6.6%, so the map keeps 30 leaned states; revisit if Phase 5 events add more national shifts, which hit the same tied block.
+
+### D-020 — Rubber band: hysteresis 30, smoothing 0.4 (tuning)
+
+`UNDERDOG_HYSTERESIS` 20 → 30, `UNDERDOG_SMOOTHING` 0.5 → 0.4. Tier changes per match 4.1 → 3.0 (target ≤ 3).
+
+*Trade-off, for the humans:* "underdog weeks paid to a true 20+ EV leader" rose from 8.9% to 22% (target < 10%), but that rise comes from the other changes, not from this one: with the old 20 / 0.5 under the new package it is already 18%, because matches are closer and the true leader now changes about four times a match, so any poll-smoothed gap lags reality. The two targets conflict under this volatility (grid: 20/0.5 → 4.0 changes, 18% wrong; 30/0.5 → 3.8, 20%; 30/0.4 → 3.1, 22%; 30/0.3 → 2.5, 25%). The tier-1 bonus is ×1.10 rallies / ×1.15 fundraisers for one week, so a wrong week costs little; either relax the wrong-leader target to about 25% or accept 4 tier changes. A real fix needs a different gap signal (a mechanic change).
+
+### D-021 — Ground game +1.5 per unit; the bot starts it in week 7 (tuning + bot)
+
+`GOTV_PER_UNIT` 1.0 → 1.5; `Bot.tuning.gotvFromWeek` 9 → 7. At 1.0 a $2 unit bought 0.5 margin per dollar against about 0.7–1.0 for a media buy, so the correct play was to never buy it (bots spent $2.8 a game, GOTV decided 1.8%). At 1.5 it beats a poorly matched media buy per dollar and loses to a well matched one (`Config.spec` pins both), so it is a late sink for states where ads saturate, not the default. 1.25 was tried: 8.9%.
+
+*Result:* GOTV changes the winner in 12.2% (target ≥ 10%); average spend $7.6 per player. `Bot.spec` checks units are placed before week 9. Walt Begay: see D-022.
+
+### D-022 — Candidate numbers (tuning)
+
+Measured with everything above in place; "before" is the roster-wide win rate under the new Config with the D-011 roster.
+
+| Candidate | Change | Before → after | Why |
+|---|---|---|---|
+| Walt Begay | rallies 2.4 → 2.9 | 37% → 54% | At 2.4 the rally drawback cost far more than a $1 ground game earned even at 1.5 per unit (2.8 gave 45–50%). He now buys about 26 units a game. |
+| June Alvarado | start $18 → $20, income $3 → $3.75 | 42% → 52% | Start cash is almost worthless to the bot ($18 and $26 measured the same, 41.5% vs Calloway); income is what it feels. $3.5 still gave 44%. Likely to move again with humans, who can use early money. |
+| Tomas Reyes | momentum gained +50% → +65% | 46% → 50% | His perk disappeared once debates shrank and others were fixed. +70% measured 55% on the harness's seeds, +60% 47%. |
+| Rex Calloway | rallies 2.2 → 2.3 | 45% → 53% | Sat at 45–47% in every run once the others were fixed. Media cost $5 and rallies 2.1 were tried earlier and overshot (42%). |
+| Helen Strand | media −10% → −15% | 57% → 48% | Free polls are worth little to the bot (never-poll wins 53%); her strength was the small media drawback. 0.8 gave 47%. |
+| Marcus Hale | start $4 → $0 | −5 to −7 points | Part of the Hale fix (D-023); the $4 drawback measured as nothing. Week 1 he can only rally and fundraise. |
+
+Specs that encoded the old numbers were updated with them (Tomas momentum, Hale's starting cash, Okafor's fundraiser multiplier).
+
+### D-023 — Three perk shapes (proposed, needs approval)
+
+Tuning alone could not fix these; each is the smallest change that measured inside 45–55%. Pure-tuning alternatives and their numbers are listed so the humans can choose.
+
+1. **Marcus Hale: "debate stat 2" → "8 prep points instead of 6".** A flat +1 on every topic score is not a decision and cannot be made small: at 0.2 per topic he was 66%, at 0.15 (debates deciding only 10% of matches) still 62%. Extra prep is a choice of where to stack and is bounded by `DEBATE_MAX_PER_TOPIC`. With prep 8 and $0 start: 51% (prep 8 at $4: 59%). Tuning-only alternative: stat 2 with $0 start → 59%.
+2. **Priya Venkat: drawback "debate stat 0" → "income $3".** Stat 0 was a lottery drawback and worth nothing once debates were small (she was 59% with it, 77% with debates off). Income $3 alone: 52–53%. Both together: 43%. Her perk is untouched.
+3. **Dana Okafor: drawback "rallies −10%" removed; perk +30% → +50%.** The bot's rally-or-fundraise choice is threshold-sensitive: rallies ×0.9 → 41%, ×0.95 → 42%, ×1.0 → 48–51%. Fundraising multipliers barely register (1.3 and 1.5 measured the same with the drawback in place), so +50% is a buff for humans at no measured cost. Tuning-only alternative: ×0.95 and +50% → 42%. If a drawback is wanted, "income $3" measured 42% (too much) and nothing between was tried.
+
+
+### D-024 — The blowout target is structural; a revised target (for the humans)
+
+"≤ 15% decided by 40+ EV" is not reachable with winner-take-all. A per-week trace of true EV in okafor-vs-okafor mirrors with debates off (perfect symmetry, no perk or stat edge) shows the margin jump from 23 EV after the draft to about 50 EV after week 1 and then wander at 55–60 EV for the rest of the campaign, with about 150 EV within ±3 true points every week and the true-EV leader changing four times a match: not a snowball, a wide random walk. Whoever is a point ahead in the tipping-point states takes all of them. That symmetric floor is 61% decided by 40+ EV with a median margin of 52; the final package sits on it (60.4%, median 52, p25/p75 24/88, down from 80.5% and 108). Reducing the national debate shift and killing the Hale/Venkat edge is what moved it; `LEAN_STATE_COUNT` 50 buys another 2–3 points at the cost of the comeback target (D-019).
+
+*Proposed revised target:* ≤ 65% decided by 40+ EV, median margin ≤ 60 EV, and ≤ 25% decided by 100+ EV (now about 20%), with the comeback rate (38%) and "week-12 projected leader loses" (27%) as the real anti-snowball checks. Getting lower would need a mechanic (a bot or player that concentrates on tipping-point states converges; proportional allocation for some states; smaller leans of larger count) rather than a number.
+
+### D-025 — Balance pass 1: final harness report (Oct 22, 2026)
+
+`lune run tests/harness/balance.luau`, 2,000 matches, defaults, on commit `b27bdda` (59 s). The D-017 baseline is in the right-hand column.
+
+| Check | After | Baseline (D-017) | Target |
+|---|---|---|---|
+| Candidates | Okafor 50, Calloway 53.5, Venkat 51.6, Hale 48.1, Alvarado 46.8, Reyes 50.0, Strand 48.4, Begay 51.5 | Venkat 20, Hale 89, Begay 37, others 46–55 | 45–55% ✓ |
+| Worst matchup | Calloway vs Alvarado 63% (71 games/pair, ±12 at 95%) | Venkat vs Hale 3% | 40–60% (noise-level) |
+| Priority A win rate | 52.3% | 51.4% | 47–53% ✓ |
+| Comeback rate | 36.8% | 25.3% | 20–40% ✓ |
+| Decided by 40+ EV (median margin) | **60.1%** (52; p25/p75 24/86) | 80.5% (108) | ≤ 15%: see D-024 |
+| Tossup EV at election / noise spread | 15.0% / 17.7 EV | 10.3% / 16.6 | ≤ 30% / ≤ 25 ✓ |
+| Leaned states that flip / lean–win correlation | 23.0% / −0.046 | 30.4% / −0.03 | 20–40% / \|r\| < 0.05 ✓ |
+| Underdog weeks to a true 20+ leader / tier changes | **21.5%** / 3.03 | 8.9% / 4.1 | < 10% / ≤ 3: see D-020 |
+| GOTV changes the winner (spend per player) | 12.2% ($7.6) | 1.8% ($2.8) | ≥ 10% ✓ |
+| Debates change the winner, counterfactual (EV swung) | 16.2% (15.2 EV) | 41.6% (61 EV) | ≥ 10% ✓ |
+| Debate topic win rates | 41–44%, Hale 53% | Venkat 17, Hale 64 | — |
+| Week-12 projected leader loses | 28.7% | 11.2% | — |
+| Random / fundraise / rally / attack / never-poll / sandbag vs balanced | 0 / 0.5 / 39 / 41 / 52 / 34% | 0 / 4 / 46 / 45 / 53 / 42% | ≤ 5, < 55, ≤ 50 ✓ |
+
+Still red: the blowout share (structural, revised target in D-024), the wrong-leader share (conflicts with the tier-change target, D-020), and one matchup cell at 63%, which is within the ±12-point noise of 71 games (about one cell in 28 lands outside 40–60 by chance at every run; the cell that does changes with the seed set). Everything that passed in D-017 still passes.
+
+*Next, if the humans want to go further:* a bot that values states by tipping-point probability rather than margin density would make both bots converge on the same states and should cut the blowout share and lift the comeback signal; a smoother underdog gap signal (true-EV-free, e.g. a longer poll average) would separate the two rubber-band targets; and the money-shaped perks (Okafor, Alvarado, Venkat) should be re-measured after human playtests, because the bot values money low.
