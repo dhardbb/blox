@@ -408,7 +408,7 @@ local function selectGuide(): { string }
 		table.insert(
 			out,
 			string.format(
-				"  %-9s %s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, media $%g, debate prep %d]",
+				"  %-9s %s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, ad $%g, debate prep %d]",
 				id,
 				p.name,
 				p.archetype,
@@ -518,7 +518,7 @@ local function planGuide(payload: any): { string }
 		),
 		`Platform: {if me.platform then table.concat(me.platform, ", ") else "?"}.  Your draft: see "Your draft" on the board.`,
 		string.format(
-			"Costs: rally 1 AP; fund 1 AP; flight (a rally/fund stop that is neither your state nor adjacent to the previous stop) +$%d; media/attack $%g; poll $%d (%d free per week for you); rpoll $%d; gotv $%g per unit (max %d per state); pivot 1 AP, once per match (%s).",
+			"Costs: rally 1 AP; fund 1 AP; flight (a rally/fund stop that is neither your state nor adjacent to the previous stop) +$%d; ad/attack ad $%g; poll $%d (%d free per week for you); rpoll $%d; gotv $%g per unit (max %d per state); pivot 1 AP, once per match (%s).",
 			C.FLIGHT_COST,
 			profile.mediaCost,
 			C.INTERNAL_POLL_COST,
@@ -595,9 +595,13 @@ local function planGuide(payload: any): { string }
 	)
 	table.insert(
 		out,
-		"     rally ST ISSUE   fund ST   media ST ISSUE   attack ST ISSUE   poll ST   rpoll REGION"
+		"     rally ST ISSUE   fund ST   ad ST ISSUE   attack ad ST ISSUE   poll ST   rpoll REGION"
 	)
 	table.insert(out, "     gotv ST UNITS    pivot DROP ADD   prep A B C   choice attack|defend|ignore")
+	table.insert(
+		out,
+		"     (names as the game says them: ad = Ad (media also works), attack ad = Attack ad (attack also works), gotv = Ground game, rpoll = Region poll)"
+	)
 	table.insert(out, `     ISSUE is one of: {string.lower(issueIds())}`)
 	table.insert(out, `     REGION is one of: {table.concat(Issues.regions, " ")}`)
 	table.insert(
@@ -631,7 +635,7 @@ local function planGuide(payload: any): { string }
 		second = `; poll {adj[2]}`
 	end
 	if cash >= profile.mediaCost + (if second ~= "" then C.INTERNAL_POLL_COST else 0) then
-		second ..= `; media {adj[2] or rallyStop} {string.lower(issueB)}`
+		second ..= `; ad {adj[2] or rallyStop} {string.lower(issueB)}`
 	end
 	local extra = prepText
 	if view.event and view.event.kind == "Choice" then
@@ -816,7 +820,7 @@ local GLOSS: { [string]: string } = {
 	PivotUsed = "the pivot is once per match, one per plan",
 	BadPivot = "pivot DROP must be in your platform and ADD must not be",
 	NotEnoughAP = "the plan uses more AP than you have",
-	NotEnoughMoney = "the plan costs more than your cash (media, attack, poll, gotv and flights cost money)",
+	NotEnoughMoney = "the plan costs more than your cash (ads, attack ads, polls, ground game (gotv) and flights cost money)",
 	BadPrep = "prep must be your debate points split over the 3 topics, max 4 on one topic",
 	UnexpectedPrep = "prep is only accepted in the week before a debate",
 	BadChoice = "choice must be attack, defend or ignore",

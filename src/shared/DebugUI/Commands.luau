@@ -7,8 +7,10 @@
 --   select CANDIDATE COLOR ISSUE ISSUE ISSUE   (during Select)
 --   draft STATE [STATE]
 --   plan ACTION; ACTION; ...   with actions:
---     rally ST ISSUE | fund ST | media ST ISSUE | attack ST ISSUE | poll ST
+--     rally ST ISSUE | fund ST | ad ST ISSUE | attack ad ST ISSUE | poll ST
 --     rpoll REGION | gotv ST UNITS | pivot DROP ADD | prep N N N
+--     (aliases: fundraise = fund; media = ad; attack = attackad = attack ad,
+--     so the player-facing names of D-030 work as typed)
 --     choice attack|defend|ignore              (only in a week with a Choice event)
 --   pass                                       (submit an empty plan)
 --   auto | autoplay on|off | show ST | rules  (rules: the "How it works" text)
@@ -122,16 +124,30 @@ local function state(word: string?): string?
 	return string.upper(word)
 end
 
+-- Command words for the player-facing action names (D-030: Rally, Fundraise, Ad,
+-- Attack ad, ...), each to its canonical verb.
+local VERBS: { [string]: string } = {
+	fundraise = "fund",
+	media = "ad",
+	attackad = "attack",
+}
+
 -- One plan action, or an error message.
-local function action(w: { string }): (any?, string?)
+local function action(input: { string }): (any?, string?)
+	local w = table.clone(input)
 	local verb = string.lower(w[1] or "")
+	verb = VERBS[verb] or verb
+	if verb == "attack" and string.lower(w[2] or "") == "ad" then
+		table.remove(w, 2) -- "attack ad OH Jobs"; no state is called AD
+	end
 	local st = state(w[2])
-	if verb == "rally" or verb == "media" or verb == "attack" then
+	if verb == "rally" or verb == "ad" or verb == "attack" then
 		local issue = Commands.issue(w[3])
+		local shown = if verb == "attack" then "attack ad" else verb
 		if st == nil or issue == nil then
-			return nil, `{verb} needs a state and an issue, e.g. "{verb} OH Jobs"`
+			return nil, `{shown} needs a state and an issue, e.g. "{shown} OH Jobs"`
 		end
-		local kind = if verb == "rally" then "Rally" elseif verb == "media" then "Media" else "Attack"
+		local kind = if verb == "rally" then "Rally" elseif verb == "ad" then "Media" else "Attack"
 		return { kind = kind, state = st, issue = issue }, nil
 	elseif verb == "fund" or verb == "poll" then
 		if st == nil then
@@ -256,7 +272,7 @@ end
 Commands.HELP = table.concat({
 	"Lobby: practice | queue | host [noevents] | join CODE | leave | pick CANDIDATE COLOR ISSUE ISSUE ISSUE",
 	"Select: select CANDIDATE COLOR ISSUE ISSUE ISSUE      Draft: draft OH PA",
-	"Plan: plan rally OH Jobs; fund PA; media MI Jobs; attack IA Farms; poll OH; rpoll Pacific;",
+	"Plan: plan rally OH Jobs; fund PA; ad MI Jobs; attack ad IA Farms; poll OH; rpoll Pacific;",
 	"      gotv OH 2; pivot Schools Farms; prep 2 2 2; choice defend (Choice weeks)      pass = empty plan",
 	"Any time: auto (bot fills this step) | autoplay on/off | bank | skip | show OH | rules | resync",
 	"  show OH = a state's numbers and what each action does there; rules = how everything works",

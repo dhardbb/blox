@@ -341,3 +341,35 @@ describe("Format explanations (playtest 2: the numbers were opaque)", function()
 		has(Format.board(payload, 0), Explain.underdogText(C, payload.view, payload.you) :: string)
 	end)
 end)
+
+describe("Commands: player-facing action names (playtest 2, bug 1)", function()
+	local function has(text: string, part: string)
+		expect(string.find(text, part, 1, true) ~= nil):toBe(true)
+	end
+
+	it("takes ad, attack ad and attackad like media and attack (D-030 names)", function()
+		local media = { kind = "Media", state = "MI", issue = "Health" }
+		local attack = { kind = "Attack", state = "IA", issue = "Farms" }
+		expect(Commands.parse("plan ad MI health").input):toEqual({ actions = { media } })
+		expect(Commands.parse("plan Ad mi HEALTH").input):toEqual({ actions = { media } })
+		expect(Commands.parse("plan media MI health").input):toEqual({ actions = { media } })
+		expect(Commands.parse("plan attack ad IA farms").input):toEqual({ actions = { attack } })
+		expect(Commands.parse("plan attackad IA farms").input):toEqual({ actions = { attack } })
+		expect(Commands.parse("plan attack IA farms").input):toEqual({ actions = { attack } })
+		expect(Commands.parse("plan fundraise PA").input):toEqual({
+			actions = { { kind = "Fundraise", state = "PA" } },
+		})
+		expect(Commands.parse("plan ad MI").kind):toBe("Error")
+		expect(Commands.parse("plan attack ad IA").kind):toBe("Error")
+	end)
+
+	it("help names the actions as the game does, and every plan in it parses", function()
+		has(Commands.HELP, "ad MI Jobs")
+		has(Commands.HELP, "attack ad IA Farms")
+		expect(string.find(Commands.HELP, "media", 1, true)):toBe(nil)
+		local plan = string.match(Commands.HELP, "Plan: (plan [^\n]-);?\n") :: string
+		local parsed = Commands.parse(plan)
+		expect(parsed.message):toBe(nil)
+		expect(#parsed.input.actions):toBe(6)
+	end)
+end)
