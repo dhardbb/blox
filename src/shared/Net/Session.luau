@@ -34,7 +34,7 @@ export type Seat = {
 	graceUntil: number?, -- while disconnected: auto-submit once this passes
 	graceLeft: number, -- grace periods left this match
 	bank: number, -- time-bank seconds left this match
-	bankUsed: number, -- time-bank seconds added to the current Input stage
+	bankUsed: number, -- seconds added to this seat's deadline in the current Input stage (time bank, reconnect)
 	locked: boolean,
 	input: any?, -- normalized submission for the current Input stage
 	skip: boolean, -- wants to skip the current Reveal/Show
@@ -357,7 +357,12 @@ function Session.update(session: Session, now: number)
 			end
 			closeInput(session, now)
 		elseif now >= showEnd(session) then
-			if session.match.phase == "MapReveal" or session.match.phase == "Election" then
+			-- Only a Show stage ends its phase. The resolve reveal that closes week 12
+			-- already runs in phase Election, and must lead into election night.
+			if
+				session.stage == "Show"
+				and (session.match.phase == "MapReveal" or session.match.phase == "Election")
+			then
 				advance(session, {})
 			end
 			enterPhase(session, now)
@@ -548,9 +553,25 @@ function Session.reconnect(session: Session, p: number, now: number)
 	local seat = session.seats[p]
 	seat.connected = true
 	seat.graceUntil = nil
+	if session.stage == "Input" and not seat.locked then
+		-- Grace can hold a stage open past this seat's deadline. Give the returning
+		-- player a fair window to act instead of closing it with their default.
+		local needed = now + session.config.RECONNECT_WINDOW - session.deadline
+		seat.bankUsed = math.max(seat.bankUsed, needed)
+	end
 	notify(session, p, "OpponentReconnected")
 	broadcast(session)
 	Session.update(session, now)
+end
+
+-- Ends the match as abandoned, whatever state it is in. The server calls this
+-- when a Session call throws, so a broken match can't hold its players forever.
+function Session.abort(session: Session, now: number)
+	if session.stage == "Over" then
+		return
+	end
+	finish(session, now, { winner = 0, reason = "Abandoned" })
+	broadcast(session)
 end
 
 -- Seat index for a player id, or nil.

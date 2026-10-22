@@ -137,6 +137,7 @@ local Config = {
 	TIMER_ELECTION = 45, -- election night
 	TRANSITION_ALLOWANCE = 10, -- total screen-transition time budgeted per match
 	DISCONNECT_GRACE = 30, -- wait before auto-submitting a disconnected player's plan
+	RECONNECT_WINDOW = 15, -- seconds a returning player gets to finish a turn already past its deadline
 	GRACE_USES = 2, -- grace periods per player per match
 	FORFEIT_MISSED_WEEKS = 2, -- consecutive missed weeks that forfeit
 

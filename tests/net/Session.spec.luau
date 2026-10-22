@@ -135,6 +135,69 @@ describe("Session: stages and timers", function()
 	end)
 end)
 
+-- Plays (everyone locks the bot's choice) until the week-12 Plan has just closed.
+-- Returns the time of the last step.
+local function toWeekTwelveReveal(session: Session.Session): number
+	local t = 0
+	for _ = 1, 200 do
+		if session.match.phase == "Election" then
+			return t
+		end
+		if session.stage == "Input" then
+			lockAll(session, t)
+		else
+			t = Session.nextWake(session)
+			Session.update(session, t)
+		end
+	end
+	error("never reached election night")
+end
+
+describe("Session: election night", function()
+	it("shows the last resolve, then a full election night, then ends", function()
+		local session = humans()
+		local t = toWeekTwelveReveal(session)
+		expect(session.stage):toBe("Reveal")
+		expect(session.reveal):toBe("Resolve")
+
+		t = Session.nextWake(session)
+		Session.update(session, t)
+		expect(session.stage):toBe("Show")
+		expect(session.match.phase):toBe("Election")
+		expect(session.deadline):toBe(t + C.TIMER_ELECTION)
+		expect(Session.payload(session, 1).view.election ~= nil):toBe(true)
+
+		Session.update(session, t + C.TIMER_ELECTION - 0.01)
+		expect(session.stage):toBe("Show")
+		Session.update(session, t + C.TIMER_ELECTION)
+		expect(session.stage):toBe("Over")
+		expect((session.result :: Session.Result).reason):toBe("Election")
+	end)
+
+	it("ends at once when both humans skip election night", function()
+		local session = humans()
+		toWeekTwelveReveal(session)
+		local t = Session.nextWake(session)
+		Session.update(session, t)
+		expect(session.stage):toBe("Show")
+		expect((Session.skip(session, 1, session.step, t + 1))):toBe(true)
+		expect(session.stage):toBe("Show")
+		expect((Session.skip(session, 2, session.step, t + 2))):toBe(true)
+		expect(session.stage):toBe("Over")
+	end)
+
+	it("ends at once in practice when the human skips (the bot always does)", function()
+		local session = practice()
+		toWeekTwelveReveal(session)
+		local t = Session.nextWake(session)
+		Session.update(session, t)
+		expect(session.stage):toBe("Show")
+		expect((Session.skip(session, 1, session.step, t + 1))):toBe(true)
+		expect(session.stage):toBe("Over")
+		expect((session.result :: Session.Result).reason):toBe("Election")
+	end)
+end)
+
 describe("Session: requests", function()
 	it("rejects stale steps, double locks and invalid input with reason codes", function()
 		local session = humans()
@@ -256,6 +319,63 @@ describe("Session: disconnects", function()
 		expect(session.stage):toBe("Reveal")
 	end)
 
+	it("a player who returns after the plan deadline gets time to finish the turn", function()
+		local session = toPlan()
+		local deadline = session.deadline
+		Session.disconnect(session, 2, deadline - 5)
+		lockAll(session, deadline - 5)
+		Session.update(session, deadline + 10)
+		expect(session.stage):toBe("Input") -- grace still holds the stage open
+		Session.reconnect(session, 2, deadline + 10)
+		expect(session.stage):toBe("Input")
+		expect(Session.payload(session, 2).deadline):toBe(deadline + 10 + C.RECONNECT_WINDOW)
+		expect(Session.payload(session, 1).deadline):toBe(deadline) -- nobody else's clock moves
+		expect(session.seats[2].bank):toBe(C.TIME_BANK) -- and no bank is spent
+		local ok, reason = Session.submit(session, 2, session.step, auto(session, 2), deadline + 12)
+		expect(reason):toBe(nil)
+		expect(ok):toBe(true)
+		expect(session.stage):toBe("Reveal")
+		expect(session.seats[2].input ~= nil):toBe(true) -- their own plan was played
+		expect(session.seats[2].missed):toBe(0)
+	end)
+
+	it("a returning player who does not act is closed out after the reconnect window", function()
+		local session = toPlan()
+		local deadline = session.deadline
+		Session.disconnect(session, 2, deadline - 5)
+		lockAll(session, deadline - 5)
+		Session.reconnect(session, 2, deadline + 10)
+		Session.update(session, deadline + 10 + C.RECONNECT_WINDOW - 0.01)
+		expect(session.stage):toBe("Input")
+		expect(Session.nextWake(session)):toBe(deadline + 10 + C.RECONNECT_WINDOW)
+		Session.update(session, deadline + 10 + C.RECONNECT_WINDOW)
+		expect(session.stage):toBe("Reveal")
+		expect(session.seats[2].input == nil):toBe(true) -- defaults, no plan
+		expect(session.seats[2].missed):toBe(0) -- they were connected at the end
+	end)
+
+	it("a reconnect with plenty of time left changes no deadline", function()
+		local session, t = toPlan()
+		Session.disconnect(session, 2, t)
+		Session.reconnect(session, 2, t + 1)
+		expect(Session.payload(session, 2).deadline):toBe(session.deadline)
+	end)
+
+	it("the extension ends with the stage: the next Input stage starts clean", function()
+		local session = toPlan()
+		Session.disconnect(session, 2, session.deadline - 1)
+		Session.reconnect(session, 2, session.deadline - 1)
+		expect(session.seats[2].bankUsed > 0):toBe(true)
+		lockAll(session, session.deadline)
+		local t = session.deadline
+		while session.stage ~= "Input" do
+			t = Session.nextWake(session)
+			Session.update(session, t)
+		end
+		expect(session.seats[2].bankUsed):toBe(0)
+		expect(Session.payload(session, 2).deadline):toBe(session.deadline)
+	end)
+
 	it("a reconnect within grace resumes play and resets nothing else", function()
 		local session, t = toPlan()
 		Session.disconnect(session, 2, t)
@@ -308,6 +428,47 @@ describe("Session: disconnects", function()
 		Session.disconnect(session, 2, t)
 		Session.update(session, t + C.DISCONNECT_GRACE)
 		expect(session.result):toEqual({ winner = 0, reason = "Abandoned" })
+	end)
+end)
+
+describe("Session: abort", function()
+	it("ends a live match as abandoned and tells every connected human", function()
+		local session = humans()
+		Session.drain(session)
+		local before = session.step
+		Session.abort(session, 3)
+		expect(session.stage):toBe("Over")
+		expect(session.result):toEqual({ winner = 0, reason = "Abandoned" })
+		expect(session.step):toBe(before + 1)
+		expect(Session.nextWake(session)):toBe(math.huge)
+		local messages = Session.drain(session)
+		expect(#messages):toBe(2)
+		for _, message in messages do
+			local state = message.state :: Session.StatePayload
+			expect(state.stage):toBe("Over")
+			expect(state.result):toEqual({ winner = 0, reason = "Abandoned" })
+		end
+		Session.update(session, 1000)
+		expect(session.stage):toBe("Over")
+	end)
+
+	it("leaves a finished match's result alone", function()
+		local session = humans()
+		local t = 0
+		while session.stage ~= "Over" do
+			if session.stage == "Input" then
+				lockAll(session, t)
+			else
+				t = Session.nextWake(session)
+				Session.update(session, t)
+			end
+		end
+		Session.drain(session)
+		local step = session.step
+		Session.abort(session, t)
+		expect((session.result :: Session.Result).reason):toBe("Election")
+		expect(session.step):toBe(step)
+		expect(#Session.drain(session)):toBe(0)
 	end)
 end)
 
