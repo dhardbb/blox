@@ -21,6 +21,9 @@ describe("Commands.parse", function()
 		expect(Commands.parse("  Queue ")):toEqual({ kind = "Request", op = "Queue" })
 		expect(Commands.parse("join ab3cd")):toEqual({ kind = "Request", op = "Join", code = "AB3CD" })
 		expect(Commands.parse("join abc").kind):toBe("Error")
+		expect(Commands.parse("host")):toEqual({ kind = "Request", op = "Host" })
+		expect(Commands.parse("host noevents")):toEqual({ kind = "Request", op = "Host", events = false })
+		expect(Commands.parse("host loud").kind):toBe("Error")
 	end)
 
 	it("parses selections and pre-picks, case-insensitively", function()
@@ -81,6 +84,51 @@ describe("Commands.parse", function()
 		local ok, reason = Match.validate(C, match, 1, parsed.input)
 		expect(reason):toBe(nil)
 		expect(ok):toBe(true)
+	end)
+
+	it("parses a Choice answer, and the validator takes it in a Choice week", function()
+		local parsed = Commands.parse("plan choice DEFEND; poll OH")
+		expect(parsed.input):toEqual({ actions = { { kind = "Poll", state = "OH" } }, choice = "Defend" })
+		expect(Commands.parse("plan choice surrender").kind):toBe("Error")
+		local match = Match.new(C, 3, { "a", "b" })
+		while not (match.phase == "Plan" and match.week == 2) do
+			match = Match.advance(C, match, {})
+		end
+		match.eventDeck[2] = "clip"
+		local ok, reason = Match.validate(C, match, 1, Commands.parse("plan choice attack").input)
+		expect(reason):toBe(nil)
+		expect(ok):toBe(true)
+	end)
+
+	it("shows this week's event and last week's revealed answers on the board", function()
+		local session = Session.new(C, "m1", 11, {
+			{ id = "1", kind = "Human" },
+			{ id = "bot", kind = "Bot", candidate = "reyes" },
+		}, 0)
+		local match = session.match
+		while not (match.phase == "Plan" and match.week == 2) do
+			match = Match.advance(C, match, {})
+		end
+		match.eventDeck[2] = "expo"
+		match.eventDeck[3] = "clip"
+		session.match = match
+		local board = Format.board(Session.payload(session, 1), 0)
+		expect(
+			string.find(
+				board,
+				"Event this week: Tech expo (Spotlight: rallies and ads on Technology x1.3",
+				1,
+				true
+			) ~= nil
+		):toBe(true)
+		match = Match.advance(C, match, {})
+		session.match = Match.advance(C, match, { { actions = {}, choice = "Attack" } })
+		board = Format.board(Session.payload(session, 1), 0)
+		expect(
+			string.find(board, "Last week's event Viral clip: you Attack (+0.2), them Ignore (-0.2)", 1, true)
+				~= nil
+		):toBe(true)
+		expect(string.find(board, "choice Ignore", 1, true) ~= nil):toBe(true)
 	end)
 
 	it("parses local actions and rejects nonsense", function()

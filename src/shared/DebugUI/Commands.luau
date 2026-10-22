@@ -2,13 +2,14 @@
 -- Parses the debug UI's command line into a request or a local action.
 -- Phase 2 only: Phase 3 replaces typing with real screens.
 --
---   practice | queue | host | join CODE | leave | resync | bank | skip | help
+--   practice | queue | host [noevents] | join CODE | leave | resync | bank | skip | help
 --   pick CANDIDATE COLOR ISSUE ISSUE ISSUE     (pre-pick in the lobby)
 --   select CANDIDATE COLOR ISSUE ISSUE ISSUE   (during Select)
 --   draft STATE [STATE]
 --   plan ACTION; ACTION; ...   with actions:
 --     rally ST ISSUE | fund ST | media ST ISSUE | attack ST ISSUE | poll ST
 --     rpoll REGION | gotv ST UNITS | pivot DROP ADD | prep N N N
+--     choice attack|defend|ignore              (only in a week with a Choice event)
 --   pass                                       (submit an empty plan)
 --   auto | autoplay on|off | show ST
 
@@ -19,6 +20,7 @@ export type Parsed = {
 	kind: "Request" | "Local" | "Error",
 	op: string?, -- Request
 	code: string?, -- Join
+	events: boolean?, -- Host: false for "host noevents"
 	pick: any?, -- PrePick
 	input: any?, -- Submit
 	action: string?, -- Local: "auto" | "autoplay" | "show" | "help"
@@ -164,7 +166,15 @@ function Commands.parse(text: string): Parsed
 	if head == "" then
 		return err("type a command, or 'help'")
 	end
-	if head == "practice" or head == "queue" or head == "host" or head == "leave" or head == "resync" then
+	if head == "host" then
+		local arg = string.lower(w[2] or "")
+		if arg == "" then
+			return { kind = "Request", op = "Host" }
+		elseif arg == "noevents" then
+			return { kind = "Request", op = "Host", events = false }
+		end
+		return err('host takes nothing or "noevents"')
+	elseif head == "practice" or head == "queue" or head == "leave" or head == "resync" then
 		return { kind = "Request", op = string.upper(string.sub(head, 1, 1)) .. string.sub(head, 2) }
 	elseif head == "bank" or head == "skip" then
 		return { kind = "Request", op = if head == "bank" then "Bank" else "Skip" }
@@ -200,7 +210,7 @@ function Commands.parse(text: string): Parsed
 		return { kind = "Request", op = "Submit", input = { actions = {} } }
 	elseif head == "plan" then
 		local rest = string.sub(text, (string.find(text, "%S") :: number) + 4)
-		local actions, prep = {}, nil
+		local actions, prep, choice = {}, nil, nil
 		for part in string.gmatch(rest, "[^;,]+") do
 			local pw = words(part)
 			if #pw > 0 then
@@ -209,6 +219,12 @@ function Commands.parse(text: string): Parsed
 					for k = 2, #pw do
 						table.insert(prep, tonumber(pw[k]) or -1)
 					end
+				elseif string.lower(pw[1]) == "choice" then
+					local word = string.lower(pw[2] or "")
+					if word ~= "attack" and word ~= "defend" and word ~= "ignore" then
+						return err('choice needs attack, defend or ignore, e.g. "choice defend"')
+					end
+					choice = string.upper(string.sub(word, 1, 1)) .. string.sub(word, 2)
 				else
 					local a, message = action(pw)
 					if a == nil then
@@ -218,7 +234,7 @@ function Commands.parse(text: string): Parsed
 				end
 			end
 		end
-		return { kind = "Request", op = "Submit", input = { actions = actions, prep = prep } }
+		return { kind = "Request", op = "Submit", input = { actions = actions, prep = prep, choice = choice } }
 	elseif head == "auto" or head == "help" then
 		return { kind = "Local", action = head }
 	elseif head == "autoplay" then
@@ -238,10 +254,10 @@ function Commands.parse(text: string): Parsed
 end
 
 Commands.HELP = table.concat({
-	"Lobby: practice | queue | host | join CODE | leave | pick CANDIDATE COLOR ISSUE ISSUE ISSUE",
+	"Lobby: practice | queue | host [noevents] | join CODE | leave | pick CANDIDATE COLOR ISSUE ISSUE ISSUE",
 	"Select: select CANDIDATE COLOR ISSUE ISSUE ISSUE      Draft: draft OH PA",
 	"Plan: plan rally OH Jobs; fund PA; media MI Jobs; attack IA Farms; poll OH; rpoll Pacific;",
-	"      gotv OH 2; pivot Schools Farms; prep 2 2 2      pass = empty plan",
+	"      gotv OH 2; pivot Schools Farms; prep 2 2 2; choice defend (Choice weeks)      pass = empty plan",
 	"Any time: auto (bot fills this step) | autoplay on/off | bank | skip | show OH | resync",
 }, "\n")
 
