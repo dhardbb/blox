@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (rokit.toml)
+        uses: CompeyDev/setup-rokit@v0.2.1
+
+      - name: Format (StyLua)
+        run: stylua --check src tests
+
+      - name: Lint simulation and tests (Selene, plain Luau)
+        run: selene --config selene.sim.toml src/shared/Sim tests
+
+      - name: Lint game code (Selene, Roblox std)
+        run: selene src
+
+      - name: Tests (Lune)
+        run: lune run tests
+
+      - name: Type check (luau-lsp)
+        run: |
+          rojo sourcemap default.project.json -o sourcemap.json
+          curl -fsSL -o globalTypes.d.luau \
+            https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/main/scripts/globalTypes.d.luau
+          luau-lsp analyze --platform=roblox --sourcemap=sourcemap.json \
+            --definitions=@roblox=globalTypes.d.luau src
+
+      - name: Build place (Rojo)
+        run: |
+          mkdir -p build
+          rojo build -o build/270.rbxl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 270-place
+          path: build/270.rbxl

@@ -1,0 +1,3 @@
+# Full lint for game code (server + client). Needs the generated Roblox std,
+# which selene downloads on first run (works in CI).
+std = "roblox"

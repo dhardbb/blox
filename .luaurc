@@ -1,0 +1,8 @@
+{
+	"languageMode": "strict",
+	"aliases": {
+		"sim": "./src/shared/Sim",
+		"shared": "./src/shared",
+		"testlib": "./tests/lib"
+	}
+}
