@@ -377,6 +377,30 @@ describe("Campaign screen", function()
 		check(not shown(find(peer, "EventCard")), "the event card shows next week's event early")
 	end)
 
+	-- Strand's perk (D-035): View.nextEvent is next week's event, for that player only.
+	it("shows next week's event to a candidate who previews it", function()
+		local world, peer = mountsCleanly("Plan")
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		local upcoming = Rig.deepCopy(payload.view.event or Fixtures.payload(C, "ChoiceWeek").view.event)
+		upcoming.week = payload.view.week + 1
+		payload.view.nextEvent = upcoming
+		Rig.push(world, peer, payload)
+		check(shown(find(peer, "NextEvent")), "no next-week line for a previewing candidate")
+		check(
+			string.find(text(peer, "NextEvent"), upcoming.name, 1, true) ~= nil,
+			"next-week line: " .. text(peer, "NextEvent")
+		)
+		-- Also when there is no event this week (week 1 sees week 2's).
+		payload.view.event = nil
+		Rig.push(world, peer, payload)
+		check(shown(find(peer, "EventCard")), "the card hides when only next week's event is known")
+		check(shown(find(peer, "NextEvent")), "no next-week line without an event this week")
+		payload.view.nextEvent = nil
+		Rig.push(world, peer, payload)
+		check(not shown(find(peer, "EventCard")), "an empty event card shows")
+		Rig.noErrors(world)
+	end)
+
 	for _, size in { { name = "16:9", screen = nil }, { name = "phone", screen = PHONE } } do
 		it(`offers Attack, Defend and Ignore in a Choice week ({size.name})`, function()
 			local world, peer = mountsCleanly("ChoiceWeek", size.screen)

@@ -74,6 +74,15 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		Font = Kit.font.medium,
 		Parent = card.root,
 	})
+	-- Next week's event, for a candidate who previews the deck (Strand, D-035). It
+	-- sits below the body so it shows whether or not the card is expanded.
+	local nextLine = Kit.caption("", {
+		Name = "NextEvent",
+		LayoutOrder = 4,
+		TextColor3 = Kit.colors.text,
+		Visible = false,
+		Parent = card.root,
+	})
 	local flavor = Kit.caption("", { Name = "EventText", LayoutOrder = 1, Parent = card.body })
 	local mapNote = Kit.caption("", { Name = "EventMapNote", LayoutOrder = 2, Parent = card.body })
 	local answerRow, answerLayout = Layout.grid(card.body, "ChoiceRow", 3)
@@ -119,9 +128,24 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		root = card.root,
 		render = function(_self: EventCard, p: Model.Payload, order: number)
 			local event = Model.shownEvent(p)
-			card.root.Visible = event ~= nil
+			local upcoming = if p.reveal == nil then p.view.nextEvent else nil
+			card.root.Visible = event ~= nil or upcoming ~= nil
 			card.root.LayoutOrder = order
+			nextLine.Visible = upcoming ~= nil
+			if upcoming then
+				nextLine.Text =
+					`Next week, from your pollster: {upcoming.kind} · {upcoming.name}. {PlanDraft.eventEffect(
+						config,
+						upcoming
+					)}`
+			end
+			effect.Visible = event ~= nil
 			if event == nil then
+				defaultFor = nil
+				card:setTitle("No event this week")
+				card:setExpanded(false)
+				card.root:SetAttribute("EventKind", nil)
+				card.root:SetAttribute("EventName", nil)
 				return
 			end
 			local key = `{event.week}:{event.id}`

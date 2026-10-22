@@ -309,7 +309,7 @@ Send back: one screenshot of each step marked with a phone or 16:9 at the top (M
 
 **Send back:** a screenshot of anything that looks off (especially a money amount that seems wrong, or a toast that is cut off on a phone), with the Output lines starting with `[270]`.
 
-## Balance pass 2 (unreleased)
+## Balance pass 2 (v0.5.0)
 
 Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on screen is Helen Strand's event preview. Two-player test (**Test → Clients and Servers, 2 players**), or **Play vs Bot** where a step says so. Press **F2** for the debug text panel when a step asks for the board.
 
@@ -326,3 +326,33 @@ Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on
 5. **Candidates.** Over several bot matches, Marcus Hale (7 prep) and Helen Strand should win about as often as anyone else; the roster numbers on the Select screen match `Candidates.luau` (Strand: "Sees next week's event a week early; two free internal polls a week").
 
 **Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
+
+## Explaining the numbers (v0.5.0)
+
+1. **Play vs Bot**, reach week 1's plan. Tap a state near your candidate.
+   - Under the action buttons, "What each action does here –" lists eight lines, one per button. Rally and Ad say "about +N you, -N them here (Issue ×N …)"; Fundraise says "up to about $N here (… pool $N when full …)".
+2. Tap a different message chip (e.g. a ×0.8 issue).
+   - The Rally and Ad lines change to that issue and show smaller numbers.
+3. Tap **Ad** twice in the same state.
+   - The Ad line now says "repeat ad #3 ×0.36" (or similar) and a smaller number.
+4. With at least $9, tap **Attack ad** three times in one state, then read the Attack ad line (it previews the fourth).
+   - It reads "backlash costs you 0.8 and resets" and the "you" number is smaller or negative.
+5. Tap a state far away (not next to your route).
+   - Rally and Fundraise lines end with "1 AP + flight $2.0".
+6. Read the state card's **Lean** and **Momentum**.
+   - Lean says "leans you +N", "leans them +N" or "no lean". A line under the stats says what momentum does there next week.
+7. Tap **?** in the header.
+   - "How it works" covers the screen with eight panels; the countdown keeps running at the top right; scroll to the bottom; tap **Close**. You are back on the campaign with your plan intact.
+8. Repeat step 7 at the candidate Select screen and during a Draft round.
+9. In a **Choice** week, open the event card.
+   - Under Attack / Defend / Ignore, three lines show what each answer pays against each of the opponent's.
+10. In the week before a debate, look at the prep panel.
+    - Each topic row shows "You: N prep + … = N, plus a roll 0 to 6 · them: …". The last line gives the chance to win a topic level and 2 points ahead.
+11. Watch the debate (week 4).
+    - Each topic row shows both sides' prep, platform, stat and roll adding up to the score. The week card says the same in the debate week.
+12. Phone check: Test → Device → an iPhone in portrait, then landscape. Repeat steps 1 and 7.
+    - Nothing is cut off; Close and Lock in are always on screen.
+13. Press **F2**, type `rules` and `show OH`.
+    - `rules` prints the help text; `show OH` adds the lean, momentum and the eight action lines.
+
+**Send back:** any preview number that looked wrong after the week resolved (state, action, what the line said, what the poll did), screenshots of the help screen on a phone, and the Output lines starting with `[270] UI audit`.
