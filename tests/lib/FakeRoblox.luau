@@ -403,6 +403,11 @@ local function absoluteSize(world: World, inst: any): (number, number)
 	local y = py * size.Y.Scale + size.Y.Offset
 	if raw.AutomaticSize ~= nil and raw.AutomaticSize.Name ~= "None" then
 		y = math.max(y, 20)
+		-- A text that grows sideways is as wide as its text (textFits's estimate).
+		local name = raw.AutomaticSize.Name
+		if (name == "X" or name == "XY") and raw.Text ~= nil and not raw.TextWrapped then
+			x = math.max(x, #tostring(raw.Text) * (raw.TextSize or 14) * 0.55)
+		end
 	end
 	for _, child in rawget(inst, "_children") do
 		if child.ClassName == "UISizeConstraint" then

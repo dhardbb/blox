@@ -50,9 +50,15 @@ local function kitOf(world: FakeRoblox.World, peer: FakeRoblox.Peer): any
 	return FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 end
 
--- The map node for state `id` and one of its parts (Badge, Arrow, Halo).
+-- The map node for state `id` and one of its parts (Badge, Arrow, Halo). The
+-- badge is the node's tag in the map's Tags layer.
 local function nodePart(peer: FakeRoblox.Peer, id: string, part: string): any
 	local map = need(peer, "NodeMap")
+	if part == "Badge" then
+		local tag = map:FindFirstChild("Tags"):FindFirstChild(id)
+		check(tag ~= nil, `no tag on map node {id}`)
+		return tag
+	end
 	for _, inst in map:GetDescendants() do
 		if inst.Name == id and inst.ClassName == "TextButton" then
 			for _, child in inst:GetChildren() do
@@ -65,9 +71,16 @@ local function nodePart(peer: FakeRoblox.Peer, id: string, part: string): any
 	error(`no {part} on map node {id}`)
 end
 
+-- The number in a state's tag, without the " FLIP" a flip adds.
 local function badgeOf(peer: FakeRoblox.Peer, id: string): string?
 	local badge = nodePart(peer, id, "Badge")
-	return if badge.Visible then badge.Text else nil
+	return if badge.Visible then (string.gsub(badge.Text, " FLIP$", "")) else nil
+end
+
+-- The color a state's tag is in: its text, or its fill once it says FLIP.
+local function tagColor(peer: FakeRoblox.Peer, id: string): Color3
+	local badge = nodePart(peer, id, "Badge")
+	return if string.find(badge.Text, "FLIP", 1, true) then badge.BackgroundColor3 else badge.TextColor3
 end
 
 local function strict(world: FakeRoblox.World, peer: FakeRoblox.Peer, rootName: string): { string }
@@ -130,12 +143,12 @@ describe("Stances: the Choice week", function()
 		local mine = Kit.playerColor(view, view.you)
 		for _, id in preview.gains do
 			expect(badgeOf(peer, id)):toBe(Numbers.signed(preview.effects[id]))
-			check(same(nodePart(peer, id, "Badge").TextColor3, mine), `{id}'s badge is not in your color`)
+			check(same(tagColor(peer, id), mine), `{id}'s badge is not in your color`)
 			check(nodePart(peer, id, "Halo").Visible == true, `{id} does not glow`)
 		end
 		for _, id in preview.losses do
 			expect(badgeOf(peer, id)):toBe(Numbers.signed(preview.effects[id]))
-			check(same(nodePart(peer, id, "Badge").TextColor3, Kit.colors.danger), `{id}'s badge is not red`)
+			check(same(tagColor(peer, id), Kit.colors.danger), `{id}'s badge is not red`)
 		end
 		check(Rig.contains(textOf(peer, "Caption"), "stance A"), textOf(peer, "Caption"))
 		Rig.noErrors(world)
@@ -152,8 +165,11 @@ describe("Stances: the Choice week", function()
 		view.states[State.indexOf[state]].poll = { support = support, undecided = 19 }
 		Rig.push(world, peer, payload)
 		tap(world, peer, `Choice{id}`)
-		local note = nodePart(peer, state, "Arrow")
-		check(note.Visible == true and note.Text == "FLIP", `{state} shows "{note.Text}", not FLIP`)
+		local tag = nodePart(peer, state, "Badge")
+		check(
+			tag.Visible == true and string.find(tag.Text, "FLIP", 1, true) ~= nil,
+			`{state} shows "{tag.Text}", not FLIP`
+		)
 		local summary = textOf(peer, "ChoiceSummary")
 		check(Rig.contains(summary, `flip {state}`), summary)
 		Rig.noErrors(world)
@@ -207,7 +223,8 @@ describe("Stances: the debate reveal", function()
 				flips += 1
 				expect(label.TextSize):toBe(Kit.size.heading)
 				for _, flip in entry.flips do
-					expect(nodePart(peer, flip.state, "Arrow").Text):toBe("FLIP")
+					local tag = nodePart(peer, flip.state, "Badge").Text
+					check(string.find(tag, "FLIP", 1, true) ~= nil, `{flip.state} shows "{tag}", not FLIP`)
 				end
 			end
 			if entry.winner ~= 0 then

@@ -559,10 +559,9 @@ describe("Campaign screen", function()
 			"map note: " .. text(peer, "EventMapNote")
 		)
 		local starred: { [string]: boolean } = {}
-		for _, inst in find(peer, "NodeMap"):GetDescendants() do
-			if inst.Name == "Badge" and inst.Visible ~= false and string.find(inst.Text, "*", 1, true) then
-				local label = inst.Parent:FindFirstChild("Label")
-				starred[tostring(label.Text)] = true
+		for _, tag in find(peer, "NodeMap"):FindFirstChild("Tags"):GetChildren() do
+			if tag.Visible ~= false and string.find(tag.Text, "*", 1, true) then
+				starred[tag.Name] = true
 			end
 		end
 		for id in expected do

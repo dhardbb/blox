@@ -2,6 +2,11 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased: map tags
+
+- Map badges and FLIP markers now share one solid tag on each circle's top edge, drawn above every state, so they no longer cover neighboring states' names. A flip fills the tag in its color ("+0.5 FLIP").
+- Dimmed states are less faded.
+
 ## Unreleased — screens for stances and debates
 
 The client pass for D-039 to D-041, version 0.6.0 ("Issue-based choices"). Design log: `docs/DESIGN.md` D-042. No rules, Config numbers, payloads or `Sim/` files changed.

@@ -6,13 +6,15 @@
 -- (MapLayout.LADDER), each with a thin leader line to where it really is.
 --
 -- A screen's marks can add a badge in any color ("+1.5" in a player's color),
--- a glow behind the circle and a word in the arrow band ("FLIP"): the Choice
--- preview and the reveals use them to show which states moved (D-042).
+-- a word ("FLIP") and a glow behind the circle: the Choice preview and the
+-- reveals use them to show which states moved (D-042). Badge and word share one
+-- solid tag on the circle's top edge, drawn in the Tags layer above every node,
+-- so no neighbor's circle hides it and it never sits on another state's label.
 --
 -- Each state is one invisible tap target (a TextButton named by the state id)
 -- at least Kit.MAP_NODE_MIN px in both directions. Everything drawn for the
--- state lives inside it, top to bottom: the badge band, the circle with its
--- label, the momentum arrow band. Smaller states are created last, so where two
+-- state lives inside it except its tag: the circle with its label, then the
+-- momentum arrow band at the bottom. Smaller states are created last, so where two
 -- tap targets overlap the smaller state gets the tap.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,7 +33,11 @@ local LEADER_PX = 1
 local ROUTE_PX = 4
 local MAX_RING_PX = 5 -- ring width at 30+ undecided
 local LABEL_H = 0.4 -- label band height, share of the tap target
-local BAND_H = 0.3 -- badge band (top) and arrow band (bottom), share of the tap target
+local BAND_H = 0.3 -- arrow band (bottom), share of the tap target
+local TAG_H = Kit.size.caption + 5 -- px, the tag's height
+local TAG_PAD = 4 -- px, the tag's side padding
+local DIM_FILL = 0.45 -- circle transparency of a dimmed state
+local DIM_TEXT = 0.3 -- label transparency of a dimmed state
 local ARROWS = { up = "▲", down = "▼" }
 local HALO_SCALE = 1.45 -- the glow's diameter, share of the circle's (at most the tap target)
 local HALO_SOFT = 0.6 -- glow transparency for a state that moves
@@ -45,6 +51,7 @@ type Node = {
 	ring: UIStroke,
 	label: TextLabel,
 	badge: TextLabel,
+	badgeStroke: UIStroke,
 	arrow: TextLabel,
 }
 
@@ -87,6 +94,7 @@ function NodeMap.new(): MapInterface.Map
 	local leaders = Kit.box({ Name = "Leaders", ZIndex = 1, Parent = root })
 	local routeLayer = Kit.box({ Name = "Route", ZIndex = 2, Parent = root })
 	local nodeLayer = Kit.box({ Name = "Nodes", ZIndex = 3, Parent = root })
+	local tagLayer = Kit.box({ Name = "Tags", ZIndex = 4, Parent = root })
 
 	local layout = MapLayout.nodes()
 	-- Borders between projected states; a ladder state gets its leader instead.
@@ -184,23 +192,35 @@ function NodeMap.new(): MapInterface.Map
 			ZIndex = 4,
 			Parent = hit,
 		})
+		-- The tag straddles the circle's top edge (or hangs inside it at the top
+		-- of the map); its anchor follows the node across the map, so a wide tag
+		-- near a side edge grows inward and stays inside the map.
+		local rimY = n.y - n.r * MapLayout.ASPECT
 		local badge = Kit.text("", {
-			Name = "Badge",
-			Size = UDim2.fromScale(1, BAND_H),
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0),
-			TextScaled = true,
-			TextSize = Kit.size.body,
+			Name = n.id,
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, TAG_H),
+			AnchorPoint = Vector2.new(math.clamp(n.x, 0, 1), if rimY < 0.06 then 0 else 0.5),
+			Position = UDim2.fromScale(n.x, math.max(rimY, 0)),
+			TextSize = Kit.size.caption,
 			Font = Kit.font.bold,
 			TextColor3 = Kit.colors.accent,
-			TextStrokeColor3 = Kit.colors.background,
-			TextStrokeTransparency = 0.3,
+			BackgroundColor3 = Kit.colors.background,
+			BackgroundTransparency = 0.1,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			TextWrapped = false,
-			ZIndex = 5,
 			Visible = false,
-			Parent = hit,
+			Parent = tagLayer,
 		})
+		Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = badge })
+		Kit.new("UIPadding", {
+			PaddingLeft = UDim.new(0, TAG_PAD),
+			PaddingRight = UDim.new(0, TAG_PAD),
+			Parent = badge,
+		})
+		local badgeStroke = Kit.stroke(Kit.colors.accent, 1)
+		badgeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		badgeStroke.Parent = badge
 		local arrow = Kit.text("", {
 			Name = "Arrow",
 			Size = UDim2.fromScale(1, BAND_H),
@@ -225,6 +245,7 @@ function NodeMap.new(): MapInterface.Map
 			ring = ring,
 			label = label,
 			badge = badge,
+			badgeStroke = badgeStroke,
 			arrow = arrow,
 		}
 		nodes[i] = node
@@ -244,8 +265,8 @@ function NodeMap.new(): MapInterface.Map
 		local mark = marks[node.id]
 		local isSelected = selected == node.id
 		node.circle.BackgroundColor3 = fills[node.id] or Kit.color(Colors.neutral)
-		node.circle.BackgroundTransparency = if mark and mark.dim then 0.65 else 0
-		node.label.TextTransparency = if mark and mark.dim then 0.5 else 0
+		node.circle.BackgroundTransparency = if mark and mark.dim then DIM_FILL else 0
+		node.label.TextTransparency = if mark and mark.dim then DIM_TEXT else 0
 		if isSelected then
 			node.ring.Color = Kit.colors.accent
 			node.ring.Thickness = 4
@@ -256,26 +277,34 @@ function NodeMap.new(): MapInterface.Map
 			node.ring.Color = Kit.color(Colors.undecided)
 			node.ring.Thickness = rings[node.id] or 1
 		end
-		node.badge.Visible = mark ~= nil and mark.badge ~= nil
-		node.badge.Text = if mark and mark.badge then mark.badge else ""
-		node.badge.TextColor3 = if mark and mark.badgeColor then mark.badgeColor else Kit.colors.accent
+		-- One tag holds the badge and the word: "+1.5", "FLIP" or "+1.5 FLIP".
+		-- A word fills the tag in its color, so a flip reads at a glance.
+		local badge = if mark then mark.badge else nil
+		local word = if mark then mark.note else nil
+		local tag = if badge and word then `{badge} {word}` else badge or word
+		node.badge.Visible = tag ~= nil
+		node.badge.Text = tag or ""
+		local color = if mark and mark.badgeColor then mark.badgeColor else Kit.colors.accent
+		if word then
+			local fill = if mark and mark.noteColor then mark.noteColor else Kit.colors.text
+			node.badge.BackgroundColor3 = fill
+			node.badge.TextColor3 = Kit.colors.background
+			node.badgeStroke.Color = fill
+		else
+			node.badge.BackgroundColor3 = Kit.colors.background
+			node.badge.TextColor3 = color
+			node.badgeStroke.Color = color
+		end
 		local halo = if mark then mark.halo else nil
 		node.halo.Visible = halo ~= nil
 		if halo then
 			node.halo.BackgroundColor3 = halo
 			node.halo.BackgroundTransparency = if mark and mark.haloStrong then HALO_STRONG else HALO_SOFT
 		end
-		-- A note ("FLIP") takes the arrow band; otherwise the momentum arrow.
-		if mark and mark.note then
-			node.arrow.Visible = true
-			node.arrow.Text = mark.note
-			node.arrow.TextColor3 = mark.noteColor or Kit.colors.text
-		else
-			local glyph = if mark and mark.arrow then ARROWS[mark.arrow] else nil
-			node.arrow.Visible = glyph ~= nil
-			node.arrow.Text = glyph or ""
-			node.arrow.TextColor3 = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
-		end
+		local glyph = if mark and mark.arrow then ARROWS[mark.arrow] else nil
+		node.arrow.Visible = glyph ~= nil
+		node.arrow.Text = glyph or ""
+		node.arrow.TextColor3 = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
 	end
 
 	local map = {} :: any

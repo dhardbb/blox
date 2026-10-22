@@ -91,13 +91,50 @@ describe("NodeMap", function()
 		expect(#m.map.root.Lines:GetChildren()):toBe(borders)
 	end)
 
-	it("keeps each badge next to its label (Campaign reads the * badges this way)", function()
+	it("puts each badge in a tag named by its state, above every node", function()
 		local m = mount(390, 244)
 		m.map:setMarks({ OH = { badge = "H *" } })
-		local badge = hit(m, "OH"):FindFirstChild("Badge")
+		local badge = m.map.root.Tags:FindFirstChild("OH")
 		expect(badge.Visible):toBe(true)
 		expect(badge.Text):toBe("H *")
-		expect(badge.Parent:FindFirstChild("Label").Text):toBe("OH")
+		check(m.map.root.Tags.ZIndex > m.map.root.Nodes.ZIndex, "tags are under the nodes")
+		expect(m.map.root.Tags:FindFirstChild("PA").Visible):toBe(false)
+	end)
+
+	it("joins a word to the badge and fills the tag in its color", function()
+		local m = mount(390, 244)
+		local red = m.Kit.colors.danger
+		m.map:setMarks({ PA = { badge = "+1.5", badgeColor = red, note = "FLIP", noteColor = red } })
+		local tag = m.map.root.Tags:FindFirstChild("PA")
+		expect(tag.Text):toBe("+1.5 FLIP")
+		expect(tag.BackgroundColor3):toBe(red)
+		expect(hit(m, "PA"):FindFirstChild("Arrow").Visible):toBe(false)
+		m.map:setMarks({ PA = { badge = "+1.5", badgeColor = red } })
+		expect(tag.Text):toBe("+1.5")
+		expect(tag.TextColor3):toBe(red)
+		expect(tag.BackgroundColor3):toBe(m.Kit.colors.background)
+	end)
+
+	it("keeps every tag inside the map", function()
+		for _, size in { { 390, 244 }, { 1280, 800 } } do
+			local m = mount(size[1], size[2])
+			local marks = {}
+			for _, button in hits(m) do
+				marks[button.Name] = { badge = "+1.5", note = "FLIP" }
+			end
+			m.map:setMarks(marks)
+			local box = m.map.root
+			for _, tag in box.Tags:GetChildren() do
+				local p, s = tag.AbsolutePosition, tag.AbsoluteSize
+				check(
+					p.X >= box.AbsolutePosition.X - 1
+						and p.Y >= box.AbsolutePosition.Y - 1
+						and p.X + s.X <= box.AbsolutePosition.X + box.AbsoluteSize.X + 1
+						and p.Y + s.Y <= box.AbsolutePosition.Y + box.AbsoluteSize.Y + 1,
+					`{tag.Name}'s tag leaves the map at {size[1]}x{size[2]}`
+				)
+			end
+		end
 	end)
 
 	it("shows the momentum arrow only where a mark asks for it", function()
