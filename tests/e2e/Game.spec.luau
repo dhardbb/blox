@@ -54,6 +54,7 @@ describe("e2e: full matches", function()
 		Support.press(rig, p1, "Practice")
 		Support.run(rig, 1)
 		Support.press(rig, p1, "Autoplay")
+		check(Support.untilStatus(rig, p1, "Election · Show", MATCH_LIMIT), "election night never began")
 		check(Support.runUntil(rig, finished(rig, p1), MATCH_LIMIT), "the match never finished")
 
 		expect(Support.said(rig, p1, "match over: Election")):toBe(true)
@@ -64,6 +65,37 @@ describe("e2e: full matches", function()
 		check(you ~= nil and them ~= nil, "no election line on the board: " .. FakeRoblox.screen(p1).board)
 		expect((you :: number) + (them :: number)):toBe(538)
 		expect(Support.said(rig, p1, "rejected")):toBe(false)
+	end)
+
+	it("autoplay acts on the same step number in a second match", function()
+		local rig = newRig(21)
+		local p1 = Support.join(rig, "Player1")
+		-- Match 1: autoplay sees the first draft round (step 3), then goes off.
+		Support.press(rig, p1, "Practice")
+		Support.press(rig, p1, "Autoplay")
+		check(Support.untilStatus(rig, p1, "Draft round 1", 30), "match 1 never reached the draft")
+		Support.press(rig, p1, "Autoplay")
+		check(Support.runUntil(rig, finished(rig, p1), 3000), "match 1 never finished")
+
+		-- Match 2: play Select by hand, then switch autoplay on during the map
+		-- reveal, so the first state autoplay sees is that same step 3.
+		Support.press(rig, p1, "Practice")
+		Support.press(rig, p1, "Auto")
+		check(Support.untilStatus(rig, p1, "MapReveal", 10), "match 2 never reached MapReveal")
+		Support.press(rig, p1, "Autoplay")
+		check(Support.untilStatus(rig, p1, "Draft round 1", 10), "match 2 never reached the draft")
+		Support.run(rig, 1)
+		-- Autoplay locked the pick (the bot already had), so round 1 is over.
+		expect(string.find(FakeRoblox.screen(p1).status, "Draft round 1", 1, true)):toBe(nil)
+
+		check(
+			Support.runUntil(rig, function()
+				return #Support.outputLines(rig.world.server, "match m2 over") > 0
+			end, MATCH_LIMIT),
+			"match 2 never finished"
+		)
+		expect(Support.said(rig, p1, "rejected")):toBe(false)
+		noErrors(rig)
 	end)
 
 	it("plays a queued two-player match with mirrored results", function()
@@ -258,6 +290,34 @@ describe("e2e: hostile clients", function()
 		Support.press(rig, p2, "Auto")
 		check(Support.untilStatus(rig, p1, "MapReveal", 10), "the match stalled after the bad payloads")
 		expect(#rig.world.errors):toBe(0)
+	end)
+end)
+
+describe("e2e: rate limit", function()
+	it("warns and replies once per window, then drops the rest quietly", function()
+		local rig = newRig(22)
+		local p1 = Support.join(rig, "Player1")
+		-- 100 requests inside one simulated instant: 40 pass, 60 are over the limit.
+		for _ = 1, 100 do
+			FakeRoblox.fire(rig.world, p1, { op = "Resync" })
+		end
+		Support.run(rig, 0.5)
+		expect(#Support.outputLines(rig.world.server, "RateLimited")):toBe(1)
+		local replies = 0
+		for _, line in rig.history[p1] do
+			if string.find(line, "RateLimited", 1, true) then
+				replies += 1
+			end
+		end
+		expect(replies):toBe(1)
+
+		-- A window later the player is heard again, and told once more if still over.
+		Support.run(rig, 11)
+		for _ = 1, 100 do
+			FakeRoblox.fire(rig.world, p1, { op = "Resync" })
+		end
+		Support.run(rig, 0.5)
+		expect(#Support.outputLines(rig.world.server, "RateLimited")):toBe(2)
 	end)
 end)
 

@@ -543,6 +543,15 @@ local function stdEnv(world: World, peer: Peer, path: string, inst: any): { [str
 				}
 			end,
 		},
+		-- The server rate-limits with os.clock; on the simulated clock a whole match
+		-- takes milliseconds of real time, so real time would trip the limit.
+		os = (function()
+			local fake = table.clone(os)
+			fake.clock = function(): number
+				return world.clock
+			end
+			return fake
+		end)(),
 		print = function(...: any)
 			local parts = {}
 			for k = 1, select("#", ...) do

@@ -1,7 +1,8 @@
 --!strict
 -- The wire: creates the two RemoteEvents, rate-limits and schema-checks every
 -- client request before handing it on, and sends server messages to players.
--- Rejected requests are logged and answered with a "Rejected" message.
+-- Rejected requests are logged and answered with a "Rejected" message; a player
+-- over the rate limit gets that once per window, and the rest are dropped.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,6 +17,7 @@ local RATE_LIMIT = 40 -- requests per player per window (a plan is one request)
 
 local toClient: RemoteEvent? = nil
 local recent: { [Player]: { number } } = {}
+local limitedAt: { [Player]: number } = {} -- when each player was last told they are rate limited
 
 -- Sends one message to a player by id, if they are in this server.
 function Replication.send(id: string, message: Remotes.Message)
@@ -62,8 +64,13 @@ function Replication.init(handler: (player: Player, request: Remotes.Request) ->
 	toClient = remote
 
 	toServer.OnServerEvent:Connect(function(player: Player, raw: any)
-		if rateLimited(player, os.clock()) then
-			Replication.reject(player, "?", "RateLimited")
+		local clock = os.clock()
+		if rateLimited(player, clock) then
+			local told = limitedAt[player]
+			if told == nil or clock - told >= RATE_WINDOW then
+				limitedAt[player] = clock
+				Replication.reject(player, "?", "RateLimited")
+			end
 			return
 		end
 		local ok, reason, request = Schemas.request(raw)
@@ -86,6 +93,7 @@ function Replication.init(handler: (player: Player, request: Remotes.Request) ->
 
 	Players.PlayerRemoving:Connect(function(player)
 		recent[player] = nil
+		limitedAt[player] = nil
 	end)
 end
 

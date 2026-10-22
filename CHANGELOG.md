@@ -11,7 +11,8 @@ Two players can now play a full match in Studio through a temporary text UI. The
 - `Net/Schemas`, `Net/Remotes`: every client request is size-checked and shape-checked before anything reads it. Game inputs are then checked by `Match.validate`. Rejections are logged in the server Output with a reason code and echoed to the client.
 - `server/Replication`, `server/MatchService`: the two RemoteEvents, rate limiting, and the clock that drives every match. Each player only ever receives their own `View`.
 - `client/App`: a debug text UI. It has buttons for Practice, Queue, Host, Auto (the bot fills in your current step from your own view), Autoplay, Pass, Bank, Skip and Help, plus a command line for typed moves (`plan rally OH Jobs; fund PA; ...`).
-- 199 specs. `Net/` and `DebugUI/` are held to the same purity rules as `Sim/`.
+- Fixed: election night was skipped; a player reconnecting after the deadline lost their turn (they now get 15 s to finish it); a thrown error could wedge a match and its lobby slot forever (the match is now abandoned and freed); debug-UI autoplay could skip a step in a second match; rate-limited players no longer flood the log and Output.
+- 220 specs. `Net/` and `DebugUI/` are held to the same purity rules as `Sim/`.
 
 **Test:** `docs/TESTING.md` → Phase 2.
 

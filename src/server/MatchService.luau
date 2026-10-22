@@ -73,6 +73,27 @@ local function flush(session: Session.Session)
 	end
 end
 
+-- Runs one Session call. If it throws, the match is abandoned so a bug can't
+-- leave its players stuck in it; the caller then flushes to free the lobby.
+local function guard(session: Session.Session, call: () -> ()): boolean
+	local ok, err = pcall(function(): string?
+		call()
+		return nil
+	end)
+	if ok then
+		return true
+	end
+	warn(`[270] match {session.id} failed, abandoning it: {err}`)
+	local aborted, abortErr = pcall(function(): string?
+		Session.abort(session, now())
+		return nil
+	end)
+	if not aborted then
+		warn(`[270] match {session.id} could not be aborted cleanly: {abortErr}`)
+	end
+	return false
+end
+
 local function newCode(): string
 	for _ = 1, 100 do
 		local chars = table.create(CODE_LENGTH, "")
@@ -100,7 +121,21 @@ local function startMatch(outcome: Lobby.Outcome)
 		local candidate = Candidates.ids[random:NextInteger(1, #Candidates.ids)]
 		table.insert(specs, { id = "bot", kind = "Bot", candidate = candidate, style = "Balanced" })
 	end
-	local session = Session.new(config, matchId, seed, specs, now())
+	local created: Session.Session? = nil
+	local built, err = pcall(function(): string?
+		created = Session.new(config, matchId, seed, specs, now())
+		return nil
+	end)
+	local session = created
+	if not built or session == nil then
+		-- The lobby already counted this match; hand the players back.
+		warn(`[270] match {matchId} could not start: {err}`)
+		Lobby.ended(lobby, outcome.players)
+		for _, id in outcome.players do
+			sendLobby(id)
+		end
+		return
+	end
 	sessions[matchId] = session
 	for _, id in outcome.players do
 		matchOf[id] = matchId
@@ -144,15 +179,20 @@ local function matchRequest(player: Player, request: Remotes.Request)
 		return
 	end
 	local seat = Session.seatOf(session, id) :: number
-	local ok, reason
-	if request.op == "Submit" then
-		ok, reason = Session.submit(session, seat, request.step, request.input, now())
-	elseif request.op == "Bank" then
-		ok, reason = Session.bank(session, seat, request.step, now())
-	else
-		ok, reason = Session.skip(session, seat, request.step, now())
-	end
-	if not ok then
+	local accepted = false
+	local reason: string? = nil
+	local ran = guard(session, function()
+		if request.op == "Submit" then
+			accepted, reason = Session.submit(session, seat, request.step, request.input, now())
+		elseif request.op == "Bank" then
+			accepted, reason = Session.bank(session, seat, request.step, now())
+		else
+			accepted, reason = Session.skip(session, seat, request.step, now())
+		end
+	end)
+	if not ran then
+		Replication.reject(player, request.op, "Internal")
+	elseif not accepted then
 		Replication.reject(player, request.op, reason or "Rejected")
 	end
 	flush(session)
@@ -185,7 +225,9 @@ function MatchService.start()
 		local id = idOf(player)
 		local session = sessions[matchOf[id] or ""]
 		if session then
-			Session.reconnect(session, Session.seatOf(session, id) :: number, now())
+			guard(session, function()
+				Session.reconnect(session, Session.seatOf(session, id) :: number, now())
+			end)
 			flush(session)
 		else
 			sendLobby(id)
@@ -198,7 +240,9 @@ function MatchService.start()
 		prePicks[id] = nil
 		local session = sessions[matchOf[id] or ""]
 		if session then
-			Session.disconnect(session, Session.seatOf(session, id) :: number, now())
+			guard(session, function()
+				Session.disconnect(session, Session.seatOf(session, id) :: number, now())
+			end)
 			flush(session)
 		end
 	end)
@@ -213,13 +257,9 @@ function MatchService.start()
 		local t = now()
 		for _, session in sessions do
 			if t >= Session.nextWake(session) then
-				local ok, err = pcall(function(): string?
+				guard(session, function()
 					Session.update(session, t)
-					return nil
 				end)
-				if not ok then
-					warn(`[270] match {session.id} failed: {err}`)
-				end
 				flush(session)
 			end
 		end

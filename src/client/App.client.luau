@@ -178,7 +178,7 @@ end)
 local current: Session.StatePayload? = nil
 local lobby: Remotes.LobbyStatus? = nil
 local autoplay = false
-local autoStep = -1 -- last step autoplay acted on
+local autoKey = "" -- "matchId:step" of the last state autoplay acted on (steps restart each match)
 local logLines: { string } = {}
 local rng = Rng.new(player.UserId % 2147483647 + 1)
 
@@ -283,8 +283,9 @@ toClient.OnClientEvent:Connect(function(message: Remotes.Message)
 		if payload.stage == "Over" and payload.result then
 			say(`match over: {payload.result.reason}`)
 		end
-		if autoplay and payload.step ~= autoStep then
-			autoStep = payload.step
+		local key = `{payload.matchId}:{payload.step}`
+		if autoplay and key ~= autoKey then
+			autoKey = key
 			task.delay(0.3, runAuto)
 		end
 	elseif message.kind == "Lobby" then
