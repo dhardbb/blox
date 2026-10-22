@@ -95,6 +95,8 @@ local raisedTotal = 0
 local raisedEarly, raisedLate = 0, 0 -- weeks 1-3 and 10-12, both players
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
 local gotvDecided, debateDecided, debateShiftEV, projectionWrong = 0, 0, 0, 0
+local stanceDecided, stanceShiftEV, choiceWeeks, sameStance = 0, 0, 0, 0
+local stanceTaken: { [string]: number } = {}
 local tossupDraft, tossupElection, spread = 0, 0, 0
 local leaned, flipped = 0, 0
 local leanX, winY = {}, {}
@@ -148,6 +150,15 @@ for seed = 1, N do
 		debateDecided += 1
 	end
 	debateShiftEV += r.debateShiftEV
+	if r.stanceDecided then
+		stanceDecided += 1
+	end
+	stanceShiftEV += r.stanceShiftEV
+	choiceWeeks += r.choiceWeeks
+	sameStance += r.sameStance
+	for id, count in r.stances do
+		stanceTaken[id] = (stanceTaken[id] or 0) + count
+	end
 	if r.projectionWrong then
 		projectionWrong += 1
 	end
@@ -304,6 +315,25 @@ for _, id in ids do
 	line(`Debate topic win rate: {id}`, pct(rate))
 end
 
+-- Choice stances (D-039): the same counterfactual recount with the stances'
+-- shifts subtracted, plus how often the bot takes each slot. Informational: two
+-- bots that value the same close states take the same stance nine times in ten,
+-- and identical stances cancel in margin terms (D-041), so the recount understates
+-- what the decision is worth; the RandomStance check below is the gate.
+line("Choice stances change the winner (counterfactual)", pct(stanceDecided / N))
+line("Average EV the stances swing", string.format("%.1f EV", stanceShiftEV / N))
+line("Choice events per match", string.format("%.2f", choiceWeeks / N))
+local taken = 0
+for _, count in stanceTaken do
+	taken += count
+end
+local shares = {}
+for _, id in { "A", "B", "C" } do
+	table.insert(shares, `{id} {pct((stanceTaken[id] or 0) / math.max(1, taken))}`)
+end
+line("Stances taken (A / B / C)", table.concat(shares, " / "))
+line("Both players took the same stance", pct(sameStance / math.max(1, choiceWeeks)))
+
 -- ---------------------------------------------------------------- side checks
 
 local function versus(style: any, n: number): number
@@ -331,6 +361,10 @@ for _, style in { "FundraiseOnly", "RallyOnly", "AttackOnly", "NeverPoll" } do
 end
 local sandbag = versus("Sandbag", sideN)
 line("Sandbag win rate", pct(sandbag), "<= 50%", sandbag <= 0.5)
+-- Skill expression (D-039): the same bot with random stances must lose to the
+-- bot that reads the map, measurably.
+local randomStance = versus("RandomStance", sideN * 2)
+line("RandomStance win rate", pct(randomStance), "<= 45%", randomStance <= 0.45)
 
 print("")
 print(string.format("Total time %.1fs", os.clock() - started))

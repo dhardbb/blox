@@ -14,8 +14,10 @@
 --
 -- This week's event (View.event) enters the same estimates: a Spotlight issue
 -- and a Regional rally are worth their multiplier, a Windfall fundraiser in a
--- trailing state its bonus, each within EVENT_CAP per state. A Choice event is
--- answered by sampling the game's mixed equilibrium (Bot.choiceWeights). A
+-- trailing state its bonus, each within EVENT_CAP per state. A Choice event's
+-- stance is the one whose public per-state effects (Events.stanceEffects) are
+-- worth the most expected EV on this bot's map (Bot.choose, D-039); debate prep
+-- goes where a topic win moves the states this bot needs (Bot.prep, D-040). A
 -- candidate who previews next week's event (View.nextEvent) ends the route in a
 -- coming Regional's region.
 --
@@ -23,6 +25,7 @@
 
 local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
+local Debate = require("./Debate")
 local Draft = require("./Draft")
 local Events = require("./Events")
 local Issues = require("./Issues")
@@ -45,6 +48,7 @@ export type Style =
 	| "AttackOnly" -- spends media money only on attacks
 	| "NeverPoll" -- never buys internal polls
 	| "Sandbag" -- stops investing in a state once it estimates a lead over +4
+	| "RandomStance" -- the standard bot, but takes a random stance on Choice events (the skill check for D-039)
 
 local Bot = {}
 
@@ -275,6 +279,8 @@ local function buildEstimates(config: Config, view: View): { Estimate }
 	return out
 end
 
+Bot.estimates = buildEstimates
+
 -- Expected EV per point of margin in a state.
 local function marginValue(e: Estimate, ev: number): number
 	return ev * pdf(e.margin / e.sigma) / e.sigma
@@ -312,15 +318,16 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	local week = view.week
 	local closing = Resolve.closingMult(config, week)
 	local actions: { any } = {}
+	local estimates = buildEstimates(config, view)
 	local prep = nil
 	if table.find(config.DEBATE_WEEKS, week + 1) then
-		prep = Bot.prep(config, view)
+		prep = Bot.prep(config, view, estimates)
 	end
 
 	local event = view.event
 	local choice: Types.Choice? = nil
 	if event ~= nil and event.kind == "Choice" then
-		choice = Bot.choose(config, rng, style)
+		choice = Bot.choose(config, view, estimates, rng, style)
 	end
 	local spotlight: Types.Issue? = if event ~= nil and event.kind == "Spotlight" then event.issue else nil
 
@@ -328,7 +335,6 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 		return Bot.randomPlan(config, view, rng, prep, choice)
 	end
 
-	local estimates = buildEstimates(config, view)
 	local underdogRally, underdogFund = 1, 1
 	if player.underdogTier == 1 then
 		underdogRally, underdogFund = config.UNDERDOG_RALLY_1, config.UNDERDOG_FUND_1
@@ -637,75 +643,132 @@ function Bot.merge(plan: any): any
 	return { actions = out, prep = plan.prep, choice = plan.choice }
 end
 
--- Mixed equilibrium of the Choice game as weights for Attack, Defend, Ignore
--- (D-027). The matrix is a cycle (Attack beats Ignore, Defend beats Attack, Ignore
--- beats Defend); with margin edges a, b, c for those three, the equilibrium plays
--- Attack : Defend : Ignore = c : a : b, which no answer can exploit. Edges are
--- margins: a national gain also takes 1 - GAIN_FROM_UNDECIDED from the opponent.
-function Bot.choiceWeights(config: Config): { number }
-	local split = 2 - config.GAIN_FROM_UNDECIDED
-	local function margin(points: number): number
-		return if points > 0 then points * split else points
+-- Expected EV a stance is worth to a candidate with `platform`: each state's
+-- public reaction (Events.stanceEffects) as margin, weighted by how much a point
+-- of margin there is worth. A loss goes to undecided, so it costs exactly its
+-- points of margin.
+function Bot.stanceValue(
+	config: Config,
+	estimates: { Estimate },
+	event: ViewModule.EventView,
+	id: Types.Choice,
+	platform: { Types.Issue }
+): number
+	local definition = Events.byId[event.id]
+	if definition == nil then
+		return 0
 	end
-	local function edge(x: Types.Choice, y: Types.Choice): number
-		return margin(Events.payoff(config, x, y)) - margin(Events.payoff(config, y, x))
-	end
-	local a, b, c = edge("Attack", "Ignore"), edge("Defend", "Attack"), edge("Ignore", "Defend")
-	if a <= 0 or b <= 0 or c <= 0 then
-		return { 1, 1, 1 } -- not a cycle: play uniformly
-	end
-	return { c, a, b }
-end
-
--- A Choice answer: the equilibrium mix, seeded (uniform for the Random style).
-function Bot.choose(config: Config, rng: Rng.Rng, style: Style?): Types.Choice
-	local weights: { number } = { 1, 1, 1 }
-	if style ~= "Random" then
-		weights = Bot.choiceWeights(config)
-	end
-	local total = 0
-	for _, w in weights do
-		total += w
-	end
-	local roll = Rng.nextFloat(rng) * total
-	for k = 1, #Events.CHOICES do
-		roll -= weights[k]
-		if roll < 0 then
-			return Events.CHOICES[k]
+	local value = 0
+	for i, record in StateData.list do
+		local points = Events.stanceEffect(config, definition, id, i, platform)
+		if points ~= 0 then
+			local e = estimates[i]
+			local margin = if points > 0 then marginFromGain(config, e, points) else points
+			value += marginValue(e, record.ev) * margin
 		end
 	end
-	return Events.CHOICES[#Events.CHOICES]
+	return value
 end
 
--- Debate prep: more on topics where neither side has the platform edge.
-function Bot.prep(config: Config, view: View): { number }?
+-- The stance on this week's Choice event: the one worth the most expected EV on
+-- this bot's map (ties go to the first slot, so no seat is favored). The Random
+-- and RandomStance styles pick uniformly.
+function Bot.choose(
+	config: Config,
+	view: View,
+	estimates: { Estimate },
+	rng: Rng.Rng,
+	style: Style?
+): Types.Choice
+	if style == "Random" or style == "RandomStance" then
+		return Events.CHOICES[Rng.nextInt(rng, 1, #Events.CHOICES)]
+	end
+	local event = view.event
+	local platform: { Types.Issue } = view.players[view.you].platform or {}
+	local best: Types.Choice, bestValue = Events.CHOICES[1], -math.huge
+	if event ~= nil then
+		for k = 1, #Events.CHOICES do
+			local id: Types.Choice = Events.CHOICES[k]
+			local value = Bot.stanceValue(config, estimates, event, id, platform)
+			if value > bestValue then
+				best, bestValue = id, value
+			end
+		end
+	end
+	return best
+end
+
+-- Expected EV of winning topic t for `view.you`: the topic's states (where the
+-- win lands DEBATE_TOPIC_WIN) plus the flat national part everywhere; and what a
+-- gaffe there would cost.
+function Bot.topicValue(config: Config, estimates: { Estimate }, topic: Types.Issue): (number, number)
+	local win, gaffe = 0, 0
+	for i, record in StateData.list do
+		local e = estimates[i]
+		local worth = marginValue(e, record.ev)
+		win += worth * marginFromGain(config, e, config.DEBATE_TOPIC_NATIONAL)
+		if table.find(record.issues, topic) then
+			win += worth * marginFromGain(config, e, config.DEBATE_TOPIC_WIN)
+			gaffe += worth * config.DEBATE_GAFFE
+		end
+	end
+	return win, gaffe
+end
+
+-- Debate prep: the split (at most DEBATE_MAX_PER_TOPIC on a topic) with the most
+-- expected EV, from the odds of winning each topic (Debate.odds) against an
+-- opponent assumed to spread their prep evenly, the topic's value on this map,
+-- and the gaffe a zero risks. Every split is tried: the roll makes returns
+-- convex near a big deficit, so a greedy point-by-point split can miss the best one.
+function Bot.prep(config: Config, view: View, estimates: { Estimate }?): { number }?
 	local topics = view.nextDebate and view.nextDebate.topics
 	if topics == nil then
 		return nil
 	end
 	local me, them = view.you, opponentOf(view)
-	local profile = profileOf(config, view, me)
+	local profile, theirProfile = profileOf(config, view, me), profileOf(config, view, them)
 	local mine: { Types.Issue } = view.players[me].platform or {}
 	local theirs: { Types.Issue } = view.players[them].platform or {}
-	local weights = {}
-	for t, topic in topics do
-		local edge = (if table.find(mine, topic) then 1 else 0) - (if table.find(theirs, topic) then 1 else 0)
-		weights[t] = if edge == 0 then 3 elseif edge > 0 then 2 else 1
+	local es = estimates or buildEstimates(config, view)
+	local fixed: { number } = {} -- my fixed score minus their expected one, per topic
+	local values: { number } = {}
+	local gaffes: { number } = {}
+	local theirEven = theirProfile.debatePrep / #topics
+	for t = 1, #topics do
+		local topic: Types.Issue = topics[t]
+		fixed[t] = (if table.find(mine, topic) then config.DEBATE_PLATFORM_BONUS else 0)
+			- (if table.find(theirs, topic) then config.DEBATE_PLATFORM_BONUS else 0)
+			+ profile.debateStat
+			- theirProfile.debateStat
+			- theirEven
+		values[t], gaffes[t] = Bot.topicValue(config, es, topic)
 	end
-	local prep = table.create(#topics, 0)
-	for _ = 1, profile.debatePrep do
-		local best, bestScore = 1, -math.huge
-		for t = 1, #topics do
-			if prep[t] < config.DEBATE_MAX_PER_TOPIC then
-				local score = weights[t] / (prep[t] + 1)
-				if score > bestScore then
-					best, bestScore = t, score
-				end
+	local function expected(t: number, points: number): number
+		local win, _, lose = Debate.odds(config, fixed[t] + points)
+		return win * values[t] - (if points == 0 then lose * gaffes[t] else 0)
+	end
+	local best: { number } = Plan.defaultPrep(config, profile.debatePrep)
+	local bestTotal = -math.huge
+	local split = table.create(#topics, 0)
+	local function search(t: number, left: number, total: number)
+		if t > #topics then
+			if left == 0 and total > bestTotal then
+				best, bestTotal = table.clone(split), total
 			end
+			return
 		end
-		prep[best] += 1
+		local most = math.min(left, config.DEBATE_MAX_PER_TOPIC)
+		local least = if t == #topics
+			then left
+			else math.max(0, left - (#topics - t) * config.DEBATE_MAX_PER_TOPIC)
+		for points = most, least, -1 do
+			split[t] = points
+			search(t + 1, left - points, total + expected(t, points))
+		end
+		split[t] = 0
 	end
-	return prep
+	search(1, profile.debatePrep, 0)
+	return best
 end
 
 -- Random legal actions: the floor every real strategy must beat.

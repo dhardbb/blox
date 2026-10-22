@@ -402,38 +402,37 @@ describe("Campaign screen", function()
 	end)
 
 	for _, size in { { name = "16:9", screen = nil }, { name = "phone", screen = PHONE } } do
-		it(`offers Attack, Defend and Ignore in a Choice week ({size.name})`, function()
+		it(`offers stances A, B and C in a Choice week ({size.name})`, function()
 			local world, peer = mountsCleanly("ChoiceWeek", size.screen)
 			local event = Fixtures.payload(C, "ChoiceWeek").view.event :: any
 			check(event.kind == "Choice", "not a Choice week")
 			expect(find(peer, "EventCard"):GetAttribute("EventName")):toBe(event.name)
 			check(find(peer, "EventToggle"):GetAttribute("Expanded") == true, "the Choice card is collapsed")
-			expect(text(peer, "EventEffect")):toBe("Choose how to respond: Attack / Defend / Ignore")
+			expect(text(peer, "EventEffect")):toBe("Take a stance: A / B / C")
 			check(shown(find(peer, "ChoiceNote")), "no tradeoff note")
 			check(
-				string.find(text(peer, "ChoiceNote"), "Attack beats Ignore", 1, true) ~= nil,
+				string.find(text(peer, "ChoiceNote"), "top issue", 1, true) ~= nil,
 				"note: " .. text(peer, "ChoiceNote")
 			)
-			local attack, defend, ignore =
-				find(peer, "ChoiceAttack"), find(peer, "ChoiceDefend"), find(peer, "ChoiceIgnore")
+			local attack, defend, ignore = find(peer, "ChoiceA"), find(peer, "ChoiceB"), find(peer, "ChoiceC")
 			for _, button in { attack, defend, ignore } do
 				check(shown(button), `{button.Name} is hidden`)
 				check(button.AbsoluteSize.Y >= 44 - 0.5, `{button.Name} is {button.AbsoluteSize.Y}px tall`)
 				check(button.Active ~= false, `{button.Name} is disabled`)
 			end
-			check(text(peer, "ChoiceAttack") == "Attack", "attack label")
-			-- Ignore starts selected: it alone looks different.
+			check(text(peer, "ChoiceA") == "A", "stance A label")
+			-- The hedge (C) starts selected: it alone looks different.
 			check(attack.BackgroundColor3 == defend.BackgroundColor3, "attack and defend differ")
 			check(ignore.BackgroundColor3 ~= defend.BackgroundColor3, "Ignore is not selected by default")
 			check(ignore:GetAttribute("Selected") == true, "Ignore is not selected")
 			check(ignore.VariantStroke.Enabled == true, "Ignore has no selection outline")
 
-			press(world, peer, "ChoiceAttack")
-			check(attack.BackgroundColor3 ~= defend.BackgroundColor3, "Attack did not become selected")
-			check(ignore.BackgroundColor3 == defend.BackgroundColor3, "Ignore stayed selected")
-			press(world, peer, "ChoiceDefend")
-			check(defend.BackgroundColor3 ~= attack.BackgroundColor3, "Defend did not become selected")
-			press(world, peer, "ChoiceAttack")
+			press(world, peer, "ChoiceA")
+			check(attack.BackgroundColor3 ~= defend.BackgroundColor3, "A did not become selected")
+			check(ignore.BackgroundColor3 == defend.BackgroundColor3, "C stayed selected")
+			press(world, peer, "ChoiceB")
+			check(defend.BackgroundColor3 ~= attack.BackgroundColor3, "B did not become selected")
+			press(world, peer, "ChoiceA")
 
 			press(world, peer, "LockIn")
 			check(said(peer, "[270] DEBUG_UI submit"), "Lock in sent nothing")
@@ -484,18 +483,18 @@ describe("Campaign screen", function()
 		error(`no event named {name}`)
 	end
 
-	it("sends the Choice answer with Lock in and shows it in the reveal and the week card", function()
+	it("sends the Choice stance with Lock in and shows it in the reveal and the week card", function()
 		local rig, peer = startPractice(5)
 		local choosing = function()
-			local button = FakeRoblox.find(peer, "ChoiceAttack")
+			local button = FakeRoblox.find(peer, "ChoiceA")
 			return button ~= nil and shown(button) and button.Active ~= false
 		end
 		check(walk(rig, peer, choosing, 900), "no Choice week came up in a whole match")
 		local event = definition(tostring(find(peer, "EventCard"):GetAttribute("EventName")))
 		check(event.kind == "Choice", `{event.name} is not a Choice event`)
-		Support.press(rig, peer, "ChoiceAttack")
+		Support.press(rig, peer, "ChoiceA")
 		Support.press(rig, peer, "LockIn")
-		check(find(peer, "ChoiceAttack").Active == false, "the answers are still open after Lock in")
+		check(find(peer, "ChoiceA").Active == false, "the stances are still open after Lock in")
 		check(
 			Support.runUntil(rig, function()
 				return shown(find(peer, "RevealPanel"))
@@ -514,7 +513,7 @@ describe("Campaign screen", function()
 		end
 		local revealed = false
 		for _, line in lines do
-			if string.find(line, event.name .. ": You attacked (", 1, true) then
+			if string.find(line, event.name .. ": You took stance A (", 1, true) then
 				revealed = true
 			end
 		end
@@ -522,10 +521,10 @@ describe("Campaign screen", function()
 		local feedLine = text(peer, "FeedEvent")
 		check(shown(find(peer, "FeedEvent")), "the week card shows no event")
 		check(
-			string.find(feedLine, `Last week's event: {event.name}. You attacked, they `, 1, true) ~= nil,
+			string.find(feedLine, `Last week's event: {event.name}. You took stance A, they `, 1, true) ~= nil,
 			"week card: " .. feedLine
 		)
-		check(string.find(feedLine, "national points", 1, true) ~= nil, "week card: " .. feedLine)
+		check(string.find(feedLine, "points in all", 1, true) ~= nil, "week card: " .. feedLine)
 		noErrors(rig.world)
 	end)
 

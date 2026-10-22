@@ -465,8 +465,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				model.draft.prep = Plan.defaultPrep(config, points)
 			end
 		end
-		-- Ignore is what the server assumes for a missing answer, so it starts selected.
-		model.draft.choice = if PlanDraft.isChoiceWeek(view) then "Ignore" else nil
+		-- The hedge (C) is what the server assumes for a missing stance, so it starts selected.
+		model.draft.choice = if PlanDraft.isChoiceWeek(view) then "C" else nil
 		if model.selected == nil then
 			model.selected = view.players[view.you].location
 		end

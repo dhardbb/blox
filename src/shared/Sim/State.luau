@@ -42,6 +42,7 @@ export type StateSim = {
 	backlash: { number }, -- attack backlash meter by player
 	gotv: { number }, -- ground-game units by player (hidden from opponents)
 	debateShift: { number }, -- support each player gained from debates so far (hidden; harness counterfactual)
+	stanceShift: { number }, -- support each player gained from Choice stances so far (hidden; harness counterfactual)
 	pollError: { number }, -- persistent public poll error on each share, zero-sum (hidden)
 	pollErrorUndecided: number, -- persistent error on undecided (hidden)
 	poll: Poll?, -- latest public poll (nil before the first one)
@@ -54,7 +55,21 @@ export type WeekCard = {
 	media: { { state: string, issue: Types.Issue, attack: boolean } },
 	pivot: { drop: Types.Issue, add: Types.Issue }?,
 	flights: number,
-	choice: Types.Choice?, -- response to a Choice event, revealed after the week resolves
+	choice: Types.Choice?, -- stance taken on a Choice event, revealed after the week resolves
+}
+
+-- Support points an effect asked for in one state, per player, before the
+-- undecided/opponent split (public arithmetic: D-039, D-040).
+export type StateMove = {
+	state: string,
+	points: { number }, -- by player index
+}
+
+-- A change of public-poll leader in one state (0 = tied or nobody).
+export type PollFlip = {
+	state: string,
+	from: number,
+	to: number,
 }
 
 export type PlayerState = {
@@ -92,15 +107,19 @@ export type DebateResult = {
 	prep: { { number } }, -- by player, revealed after the debate
 	scores: { { number } }, -- [player][topic]
 	winners: { number }, -- by topic; 0 = tie
-	national: { number }, -- national points each player gained
+	gaffes: { { boolean } }, -- [player][topic]: lost it with no prep
+	national: { number }, -- flat points each player gained in every state (topic wins and a sweep)
+	moves: { StateMove }, -- the state-targeted points (topic wins and gaffes), in StateData order
+	flips: { PollFlip }, -- states whose public-poll leader changed when the polls were republished after the debate
 }
 
--- A resolved weekly event (D-027). Public from the end of its week.
+-- A resolved weekly event (D-027, D-039). Public from the end of its week.
 export type EventResult = {
 	week: number,
 	id: string, -- Events.byId key
-	choices: { Types.Choice }?, -- Choice events: each player's response, by player index
-	national: { number }?, -- Choice events: national points each player got
+	choices: { Types.Choice }?, -- Choice events: each player's stance, by player index
+	moves: { StateMove }?, -- Choice events: the points each stance asked for, per state and player
+	flips: { PollFlip }?, -- Choice events: leader changes projected on the start-of-week public polls
 }
 
 export type StateResult = {

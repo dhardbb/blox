@@ -327,6 +327,26 @@ Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on
 
 **Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
 
+## Issue-based choices and debates (unreleased)
+
+Rules only (`DESIGN.md` D-039 to D-041); the campaign screens for them are a separate client pass, so until that lands the stance buttons read **A / B / C** and the F2 board (`show`, `rules`) is where the numbers are. Two-player test (**Test → Clients and Servers, 2 players**), or **Play vs Bot** where a step says so.
+
+1. **A Choice week is a stance on an issue.** Reach a Choice week (the event card names a dispute, e.g. "Plant at a crossroads", and its issue). Open the card.
+   - Three lines, one per stance, list every state the stance moves and by how much, e.g. "A · Stand with the plant: +1.5 in GA, IN, MI … · +0.5 in … · -0.5 in … · -1.5 in AL, KY, PA …". The ±1.5 states have that issue as a top issue; the ±0.5 ones hear it through their own issues; C (the hedge) lists only the issue's states, all at +0.5. If the issue is on your platform, the issue's states read ×1.5 (up to 2.0).
+   - Pick **A** on one client and **B** on the other, lock in, and read the reveal and the next week card: "You took stance A, they took stance B: N states moved, +x / +y points in all". The F2 board prints the same.
+   - Next week the public polls in the listed states have moved the way the lines said (minus that week's rallies and ads).
+2. **The hedge is the default.** In a Choice week lock in without touching the stance buttons on one client.
+   - The reveal shows that client took **C**, and only the issue's states moved, each by +0.5.
+3. **The same event reacts the same way.** Start a second match, pick the same platform, and wait for the same Choice event (or compare with a teammate's match).
+   - The three stance lines list the same states with the same numbers.
+4. **Debates move the states they are about.** Pick any two candidates. In week 3 put **4/2/0** on one side and 2/2/2 on the other. Watch the week-4 debate reveal and then the map.
+   - Each topic won reads as a list of states (the states that have that topic as a top issue) moved by **+1.0** for the winner; a gaffe (0 prep, lost) reads **-0.6** in the same states; everything else moves 0.1 per topic won. The F2 board prints `debate: <who> won <topic>` and one line per state that **flipped** in the polls ("PA flips to YOU in the polls after the debate (19 EV)").
+   - The public polls on the map have already moved when the week-4 plan opens (the debate republishes them), and the projected EV with them.
+5. **Prep still wins topics.** Across a few matches, the 4-vs-2 topic goes to the 4 about 8 times in 10 and the 0-vs-4 topic always goes to the 4.
+6. **Nothing to guess.** There is no Attack / Defend / Ignore and no payoff table anywhere (event card, "How it works", F2 `rules`).
+
+**Send back:** the stance lines for two different Choice events, the reveal line after step 1, a screenshot of the map before and after a debate (step 4), and whether the moved states matched the lines.
+
 ## Explaining the numbers (v0.5.0)
 
 1. **Play vs Bot**, reach week 1's plan. Tap a state near your candidate.

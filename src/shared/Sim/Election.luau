@@ -20,19 +20,22 @@ local Election = {}
 local SQRT_HALF = math.sqrt(0.5)
 
 -- Final scores in one state; `noise` may be nil for a noiseless count. With
--- `debates` false, the support the debates moved is subtracted first.
+-- `debates` (or `stances`) false, the support the debates (or the Choice
+-- stances) moved is subtracted first.
 local function scores(
 	config: Config,
 	s: State.StateSim,
 	noise: { number }?,
 	gotv: boolean,
-	debates: boolean
+	debates: boolean,
+	stances: boolean
 ): { number }
 	local n = #s.support
 	local out = table.create(n, 0)
 	for p = 1, n do
 		out[p] = s.support[p]
 			- (if debates then 0 else s.debateShift[p])
+			- (if stances then 0 else s.stanceShift[p])
 			+ (if gotv then config.GOTV_PER_UNIT * s.gotv[p] else 0)
 			+ (if noise then noise[p] else 0)
 	end
@@ -75,17 +78,19 @@ function Election.noise(config: Config, match: MatchState): { { number } }
 end
 
 -- Counts the election. Options: `noise` (default: the match's seeded noise; pass
--- false for none), `gotv` (default true) and `debates` (default true; false
--- recounts with the support the debates moved subtracted, same noise). The
--- harness uses the options for counterfactuals; the game always uses the defaults.
+-- false for none), `gotv` (default true), `debates` and `stances` (default true;
+-- false recounts with the support the debates or the Choice stances moved
+-- subtracted, same noise). The harness uses the options for counterfactuals; the
+-- game always uses the defaults.
 function Election.count(
 	config: Config,
 	match: MatchState,
-	options: { noise: boolean?, gotv: boolean?, debates: boolean? }?
+	options: { noise: boolean?, gotv: boolean?, debates: boolean?, stances: boolean? }?
 ): State.ElectionResult
 	local useNoise = not (options and options.noise == false)
 	local useGotv = not (options and options.gotv == false)
 	local useDebates = not (options and options.debates == false)
+	local useStances = not (options and options.stances == false)
 	local noise = if useNoise then Election.noise(config, match) else nil
 	local n = #match.players
 	local ev = table.create(n, 0)
@@ -93,7 +98,8 @@ function Election.count(
 	local popular = table.create(n, 0)
 	local results: { State.StateResult } = {}
 	for i, s in match.states do
-		local winner, margin = decide(scores(config, s, if noise then noise[i] else nil, useGotv, useDebates))
+		local winner, margin =
+			decide(scores(config, s, if noise then noise[i] else nil, useGotv, useDebates, useStances))
 		if winner > 0 then
 			ev[winner] += s.ev
 			statesWon[winner] += 1

@@ -89,6 +89,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 			backlash = table.create(n, 0),
 			gotv = table.create(n, 0),
 			debateShift = table.create(n, 0),
+			stanceShift = table.create(n, 0),
 			pollError = table.create(n, 0),
 			pollErrorUndecided = 0,
 			poll = nil,
@@ -314,6 +315,17 @@ function Match.advance(
 				events,
 				{ kind = "DebateTopic", player = winner, issue = result.topics[t] :: string }
 			)
+		end
+		-- The polls were republished with the debate's shifts (D-040): say which
+		-- states changed public leader, with their EV.
+		for _, flip in result.flips do
+			table.insert(events, {
+				kind = "PollFlip",
+				player = flip.to,
+				state = flip.state,
+				issue = "Debate",
+				amount = StateData.byId[flip.state].ev,
+			})
 		end
 		match.phase = "Plan"
 	elseif phase == "Election" then

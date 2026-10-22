@@ -1,18 +1,28 @@
 --!strict
--- Debates (docs/PLAN.md "Debates", D-010). Topics are drawn from the seed when the
--- match starts; prep comes from the plan of the week before. Resolves at the start
--- of the debate week.
+-- Debates (docs/PLAN.md "Debates", D-010, D-040). Topics are drawn from the seed
+-- when the match starts; prep comes from the plan of the week before. Resolves at
+-- the start of the debate week.
 --
 -- topicScore(P) = prep + platform bonus + debate stat + seeded roll (0..DEBATE_ROLL_MAX)
--- The unique highest score wins the topic (+DEBATE_TOPIC_WIN national); an exact tie
--- gives it to nobody. Winning every topic adds DEBATE_SWEEP and momentum in every
--- battleground. Losing a topic you put no prep on costs DEBATE_GAFFE.
+-- The unique highest score wins the topic; an exact tie gives it to nobody.
+--
+-- Debates move states, not an average (D-040). Winning a topic adds
+-- DEBATE_TOPIC_WIN support in every state where the topic is a top issue
+-- (Debate.topicStates: fixed data, the same every match) plus a flat
+-- DEBATE_TOPIC_NATIONAL in every state. Losing a topic with no prep is a gaffe:
+-- -DEBATE_GAFFE in the topic's states. Winning every topic adds a flat
+-- DEBATE_SWEEP everywhere and momentum in every battleground. Every point asked
+-- for is public arithmetic, recorded in DebateResult.moves; the public polls are
+-- then republished with the same error terms so the map shows the debate at
+-- once, and DebateResult.flips lists the states whose poll leader changed.
 
 local ConfigModule = require("./Config")
 local Issues = require("./Issues")
 local Plan = require("./Plan")
+local Polls = require("./Polls")
 local Rng = require("./Rng")
 local State = require("./State")
+local StateData = require("./StateData")
 local Support = require("./Support")
 local Types = require("../Types")
 
@@ -46,6 +56,72 @@ function Debate.nextWeek(config: Config, week: number): number?
 	return nil
 end
 
+-- Ids of the states where `topic` is a top issue, in StateData order. Fixed
+-- data: the client may call it to preview what a topic win would move.
+function Debate.topicStates(topic: Types.Issue): { string }
+	local out: { string } = {}
+	for _, record in StateData.list do
+		if table.find(record.issues, topic) then
+			table.insert(out, record.id)
+		end
+	end
+	return out
+end
+
+-- Chance to win, tie and lose a topic when your fixed score (prep + platform +
+-- stat) leads the opponent's by `edge`, against two uniform 0..DEBATE_ROLL_MAX rolls.
+function Debate.odds(config: Config, edge: number): (number, number, number)
+	local faces = config.DEBATE_ROLL_MAX + 1
+	local win, tie = 0, 0
+	for mine = 0, config.DEBATE_ROLL_MAX do
+		for theirs = 0, config.DEBATE_ROLL_MAX do
+			local diff = edge + mine - theirs
+			if diff > 0 then
+				win += 1
+			elseif diff == 0 then
+				tie += 1
+			end
+		end
+	end
+	local n = faces * faces
+	return win / n, tie / n, (n - win - tie) / n
+end
+
+-- The state-targeted points (topic wins and gaffes) a debate outcome asks for:
+-- one StateMove per state that moves, in StateData order. Public arithmetic.
+function Debate.moves(
+	config: Config,
+	n: number,
+	topics: { Types.Issue },
+	winners: { number },
+	gaffes: { { boolean } }
+): { State.StateMove }
+	local out: { State.StateMove } = {}
+	for _, record in StateData.list do
+		local points = table.create(n, 0)
+		local any = false
+		for t, topic in topics do
+			if table.find(record.issues, topic) then
+				local winner = winners[t]
+				if winner > 0 then
+					points[winner] += config.DEBATE_TOPIC_WIN
+					any = true
+				end
+				for p = 1, n do
+					if gaffes[p][t] then
+						points[p] -= config.DEBATE_GAFFE
+						any = true
+					end
+				end
+			end
+		end
+		if any then
+			table.insert(out, { state = record.id, points = points })
+		end
+	end
+	return out
+end
+
 -- Resolves the debate for the current week. Mutates `match`.
 function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 	local week = match.week
@@ -69,8 +145,12 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 	end
 
 	local winners: { number } = {}
+	local gaffes: { { boolean } } = {}
 	local wins = table.create(n, 0)
 	local national = table.create(n, 0)
+	for p = 1, n do
+		gaffes[p] = table.create(#topics, false)
+	end
 	for t = 1, #topics do
 		local best, winner = -math.huge, 0
 		for p = 1, n do
@@ -84,10 +164,10 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 		winners[t] = winner
 		if winner > 0 then
 			wins[winner] += 1
-			national[winner] += config.DEBATE_TOPIC_WIN
+			national[winner] += config.DEBATE_TOPIC_NATIONAL
 			for p = 1, n do
 				if p ~= winner and prep[p][t] == 0 then
-					national[p] -= config.DEBATE_GAFFE
+					gaffes[p][t] = true
 				end
 			end
 		end
@@ -103,18 +183,34 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 			end
 		end
 	end
-	-- Apply the national shifts and record what each state's support actually moved
-	-- by, so the harness can recount the election without the debates.
-	local before: { { number } } = {}
-	for i, s in match.states do
-		before[i] = table.clone(s.support)
+
+	-- Apply the targeted and flat points from one snapshot (D-001): gains use the
+	-- normal split, losses go to undecided. Record what each state's support
+	-- actually moved by, so the harness can recount the election without debates.
+	local moves = Debate.moves(config, n, topics, winners, gaffes)
+	local byState: { [string]: State.StateMove } = {}
+	for _, move in moves do
+		byState[move.state] = move
 	end
-	Support.national(config, match.states, national)
-	for i, s in match.states do
+	for _, s in match.states do
+		local before = table.clone(s.support)
+		local delta = Support.zero(s)
+		local du = 0
+		local move = byState[s.id]
 		for p = 1, n do
-			s.debateShift[p] += s.support[p] - before[i][p]
+			local x = national[p] + (if move then move.points[p] else 0)
+			if x > 0 then
+				du += Support.addGain(config, s, p, x, delta)
+			elseif x < 0 then
+				du += Support.addLoss(p, -x, delta)
+			end
+		end
+		Support.apply(s, delta, du)
+		for p = 1, n do
+			s.debateShift[p] += s.support[p] - before[p]
 		end
 	end
+	local flips = Polls.refresh(match)
 
 	for _, player in match.players do
 		player.debatePrep = nil
@@ -125,7 +221,10 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 		prep = prep,
 		scores = scores,
 		winners = winners,
+		gaffes = gaffes,
 		national = national,
+		moves = moves,
+		flips = flips,
 	}
 	table.insert(match.debates, result)
 	return result

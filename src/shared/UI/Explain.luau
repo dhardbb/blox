@@ -14,7 +14,7 @@
 --   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
 --   Explain.debateOdds(config, edge) -> (win, tie, lose)
 --   Explain.debateParts / debateLine (a resolved topic, split into prep, platform, stat, roll)
---   Explain.choiceLines(config) (the Choice payoff matrix as three lines)
+--   Explain.choiceLines(config, event?, platform?) (each stance of a Choice event and the states it moves)
 --   Explain.leadWinChance(config, pollLead)
 --   Explain.help(config, view?) -> { Section } (the "How it works" screen)
 
@@ -720,26 +720,79 @@ end
 
 -- ---------------------------------------------------------------- Choice events
 
--- National points for answering `mine` against `theirs` (1v1, clamped like the sim).
-function Explain.choicePayoff(config: Config, mine: Types.Choice, theirs: Types.Choice): number
-	return Events.choicePayoffs(config, { mine, theirs })[1]
+-- State ids grouped by the points a stance moves them, biggest gain first:
+-- "+1.5 in GA, IN, MI · -1.5 in AL, KY · +0.5 in OH".
+local function stanceText(effects: { [string]: number }): string
+	local byPoints: { [number]: { string } } = {}
+	local levels: { number } = {}
+	for _, record in StateData.list do
+		local moved = effects[record.id]
+		if moved ~= nil then
+			if byPoints[moved] == nil then
+				byPoints[moved] = {}
+				table.insert(levels, moved)
+			end
+			table.insert(byPoints[moved], record.id)
+		end
+	end
+	table.sort(levels, function(x, y)
+		return x > y
+	end)
+	local parts = {}
+	for _, level in levels do
+		table.insert(parts, `{signed(level)} in {table.concat(byPoints[level], ", ")}`)
+	end
+	return if #parts > 0 then table.concat(parts, " · ") else "no state reacts"
 end
 
-local VERB: { [string]: string } = { Attack = "attack", Defend = "defend", Ignore = "ignore" }
-
--- "Attack: -0.2 if they attack · -0.3 if they defend · +0.2 if they ignore", one per answer.
-function Explain.choiceLines(config: Config): { string }
+-- One line per stance of a Choice event (D-039), for a candidate with `platform`:
+-- "A · Stand with the plant: +1.5 in GA, IN … · -1.5 in AL, KY … · +0.3 in OH".
+-- Without an event, the general rule.
+function Explain.choiceLines(config: Config, event: { id: string }?, platform: { Types.Issue }?): { string }
+	local definition = if event then Events.byId[event.id] else nil
 	local out: { string } = {}
 	for k = 1, #Events.CHOICES do
-		local mine: Types.Choice = Events.CHOICES[k]
-		local parts: { string } = {}
-		for j = 1, #Events.CHOICES do
-			local theirs: Types.Choice = Events.CHOICES[j]
-			table.insert(parts, `{signed(Explain.choicePayoff(config, mine, theirs))} if they {VERB[theirs]}`)
+		local id: Types.Choice = Events.CHOICES[k]
+		local stance = if definition then Events.stance(definition, id) else nil
+		if definition and stance then
+			table.insert(
+				out,
+				`{id} · {stance.name}: {stanceText(
+					Explain.stanceEffects(config, definition.id, id, platform or {})
+				)}`
+			)
+		elseif k < #Events.CHOICES then
+			table.insert(
+				out,
+				`{id}: {signed(config.STANCE_POINTS)} in states with the issue that like it, {signed(
+					-config.STANCE_POINTS
+				)} in those that don't, {signed(config.STANCE_HEDGE)} in the rest of them (by the state's other top issue); other states {signed(
+					config.STANCE_SPILL
+				)} per top issue it likes, {signed(-config.STANCE_SPILL)} per one it dislikes`
+			)
+		else
+			table.insert(
+				out,
+				`{id} (the hedge): {signed(config.STANCE_HEDGE)} in every state where the issue is a top issue`
+			)
 		end
-		table.insert(out, `{mine}: {table.concat(parts, " · ")}`)
 	end
 	return out
+end
+
+-- The public per-state preview of a stance for a candidate with `platform`:
+-- state id -> support points (D-039).
+function Explain.stanceEffects(
+	config: Config,
+	eventId: string,
+	id: Types.Choice,
+	platform: { Types.Issue }
+): { [string]: number }
+	local definition = Events.byId[eventId]
+	if definition == nil then
+		return {}
+	end
+	return Events.stanceEffects(config, definition, id, platform)
 end
 
 -- ---------------------------------------------------------------- election night
@@ -958,11 +1011,13 @@ function Explain.help(config: Config, view: View?): { Section }
 	section("debates", "Debates", {
 		`Debates open weeks {table.concat(debateWeeks, " and ")}, on {c.DEBATE_TOPICS} topics shown in advance. In the week before, spread {me.debatePrep} prep points over them (at most {c.DEBATE_MAX_PER_TOPIC} on one).`,
 		`Each topic: prep + {c.DEBATE_PLATFORM_BONUS} if it is on your platform + debate stat ({me.debateStat}) + a roll of 0 to {c.DEBATE_ROLL_MAX}. Higher total wins the topic; a tie gives it to nobody.`,
-		`Winning a topic: {signed(c.DEBATE_TOPIC_WIN)} national. Winning all: {signed(c.DEBATE_SWEEP)} more and +{num(
+		`Winning a topic: {signed(c.DEBATE_TOPIC_WIN)} in every state where it is a top issue, {signed(
+			c.DEBATE_TOPIC_NATIONAL
+		)} everywhere else. Winning all: {signed(c.DEBATE_SWEEP)} more in every state and +{num(
 			c.DEBATE_SWEEP_MOMENTUM
-		)} momentum in every battleground. Losing a topic you gave 0 prep: {signed(-c.DEBATE_GAFFE)} (a gaffe).`,
+		)} momentum in every battleground. Losing a topic you gave 0 prep: {signed(-c.DEBATE_GAFFE)} in its states (a gaffe).`,
 		`The roll is big. Level: {oddsText(c, 0)}. 2 points ahead: {oddsText(c, 2)}. 4 ahead: {oddsText(c, 4)}.`,
-		"A national point moves every state by about one point (more where more voters are undecided).",
+		"The polls are republished right after the debate, so the map shows what it moved.",
 	})
 
 	local choice = Explain.choiceLines(c)
@@ -973,7 +1028,7 @@ function Explain.help(config: Config, view: View?): { Section }
 		)}. Windfall: fundraisers {times(c.EVENT_WINDFALL_MULT)} in states where you trail in the public poll. An event adds at most {num(
 			c.EVENT_CAP
 		)} per state per week.`,
-		"Choice: both answer Attack, Defend or Ignore in secret. National points for you, by their answer:",
+		"Choice: a dispute over one issue; both take a stance (A, B or C) in secret. Only states where that issue is a top issue react, by their other top issue:",
 		choice[1],
 		choice[2],
 		choice[3],

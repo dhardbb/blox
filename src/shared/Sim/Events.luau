@@ -1,23 +1,36 @@
 --!strict
--- The seeded weekly event deck (docs/PLAN.md "Events", DESIGN.md D-027).
+-- The seeded weekly event deck (docs/PLAN.md "Events", DESIGN.md D-027, D-039).
 --
--- Twenty events as data. Match.new shuffles them with the "events" fork of the
--- match seed and deals one to each week from EVENT_FIRST_WEEK to EVENT_LAST_WEEK,
--- so no event repeats and weeks 1 and 12 have none. Only the current week's event
--- is public (View shows it during that week's Debate and Plan); the rest of the
--- deck stays on the server.
+-- Twenty-four events as data. Match.new shuffles them with the "events" fork of
+-- the match seed and deals one to each week from EVENT_FIRST_WEEK to
+-- EVENT_LAST_WEEK, so no event repeats and weeks 1 and 12 have none. Only the
+-- current week's event is public (View shows it during that week's Debate and
+-- Plan); the rest of the deck stays on the server.
 --
 -- Four kinds, applied during that week's Resolve:
 --   Spotlight  rallies and positive media on one issue x EVENT_SPOTLIGHT_MULT
 --   Regional   rallies in one region x EVENT_REGIONAL_MULT
 --   Windfall   fundraisers x EVENT_WINDFALL_MULT where the fundraiser trails in
 --              the public poll
---   Choice     each player secretly answers Attack / Defend / Ignore (plan.choice)
---              and a symmetric payoff matrix in national points resolves it
+--   Choice     a dispute over one issue; each player secretly takes one of three
+--              stances (plan.choice = "A" | "B" | "C") and every state that has
+--              the issue as a top issue reacts to it (Events.stanceEffects)
+--
+-- Stances (D-039): "A" and "B" are opposed positions, "C" the hedge. A state
+-- with the event's issue as a top issue reacts by its OTHER top issue: if the
+-- stance likes it, +STANCE_POINTS; if it dislikes it, -STANCE_POINTS; otherwise
+-- +STANCE_HEDGE. The hedge gives +STANCE_HEDGE in every such state. A state
+-- without the issue still hears a side through its own top issues: +STANCE_SPILL
+-- per issue the stance likes, -STANCE_SPILL per issue it dislikes (the hedge
+-- spills nothing). A candidate whose platform carries the issue is listened to
+-- harder: every reaction in the issue's states x STANCE_PLATFORM_MULT. Reactions
+-- depend only on fixed state data and the (public) platform, so the same event
+-- moves the same states the same way in every match, and a player can learn
+-- them. Both players' stances resolve from one snapshot.
 --
 -- The cap: an event adds at most EVENT_CAP to one player in one state in one week
 -- beyond what the actions would have given without it (support points, or $ for a
--- Windfall). Choice payoffs are national points clamped to +/- EVENT_CAP.
+-- Windfall). Stance points are clamped to +/- EVENT_CAP per state.
 
 local ConfigModule = require("./Config")
 local Rng = require("./Rng")
@@ -27,13 +40,25 @@ local Types = require("../Types")
 
 type Config = ConfigModule.Config
 
+-- One stance a Choice event offers. `likes` and `dislikes` are the other top
+-- issues that decide a state's reaction; the hedge has neither.
+export type Stance = {
+	id: Types.Choice,
+	name: string, -- short label for the button
+	text: string, -- one line of flavor, generic and fictional
+	likes: { Types.Issue },
+	dislikes: { Types.Issue },
+	hedge: boolean,
+}
+
 export type Definition = {
 	id: string,
 	kind: Types.EventKind,
 	name: string, -- short headline
 	text: string, -- one line of flavor, generic and fictional
-	issue: Types.Issue?, -- Spotlight
+	issue: Types.Issue?, -- Spotlight and Choice
 	region: Types.Region?, -- Regional
+	stances: { Stance }?, -- Choice: exactly the three slots in Events.CHOICES order
 }
 
 -- The parts of an event the effect rules read (a Definition or a View.EventView).
@@ -48,7 +73,13 @@ export type Ledger = { [number]: { [number]: number } }
 
 local Events = {}
 
-Events.CHOICES = table.freeze({ "Attack", "Defend", "Ignore" } :: { Types.Choice })
+-- The three stance slots every Choice event offers, in display order.
+Events.CHOICES = table.freeze({ "A", "B", "C" } :: { Types.Choice })
+
+-- The stance a player who submits nothing takes: the hedge, the last slot.
+function Events.defaultChoice(): Types.Choice
+	return Events.CHOICES[#Events.CHOICES]
+end
 
 local function spotlight(id: string, issue: Types.Issue, name: string, text: string): Definition
 	return table.freeze({
@@ -72,6 +103,55 @@ end
 
 local function other(id: string, kind: Types.EventKind, name: string, text: string): Definition
 	return table.freeze({ id = id, kind = kind, name = name, text = text })
+end
+
+type Side = { name: string, text: string, likes: { Types.Issue }, dislikes: { Types.Issue } }
+
+-- A Choice event: side A, side B (which likes what A dislikes and vice versa) and
+-- the hedge C.
+local function choice(
+	id: string,
+	issue: Types.Issue,
+	name: string,
+	text: string,
+	a: Side,
+	b: { name: string, text: string },
+	c: { name: string, text: string }
+): Definition
+	local stances: { Stance } = {
+		table.freeze({
+			id = "A" :: Types.Choice,
+			name = a.name,
+			text = a.text,
+			likes = table.freeze(table.clone(a.likes)),
+			dislikes = table.freeze(table.clone(a.dislikes)),
+			hedge = false,
+		}),
+		table.freeze({
+			id = "B" :: Types.Choice,
+			name = b.name,
+			text = b.text,
+			likes = table.freeze(table.clone(a.dislikes)),
+			dislikes = table.freeze(table.clone(a.likes)),
+			hedge = false,
+		}),
+		table.freeze({
+			id = "C" :: Types.Choice,
+			name = c.name,
+			text = c.text,
+			likes = table.freeze({}),
+			dislikes = table.freeze({}),
+			hedge = true,
+		}),
+	}
+	return table.freeze({
+		id = id,
+		kind = "Choice" :: Types.EventKind,
+		name = name,
+		text = text,
+		issue = issue,
+		stances = table.freeze(stances),
+	})
 end
 
 -- The deck. Ids are stable (saved in replays); order here does not matter.
@@ -127,14 +207,137 @@ Events.deck = table.freeze({
 		"Matching-gift week",
 		"A civic fund matches gifts in states where you trail."
 	),
-	other("memo", "Choice", "Leaked memo", "An old campaign memo surfaces. Attack, defend, or ignore it?"),
-	other("clip", "Choice", "Viral clip", "A blooper clip is everywhere. Attack, defend, or ignore it?"),
-	other("rumor", "Choice", "Rumor mill", "A rumor is spreading online. Attack, defend, or ignore it?"),
-	other(
-		"endorse",
-		"Choice",
-		"Endorsement fight",
-		"A popular mayor is still undecided. Attack, defend, or ignore?"
+	-- Choice events: one per issue, so the deck favors no platform. The likes and
+	-- dislikes split each issue's states into two camps of roughly equal EV.
+	choice(
+		"plant",
+		"Jobs",
+		"Plant at a crossroads",
+		"A big employer is deciding whether to stay. Everyone asks where you stand.",
+		{
+			name = "Stand with the plant",
+			text = "Cheered where jobs ride on the freight lines and the farm belt.",
+			likes = { "Transit", "Farms" },
+			dislikes = { "Health", "Safety" },
+		},
+		{
+			name = "Stand with the neighbors",
+			text = "Cheered where the plant's neighbors worry about clinics and streets.",
+		},
+		{ name = "Call for a study", text = "Nobody is thrilled, nobody is angry." }
+	),
+	choice(
+		"walkout",
+		"Health",
+		"Clinic walkout",
+		"Hospital staff and managers are at odds, and both want you on their side.",
+		{
+			name = "Side with the staff",
+			text = "Cheered in working towns, farm country and the river valleys.",
+			likes = { "Jobs", "Environment", "Farms" },
+			dislikes = { "Transit", "Safety" },
+		},
+		{ name = "Side with the board", text = "Cheered in the commuter belts and the big-city precincts." },
+		{ name = "Offer to mediate", text = "A quiet week for everyone." }
+	),
+	choice(
+		"calendar",
+		"Schools",
+		"Calendar fight",
+		"A school-year shake-up splits teachers and parents down the middle.",
+		{
+			name = "Side with the teachers",
+			text = "Cheered in the college towns, the clinic districts and the rail suburbs.",
+			likes = { "Technology", "Health", "Transit" },
+			dislikes = { "Farms", "Jobs" },
+		},
+		{ name = "Side with the parents", text = "Cheered in farm country and the factory towns." },
+		{ name = "Leave it to the districts", text = "Nobody loves it, nobody minds." }
+	),
+	choice(
+		"river",
+		"Environment",
+		"River cleanup",
+		"A polluted river makes headlines. Who should pick up the bill?",
+		{
+			name = "Side with the river towns",
+			text = "Cheered in the clinic districts, farm country, mill towns and school districts.",
+			likes = { "Health", "Farms", "Jobs", "Schools" },
+			dislikes = { "Technology" },
+		},
+		{
+			name = "Side with the tech corridor",
+			text = "Cheered along the tech corridor, booed by the river towns.",
+		},
+		{ name = "Promise a study", text = "A mild shrug everywhere it matters." }
+	),
+	choice(
+		"patrol",
+		"Safety",
+		"Night patrol plan",
+		"Volunteers want to patrol at night; the downtown council says leave it to the city.",
+		{
+			name = "Side with the volunteers",
+			text = "Cheered in ranch country and the tech suburbs, booed downtown.",
+			likes = { "Farms", "Technology" },
+			dislikes = { "Jobs", "Health", "Transit" },
+		},
+		{
+			name = "Side with the council",
+			text = "Cheered in the factory towns, clinic districts and commuter belts.",
+		},
+		{ name = "Let the city decide", text = "A quiet answer that offends nobody." }
+	),
+	choice(
+		"toll",
+		"Transit",
+		"Bridge toll",
+		"A toll on the old bridge pits commuters against the crews who would rebuild it.",
+		{
+			name = "Side with the commuters",
+			text = "Cheered in the factory towns, farm country and the river valleys.",
+			likes = { "Jobs", "Farms", "Environment" },
+			dislikes = { "Health", "Safety", "Technology" },
+		},
+		{
+			name = "Side with the builders",
+			text = "Cheered in the clinic districts, downtown and the tech suburbs.",
+		},
+		{ name = "Ask for a review", text = "The bridge waits; nobody is upset." }
+	),
+	choice(
+		"datacenter",
+		"Technology",
+		"Data center boom",
+		"Start-ups want a giant data center; the townships around it are not so sure.",
+		{
+			name = "Side with the start-ups",
+			text = "Cheered along the coast and in the mountain tech towns.",
+			likes = { "Environment" },
+			dislikes = { "Schools", "Safety", "Transit" },
+		},
+		{
+			name = "Side with the townships",
+			text = "Cheered in the school districts, downtown and the rail suburbs.",
+		},
+		{ name = "Form a task force", text = "A polite answer that moves little." }
+	),
+	choice(
+		"water",
+		"Farms",
+		"Water rights",
+		"A dry summer sets ranchers against growers over who gets the water.",
+		{
+			name = "Side with the ranchers",
+			text = "Cheered in ranch country and along the rail lines.",
+			likes = { "Safety", "Transit" },
+			dislikes = { "Schools", "Jobs", "Health", "Environment" },
+		},
+		{
+			name = "Side with the growers",
+			text = "Cheered in the school districts, mill towns, clinic districts and river valleys.",
+		},
+		{ name = "Call a summit", text = "Everyone nods, nobody cheers." }
 	),
 } :: { Definition })
 
@@ -145,8 +348,22 @@ for _, event in Events.deck do
 end
 Events.byId = table.freeze(byId)
 
+-- True if `value` names one of the three stance slots.
 function Events.isChoice(value: any): boolean
 	return type(value) == "string" and table.find(Events.CHOICES, value :: Types.Choice) ~= nil
+end
+
+-- The stance with this id in a Choice event, or nil.
+function Events.stance(event: Definition, id: Types.Choice): Stance?
+	if event.stances == nil then
+		return nil
+	end
+	for _, stance in event.stances :: { Stance } do
+		if stance.id == id then
+			return stance
+		end
+	end
+	return nil
 end
 
 -- Deals the deck for a new match: week -> event id. Empty when events are off.
@@ -245,40 +462,71 @@ function Events.grant(config: Config, ledger: Ledger, i: number, p: number, extr
 	return granted
 end
 
--- National points for answering `mine` against an opponent who answered `theirs`.
-function Events.payoff(config: Config, mine: Types.Choice, theirs: Types.Choice): number
-	if mine == "Attack" then
-		return if theirs == "Attack"
-			then config.CHOICE_ATTACK_ATTACK
-			elseif theirs == "Defend" then config.CHOICE_ATTACK_DEFEND
-			else config.CHOICE_ATTACK_IGNORE
-	elseif mine == "Defend" then
-		return if theirs == "Attack"
-			then config.CHOICE_DEFEND_ATTACK
-			elseif theirs == "Defend" then config.CHOICE_DEFEND_DEFEND
-			else config.CHOICE_DEFEND_IGNORE
+-- Support points stance `id` of a Choice event moves for a candidate with
+-- `platform` who takes it, in the state at index i (0 where the state does not
+-- react). Public arithmetic on fixed state data and the public platform, clamped
+-- to +/- EVENT_CAP: the client previews it, the server applies it.
+function Events.stanceEffect(
+	config: Config,
+	event: Definition,
+	id: Types.Choice,
+	i: number,
+	platform: { Types.Issue }
+): number
+	local stance = Events.stance(event, id)
+	local issue = event.issue
+	if stance == nil or issue == nil then
+		return 0
 	end
-	return if theirs == "Attack"
-		then config.CHOICE_IGNORE_ATTACK
-		elseif theirs == "Defend" then config.CHOICE_IGNORE_DEFEND
-		else config.CHOICE_IGNORE_IGNORE
-end
-
--- Every player's national points from everyone's choices: the sum of the matrix
--- against each opponent (exactly the matrix in 1v1), clamped to +/- EVENT_CAP.
--- Depends only on the choices, never on seat order.
-function Events.choicePayoffs(config: Config, choices: { Types.Choice }): { number }
-	local out = table.create(#choices, 0)
-	for p = 1, #choices do
-		local mine: Types.Choice = choices[p]
-		local total = 0
-		for q = 1, #choices do
-			local theirs: Types.Choice = choices[q]
-			if q ~= p then
-				total += Events.payoff(config, mine, theirs)
+	local issues = StateData.list[i].issues
+	local points = 0
+	if table.find(issues, issue) == nil then
+		-- Spillover: a state that does not care about the issue still hears the
+		-- stance through the issues it does care about, a little.
+		if not stance.hedge then
+			for _, topIssue in issues do
+				if table.find(stance.likes, topIssue) then
+					points += config.STANCE_SPILL
+				elseif table.find(stance.dislikes, topIssue) then
+					points -= config.STANCE_SPILL
+				end
 			end
 		end
-		out[p] = math.clamp(total, -config.EVENT_CAP, config.EVENT_CAP)
+	else
+		points = config.STANCE_HEDGE
+		if not stance.hedge then
+			for _, topIssue in issues do
+				if topIssue ~= issue then
+					if table.find(stance.likes, topIssue) then
+						points = config.STANCE_POINTS
+					elseif table.find(stance.dislikes, topIssue) then
+						points = -config.STANCE_POINTS
+					end
+				end
+			end
+		end
+		-- A candidate who runs on the issue is heard harder where it is a top issue.
+		if table.find(platform, issue) then
+			points *= config.STANCE_PLATFORM_MULT
+		end
+	end
+	return math.clamp(points, -config.EVENT_CAP, config.EVENT_CAP)
+end
+
+-- Every state a stance moves for a candidate with `platform`: state id -> support
+-- points (nonzero entries only).
+function Events.stanceEffects(
+	config: Config,
+	event: Definition,
+	id: Types.Choice,
+	platform: { Types.Issue }
+): { [string]: number }
+	local out: { [string]: number } = {}
+	for i, record in StateData.list do
+		local points = Events.stanceEffect(config, event, id, i, platform)
+		if points ~= 0 then
+			out[record.id] = points
+		end
 	end
 	return out
 end

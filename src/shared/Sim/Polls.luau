@@ -102,6 +102,54 @@ local function pollLeader(poll: State.Poll): number?
 	return leader
 end
 
+-- The outright leader of a poll, or 0 on a tie (or with no poll yet).
+function Polls.leader(poll: State.Poll?): number
+	if poll == nil then
+		return 0
+	end
+	return pollLeader(poll) or 0
+end
+
+-- Republishes every state's public poll from the current truth with the SAME
+-- error terms (no new draw): the debate moved support at the start of the week
+-- and the map should show it right away (D-040). Returns the states whose poll
+-- leader changed, in StateData order.
+function Polls.refresh(match: MatchState): { State.PollFlip }
+	local flips: { State.PollFlip } = {}
+	for _, s in match.states do
+		local from = Polls.leader(s.poll)
+		s.poll = Polls.shown(s)
+		local to = Polls.leader(s.poll)
+		if to ~= from then
+			table.insert(flips, { state = s.id, from = from, to = to })
+		end
+	end
+	return flips
+end
+
+-- Leader changes that `moves` (points per player, added straight to the shown
+-- shares) would cause on the current public polls. Pure arithmetic on public
+-- numbers, so the client can preview it and the server reports it (D-039).
+function Polls.projectFlips(match: MatchState, moves: { State.StateMove }): { State.PollFlip }
+	local flips: { State.PollFlip } = {}
+	for _, move in moves do
+		local s = State.get(match, move.state)
+		local poll = s.poll
+		if poll ~= nil then
+			local shares = table.clone(poll.support)
+			for p, points in move.points do
+				shares[p] += points
+			end
+			local from = Polls.leader(poll)
+			local to = Polls.leader({ support = shares, undecided = poll.undecided })
+			if to ~= from then
+				table.insert(flips, { state = s.id, from = from, to = to })
+			end
+		end
+	end
+	return flips
+end
+
 -- Electoral votes each player would win if the latest public polls were the result.
 -- Tied states count for nobody.
 function Polls.projectedEV(match: MatchState): { number }

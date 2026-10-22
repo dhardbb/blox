@@ -1,6 +1,6 @@
 --!strict
--- The weekly event deck (D-027): the seeded draw, each kind's effect, the
--- EVENT_CAP, the Choice payoff matrix and its validation, the lobby toggle, and
+-- The weekly event deck (D-027, D-039): the seeded draw, each kind's effect, the
+-- EVENT_CAP, Choice stances and their validation, the lobby toggle, and
 -- whole-match determinism with events on.
 
 local Test = require("@testlib/Test")
@@ -8,6 +8,7 @@ local Fixtures = require("@testlib/Fixtures")
 local Play = require("@testlib/Play")
 local Bot = require("@sim/Bot")
 local Config = require("@sim/Config")
+local Election = require("@sim/Election")
 local Events = require("@sim/Events")
 local Issues = require("@sim/Issues")
 local Match = require("@sim/Match")
@@ -108,24 +109,55 @@ local function seedWith(kind: Types.EventKind): (number, number)
 end
 
 describe("Events: the deck", function()
-	it("holds about twenty generic events of all four kinds", function()
-		expect(#Events.deck >= 18 and #Events.deck <= 24):toBe(true)
+	it("holds about two dozen generic events of all four kinds", function()
+		expect(#Events.deck >= 18 and #Events.deck <= 26):toBe(true)
 		local count: { [string]: number } = {}
+		local choiceIssues: { [string]: boolean } = {}
 		for _, event in Events.deck do
 			count[event.kind] = (count[event.kind] or 0) + 1
 			expect(#event.name > 0 and #event.text > 0):toBe(true)
 			expect(Events.byId[event.id]):toBe(event)
 			if event.kind == "Spotlight" then
 				expect(Issues.isIssue(event.issue :: string)):toBe(true)
+				expect(event.stances):toBe(nil)
 			elseif event.kind == "Regional" then
 				expect(table.find(Issues.regions, event.region :: Types.Region) ~= nil):toBe(true)
+			elseif event.kind == "Choice" then
+				-- A dispute over one issue with the three stance slots, A and B opposed
+				-- (each likes what the other dislikes) and C the hedge (D-039).
+				expect(Issues.isIssue(event.issue :: string)):toBe(true)
+				expect(choiceIssues[event.issue :: string]):toBe(nil)
+				choiceIssues[event.issue :: string] = true
+				local stances = event.stances :: { Events.Stance }
+				expect(#stances):toBe(#Events.CHOICES)
+				for k, stance in stances do
+					expect(stance.id):toBe(Events.CHOICES[k])
+					expect(#stance.name > 0 and #stance.text > 0):toBe(true)
+					for _, issue in stance.likes do
+						expect(Issues.isIssue(issue)):toBe(true)
+						expect(issue ~= event.issue):toBe(true)
+						expect(table.find(stance.dislikes, issue)):toBe(nil)
+					end
+					for _, issue in stance.dislikes do
+						expect(Issues.isIssue(issue)):toBe(true)
+						expect(issue ~= event.issue):toBe(true)
+					end
+				end
+				expect(stances[1].hedge or stances[2].hedge):toBe(false)
+				expect(stances[3].hedge):toBe(true)
+				expect(#stances[3].likes + #stances[3].dislikes):toBe(0)
+				expect(stances[2].likes):toEqual(stances[1].dislikes)
+				expect(stances[2].dislikes):toEqual(stances[1].likes)
+				expect(#stances[1].likes > 0 and #stances[1].dislikes > 0):toBe(true)
 			end
 		end
 		for _, kind in { "Spotlight", "Regional", "Windfall", "Choice" } do
 			expect((count[kind] or 0) >= 3):toBe(true)
 		end
-		-- Every issue gets its own spotlight, so no platform is favored by the deck.
+		-- Every issue gets its own spotlight and its own Choice, so no platform is
+		-- favored by the deck.
 		expect(count.Spotlight):toBe(#Issues.list)
+		expect(count.Choice):toBe(#Issues.list)
 	end)
 
 	it("the draw is deterministic by seed and comes from its own fork", function()
@@ -174,9 +206,10 @@ describe("Events: the deck", function()
 				count[id] = (count[id] or 0) + 1
 			end
 		end
+		local expected = 10 / #Events.deck
 		for _, event in Events.deck do
-			local share = (count[event.id] or 0) / N -- expected 10/20 = 0.5
-			expect(share > 0.44 and share < 0.56):toBe(true)
+			local share = (count[event.id] or 0) / N
+			expect(math.abs(share - expected) < 0.06):toBe(true)
 		end
 	end)
 
@@ -340,57 +373,227 @@ describe("Events: effects", function()
 	end)
 end)
 
-describe("Events: Choice", function()
-	it("the payoff matrix is the Config table, small, and symmetric between seats", function()
-		local CH = Events.CHOICES
-		for _, x in CH do
-			for _, y in CH do
-				local v = Events.payoff(C, x, y)
-				expect(math.abs(v) <= C.EVENT_CAP):toBe(true)
-				local pair = Events.choicePayoffs(C, { x, y })
-				expect(pair[1]):toBe(v)
-				expect(pair[2]):toBe(Events.payoff(C, y, x))
-				local swapped = Events.choicePayoffs(C, { y, x })
-				expect(swapped):toEqual({ pair[2], pair[1] })
+-- Every Choice event in the deck.
+local function choiceEvents(): { Events.Definition }
+	local out = {}
+	for _, event in Events.deck do
+		if event.kind == "Choice" then
+			table.insert(out, event)
+		end
+	end
+	return out
+end
+
+-- EV of the states whose other top issue is in `issues`, among those with `issue`.
+local function campEV(issue: string, issues: { Types.Issue }): number
+	local ev = 0
+	for _, record in StateData.list do
+		if table.find(record.issues, issue :: Types.Issue) then
+			for _, other in record.issues do
+				if other ~= issue and table.find(issues, other) then
+					ev += record.ev
+				end
 			end
 		end
-		expect(Events.payoff(C, "Attack", "Ignore")):toBe(C.CHOICE_ATTACK_IGNORE)
-		expect(Events.payoff(C, "Attack", "Defend")):toBe(C.CHOICE_ATTACK_DEFEND)
-		expect(Events.payoff(C, "Defend", "Ignore")):toBe(C.CHOICE_DEFEND_IGNORE)
-		expect(Events.payoff(C, "Attack", "Attack")):toBe(C.CHOICE_ATTACK_ATTACK)
-		expect(Events.payoff(C, "Ignore", "Ignore")):toBe(0)
-		-- Payoffs are clamped to the cap even if a variant's matrix is not.
-		local wild = Config.with(C, { CHOICE_ATTACK_IGNORE = 5 })
-		expect(Events.choicePayoffs(wild, { "Attack", "Ignore" })[1]):toBe(C.EVENT_CAP)
-	end)
+	end
+	return ev
+end
 
-	it("resolves both answers together as one national shift and reveals them", function()
-		local match = clean("clip")
-		local after =
-			resolve(match, { { actions = {}, choice = "Attack" }, { actions = {}, choice = "Ignore" } })
-		local expected = State.clone(match)
-		local national = { C.CHOICE_ATTACK_IGNORE, C.CHOICE_IGNORE_ATTACK }
-		Support.national(C, expected.states, national)
-		for i, s in after.states do
-			expect(s.support[1]):toBeCloseTo(expected.states[i].support[1], EPS)
-			expect(s.support[2]):toBeCloseTo(expected.states[i].support[2], EPS)
-			-- No state moves by more than the cap.
-			expect(math.abs(s.support[1] - match.states[i].support[1]) <= C.EVENT_CAP):toBe(true)
+describe("Events: Choice stances (D-039)", function()
+	it(
+		"a state with the issue reacts by its other top issue, the rest spill a little; a platform is heard harder",
+		function()
+			local NONE: { Types.Issue } = {}
+			for _, event in choiceEvents() do
+				local issue = event.issue :: Types.Issue
+				local ON: { Types.Issue } = { issue }
+				for _, stance in event.stances :: { Events.Stance } do
+					local listed = Events.stanceEffects(C, event, stance.id, NONE)
+					local nonzero = 0
+					for i, record in StateData.list do
+						local points = Events.stanceEffect(C, event, stance.id, i, NONE)
+						local heard = Events.stanceEffect(C, event, stance.id, i, ON)
+						if not table.find(record.issues, issue) then
+							-- Spillover: STANCE_SPILL per liked top issue, minus the same per
+							-- disliked one; nothing for the hedge; no platform multiplier.
+							local expected = 0
+							if not stance.hedge then
+								for _, topIssue in record.issues do
+									if table.find(stance.likes, topIssue) then
+										expected += C.STANCE_SPILL
+									elseif table.find(stance.dislikes, topIssue) then
+										expected -= C.STANCE_SPILL
+									end
+								end
+							end
+							expect(points):toBeCloseTo(expected, EPS)
+							expect(heard):toBeCloseTo(expected, EPS)
+						else
+							local other: Types.Issue = if record.issues[1] == issue
+								then record.issues[2]
+								else record.issues[1]
+							local expected = C.STANCE_HEDGE
+							if table.find(stance.likes, other) then
+								expected = C.STANCE_POINTS
+							elseif table.find(stance.dislikes, other) then
+								expected = -C.STANCE_POINTS
+							end
+							expect(points):toBe(expected)
+							expect(heard):toBe(
+								math.clamp(expected * C.STANCE_PLATFORM_MULT, -C.EVENT_CAP, C.EVENT_CAP)
+							)
+						end
+						expect(math.abs(points) <= C.EVENT_CAP and math.abs(heard) <= C.EVENT_CAP):toBe(true)
+						if points ~= 0 then
+							nonzero += 1
+							expect(listed[record.id]):toBe(points)
+						else
+							expect(listed[record.id]):toBe(nil)
+						end
+					end
+					local count = 0
+					for _ in listed do
+						count += 1
+					end
+					expect(count):toBe(nonzero)
+					expect(nonzero >= 8):toBe(true) -- every issue tops at least eight states
+					if stance.hedge then
+						-- The hedge never spills: exactly the issue's states move.
+						local withIssue = 0
+						for _, record in StateData.list do
+							if table.find(record.issues, issue) then
+								withIssue += 1
+							end
+						end
+						expect(nonzero):toBe(withIssue)
+					end
+				end
+				-- Unknown stances and events without stances move nothing.
+				expect(Events.stanceEffect(C, event, "Z" :: any, 1, NONE)):toBe(0)
+				expect(Events.stanceEffect(C, Events.byId.expo, "A", 1, NONE)):toBe(0)
+			end
 		end
+	)
+
+	it(
+		"the hedge is mild and never negative; each side's camp holds a fair share of the issue's EV",
+		function()
+			for _, event in choiceEvents() do
+				local issue = event.issue :: Types.Issue
+				local stances = event.stances :: { Events.Stance }
+				local total = campEV(issue, Issues.list :: { Types.Issue })
+				for _, stance in stances do
+					local liked, disliked = campEV(issue, stance.likes), campEV(issue, stance.dislikes)
+					if stance.hedge then
+						expect(liked + disliked):toBe(0)
+						for _, points in Events.stanceEffects(C, event, stance.id, {}) do
+							expect(points):toBe(C.STANCE_HEDGE)
+						end
+					else
+						-- Both camps are real: at least a quarter of the issue's EV each way.
+						expect(liked >= 0.25 * total):toBe(true)
+						expect(disliked >= 0.25 * total):toBe(true)
+					end
+				end
+			end
+		end
+	)
+
+	it("resolves both stances together from one snapshot, records the moves and reveals them", function()
+		local match = clean("plant") -- Jobs: on both platforms here, so every reaction is heard x1.5
+		local event = Events.byId.plant
+		local after = resolve(match, { { actions = {}, choice = "A" }, { actions = {}, choice = "B" } })
+		local effects = {
+			Events.stanceEffects(C, event, "A", match.players[1].platform),
+			Events.stanceEffects(C, event, "B", match.players[2].platform),
+		}
+		expect(effects[1].GA):toBe(math.min(C.EVENT_CAP, C.STANCE_POINTS * C.STANCE_PLATFORM_MULT))
+		local expected = State.clone(match)
+		local moves: { State.StateMove } = {}
+		for i, s in expected.states do
+			local delta = Support.zero(s)
+			local du = 0
+			local points = { effects[1][s.id] or 0, effects[2][s.id] or 0 }
+			for p = 1, 2 do
+				if points[p] > 0 then
+					du += Support.addGain(C, s, p, points[p], delta)
+				elseif points[p] < 0 then
+					du += Support.addLoss(p, -points[p], delta)
+				end
+			end
+			if points[1] ~= 0 or points[2] ~= 0 then
+				table.insert(moves, { state = s.id, points = points })
+			end
+			Support.apply(s, delta, du)
+			expect(after.states[i].support[1]):toBeCloseTo(s.support[1], EPS)
+			expect(after.states[i].support[2]):toBeCloseTo(s.support[2], EPS)
+			expect(after.states[i].undecided):toBeCloseTo(s.undecided, EPS)
+			-- No stance asks for more than the cap; a state without Jobs moves only by
+			-- the spillover.
+			expect(math.abs(points[1]) <= C.EVENT_CAP and math.abs(points[2]) <= C.EVENT_CAP):toBe(true)
+			if not table.find(StateData.list[i].issues, "Jobs") then
+				expect(math.abs(points[1]) <= 2 * C.STANCE_SPILL + EPS):toBe(true)
+			end
+			-- The recount counterfactual sees exactly this move.
+			for p = 1, 2 do
+				expect(after.states[i].stanceShift[p]):toBeCloseTo(
+					after.states[i].support[p] - match.states[i].support[p],
+					EPS
+				)
+			end
+		end
+		expect(#moves > 0):toBe(true)
 		local result = after.eventLog[#after.eventLog]
 		expect(result.week):toBe(2)
-		expect(result.id):toBe("clip")
-		expect(result.choices):toEqual({ "Attack", "Ignore" })
-		expect(result.national):toEqual(national)
-		expect((after.players[1].card :: State.WeekCard).choice):toBe("Attack")
-		expect((after.players[2].card :: State.WeekCard).choice):toBe("Ignore")
+		expect(result.id):toBe("plant")
+		expect(result.choices):toEqual({ "A", "B" })
+		expect(result.moves):toEqual(moves)
+		-- Flips are projected on the start-of-week polls (35/35 here: whoever gains
+		-- more takes the lead; equal points leave the tie).
+		local flips = {}
+		for _, move in moves do
+			local to = if move.points[1] > move.points[2]
+				then 1
+				elseif move.points[2] > move.points[1] then 2
+				else 0
+			if to ~= 0 then
+				table.insert(flips, { state = move.state, from = 0, to = to })
+			end
+		end
+		expect(result.flips):toEqual(flips)
+		expect((after.players[1].card :: State.WeekCard).choice):toBe("A")
+		expect((after.players[2].card :: State.WeekCard).choice):toBe("B")
 		local view = View.build(C, after, 2)
-		expect(view.eventLog[#view.eventLog].choices):toEqual({ "Attack", "Ignore" })
+		expect(view.eventLog[#view.eventLog].choices):toEqual({ "A", "B" })
+		expect(view.eventLog[#view.eventLog].moves):toEqual(moves)
+		-- The election can be recounted without the stances' shifts.
+		local with = Election.count(C, after, { noise = false })
+		local recount = Election.count(C, after, { noise = false, stances = false })
+		expect(with.ev[1] + with.ev[2] > 0):toBe(true)
+		expect(recount.ev[1] + recount.ev[2]):toBe(0) -- every state was 35/35 before
+	end)
+
+	it("the same event moves the same states the same way in every match (given the platform)", function()
+		local a = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Plan", 5)
+		local b =
+			Fixtures.advanceTo(Fixtures.campaign({ seed = 9, candidates = { "reyes", "hale" } }), "Plan", 7)
+		for p = 1, 2 do
+			b.players[p].platform = table.clone(a.players[p].platform)
+		end
+		a.eventDeck[5], b.eventDeck[7] = "water", "water"
+		local ra = resolve(a, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } })
+		local rb = resolve(b, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } })
+		local ma = ra.eventLog[#ra.eventLog].moves :: { State.StateMove }
+		local mb = rb.eventLog[#rb.eventLog].moves :: { State.StateMove }
+		expect(ma):toEqual(mb)
+		expect(ma):toEqual(
+			resolve(a, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } }).eventLog[#ra.eventLog].moves
+		)
 	end)
 
 	it("swapping seats mirrors the outcome exactly", function()
-		local match = clean("rumor") -- a symmetric board
-		for _, pair in { { "Attack", "Ignore" }, { "Attack", "Defend" }, { "Defend", "Ignore" } } do
+		local match = clean("river") -- a symmetric board
+		for _, pair in { { "A", "B" }, { "A", "C" }, { "B", "C" } } do
 			local a =
 				resolve(match, { { actions = {}, choice = pair[1] }, { actions = {}, choice = pair[2] } })
 			local b =
@@ -401,46 +604,55 @@ describe("Events: Choice", function()
 				expect(s.undecided):toBeCloseTo(b.states[i].undecided, EPS)
 			end
 			local ra, rb = a.eventLog[#a.eventLog], b.eventLog[#b.eventLog]
-			local na, nb = ra.national :: { number }, rb.national :: { number }
-			expect(na[1]):toBe(nb[2])
-			expect(na[2]):toBe(nb[1])
+			for k, move in ra.moves :: { State.StateMove } do
+				local other = (rb.moves :: { State.StateMove })[k]
+				expect(move.state):toBe(other.state)
+				expect(move.points):toEqual({ other.points[2], other.points[1] })
+			end
 		end
 	end)
 
-	it("a missing answer defaults to Ignore", function()
-		local match = clean("memo")
+	it("a missing stance defaults to the hedge", function()
+		local match = clean("walkout")
+		expect(Events.defaultChoice()):toBe("C")
 		local ok, _, plan = Plan.validate(C, match, 1, { actions = {} })
 		expect(ok):toBe(true)
-		expect((plan :: Plan.Plan).choice):toBe("Ignore")
-		expect(Plan.empty(C, match, 2).choice):toBe("Ignore")
+		expect((plan :: Plan.Plan).choice):toBe("C")
+		expect(Plan.empty(C, match, 2).choice):toBe("C")
 		local after = Match.advance(C, match, {})
-		expect(after.eventLog[#after.eventLog].choices):toEqual({ "Ignore", "Ignore" })
-		expect(after.eventLog[#after.eventLog].national):toEqual({ 0, 0 })
+		expect(after.eventLog[#after.eventLog].choices):toEqual({ "C", "C" })
+		for _, move in after.eventLog[#after.eventLog].moves :: { State.StateMove } do
+			expect(move.points[1]):toBe(move.points[2])
+			local heard = C.STANCE_HEDGE * C.STANCE_PLATFORM_MULT
+			expect(move.points[1] == C.STANCE_HEDGE or move.points[1] == heard):toBe(true)
+		end
 	end)
 
-	it("rejects an invalid answer with a reason code, whole", function()
-		local match = clean("endorse")
-		for _, bad in { "Surrender", "attack", "", 3, true, { "Attack" } } do
+	it("rejects an invalid stance with a reason code, whole", function()
+		local match = clean("calendar")
+		for _, bad in { "Attack", "Ignore", "a", "", 3, true, { "A" } } do
 			local ok, reason, plan =
 				Plan.validate(C, match, 1, { actions = rallies("OH", "Jobs", 1), choice = bad })
 			expect(ok):toBe(false)
 			expect(reason):toBe(Plan.Reason.BadChoice)
 			expect(plan):toBe(nil)
 		end
-		local ok, _, plan = Plan.validate(C, match, 1, { actions = {}, choice = "Defend" })
-		expect(ok):toBe(true)
-		expect((plan :: Plan.Plan).choice):toBe("Defend")
+		for _, id in Events.CHOICES do
+			local ok, _, plan = Plan.validate(C, match, 1, { actions = {}, choice = id })
+			expect(ok):toBe(true)
+			expect((plan :: Plan.Plan).choice):toBe(id)
+		end
 	end)
 
-	it("an answer is only allowed in a Choice week", function()
+	it("a stance is only allowed in a Choice week", function()
 		for _, id in { "expo", "lakes", "donors" } do
 			local match = clean(id)
-			local ok, reason = Plan.validate(C, match, 1, { actions = {}, choice = "Attack" })
+			local ok, reason = Plan.validate(C, match, 1, { actions = {}, choice = "A" })
 			expect(ok):toBe(false)
 			expect(reason):toBe(Plan.Reason.UnexpectedChoice)
 			expect(Plan.empty(C, match, 1).choice):toBe(nil)
 		end
-		local ok, reason = Plan.validate(C, clean(nil), 1, { actions = {}, choice = "Ignore" })
+		local ok, reason = Plan.validate(C, clean(nil), 1, { actions = {}, choice = "C" })
 		expect(ok):toBe(false)
 		expect(reason):toBe(Plan.Reason.UnexpectedChoice)
 	end)
@@ -456,7 +668,7 @@ describe("Events: off and on", function()
 		match = Fixtures.advanceTo(Fixtures.campaign({ seed = 11 }), "Plan", 3)
 		match.eventDeck = {}
 		expect(View.build(OFF, match, 1).event):toBe(nil)
-		local ok, reason = Plan.validate(OFF, match, 1, { actions = {}, choice = "Attack" })
+		local ok, reason = Plan.validate(OFF, match, 1, { actions = {}, choice = "A" })
 		expect(ok):toBe(false)
 		expect(reason):toBe(Plan.Reason.UnexpectedChoice)
 	end)
@@ -468,6 +680,7 @@ describe("Events: off and on", function()
 		expect(a.invalid):toBe(0)
 		expect(#a.match.eventLog):toBe(10)
 		expect(a.match.eventLog):toEqual(b.match.eventLog)
+		expect(a.match.debates):toEqual(b.match.debates)
 		expect(a.match.states):toEqual(b.match.states)
 		expect(a.match.election):toEqual(b.match.election)
 		local answered = false

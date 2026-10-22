@@ -107,7 +107,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		choiceButtons[answer] = button
 	end
 	local choiceNote = Kit.caption("", { Name = "ChoiceNote", LayoutOrder = 4, Parent = card.body })
-	local payHead = Kit.caption("National points for you, by their answer:", {
+	local payHead = Kit.caption("Where each stance moves support:", {
 		Name = "ChoicePayHead",
 		LayoutOrder = 5,
 		Parent = card.body,
@@ -166,7 +166,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			choiceNote.Visible = choosing
 			local isChoice = event.kind == "Choice"
 			payHead.Visible = isChoice
-			for k, line in Explain.choiceLines(config) do
+			for k, line in Explain.choiceLines(config, event, p.view.players[p.view.you].platform) do
 				local label = payLines[k]
 				if label then
 					label.Text = line

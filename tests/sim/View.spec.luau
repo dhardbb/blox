@@ -23,6 +23,7 @@ local FORBIDDEN = {
 	"pollErrorUndecided",
 	"pool",
 	"debateShift",
+	"stanceShift",
 	"rng",
 	"seed",
 	"s0",
@@ -139,6 +140,8 @@ describe("View: no leaks", function()
 			s.gotv[2] += 3
 			s.debateShift[1] += 0.5
 			s.debateShift[2] -= 0.5
+			s.stanceShift[1] += 0.25
+			s.stanceShift[2] -= 0.25
 			s.backlash[2] += 2
 		end
 		local opponent = secret.players[2]
@@ -159,8 +162,8 @@ describe("View: no leaks", function()
 		expect(serialize(View.build(C, secret, 1))):toBe(before)
 	end)
 
-	it("the opponent's pending Choice answer never reaches the other seat (D-027)", function()
-		-- Answers live only in the submitted plan (the server's seat input) until the
+	it("the opponent's pending Choice stance never reaches the other seat (D-027, D-039)", function()
+		-- Stances live only in the submitted plan (the server's seat input) until the
 		-- week resolves; nothing the opponent locks in may change what seat 1 is sent.
 		local function payloadFor(choice: string?): string
 			local session = Session.new(C, "m", 3, {
@@ -168,7 +171,7 @@ describe("View: no leaks", function()
 				{ id = "200", kind = "Human" },
 			}, 0)
 			local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Plan", 2)
-			match.eventDeck[2] = "memo"
+			match.eventDeck[2] = "plant"
 			session.match = match
 			if choice then
 				local ok, reason =
@@ -179,18 +182,37 @@ describe("View: no leaks", function()
 			return serialize(payload.view) .. serialize(payload.events)
 		end
 		local before = payloadFor(nil)
-		for _, choice in { "Attack", "Defend", "Ignore" } do
+		for _, choice in Events.CHOICES do
 			expect(payloadFor(choice)):toBe(before)
 		end
-		expect(string.find(before, "choice=", 1, true)):toBe(nil) -- no answer anywhere yet
-		-- After the week resolves, both answers are public.
+		expect(string.find(before, "choice=", 1, true)):toBe(nil) -- no stance anywhere yet
+		-- The event's stances and issue are public before anyone answers; the
+		-- per-state preview is a pure function of them.
 		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Plan", 2)
-		match.eventDeck[2] = "memo"
-		match = Match.advance(C, match, { nil :: any, { actions = {}, choice = "Attack" } })
+		match.eventDeck[2] = "plant"
+		local pending = View.build(C, match, 1)
+		local event = pending.event :: View.EventView
+		expect(event.kind):toBe("Choice")
+		expect(event.issue):toBe("Jobs")
+		local stances = event.stances :: { View.StanceView }
+		expect(#stances):toBe(3)
+		for k, stance in stances do
+			expect(stance.id):toBe(Events.CHOICES[k])
+			expect(#stance.name > 0 and #stance.text > 0):toBe(true)
+			expect(next(Events.stanceEffects(C, Events.byId[event.id], stance.id, {})) ~= nil):toBe(true)
+		end
+		local other = State.clone(match)
+		other.eventDeck[2] = "expo"
+		expect((View.build(C, other, 1).event :: View.EventView).stances):toBe(nil)
+		-- After the week resolves, both stances and their moves are public.
+		match = Match.advance(C, match, { nil :: any, { actions = {}, choice = "A" } })
 		local view = View.build(C, match, 1)
 		checkView(view)
-		expect(view.eventLog[#view.eventLog].choices):toEqual({ "Ignore", "Attack" })
-		expect((view.players[2].card :: State.WeekCard).choice):toBe("Attack")
+		local logged = view.eventLog[#view.eventLog]
+		expect(logged.choices):toEqual({ "C", "A" })
+		expect(#(logged.moves :: { State.StateMove }) > 0):toBe(true)
+		expect(logged.flips ~= nil):toBe(true)
+		expect((view.players[2].card :: State.WeekCard).choice):toBe("A")
 	end)
 
 	it("the player does see their own hidden data", function()
@@ -246,13 +268,17 @@ describe("View: no leaks", function()
 		expect(View.build(C, match, 2).priorityA):toBe(match.priorityA)
 	end)
 
-	it("debate prep is revealed only after the debate", function()
+	it("debate prep is revealed only after the debate; the debate's moves and flips come with it", function()
 		local match = busyMatch()
 		expect(#View.build(C, match, 1).debates):toBe(0)
 		match = Match.advance(C, match, {})
 		local view = View.build(C, match, 1)
+		checkView(view)
 		expect(view.debates[1].prep[2]):toEqual({ 4, 2, 0 })
 		expect(view.debatePrep):toBe(nil)
+		expect(view.debates[1].moves):toEqual(match.debates[1].moves)
+		expect(view.debates[1].flips):toEqual(match.debates[1].flips)
+		expect(view.debates[1].gaffes):toEqual(match.debates[1].gaffes)
 	end)
 
 	it("announces the next debate's topics", function()

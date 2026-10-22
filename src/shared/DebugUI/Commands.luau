@@ -11,7 +11,7 @@
 --     rpoll REGION | gotv ST UNITS | pivot DROP ADD | prep N N N
 --     (aliases: fundraise = fund; media = ad; attack = attackad = attack ad,
 --     so the player-facing names of D-030 work as typed)
---     choice attack|defend|ignore              (only in a week with a Choice event)
+--     choice a|b|c                             (only in a week with a Choice event)
 --   pass                                       (submit an empty plan)
 --   auto | autoplay on|off | show ST | rules  (rules: the "How it works" text)
 
@@ -236,11 +236,11 @@ function Commands.parse(text: string): Parsed
 						table.insert(prep, tonumber(pw[k]) or -1)
 					end
 				elseif string.lower(pw[1]) == "choice" then
-					local word = string.lower(pw[2] or "")
-					if word ~= "attack" and word ~= "defend" and word ~= "ignore" then
-						return err('choice needs attack, defend or ignore, e.g. "choice defend"')
+					local word = string.upper(pw[2] or "")
+					if word ~= "A" and word ~= "B" and word ~= "C" then
+						return err('choice needs a stance a, b or c, e.g. "choice b"')
 					end
-					choice = string.upper(string.sub(word, 1, 1)) .. string.sub(word, 2)
+					choice = word
 				else
 					local a, message = action(pw)
 					if a == nil then
@@ -273,7 +273,7 @@ Commands.HELP = table.concat({
 	"Lobby: practice | queue | host [noevents] | join CODE | leave | pick CANDIDATE COLOR ISSUE ISSUE ISSUE",
 	"Select: select CANDIDATE COLOR ISSUE ISSUE ISSUE      Draft: draft OH PA",
 	"Plan: plan rally OH Jobs; fund PA; ad MI Jobs; attack ad IA Farms; poll OH; rpoll Pacific;",
-	"      gotv OH 2; pivot Schools Farms; prep 2 2 2; choice defend (Choice weeks)      pass = empty plan",
+	"      gotv OH 2; pivot Schools Farms; prep 2 2 2; choice b (Choice weeks)      pass = empty plan",
 	"Any time: auto (bot fills this step) | autoplay on/off | bank | skip | show OH | rules | resync",
 	"  show OH = a state's numbers and what each action does there; rules = how everything works",
 }, "\n")

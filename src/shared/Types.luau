@@ -25,8 +25,9 @@ export type Region =
 -- Weekly event types (Sim/Events.luau, DESIGN.md D-027).
 export type EventKind = "Spotlight" | "Regional" | "Windfall" | "Choice"
 
--- A player's secret response to a Choice event.
-export type Choice = "Attack" | "Defend" | "Ignore"
+-- A player's secret stance on a Choice event: one of the event's three stance
+-- slots (Sim/Events.luau). "A" and "B" are the two opposed positions, "C" the hedge.
+export type Choice = "A" | "B" | "C"
 
 -- Static data for one state (see Sim/StateData.luau).
 export type StateRecord = {

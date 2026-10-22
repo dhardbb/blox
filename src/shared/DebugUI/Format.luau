@@ -125,7 +125,7 @@ function Format.event(event: View.EventView): string
 			C.EVENT_CAP
 		)
 	else
-		rule = 'Choice: add "choice attack|defend|ignore" to your plan (default ignore)'
+		rule = 'Choice: add "choice a|b|c" to your plan (default c, the hedge)'
 	end
 	return `{event.name} ({rule}). {event.text}`
 end
@@ -177,12 +177,17 @@ function Format.eventLine(event: State.Event, you: number): string?
 	elseif kind == "InternalPolls" then
 		return `your {plural(amount, "internal poll")} came back`
 	elseif kind == "Choice" then
-		return `{who} answered {issue} ({Numbers.signed(amount)} national)`
+		return `{who} took stance {issue} ({Numbers.signed(amount)} points over the states that reacted)`
 	elseif kind == "DebateTopic" then
 		if event.player == nil or event.player == 0 then
 			return `debate: {issue} tied`
 		end
 		return `debate: {who} won {issue}`
+	elseif kind == "PollFlip" then
+		if event.player == nil or event.player == 0 then
+			return `{where} is now tied in the polls after the {string.lower(issue)}`
+		end
+		return `{where} flips to {who} in the polls after the {string.lower(issue)} ({amount} EV)`
 	elseif kind == "Polls" then
 		return "new public polls"
 	elseif kind == "Selected" then
@@ -326,16 +331,15 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		add(`Next week's event (your pollster's briefing): {Format.event(view.nextEvent)}`)
 	end
 	local lastEvent = view.eventLog[#view.eventLog]
-	if lastEvent and lastEvent.week == view.week - 1 and lastEvent.choices and lastEvent.national then
+	if lastEvent and lastEvent.week == view.week - 1 and lastEvent.choices and lastEvent.moves then
 		local definition = Events.byId[lastEvent.id]
 		add(
 			string.format(
-				"Last week's event %s: you %s (%s), them %s (%s)",
+				"Last week's event %s: you took stance %s, them %s (%d states moved)",
 				if definition then definition.name else lastEvent.id,
 				lastEvent.choices[you],
-				Numbers.signed(lastEvent.national[you]),
 				lastEvent.choices[them],
-				Numbers.signed(lastEvent.national[them])
+				#lastEvent.moves
 			)
 		)
 	end
