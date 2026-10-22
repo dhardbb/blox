@@ -17,7 +17,7 @@ local Version = require(Shared:WaitForChild("Version"))
 local Config = require(Shared.Sim.Config)
 local Fixtures = require(Shared.UI.Fixtures)
 
-local DebugPanel = require(script.Parent.DebugPanel)
+local _DebugPanel = require(script.Parent.DebugPanel) -- builds the hidden debug panel
 local Kit = require(script.Parent.UI.Kit)
 local Net = require(script.Parent.Net)
 local Router = require(script.Parent.Router)
@@ -31,34 +31,34 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 end)
 
-local gui = Kit.new("ScreenGui", {
-	Name = "Game",
+-- The board fills the whole screen behind everything; the game itself stays
+-- inside the area Roblox's own buttons and device notches leave free.
+local backdrop = Kit.new("ScreenGui", {
+	Name = "Backdrop",
 	ResetOnSpawn = false,
 	IgnoreGuiInset = true,
-	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	DisplayOrder = -1,
 })
-local background = Kit.new("Frame", {
-	Name = "Background",
+Kit.new("Frame", {
+	Name = "Fill",
 	Size = UDim2.fromScale(1, 1),
 	BackgroundColor3 = Kit.colors.background,
 	BorderSizePixel = 0,
-	Parent = gui,
+	Parent = backdrop,
 })
+local gui = Kit.new("ScreenGui", {
+	Name = "Game",
+	ResetOnSpawn = false,
+	ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+})
+local background = Kit.box({ Name = "Background", Parent = gui })
 local container = Kit.box({ Name = "Screens", Parent = background })
 Kit.pad(10).Parent = container
 
-local debugButton = Kit.button("Debug", DebugPanel.toggle, {
-	Name = "DebugToggle",
-	AnchorPoint = Vector2.new(1, 1),
-	Position = UDim2.new(1, -6, 1, -6),
-	Size = UDim2.fromOffset(72, 44),
-	BackgroundTransparency = 0.6,
-	TextSize = 13,
-	ZIndex = 50,
-	Parent = gui,
-})
-debugButton.TextTransparency = 0.3
-
+-- The debug panel opens with F2 or the workspace attribute DebugText = true;
+-- there is no on-screen button, so it never covers the game.
+backdrop.Parent = player:WaitForChild("PlayerGui")
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local ctx: Types.Ctx = {

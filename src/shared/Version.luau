@@ -2,6 +2,6 @@
 -- Build version shown in logs and the lobby. Bump with each CHANGELOG entry.
 
 return {
-	VERSION = "0.2.0",
-	PHASE = "2 Server and networking",
+	VERSION = "0.3.0",
+	PHASE = "3 Client MVP",
 }
