@@ -75,6 +75,7 @@ local Config = {
 	GOTV_MAX_UNITS = 4, -- units per state per player
 	PIVOT_AP = 1, -- AP cost of the once-per-match platform pivot
 	PIVOT_PENALTY = 1, -- national support lost on a pivot
+	PLAN_MAX_ACTIONS = 40, -- most actions one weekly plan may hold (payload sanity limit)
 
 	-- Issue multipliers
 	ISSUE_MULT_BOTH = 1.5, -- issue is in your platform and a state top issue

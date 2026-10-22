@@ -121,6 +121,10 @@ local ROSTER: { Entry } = {
 
 local Candidates = {}
 
+-- Player colors, picked separately from the candidate. None of them pairs into a
+-- real party's colors.
+Candidates.colors = table.freeze({ "Crimson", "Cobalt", "Emerald", "Amber", "Violet", "Teal" })
+
 Candidates.ids = table.freeze((function()
 	local ids = {}
 	for i, entry in ROSTER do

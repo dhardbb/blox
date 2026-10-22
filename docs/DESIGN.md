@@ -127,3 +127,21 @@ Values were estimated in contested-state margin points (MP), where 1 AP ≈ 6 MP
 Capacity = min(`POOL_MAX`, `POOL_BASE` + `POOL_PER_MILLION` × population), computed by `Config.poolCapacity`. `POOL_MAX` drops from 14 to 12; only Texas (13.3) and California (14) change.
 
 *Why:* D-012 says no state, home included, may fund three fundraisers in one week. The smallest yield is 2 + 6 × 0.35 = 4.1 at starting support, so three need 12.3. At 14, a California home (41% support, 4.5 per fundraiser) could fund three. *Check:* `tests/sim/Config.spec` asserts every capacity is below three starting-support yields.
+
+### D-016 — Rules clarifications from implementing the sim (Oct 22, 2026, tuning)
+
+Places where `PLAN.md` left a choice open. None changes a mechanic's intent; flag any that feel wrong in playtests.
+
+- **Draft bonuses** (home, stronghold) are applied after the last draft round through the normal gain split (70% from undecided, 30% from the opponent), with no saturation or multipliers. A +12 home moves the margin by 15.6.
+- **Draft auto-fill** never nominates the player's own stronghold.
+- **Battleground ×1.5** applies to the support effects of rallies, media buys and attacks. It does not apply to fundraising, momentum or drift.
+- **Attack issue multiplier:** ×1.5 on a state top issue the target's platform lacks, otherwise ×0.8. An attack is never worth more than the "mismatch" case, so it stays a situational tool (D-004).
+- **Repeat media buys** (positive and attack share one sequence per player, state and week) scale both support and momentum by 0.6^(k−1).
+- **Backlash:** an attack made while the meter is at 3+ costs the attacker 0.8 support and resets the meter to 0; otherwise it adds 1. The meter decays by 1 at the end of each week.
+- **Money timing:** a plan's costs are paid at the start of Resolve; fundraiser money and passive income arrive at the end. Week 1 is planned with the starting cash only.
+- **Internal polls** report the truth at the end of the week they were bought, alongside the new public polls. Support is within ±1 (zero-sum offsets, one decimal); undecided and momentum are exact.
+- **Rubber band timing:** tiers and Tomas's frontrunner flag are computed from each week's new public polls and apply to the next week. The frontrunner flag uses the same smoothed lead, without hysteresis.
+- **National shifts:** positive ones (debate wins) use the normal gain split; negative ones (pivot, gaffe) go to undecided. Debates do not trigger a new poll; their effect appears in the next weekly poll.
+- **Colors** are unique per match; on a clash a seeded order decides and the other player gets the first free color.
+- **Noise for N players:** poll error and election noise are zero-sum per-player components with sd σ/√2, which is exactly the margin formula in 1v1 and needs no change for 4-player mode.
+- **What a player sees of their own hidden data:** their own GOTV units, internal poll results, backlash meters and fundraiser yields are in their `View`. Opponents' are not. Pool levels are hidden from everyone, because a pool's drop reveals the fundraiser's true support.
