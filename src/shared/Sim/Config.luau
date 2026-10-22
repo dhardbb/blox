@@ -135,9 +135,9 @@ local Config = {
 	-- disliked -STANCE_POINTS, otherwise (and for the hedge stance) +STANCE_HEDGE,
 	-- all x STANCE_PLATFORM_MULT for a candidate whose platform carries the issue.
 	STANCE_POINTS = 1.5, -- support points a stance adds (or costs) in a state that likes (dislikes) it
-	STANCE_HEDGE = 0.3, -- support points the hedge stance, or an indifferent state, gives where the issue is a top issue
-	STANCE_PLATFORM_MULT = 1.5, -- every reaction is this much stronger when the issue is on your platform (states listen harder; capped at EVENT_CAP)
-	STANCE_SPILL = 0, -- a state without the issue still moves this much per liked (+) or disliked (-) top issue of its own (0 = only the issue's states react)
+	STANCE_HEDGE = 0.5, -- support points the hedge stance, or an indifferent state, gives where the issue is a top issue (0.3 while sides did not spill; D-041)
+	STANCE_PLATFORM_MULT = 1.5, -- every reaction in the issue's states is this much stronger when the issue is on your platform (states listen harder; capped at EVENT_CAP)
+	STANCE_SPILL = 0.5, -- a state without the issue still moves this much per top issue of its own that a side likes (+) or dislikes (-); the hedge spills nothing (D-041: the stakes that make the stance a skill)
 
 	-- Timers (D-005)
 	TIMER_SELECT = 30, -- candidate, color and platform

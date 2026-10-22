@@ -755,9 +755,11 @@ function Explain.choiceLines(config: Config, event: { id: string }?, platform: {
 		elseif k < #Events.CHOICES then
 			table.insert(
 				out,
-				`{id}: {signed(config.STANCE_POINTS)} in states that like it, {signed(-config.STANCE_POINTS)} in states that don't, {signed(
-					config.STANCE_HEDGE
-				)} elsewhere (only where the issue is a top issue; by the state's other top issue)`
+				`{id}: {signed(config.STANCE_POINTS)} in states with the issue that like it, {signed(
+					-config.STANCE_POINTS
+				)} in those that don't, {signed(config.STANCE_HEDGE)} in the rest of them (by the state's other top issue); other states {signed(
+					config.STANCE_SPILL
+				)} per top issue it likes, {signed(-config.STANCE_SPILL)} per one it dislikes`
 			)
 		else
 			table.insert(

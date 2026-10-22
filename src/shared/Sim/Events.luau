@@ -19,12 +19,14 @@
 -- Stances (D-039): "A" and "B" are opposed positions, "C" the hedge. A state
 -- with the event's issue as a top issue reacts by its OTHER top issue: if the
 -- stance likes it, +STANCE_POINTS; if it dislikes it, -STANCE_POINTS; otherwise
--- +STANCE_HEDGE. The hedge gives +STANCE_HEDGE in every such state. States
--- without the issue do not react. A candidate whose platform carries the issue
--- is listened to harder: every reaction x STANCE_PLATFORM_MULT. Reactions depend
--- only on fixed state data and the (public) platform, so the same event moves
--- the same states the same way in every match, and a player can learn them.
--- Both players' stances resolve from one snapshot.
+-- +STANCE_HEDGE. The hedge gives +STANCE_HEDGE in every such state. A state
+-- without the issue still hears a side through its own top issues: +STANCE_SPILL
+-- per issue the stance likes, -STANCE_SPILL per issue it dislikes (the hedge
+-- spills nothing). A candidate whose platform carries the issue is listened to
+-- harder: every reaction in the issue's states x STANCE_PLATFORM_MULT. Reactions
+-- depend only on fixed state data and the (public) platform, so the same event
+-- moves the same states the same way in every match, and a player can learn
+-- them. Both players' stances resolve from one snapshot.
 --
 -- The cap: an event adds at most EVENT_CAP to one player in one state in one week
 -- beyond what the actions would have given without it (support points, or $ for a
@@ -503,9 +505,10 @@ function Events.stanceEffect(
 				end
 			end
 		end
-	end
-	if table.find(platform, issue) then
-		points *= config.STANCE_PLATFORM_MULT
+		-- A candidate who runs on the issue is heard harder where it is a top issue.
+		if table.find(platform, issue) then
+			points *= config.STANCE_PLATFORM_MULT
+		end
 	end
 	return math.clamp(points, -config.EVENT_CAP, config.EVENT_CAP)
 end

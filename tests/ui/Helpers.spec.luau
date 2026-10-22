@@ -271,7 +271,9 @@ describe("PlanDraft weekly events", function()
 		)
 		expect(PlanDraft.choiceNote(C)):toBe(
 			-- Numbers follow D-039 (stances).
-			`Only states with this issue as a top issue react, by their other top issue: +{C.STANCE_POINTS} where a stance is liked, -{C.STANCE_POINTS} where it is not, +{C.STANCE_HEDGE} otherwise. C is the hedge: +{C.STANCE_HEDGE} in every such state. A candidate who runs on the issue is heard ×{C.STANCE_PLATFORM_MULT}. Stances stay secret until the week resolves.`
+			`Only states with this issue as a top issue react, by their other top issue: +{C.STANCE_POINTS} where a stance is liked, -{C.STANCE_POINTS} where it is not, +{C.STANCE_HEDGE} otherwise. C is the hedge: +{C.STANCE_HEDGE} in every state with the issue, nothing elsewhere. Other states move {PlanDraft.points(
+				C.STANCE_SPILL
+			)} per top issue a side likes and {PlanDraft.points(-C.STANCE_SPILL)} per one it dislikes. A candidate who runs on the issue is heard ×{C.STANCE_PLATFORM_MULT} there. Stances stay secret until the week resolves.`
 		)
 	end)
 

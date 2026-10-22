@@ -401,7 +401,7 @@ end
 
 describe("Events: Choice stances (D-039)", function()
 	it(
-		"a state reacts only if the issue is a top issue, by its other top issue; a platform is heard harder",
+		"a state with the issue reacts by its other top issue, the rest spill a little; a platform is heard harder",
 		function()
 			local NONE: { Types.Issue } = {}
 			for _, event in choiceEvents() do
@@ -414,8 +414,20 @@ describe("Events: Choice stances (D-039)", function()
 						local points = Events.stanceEffect(C, event, stance.id, i, NONE)
 						local heard = Events.stanceEffect(C, event, stance.id, i, ON)
 						if not table.find(record.issues, issue) then
-							expect(points):toBe(0)
-							expect(heard):toBe(0)
+							-- Spillover: STANCE_SPILL per liked top issue, minus the same per
+							-- disliked one; nothing for the hedge; no platform multiplier.
+							local expected = 0
+							if not stance.hedge then
+								for _, topIssue in record.issues do
+									if table.find(stance.likes, topIssue) then
+										expected += C.STANCE_SPILL
+									elseif table.find(stance.dislikes, topIssue) then
+										expected -= C.STANCE_SPILL
+									end
+								end
+							end
+							expect(points):toBeCloseTo(expected, EPS)
+							expect(heard):toBeCloseTo(expected, EPS)
 						else
 							local other: Types.Issue = if record.issues[1] == issue
 								then record.issues[2]
@@ -445,6 +457,16 @@ describe("Events: Choice stances (D-039)", function()
 					end
 					expect(count):toBe(nonzero)
 					expect(nonzero >= 8):toBe(true) -- every issue tops at least eight states
+					if stance.hedge then
+						-- The hedge never spills: exactly the issue's states move.
+						local withIssue = 0
+						for _, record in StateData.list do
+							if table.find(record.issues, issue) then
+								withIssue += 1
+							end
+						end
+						expect(nonzero):toBe(withIssue)
+					end
 				end
 				-- Unknown stances and events without stances move nothing.
 				expect(Events.stanceEffect(C, event, "Z" :: any, 1, NONE)):toBe(0)
@@ -506,10 +528,11 @@ describe("Events: Choice stances (D-039)", function()
 			expect(after.states[i].support[1]):toBeCloseTo(s.support[1], EPS)
 			expect(after.states[i].support[2]):toBeCloseTo(s.support[2], EPS)
 			expect(after.states[i].undecided):toBeCloseTo(s.undecided, EPS)
-			-- No stance asks for more than the cap, and only Jobs states move at all.
+			-- No stance asks for more than the cap; a state without Jobs moves only by
+			-- the spillover.
 			expect(math.abs(points[1]) <= C.EVENT_CAP and math.abs(points[2]) <= C.EVENT_CAP):toBe(true)
 			if not table.find(StateData.list[i].issues, "Jobs") then
-				expect(after.states[i].support[1]):toBeCloseTo(match.states[i].support[1], EPS)
+				expect(math.abs(points[1]) <= 2 * C.STANCE_SPILL + EPS):toBe(true)
 			end
 			-- The recount counterfactual sees exactly this move.
 			for p = 1, 2 do

@@ -405,7 +405,9 @@ function PlanDraft.choiceNote(config: Config): string
 		config.STANCE_POINTS
 	)} where a stance is liked, {points(-config.STANCE_POINTS)} where it is not, {points(config.STANCE_HEDGE)} otherwise. C is the hedge: {points(
 		config.STANCE_HEDGE
-	)} in every such state. A candidate who runs on the issue is heard ×{config.STANCE_PLATFORM_MULT}. Stances stay secret until the week resolves.`
+	)} in every state with the issue, nothing elsewhere. Other states move {points(config.STANCE_SPILL)} per top issue a side likes and {points(
+		-config.STANCE_SPILL
+	)} per one it dislikes. A candidate who runs on the issue is heard ×{config.STANCE_PLATFORM_MULT} there. Stances stay secret until the week resolves.`
 end
 
 PlanDraft.points = points
