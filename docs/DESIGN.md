@@ -278,3 +278,56 @@ Still red: the blowout share (structural, revised target in D-024), the wrong-le
 - **Rate limit:** 40 requests per player per 10 s, well above what play needs (a whole plan is one request).
 - **Reconnect window:** a player who comes back during an Input stage they haven't locked is guaranteed `RECONNECT_WINDOW` (15 s, new in `Sim/Config`) from the moment they return, even if their deadline already passed while grace held the stage open. Only their own deadline moves; it doesn't spend time bank or show the opponent anything, and it resets with the next Input stage. A rate-limited player is warned and told once per window; the rest of their requests are dropped silently.
 - **If a match throws:** `MatchService` abandons it (`Session.abort`, result `Abandoned`) and frees the lobby, so a bug can't trap players in a stuck match.
+
+## Phase 5: event deck
+
+### D-027 — The weekly event deck, made concrete (Oct 21, 2026, tuning + rules clarifications)
+
+`docs/PLAN.md` "Events (Phase 5)" left the details open. Code: `Sim/Events.luau` (deck and rules), `Resolve.week` (effects), `Plan.validate` (Choice answers), `View.event` / `View.eventLog`, `Bot`, and the private-lobby toggle in `Net/`. Specs: `tests/sim/Events.spec.luau`, plus additions to the View, Bot, Config, Lobby, Session and DebugUI specs.
+
+**The deck (20 events, generic and fictional).**
+
+| Kind | Events |
+|---|---|
+| Spotlight (8, one per issue) | Factory reopening (Jobs), Flu season (Health), Back to school (Schools), Storm season (Environment), Safety summit (Safety), Infrastructure week (Roads & Transit), Tech expo (Technology), Harvest festival (Farms & Rural) |
+| Regional (5) | Lakeshore fair (Great Lakes), Coastal festival (Pacific), Riverfront regatta (South Atlantic), Rodeo season (South Central), Trail days (Mountain) |
+| Windfall (3) | Donor retreat, Small-dollar surge, Matching-gift week |
+| Choice (4) | Leaked memo, Viral clip, Rumor mill, Endorsement fight |
+
+A match deals 10 of them, so it sees about 4 Spotlights, 2.5 Regionals, 1.5 Windfalls and 2 Choices. One Spotlight per issue means the deck favors no platform.
+
+**Draw and visibility.**
+- `Match.new` shuffles the deck with the `"events"` fork of the match seed and deals one event to each week from `EVENT_FIRST_WEEK` (2) to `EVENT_LAST_WEEK` (11). A shuffled deck means no repeats. Weeks 1 and 12 get nothing. The deck order is the only randomness events add, as the PLAN's variance budget says. A fork never advances its parent, so turning events off leaves leans, draft priority and debate topics unchanged (spec). With events off the harness reproduces the pre-events report exactly.
+- `MatchState.eventDeck` (week → id) stays hidden. `View.event` shows only the current week's event, during that week's Debate and Plan phases. The server's resolve reveal already carries the next week's view, so the event appears when Plan starts and both players can react to it. **Next week's event is not shown.** A preview would let a player fly into a Regional's region a week early for free, and the event would reward remembering the deck instead of reacting to it. Debates are announced ahead because they take prep; events don't. `View.spec` checks that changing any other week's deck entry leaves the view byte-for-byte the same, and it forbids the key `eventDeck`.
+
+**Effects** (during that week's Resolve, all from the step's start snapshot, D-001):
+- **Spotlight**: rallies and *positive* media on the issue get ×`EVENT_SPOTLIGHT_MULT` (1.3) in every state. Attacks are never boosted, so an event never makes attack ads stronger (D-004's spirit).
+- **Regional**: rallies only, in the region's states, get ×`EVENT_REGIONAL_MULT` (1.5).
+- **Windfall**: a fundraiser gets ×`EVENT_WINDFALL_MULT` (**1.2, not the PLAN's 1.5**, see below) in a state where the fundraiser trails in the *start-of-week public poll*, the one both players saw. A tie doesn't count as trailing. The multiplier applies after the pool cap together with the perk and home multipliers, and like them it doesn't drain the pool.
+- Events multiply the action's direct support or money only. Momentum, drift and saturation work as before.
+
+**The ±2 cap, concretely.** An event can add at most `EVENT_CAP` (2) to one player, in one state, in one week, beyond what that player's actions would have given there without it. For Spotlight and Regional this is support points, and rallies and media share the allowance. For Windfall it is money ($2M). `Events.grant` keeps a ledger per state and player during Resolve. Knock-on effects (a bigger rally saturating a later ad, a larger poll lead) aren't counted against the cap; they only ever make the difference smaller. Choice payoffs are national points clamped to ±`EVENT_CAP`, and the matrix below never exceeds 0.3. Specs: the cap binds exactly at 2 for three spotlight rallies and for a strong Windfall, and holds for bot plans in every boosting event, every state and every player.
+
+**Choice events.**
+- In a Choice week the plan may carry `choice = "Attack" | "Defend" | "Ignore"` (exact strings). A missing answer, an empty plan or a timeout means `"Ignore"`. Any other value is rejected whole as `BadChoice`. An answer in any other week is rejected as `UnexpectedChoice`.
+- Payoff matrix, in national points for the row answer against the column answer (Config `CHOICE_*`):
+
+  |  | vs Attack | vs Defend | vs Ignore |
+  |---|---|---|---|
+  | **Attack** | −0.2 (mudslinging) | −0.3 (backfire) | +0.2 |
+  | **Defend** | 0 (defense pays off) | −0.2 (wasted) | −0.2 (wasted) |
+  | **Ignore** | −0.2 (it lands) | 0 | 0 |
+
+  The matrix is the same for every seat, so swapping seats mirrors the result exactly (spec). In margin terms (a national gain also takes 30% from the opponent) it is a cycle: Attack beats Ignore by 0.46, Defend beats Attack by 0.3, Ignore beats Defend by 0.2. No answer is dominant. The mixed equilibrium plays Attack : Defend : Ignore = 0.2 : 0.46 : 0.3 (21% / 48% / 31%), and the game is worth 0 to both sides.
+  *Why not the brief's example numbers* (+0.5 / −0.5 for an attack on an ignorer, −0.3 backfire, −0.1 defend cost): an attack that lands would swing about 1.15 points of national margin, more than a whole 3-0 debate sweep (about 1.04, D-019), and those national shifts hit the tied block of close states (D-019). Defend would also be nearly dominant (71% at equilibrium). `Config.spec` pins every payoff inside the cap and below a debate sweep.
+- Resolution happens right after pivots, as one national shift (`Support.national`: gains use the normal split, losses go to undecided) from one snapshot. With more than two players, each one's payoff is the sum against every opponent, then clamped. Both answers are revealed after the week: `WeekCard.choice`, `View.eventLog` (`choices` and the `national` points) and a public `Choice` event per player. Until then an answer exists only in the server's locked seat input, never in `MatchState`. `View.spec` checks that seat 1's payload is identical whatever seat 2 has locked in.
+
+**Bot.** It ranks issues with the Spotlight multiplier included, values rallies in a Regional's region and Windfall fundraisers in trailing states at their bonus (tracking the cap per state like Resolve), and answers a Choice by sampling the equilibrium above with its own seeded stream (`Bot.choiceWeights`; the Random style picks uniformly). `Bot.spec` checks that it plays more spotlight-issue actions, more Pacific rallies under Coastal festival and no fewer trailing-state fundraisers, and that its answers match the mix.
+
+**Toggle.** `EVENTS_ENABLED` (true). Private lobbies only: a `Host` request may carry `events = false`, which `Net/Schemas` checks is a boolean. `Lobby.host` keeps it with the code and hands it to the `Match` outcome, and `MatchService` passes `{ events = false }` to `Session.new`, which plays the match on `Config.with(config, { EVENTS_ENABLED = false })`. The public queue and practice always have events on. Debug UI: `host noevents`. Events change no phase, timer or deadline (`Session.spec`).
+
+**Harness** (2,000 matches, `lune run tests/harness/balance.luau`):
+- *Before* (events off, identical to the D-025 report): 3 red flags, the same as D-025: the noise-level matchup cell (Calloway vs Alvarado 63.4%), wrong-leader underdog weeks 21.5%, and tier changes 3.03.
+- *With the PLAN's numbers* (Windfall ×1.5): 6 red flags. The three new ones were Venkat 56.7%, Strand 44.8% and NeverPoll 55.8%. A probe of 8,000 matches on two separate seed ranges (about 2,000 games per candidate, ±2.2 points at 95%) traced Venkat to Windfall: 52.1 / 52.8% with events off and 55.4 / 56.2% on. With Spotlight, Regional or Choice switched off she still measured 55.4–56.8%, but with Windfall off she measured 50.9 / 52.3%. Extra money is worth most to the candidate whose media costs $2. Windfall ×1.25 gave 53.3 / 53.9% and ×1.2 gave 53.0 / 52.7%. **`EVENT_WINDFALL_MULT` 1.5 → 1.2.**
+- Strand measures 47.0 / 45.2% with events off and 46.4 / 45.6% at the final numbers. That's her true rate, not an event effect, and she sits close to the 45% line either way. NeverPoll's check plays only 400 games (±5 points). At 2,000 games it measures 56.6% with events off and 57.6% with them on, so it was already over 55% before events. **For the humans:** paid polls are worth little to the bot (D-022 said the same about Strand's free polls). That is a bot or poll-value question and is not touched here.
+- *After* (final numbers): **3 red flags, the same three as before**. Candidates 47.0–54.9% (Venkat 54.9). Worst matchup Strand vs Begay 32.9% (a different noise-level cell; it was already 38% before events). Wrong-leader underdog weeks 21.8%, tier changes 3.10. Every other check passes: priority A 51.7%, comeback 38.3%, median margin 54, 40+ EV 62.4%, 100+ EV 20.1%, GOTV decides 11.8%, debates 16.4%, NeverPoll 54.5%.

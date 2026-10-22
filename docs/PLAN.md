@@ -167,7 +167,7 @@ Higher score wins the topic; an exact tie gives the topic to nobody. Each topic 
 
 ### Events (Phase 5)
 
-A seeded deck of about 20 weekly events, shown at the start of Plan so both players can react; none in weeks 1 or 12; any single event is capped at ±2 points of effect. Four types: *Spotlight* (one issue ×1.3 nationwide this week), *Regional* (rallies in one region ×1.5), *Windfall* (fundraisers ×1.5 in states where you trail), and *Choice* (both players secretly pick Attack / Defend / Ignore and a small payoff matrix resolves it). Private lobbies can toggle events off.
+A seeded deck of about 20 weekly events, shown at the start of Plan so both players can react; none in weeks 1 or 12; any single event is capped at ±2 points of effect. Four types: *Spotlight* (one issue ×1.3 nationwide this week), *Regional* (rallies in one region ×1.5), *Windfall* (fundraisers ×1.5 in states where you trail), and *Choice* (both players secretly pick Attack / Defend / Ignore and a small payoff matrix resolves it). Private lobbies can toggle events off. The deck, the cap's exact meaning, the payoff matrix and the numbers are in `DESIGN.md` D-027 (the harness moved Windfall to ×1.2).
 
 ### Election night
 
