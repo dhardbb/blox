@@ -67,8 +67,6 @@ Audit.PENDING = {
 	Lobby = { primary = true, typeScale = true },
 	Select = { primary = true, oneAccent = true },
 	Results = { primary = true, typeScale = true },
-	-- WP3: Campaign.
-	Campaign = { primary = true, oneAccent = true },
 	-- WP4: Draft, Election.
 	Draft = { primary = true, typeScale = true },
 	Election = { primary = true, contained = true },

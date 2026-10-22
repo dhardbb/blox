@@ -24,8 +24,6 @@ local PENDING: { [string]: number } = {
 	["src/client/Screens/Lobby.luau"] = 3,
 	["src/client/Screens/Select.luau"] = 2,
 	["src/client/Screens/Results.luau"] = 1,
-	-- WP3 (Campaign)
-	["src/client/Screens/Campaign.luau"] = 2,
 	-- WP4 (Draft, Election)
 	["src/client/Screens/Draft.luau"] = 10,
 	["src/client/Screens/DraftParts/StateList.luau"] = 6,

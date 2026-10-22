@@ -158,7 +158,7 @@ describe("Campaign screen", function()
 				)
 			else
 				check(shown(find(peer, "RevealPanel")), "the reveal panel is hidden")
-				check(not shown(find(peer, "LockIn")), "Lock in shows during a reveal")
+				check(FakeRoblox.find(peer, "LockIn") == nil, "Lock in shows during a reveal")
 			end
 			-- Both plan fixtures (weeks 3 and 8) are the week before a debate.
 			if moment == "Plan" or moment == "DebatePrep" then
@@ -172,7 +172,7 @@ describe("Campaign screen", function()
 			local _, peer = mountsCleanly(moment, PHONE)
 			local area = find(peer, "MapArea")
 			check(area.Size.X.Scale == 1, `{moment}: the map is not full width on a phone`)
-			check(find(peer, "TopRow3").Visible ~= false, `{moment}: the phone top bar has no third row`)
+			check(shown(find(peer, "Score")), `{moment}: the phone header has no score row`)
 		end
 	end)
 
@@ -183,14 +183,19 @@ describe("Campaign screen", function()
 
 		press(world, peer, home)
 		check(string.find(text(peer, "CardTitle"), "EV", 1, true) ~= nil, "the state card shows no state")
-		local before = text(peer, "TrayCost")
-		check(string.find(before, "AP used 0/3", 1, true) ~= nil, "empty tray cost: " .. before)
+		local before = text(peer, "BarStatus")
+		check(string.find(before, "AP 0/3", 1, true) ~= nil, "empty plan status: " .. before)
 
-		-- Change the rally message in two taps, then rally, fundraise and run an ad.
-		press(world, peer, "IssueButton")
-		check(shown(find(peer, "IssuePicker")), "the issue picker did not open")
+		-- Change the rally message (one tap, opening "More" if Health is not a
+		-- chip here), then rally, fundraise and run an ad.
+		if not shown(find(peer, "IssueHealth")) then
+			press(world, peer, "MessageMore")
+		end
 		press(world, peer, "IssueHealth")
-		check(not shown(find(peer, "IssuePicker")), "the issue picker did not close")
+		check(
+			find(peer, "IssueHealth"):GetAttribute("Selected") == true,
+			"the picked message is not selected"
+		)
 		press(world, peer, "Rally")
 		press(world, peer, "Fundraise")
 		press(world, peer, "Ad")
@@ -200,20 +205,18 @@ describe("Campaign screen", function()
 		)
 		check(string.find(text(peer, "PlanItem1"), "Health", 1, true) ~= nil, "the picked issue was not used")
 		check(
-			string.find(text(peer, "PlanItem2"), "Fundraiser", 1, true) ~= nil,
+			string.find(text(peer, "PlanItem2"), "Fundraise", 1, true) ~= nil,
 			"item 2: " .. text(peer, "PlanItem2")
 		)
 		check(
 			string.find(text(peer, "PlanItem3"), "Ad", 1, true) ~= nil,
 			"item 3: " .. text(peer, "PlanItem3")
 		)
-		local after = text(peer, "TrayCost")
-		check(after ~= before, "the tray cost did not change")
-		check(string.find(after, "AP used 2/3", 1, true) ~= nil, "tray cost: " .. after)
-		check(
-			string.find(text(peer, "APLabel"), "AP 1 of 3", 1, true) ~= nil,
-			"top bar AP: " .. text(peer, "APLabel")
-		)
+		local after = text(peer, "BarStatus")
+		check(after ~= before, "the plan status did not change")
+		check(string.find(after, "AP 2/3", 1, true) ~= nil, "plan status: " .. after)
+		check(text(peer, "APLabel") == "1 AP", "header AP: " .. text(peer, "APLabel"))
+		check(string.find(text(peer, "PlanTitle"), "2 of 3 AP", 1, true) ~= nil, text(peer, "PlanTitle"))
 
 		-- Removing an item renumbers the tray.
 		press(world, peer, "RemoveItem2")
@@ -233,11 +236,9 @@ describe("Campaign screen", function()
 
 		press(world, peer, "LockIn")
 		check(said(peer, "[270] DEBUG_UI submit"), "Lock in sent nothing")
-		check(shown(find(peer, "LockedNote")), "no locked note")
-		check(
-			string.find(text(peer, "LockedNote"), "waiting for opponent", 1, true) ~= nil,
-			"locked note text"
-		)
+		expect(text(peer, "BarStatus")):toBe("Locked in · waiting for opponent")
+		expect(text(peer, "LockIn")):toBe("Locked in")
+		check(find(peer, "LockIn").Active == false, "Lock in is still enabled after locking")
 		check(find(peer, "Fundraise").Active == false, "the card is still editable after locking")
 		check(find(peer, "RemoveItem1").Active == false, "the tray is still editable after locking")
 		noErrors(world)
@@ -253,6 +254,7 @@ describe("Campaign screen", function()
 			"gotv line: " .. text(peer, "PlanItem1")
 		)
 		check(FakeRoblox.find(peer, "PlanItem2") == nil, "GOTV took two tray lines")
+		press(world, peer, "ClearButton")
 		press(world, peer, "ClearButton")
 		check(FakeRoblox.find(peer, "PlanItem1") == nil, "Clear left items behind")
 		press(world, peer, "BankButton")
@@ -276,7 +278,8 @@ describe("Campaign screen", function()
 		press(world, peer, `PivotDrop{platform[1]}`)
 		press(world, peer, `PivotAdd{other}`)
 		check(string.find(text(peer, "PlanItem1"), "Pivot", 1, true) ~= nil, "no pivot in the tray")
-		check(not shown(find(peer, "PivotButton")), "Pivot is still offered with a pivot planned")
+		check(find(peer, "PivotButton").Active == false, "Pivot is still offered with a pivot planned")
+		check(shown(find(peer, "ActionGrid")), "the action grid did not come back after the pivot")
 		noErrors(world)
 	end)
 
@@ -302,7 +305,7 @@ describe("Campaign screen", function()
 		noErrors(world)
 	end)
 
-	it("plays the resolve reveal and can be skipped", function()
+	it("plays the resolve reveal and can be skipped from the action bar", function()
 		local world, peer = fixture("Resolve")
 		check(text(peer, "StageLabel") == "Results", "stage label: " .. text(peer, "StageLabel"))
 		check(text(peer, "RevealLine1") ~= "", "no event lines")
@@ -316,6 +319,8 @@ describe("Campaign screen", function()
 			string.find(text(peer, "SkipButton"), "Waiting", 1, true) ~= nil,
 			"skip button: " .. text(peer, "SkipButton")
 		)
+		check(find(peer, "SkipButton").Active == false, "Skip is still enabled after the tap")
+		check(find(peer, "SkipButton"):GetAttribute("PrimaryAction") == true, "Skip is not the bar's primary")
 		noErrors(world)
 	end)
 
@@ -340,24 +345,36 @@ describe("Campaign screen", function()
 		local _, peer = mountsCleanly("Plan")
 		local event = Fixtures.payload(C, "Plan").view.event
 		check(event ~= nil and event.kind == "Windfall", "the Plan fixture is no longer a Windfall week")
-		check(shown(find(peer, "EventBanner")), "no event banner")
-		check(text(peer, "EventTitle") == (event :: any).name, "title: " .. text(peer, "EventTitle"))
-		check(text(peer, "EventText") == (event :: any).text, "flavor: " .. text(peer, "EventText"))
+		local banner = find(peer, "EventCard")
+		check(shown(banner), "no event card")
+		expect(banner:GetAttribute("EventName")):toBe((event :: any).name)
+		check(
+			string.find(text(peer, "EventToggle"), (event :: any).name, 1, true) ~= nil,
+			"title: " .. text(peer, "EventToggle")
+		)
+		expect(text(peer, "EventText")):toBe((event :: any).text)
+		-- Collapsed in a Windfall week, but the effect line still shows (two lines).
+		check(not shown(find(peer, "EventText")), "the Windfall card is not collapsed")
+		check(shown(find(peer, "EventEffect")), "the effect line is hidden on the collapsed card")
 		expect(text(peer, "EventEffect")):toBe(
 			"Fundraisers in states where you trail in the public poll raise ×1.2 this week"
 		)
 		check(not shown(find(peer, "ChoiceRow")), "answer buttons show in a Windfall week")
 		check(not shown(find(peer, "ChoiceNote")), "the Choice note shows in a Windfall week")
 		check(not shown(find(peer, "EventMapNote")), "a Windfall marks no states")
-		local banner, card = find(peer, "EventBanner"), find(peer, "StateCard")
-		check(banner.LayoutOrder < card.LayoutOrder, "the banner is not first in the side panel")
+		local card, plan = find(peer, "StateCard"), find(peer, "PlanList")
+		check(
+			card.LayoutOrder < banner.LayoutOrder,
+			"the state card is not above the event outside Choice weeks"
+		)
+		check(banner.LayoutOrder < plan.LayoutOrder, "the event card is not above the plan")
 	end)
 
 	it("hides the banner during the resolve reveal, which carries next week's view", function()
 		local _, peer = mountsCleanly("Resolve")
 		local view = Fixtures.payload(C, "Resolve").view
 		check(view.event ~= nil, "the Resolve fixture has no next-week event to hide")
-		check(not shown(find(peer, "EventBanner")), "the banner shows next week's event early")
+		check(not shown(find(peer, "EventCard")), "the event card shows next week's event early")
 	end)
 
 	for _, size in { { name = "16:9", screen = nil }, { name = "phone", screen = PHONE } } do
@@ -365,7 +382,8 @@ describe("Campaign screen", function()
 			local world, peer = mountsCleanly("ChoiceWeek", size.screen)
 			local event = Fixtures.payload(C, "ChoiceWeek").view.event :: any
 			check(event.kind == "Choice", "not a Choice week")
-			check(text(peer, "EventTitle") == event.name, "title: " .. text(peer, "EventTitle"))
+			expect(find(peer, "EventCard"):GetAttribute("EventName")):toBe(event.name)
+			check(find(peer, "EventToggle"):GetAttribute("Expanded") == true, "the Choice card is collapsed")
 			expect(text(peer, "EventEffect")):toBe("Choose how to respond: Attack / Defend / Ignore")
 			check(shown(find(peer, "ChoiceNote")), "no tradeoff note")
 			check(
@@ -383,6 +401,8 @@ describe("Campaign screen", function()
 			-- Ignore starts selected: it alone looks different.
 			check(attack.BackgroundColor3 == defend.BackgroundColor3, "attack and defend differ")
 			check(ignore.BackgroundColor3 ~= defend.BackgroundColor3, "Ignore is not selected by default")
+			check(ignore:GetAttribute("Selected") == true, "Ignore is not selected")
+			check(ignore.VariantStroke.Enabled == true, "Ignore has no selection outline")
 
 			press(world, peer, "ChoiceAttack")
 			check(attack.BackgroundColor3 ~= defend.BackgroundColor3, "Attack did not become selected")
@@ -447,7 +467,7 @@ describe("Campaign screen", function()
 			return button ~= nil and shown(button) and button.Active ~= false
 		end
 		check(walk(rig, peer, choosing, 900), "no Choice week came up in a whole match")
-		local event = definition(text(peer, "EventTitle"))
+		local event = definition(tostring(find(peer, "EventCard"):GetAttribute("EventName")))
 		check(event.kind == "Choice", `{event.name} is not a Choice event`)
 		Support.press(rig, peer, "ChoiceAttack")
 		Support.press(rig, peer, "LockIn")
@@ -488,19 +508,18 @@ describe("Campaign screen", function()
 	it("stars the states a Spotlight or Regional event singles out on the map", function()
 		local rig, peer = startPractice(5)
 		local singled = function()
-			local kind = FakeRoblox.find(peer, "EventKind")
+			local card = FakeRoblox.find(peer, "EventCard")
 			local planning = FakeRoblox.find(peer, "LockIn")
-			return kind ~= nil
-				and shown(kind)
+			local kind = if card then card:GetAttribute("EventKind") else nil
+			return card ~= nil
+				and shown(card)
 				and planning ~= nil
 				and shown(planning)
-				and (
-					string.find(text(peer, "EventKind"), "Spotlight", 1, true) ~= nil
-					or string.find(text(peer, "EventKind"), "Regional", 1, true) ~= nil
-				)
+				and (kind == "Spotlight" or kind == "Regional")
 		end
 		check(walk(rig, peer, singled, 900), "no Spotlight or Regional week came up")
-		local event = definition(text(peer, "EventTitle"))
+		local event = definition(tostring(find(peer, "EventCard"):GetAttribute("EventName")))
+		check(shown(find(peer, "EventText")), "the Spotlight/Regional card is not expanded")
 		local view: any = { week = 0, id = event.id, kind = event.kind, name = event.name, text = event.text }
 		view.issue, view.region = event.issue, event.region
 		local expected = PlanDraft.eventStates(view)
@@ -694,9 +713,15 @@ describe("Campaign state list", function()
 		local all = table.concat(texts, " | ")
 		check(Rig.contains(all, "OH") and Rig.contains(all, "EV"), `row text: {all}`)
 		check(Rig.contains(all, "Mom"), `no momentum in the row: {all}`)
-		local first = Rig.textOf(peer, "Campaign", "StatesSort")
-		Rig.tap(world, peer, "Campaign", "StatesSort")
-		check(Rig.textOf(peer, "Campaign", "StatesSort") ~= first, "the sort button did not change")
+		check(
+			Rig.need(peer, "Campaign", "Sort_Closest"):GetAttribute("Selected") == true,
+			"not sorted closest"
+		)
+		Rig.tap(world, peer, "Campaign", "Sort_Biggest")
+		check(
+			Rig.need(peer, "Campaign", "Sort_Biggest"):GetAttribute("Selected") == true,
+			"the sort chip did not change"
+		)
 		local biggest = StateData.list[1]
 		for _, record in StateData.list do
 			if record.ev > biggest.ev or (record.ev == biggest.ev and record.id < biggest.id) then
@@ -707,7 +732,7 @@ describe("Campaign state list", function()
 			Rig.need(peer, "Campaign", `Row_{biggest.id}`).LayoutOrder == 1,
 			`{biggest.id} is not first when sorted by size`
 		)
-		Rig.tap(world, peer, "Campaign", "StatesSort")
+		Rig.tap(world, peer, "Campaign", "Sort_Name")
 		check(Rig.need(peer, "Campaign", "Row_AL").LayoutOrder == 1, "Alabama is not first by name")
 		Rig.noErrors(world)
 	end)
