@@ -472,6 +472,22 @@ describe("Session: abort", function()
 	end)
 end)
 
+describe("Session: options", function()
+	it("a private lobby can turn the event deck off; the default keeps it (D-027)", function()
+		local seats: { Session.SeatSpec } = { { id = "1", kind = "Human" }, { id = "2", kind = "Human" } }
+		local off = Session.new(C, "m", 4, seats, 0, { events = false })
+		expect(off.config.EVENTS_ENABLED):toBe(false)
+		expect(next(off.match.eventDeck)):toBe(nil)
+		local on = Session.new(C, "m", 4, seats, 0)
+		expect(on.config.EVENTS_ENABLED):toBe(true)
+		expect(next(on.match.eventDeck) ~= nil):toBe(true)
+		-- Timers and flow are untouched: same deadline, same first stage.
+		expect(off.deadline):toBe(on.deadline)
+		expect(off.stage):toBe(on.stage)
+		expect(Session.new(C, "m", 4, seats, 0, { events = true }).config.EVENTS_ENABLED):toBe(true)
+	end)
+end)
+
 describe("Session: bots and replication", function()
 	it("a bot seat locks in by itself every input stage", function()
 		local session = practice()

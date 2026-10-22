@@ -13,6 +13,7 @@ local ConfigModule = require("./Config")
 local Debate = require("./Debate")
 local Draft = require("./Draft")
 local Election = require("./Election")
+local Events = require("./Events")
 local Issues = require("./Issues")
 local Leans = require("./Leans")
 local Plan = require("./Plan")
@@ -35,7 +36,9 @@ export type Selection = {
 
 local Match = {}
 
--- A new match in the Select phase. Leans are seeded now (shown from MapReveal on).
+-- A new match in the Select phase. Leans, debate topics and the event deck are
+-- seeded now (leans are shown from MapReveal on; each event only in its own week).
+-- A private lobby with events off passes Config.with(config, { EVENTS_ENABLED = false }).
 function Match.new(config: Config, seed: number, playerIds: { string }): MatchState
 	local n = #playerIds
 	assert(n >= 2, "a match needs at least two players")
@@ -103,6 +106,8 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 		draftLog = {},
 		debateTopics = Debate.drawTopics(config, rng),
 		debates = {},
+		eventDeck = Events.draw(config, rng),
+		eventLog = {},
 		election = nil,
 	}
 end

@@ -54,6 +54,7 @@ export type WeekCard = {
 	media: { { state: string, issue: Types.Issue, attack: boolean } },
 	pivot: { drop: Types.Issue, add: Types.Issue }?,
 	flights: number,
+	choice: Types.Choice?, -- response to a Choice event, revealed after the week resolves
 }
 
 export type PlayerState = {
@@ -93,6 +94,14 @@ export type DebateResult = {
 	national: { number }, -- national points each player gained
 }
 
+-- A resolved weekly event (D-027). Public from the end of its week.
+export type EventResult = {
+	week: number,
+	id: string, -- Events.byId key
+	choices: { Types.Choice }?, -- Choice events: each player's response, by player index
+	national: { number }?, -- Choice events: national points each player got
+}
+
 export type StateResult = {
 	state: string,
 	winner: number, -- 0 if an exact tie (no EV awarded)
@@ -120,6 +129,8 @@ export type MatchState = {
 	draftLog: { DraftPick },
 	debateTopics: { [number]: { Types.Issue } }, -- by debate week
 	debates: { DebateResult },
+	eventDeck: { [number]: string }, -- week -> event id (hidden: only the current week's is shown)
+	eventLog: { EventResult }, -- resolved events, oldest first
 	election: ElectionResult?,
 }
 

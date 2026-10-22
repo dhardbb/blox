@@ -4,12 +4,15 @@
 --
 -- Never included: true support or undecided, poll error terms, pool levels, the
 -- seed or RNG state, opponents' exact cash, GOTV units, backlash, internal polls,
--- fundraiser yields, or debate prep before the debate resolves, and anyone's
--- candidate or platform before the Select phase ends. tests/sim/View.spec enforces it.
+-- fundraiser yields, or debate prep before the debate resolves, anyone's
+-- candidate or platform before the Select phase ends, the event deck beyond the
+-- current week, or anyone's Choice answer before the week resolves (answers live
+-- only in the submitted plans until then). tests/sim/View.spec enforces it.
 
 local ConfigModule = require("./Config")
 local Debate = require("./Debate")
 local Draft = require("./Draft")
+local Events = require("./Events")
 local Polls = require("./Polls")
 local State = require("./State")
 local Types = require("../Types")
@@ -50,6 +53,17 @@ export type PlayerView = {
 	card: State.WeekCard?,
 }
 
+-- This week's event, as everyone sees it (D-027).
+export type EventView = {
+	week: number,
+	id: string,
+	kind: Types.EventKind,
+	name: string,
+	text: string,
+	issue: Types.Issue?, -- Spotlight
+	region: Types.Region?, -- Regional
+}
+
 export type View = {
 	you: number,
 	phase: State.Phase,
@@ -64,6 +78,8 @@ export type View = {
 	draftLog: { State.DraftPick },
 	nextDebate: { week: number, topics: { Types.Issue } }?,
 	debates: { State.DebateResult },
+	event: EventView?, -- this week's event, during its Debate and Plan phases
+	eventLog: { State.EventResult }, -- resolved events, Choice answers revealed
 	internalPolls: { State.InternalPoll }, -- yours, from last week's plan
 	raised: number, -- what your fundraisers raised last week
 	debatePrep: { number }?, -- your prep for the next debate
@@ -144,6 +160,20 @@ function View.build(config: Config, match: MatchState, you: number): View
 		end
 	end
 
+	local event: EventView? = nil
+	local current = Events.at(match)
+	if current ~= nil and (match.phase == "Plan" or match.phase == "Debate") then
+		event = {
+			week = match.week,
+			id = current.id,
+			kind = current.kind,
+			name = current.name,
+			text = current.text,
+			issue = current.issue,
+			region = current.region,
+		}
+	end
+
 	local me = match.players[you]
 	local drafting = match.phase == "Draft"
 	return {
@@ -160,6 +190,8 @@ function View.build(config: Config, match: MatchState, you: number): View
 		draftLog = copy(match.draftLog),
 		nextDebate = nextDebate,
 		debates = copy(match.debates),
+		event = event,
+		eventLog = copy(match.eventLog),
 		internalPolls = copy(me.internalPolls),
 		raised = me.raised,
 		debatePrep = copy(me.debatePrep),

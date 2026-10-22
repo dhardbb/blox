@@ -12,11 +12,17 @@
 -- nothing is worth its price. Estimates are updated after every pick, so returns
 -- diminish the way the simulation's do.
 --
+-- This week's event (View.event) enters the same estimates: a Spotlight issue
+-- and a Regional rally are worth their multiplier, a Windfall fundraiser in a
+-- trailing state its bonus, each within EVENT_CAP per state. A Choice event is
+-- answered by sampling the game's mixed equilibrium (Bot.choiceWeights).
+--
 -- Styles restrict the balanced policy for the harness's dominance checks.
 
 local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
 local Draft = require("./Draft")
+local Events = require("./Events")
 local Issues = require("./Issues")
 local Plan = require("./Plan")
 local Resolve = require("./Resolve")
@@ -81,14 +87,21 @@ local function profileOf(config: Config, view: View, p: number): Candidates.Prof
 	return Candidates.profile(config, view.players[p].candidate or Candidates.ids[1])
 end
 
--- Best issue for a positive action by a player with `platform` in state i.
-local function bestIssue(config: Config, platform: { Types.Issue }, i: number): (Types.Issue, number)
-	local best: Types.Issue, bestMult = ISSUES[1], -math.huge
+-- Best issue for a positive action by a player with `platform` in state i, and its
+-- issue multiplier. A Spotlight issue counts at its event multiplier when ranking.
+local function bestIssue(
+	config: Config,
+	platform: { Types.Issue },
+	i: number,
+	spotlight: Types.Issue?
+): (Types.Issue, number)
+	local best: Types.Issue, bestMult, bestScore = ISSUES[1], 0, -math.huge
 	for k = 1, #ISSUES do
 		local issue: Types.Issue = ISSUES[k]
 		local mult = Resolve.issueMult(config, platform, StateData.list[i].issues, issue)
-		if mult > bestMult then
-			best, bestMult = issue, mult
+		local score = if issue == spotlight then mult * config.EVENT_SPOTLIGHT_MULT else mult
+		if score > bestScore then
+			best, bestMult, bestScore = issue, mult, score
 		end
 	end
 	return best, bestMult
@@ -302,8 +315,15 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 		prep = Bot.prep(config, view)
 	end
 
+	local event = view.event
+	local choice: Types.Choice? = nil
+	if event ~= nil and event.kind == "Choice" then
+		choice = Bot.choose(config, rng, style)
+	end
+	local spotlight: Types.Issue? = if event ~= nil and event.kind == "Spotlight" then event.issue else nil
+
 	if style == "Random" then
-		return Bot.randomPlan(config, view, rng, prep)
+		return Bot.randomPlan(config, view, rng, prep, choice)
 	end
 
 	local estimates = buildEstimates(config, view)
@@ -328,6 +348,27 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 		return if view.states[i].battleground then config.BATTLEGROUND_MULT else 1
 	end
 
+	-- Event bonuses already planned per state this week (support, money), so the
+	-- estimates respect EVENT_CAP like Resolve does.
+	local eventSupport: { [number]: number } = {}
+	local eventMoney: { [number]: number } = {}
+	local function withEvent(i: number, kind: "Rally" | "Media", issue: Types.Issue, gain: number): number
+		local mult = Events.supportMult(config, event, kind, issue, i)
+		if mult <= 1 then
+			return gain
+		end
+		local room = math.max(0, config.EVENT_CAP - (eventSupport[i] or 0))
+		return gain + math.min(gain * (mult - 1), room)
+	end
+	local function moneyWithEvent(i: number, money: number): number
+		local mult = Events.fundMult(config, event, view.states[i].poll, me)
+		if mult <= 1 then
+			return money
+		end
+		local room = math.max(0, config.EVENT_CAP - (eventMoney[i] or 0))
+		return money + math.min(money * (mult - 1), room)
+	end
+
 	-- Value and parameters of the next media buy (positive or attack) in state i.
 	local function mediaOption(i: number, attack: boolean): (number, Types.Issue)
 		local e = estimates[i]
@@ -344,7 +385,7 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 			value = marginValue(e, StateData.list[i].ev) * margin
 		else
 			local mult
-			issue, mult = bestIssue(config, platform, i)
+			issue, mult = bestIssue(config, platform, i, spotlight)
 			local gain = config.MEDIA_SUPPORT
 				* mult
 				* profile.mediaMult
@@ -352,6 +393,7 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 				* closing
 				* factor
 				* Support.saturation(config, e.mine)
+			gain = withEvent(i, "Media", issue, gain)
 			value = marginValue(e, StateData.list[i].ev)
 				* (marginFromGain(config, e, gain) + driftGain(config, e, config.MEDIA_MOMENTUM * factor))
 		end
@@ -392,20 +434,28 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 				local e = estimates[i]
 				local flightValue = flight * lambda
 				if style ~= "FundraiseOnly" and not capped(i) then
-					local issue, mult = bestIssue(config, platform, i)
-					local gain = profile.rallySupport
+					local issue: Types.Issue, mult = bestIssue(config, platform, i, spotlight)
+					local base = profile.rallySupport
 						* mult
 						* profile.rallyMult
 						* bg(i)
 						* underdogRally
 						* closing
 						* Support.saturation(config, e.mine)
+					local gain = withEvent(i, "Rally", issue, base)
 					local margin = marginFromGain(config, e, gain)
 						+ driftGain(config, e, config.RALLY_MOMENTUM)
 					local value = marginValue(e, record.ev) * margin - flightValue
 					if value > bestValue then
 						best, bestValue =
-							{ kind = "Rally", state = record.id, issue = issue, i = i, gain = gain }, value
+							{
+								kind = "Rally",
+								state = record.id,
+								issue = issue,
+								i = i,
+								gain = gain,
+								base = base,
+							}, value
 					end
 				end
 				if style ~= "RallyOnly" then
@@ -419,12 +469,19 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 					pool -= fundraised[i] or 0
 					local yield = math.max(0, math.min(pool, raw))
 					local home = if s.isHome and s.owner == me then config.HOME_FUNDRAISE_MULT else 1
-					local money = yield * profile.fundraiseMult * home * underdogFund
+					local base = yield * profile.fundraiseMult * home * underdogFund
+					local money = moneyWithEvent(i, base)
 					local value = money * lambda - flightValue
 					if value > bestValue then
 						best, bestValue =
-							{ kind = "Fundraise", state = record.id, i = i, money = money, raw = yield },
-							value
+							{
+								kind = "Fundraise",
+								state = record.id,
+								i = i,
+								money = money,
+								base = base,
+								raw = yield,
+							}, value
 					end
 				end
 			end
@@ -439,9 +496,11 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 		if best.kind == "Rally" then
 			table.insert(actions, { kind = "Rally", state = best.state, issue = best.issue })
 			apply(config, estimates[best.i], best.gain, config.RALLY_MOMENTUM)
+			eventSupport[best.i] = (eventSupport[best.i] or 0) + best.gain - best.base
 		else
 			table.insert(actions, { kind = "Fundraise", state = best.state })
 			fundraised[best.i] = (fundraised[best.i] or 0) + best.raw
+			eventMoney[best.i] = (eventMoney[best.i] or 0) + best.money - best.base
 		end
 	end
 
@@ -528,20 +587,22 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 				local _, mult = bestAttackIssue(config, theirPlatform, best.i)
 				e.margin += config.ATTACK_LOSS * mult * profile.mediaMult * bg(best.i) * closing * factor * 1.4
 			else
-				local _, mult = bestIssue(config, platform, best.i)
-				local gain = config.MEDIA_SUPPORT
+				local _, mult = bestIssue(config, platform, best.i, spotlight)
+				local base = config.MEDIA_SUPPORT
 					* mult
 					* profile.mediaMult
 					* bg(best.i)
 					* closing
 					* factor
 					* Support.saturation(config, e.mine)
+				local gain = withEvent(best.i, "Media", best.issue, base)
+				eventSupport[best.i] = (eventSupport[best.i] or 0) + gain - base
 				apply(config, e, gain, config.MEDIA_MOMENTUM * factor)
 			end
 		end
 	end
 
-	return Bot.merge({ actions = actions, prep = prep })
+	return Bot.merge({ actions = actions, prep = prep, choice = choice })
 end
 
 -- Merges repeated single GOTV units in one state into one action.
@@ -558,7 +619,47 @@ function Bot.merge(plan: any): any
 			end
 		end
 	end
-	return { actions = out, prep = plan.prep }
+	return { actions = out, prep = plan.prep, choice = plan.choice }
+end
+
+-- Mixed equilibrium of the Choice game as weights for Attack, Defend, Ignore
+-- (D-027). The matrix is a cycle (Attack beats Ignore, Defend beats Attack, Ignore
+-- beats Defend); with margin edges a, b, c for those three, the equilibrium plays
+-- Attack : Defend : Ignore = c : a : b, which no answer can exploit. Edges are
+-- margins: a national gain also takes 1 - GAIN_FROM_UNDECIDED from the opponent.
+function Bot.choiceWeights(config: Config): { number }
+	local split = 2 - config.GAIN_FROM_UNDECIDED
+	local function margin(points: number): number
+		return if points > 0 then points * split else points
+	end
+	local function edge(x: Types.Choice, y: Types.Choice): number
+		return margin(Events.payoff(config, x, y)) - margin(Events.payoff(config, y, x))
+	end
+	local a, b, c = edge("Attack", "Ignore"), edge("Defend", "Attack"), edge("Ignore", "Defend")
+	if a <= 0 or b <= 0 or c <= 0 then
+		return { 1, 1, 1 } -- not a cycle: play uniformly
+	end
+	return { c, a, b }
+end
+
+-- A Choice answer: the equilibrium mix, seeded (uniform for the Random style).
+function Bot.choose(config: Config, rng: Rng.Rng, style: Style?): Types.Choice
+	local weights: { number } = { 1, 1, 1 }
+	if style ~= "Random" then
+		weights = Bot.choiceWeights(config)
+	end
+	local total = 0
+	for _, w in weights do
+		total += w
+	end
+	local roll = Rng.nextFloat(rng) * total
+	for k = 1, #Events.CHOICES do
+		roll -= weights[k]
+		if roll < 0 then
+			return Events.CHOICES[k]
+		end
+	end
+	return Events.CHOICES[#Events.CHOICES]
 end
 
 -- Debate prep: more on topics where neither side has the platform edge.
@@ -593,7 +694,13 @@ function Bot.prep(config: Config, view: View): { number }?
 end
 
 -- Random legal actions: the floor every real strategy must beat.
-function Bot.randomPlan(config: Config, view: View, rng: Rng.Rng, prep: { number }?): any
+function Bot.randomPlan(
+	config: Config,
+	view: View,
+	rng: Rng.Rng,
+	prep: { number }?,
+	choice: Types.Choice?
+): any
 	local me = view.you
 	local profile = profileOf(config, view, me)
 	local player = view.players[me]
@@ -621,7 +728,7 @@ function Bot.randomPlan(config: Config, view: View, rng: Rng.Rng, prep: { number
 		table.insert(actions, { kind = "Media", state = record.id, issue = issue })
 		cash -= profile.mediaCost
 	end
-	return { actions = actions, prep = prep }
+	return { actions = actions, prep = prep, choice = choice }
 end
 
 -- One call for any phase that wants input (the harness and practice mode use this).

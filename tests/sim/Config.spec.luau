@@ -41,6 +41,31 @@ describe("Config", function()
 		expect(C.DEBATE_ROLL_MAX >= 2 * C.DEBATE_PLATFORM_BONUS):toBe(true)
 	end)
 
+	it("events stay small and off the first and last weeks (D-027)", function()
+		expect(C.EVENT_FIRST_WEEK >= 2 and C.EVENT_LAST_WEEK <= C.WEEKS - 1):toBe(true)
+		expect(C.EVENT_FIRST_WEEK <= C.EVENT_LAST_WEEK):toBe(true)
+		for _, mult in { C.EVENT_SPOTLIGHT_MULT, C.EVENT_REGIONAL_MULT, C.EVENT_WINDFALL_MULT } do
+			expect(mult > 1 and mult <= 1.5):toBe(true)
+		end
+		-- Every Choice payoff is inside the cap and smaller than a 3-0 debate sweep.
+		local sweep = C.DEBATE_TOPICS * C.DEBATE_TOPIC_WIN + C.DEBATE_SWEEP
+		local payoffs = {
+			C.CHOICE_ATTACK_ATTACK,
+			C.CHOICE_ATTACK_DEFEND,
+			C.CHOICE_ATTACK_IGNORE,
+			C.CHOICE_DEFEND_ATTACK,
+			C.CHOICE_DEFEND_DEFEND,
+			C.CHOICE_DEFEND_IGNORE,
+			C.CHOICE_IGNORE_ATTACK,
+			C.CHOICE_IGNORE_DEFEND,
+			C.CHOICE_IGNORE_IGNORE,
+		}
+		for _, v in payoffs do
+			expect(math.abs(v) <= C.EVENT_CAP and math.abs(v) < sweep):toBe(true)
+		end
+		expect(C.CHOICE_IGNORE_IGNORE):toBe(0)
+	end)
+
 	it("ground game beats a poorly matched media buy per dollar (D-021)", function()
 		-- Hidden, unsaturating and placed late, GOTV must be the better use of a dollar
 		-- somewhere, or nobody buys it. Compare with a media buy on a mismatched issue.

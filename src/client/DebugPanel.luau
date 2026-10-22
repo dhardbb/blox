@@ -265,7 +265,7 @@ local function command(text: string)
 		if op == "Submit" or op == "Bank" or op == "Skip" then
 			matchRequest(op, parsed.input)
 		else
-			request({ op = op, code = parsed.code, pick = parsed.pick })
+			request({ op = op, code = parsed.code, pick = parsed.pick, events = parsed.events })
 		end
 	end
 end

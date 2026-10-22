@@ -4,10 +4,14 @@
 
 local Candidates = require("../Sim/Candidates")
 local Config = require("../Sim/Config")
+local Events = require("../Sim/Events")
+local Issues = require("../Sim/Issues")
 local StateData = require("../Sim/StateData")
 local Profile = require("../Net/Profile")
+local View = require("../Sim/View")
 local Remotes = require("../Net/Remotes")
 local Session = require("../Net/Session")
+local Types = require("../Types")
 
 local Format = {}
 
@@ -88,6 +92,38 @@ local function marginText(poll: { support: { number }, undecided: number }?, you
 	return string.format("%2d-%2d u%2d", poll.support[you], poll.support[them], poll.undecided), m
 end
 
+-- One line describing a weekly event and what it does.
+function Format.event(event: View.EventView): string
+	local C = Config.defaults
+	local rule
+	if event.kind == "Spotlight" then
+		local issue: Types.Issue? = event.issue
+		rule = string.format(
+			"Spotlight: rallies and ads on %s x%.1f, max +%g per state",
+			if issue then Issues.displayName[issue] else "?",
+			C.EVENT_SPOTLIGHT_MULT,
+			C.EVENT_CAP
+		)
+	elseif event.kind == "Regional" then
+		local region: Types.Region? = event.region
+		rule = string.format(
+			"Regional: rallies in %s x%.1f, max +%g per state",
+			if region then Issues.regionName[region] else "?",
+			C.EVENT_REGIONAL_MULT,
+			C.EVENT_CAP
+		)
+	elseif event.kind == "Windfall" then
+		rule = string.format(
+			"Windfall: fundraisers x%.1f where you trail in the poll, max +$%g per state",
+			C.EVENT_WINDFALL_MULT,
+			C.EVENT_CAP
+		)
+	else
+		rule = 'Choice: add "choice attack|defend|ignore" to your plan (default ignore)'
+	end
+	return `{event.name} ({rule}). {event.text}`
+end
+
 -- The full board summary.
 function Format.board(payload: Session.StatePayload, now: number, rating: Remotes.RatingChange?): string
 	local view = payload.view
@@ -156,6 +192,23 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	if view.nextDebate then
 		add(`Next debate week {view.nextDebate.week}: {table.concat(view.nextDebate.topics, ", ")}`)
 	end
+	if view.event then
+		add("Event this week: " .. Format.event(view.event))
+	end
+	local lastEvent = view.eventLog[#view.eventLog]
+	if lastEvent and lastEvent.week == view.week - 1 and lastEvent.choices and lastEvent.national then
+		local definition = Events.byId[lastEvent.id]
+		add(
+			string.format(
+				"Last week's event %s: you %s (%+.1f), them %s (%+.1f)",
+				if definition then definition.name else lastEvent.id,
+				lastEvent.choices[you],
+				lastEvent.national[you],
+				lastEvent.choices[them],
+				lastEvent.national[them]
+			)
+		)
+	end
 	if view.debatePrep then
 		add(`Your prep: {table.concat(view.debatePrep, "/")}`)
 	end
@@ -183,6 +236,9 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		end
 		if card.pivot then
 			table.insert(parts, `pivot {card.pivot.drop}->{card.pivot.add}`)
+		end
+		if card.choice then
+			table.insert(parts, `choice {card.choice}`)
 		end
 		add("Opponent last week: " .. (if #parts > 0 then table.concat(parts, ", ") else "nothing public"))
 	end

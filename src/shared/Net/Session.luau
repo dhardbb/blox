@@ -97,6 +97,11 @@ export type Session = {
 	outbox: { Message },
 }
 
+-- Match options a private lobby may set (public queue and practice use none).
+export type Options = {
+	events: boolean?, -- false: no event deck this match (D-027)
+}
+
 export type SeatSpec = {
 	id: string,
 	kind: SeatKind,
@@ -394,8 +399,18 @@ end
 
 -- ---------------------------------------------------------------- construction
 
-function Session.new(config: Config, id: string, seed: number, specs: { SeatSpec }, now: number): Session
+function Session.new(
+	config: Config,
+	id: string,
+	seed: number,
+	specs: { SeatSpec },
+	now: number,
+	options: Options?
+): Session
 	assert(#specs >= 2, "a session needs two seats")
+	if options and options.events == false then
+		config = ConfigModule.with(config, { EVENTS_ENABLED = false })
+	end
 	local ids = {}
 	local seats: { Seat } = {}
 	for p, spec in specs do

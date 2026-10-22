@@ -7,6 +7,7 @@ local Test = require("@testlib/Test")
 local Fixtures = require("@testlib/Fixtures")
 local Config = require("@sim/Config")
 local Match = require("@sim/Match")
+local Session = require("@net/Session")
 local State = require("@sim/State")
 local View = require("@sim/View")
 
@@ -26,6 +27,7 @@ local FORBIDDEN = {
 	"spare",
 	"profile",
 	"lead",
+	"eventDeck",
 }
 
 -- Stable text form of any plain value (sorted keys), for byte-for-byte comparison.
@@ -145,8 +147,48 @@ describe("View: no leaks", function()
 		opponent.lead = (opponent.lead or 0) + 0.001 -- same tier, different smoothed value
 		secret.seed = 31337
 		secret.rng.s0 = 1
+		-- The rest of the deck: every week but the current one is hidden.
+		for week = 1, C.WEEKS do
+			if week ~= secret.week then
+				secret.eventDeck[week] = if secret.eventDeck[week] == "memo" then "clip" else "memo"
+			end
+		end
 
 		expect(serialize(View.build(C, secret, 1))):toBe(before)
+	end)
+
+	it("the opponent's pending Choice answer never reaches the other seat (D-027)", function()
+		-- Answers live only in the submitted plan (the server's seat input) until the
+		-- week resolves; nothing the opponent locks in may change what seat 1 is sent.
+		local function payloadFor(choice: string?): string
+			local session = Session.new(C, "m", 3, {
+				{ id = "100", kind = "Human" },
+				{ id = "200", kind = "Human" },
+			}, 0)
+			local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Plan", 2)
+			match.eventDeck[2] = "memo"
+			session.match = match
+			if choice then
+				local ok, reason =
+					Session.submit(session, 2, session.step, { actions = {}, choice = choice }, 0)
+				assert(ok, reason)
+			end
+			local payload = Session.payload(session, 1)
+			return serialize(payload.view) .. serialize(payload.events)
+		end
+		local before = payloadFor(nil)
+		for _, choice in { "Attack", "Defend", "Ignore" } do
+			expect(payloadFor(choice)):toBe(before)
+		end
+		expect(string.find(before, "choice=", 1, true)):toBe(nil) -- no answer anywhere yet
+		-- After the week resolves, both answers are public.
+		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Plan", 2)
+		match.eventDeck[2] = "memo"
+		match = Match.advance(C, match, { nil :: any, { actions = {}, choice = "Attack" } })
+		local view = View.build(C, match, 1)
+		checkView(view)
+		expect(view.eventLog[#view.eventLog].choices):toEqual({ "Ignore", "Attack" })
+		expect((view.players[2].card :: State.WeekCard).choice):toBe("Attack")
 	end)
 
 	it("the player does see their own hidden data", function()

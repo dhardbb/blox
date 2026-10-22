@@ -8,6 +8,7 @@
 -- state or adjacent to the previous stop, otherwise it is a flight (FLIGHT_COST, no AP).
 
 local ConfigModule = require("./Config")
+local Events = require("./Events")
 local Issues = require("./Issues")
 local State = require("./State")
 local StateData = require("./StateData")
@@ -32,6 +33,7 @@ export type Action = {
 export type Plan = {
 	actions: { Action },
 	prep: { number }?, -- debate prep, only in the week before a debate
+	choice: Types.Choice?, -- answer to a Choice event: only in a Choice week, where it defaults to "Ignore"
 }
 
 export type Cost = {
@@ -61,6 +63,8 @@ Plan.Reason = table.freeze({
 	NotEnoughMoney = "NotEnoughMoney",
 	BadPrep = "BadPrep",
 	UnexpectedPrep = "UnexpectedPrep",
+	BadChoice = "BadChoice",
+	UnexpectedChoice = "UnexpectedChoice",
 })
 
 local R = Plan.Reason
@@ -301,7 +305,7 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 		table.insert(actions, action)
 	end
 
-	local plan: Plan = { actions = actions, prep = nil }
+	local plan: Plan = { actions = actions, prep = nil, choice = nil }
 	if input.prep ~= nil then
 		if not Plan.wantsPrep(config, match) then
 			return false, R.UnexpectedPrep, nil
@@ -311,6 +315,18 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 			return false, reason, nil
 		end
 		plan.prep = prep
+	end
+	local choiceWeek = Events.isChoiceWeek(match)
+	if input.choice ~= nil then
+		if not choiceWeek then
+			return false, R.UnexpectedChoice, nil
+		end
+		if not Events.isChoice(input.choice) then
+			return false, R.BadChoice, nil
+		end
+		plan.choice = input.choice :: Types.Choice
+	elseif choiceWeek then
+		plan.choice = "Ignore"
 	end
 
 	local cost = Plan.cost(config, match, p, plan)
@@ -324,12 +340,13 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 end
 
 -- The plan submitted for a player who does not lock in: nothing (money banks, AP is
--- lost), with default debate prep where one is due.
+-- lost), with default debate prep where one is due and "Ignore" in a Choice week.
 function Plan.empty(config: Config, match: MatchState, p: number): Plan
 	local prep = if Plan.wantsPrep(config, match)
 		then Plan.defaultPrep(config, match.players[p].profile.debatePrep)
 		else nil
-	return { actions = {}, prep = prep }
+	local choice: Types.Choice? = if Events.isChoiceWeek(match) then "Ignore" else nil
+	return { actions = {}, prep = prep, choice = choice }
 end
 
 return table.freeze(Plan)

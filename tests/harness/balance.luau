@@ -4,6 +4,7 @@
 --   lune run tests/harness/balance.luau            -- 2,000 matches plus side checks
 --   lune run tests/harness/balance.luau 500        -- fewer matches
 --   lune run tests/harness/balance.luau 500 POLL_SIGMA=4 DRIFT_CAP=2   -- a Config variant
+--   lune run tests/harness/balance.luau EVENTS_ENABLED=false           -- without the event deck
 --
 -- Prints every metric with its target and a list of red flags. Exits 0 either
 -- way: the report informs tuning, it does not gate commits.
@@ -27,7 +28,11 @@ local changes: { [string]: any } = {}
 for _, arg in args do
 	local key, value = string.match(arg, "^([%u_]+)=(.+)$")
 	if key and value then
-		changes[key] = tonumber(value) or value
+		if value == "true" or value == "false" then
+			changes[key] = value == "true" -- e.g. EVENTS_ENABLED=false
+		else
+			changes[key] = tonumber(value) or value
+		end
 	elseif tonumber(arg) then
 		N = tonumber(arg) :: number
 	end

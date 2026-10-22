@@ -122,3 +122,29 @@ Use **Test → Clients and Servers → Local Server, 2 Players → Start** as be
 6. In Creator Hub → Data Stores → `PlayerData_v1`, open a `Player_-1` key (optional): `data.rating`, `wins`, `losses`, `perCandidate` and `recent` are there, and `lock` is gone after the test stopped (a `lock` with a `jobId` while it runs is correct).
 
 **Send back:** the server Output from A step 1 and B steps 1–3, the lobby lines before and after the restart in B step 3, and any `[270] ... DataStore` warning lines you didn't expect.
+
+## Phase 5: event deck (unreleased)
+
+Simulation, server and debug UI only; the campaign screen shows events later. Events are on in the queue and practice, and off in a private match hosted with `host noevents`.
+
+**Headless check (agents):** play a practice match to week 2 and read the board. Seed 3 deals a Regional there, and weeks 10 and 11 are Choice events:
+
+```sh
+lune run tests/play.luau -- --seed 3 "p1: practice" "autoto Week 2 Plan · Input 300" "screen p1"
+#   Event this week: Coastal festival (Regional: rallies in Pacific x1.5, max +2 per state). Music festivals line the Pacific coast all week.
+lune run tests/play.luau -- --seed 3 "p1: practice" "autoto Week 10 Plan · Input 900" "p1: plan choice attack" "until p1 \"Week 11 Plan\" 120" "screen p1"
+#   Last week's event Rumor mill: you Attack (-0.2), them Attack (-0.2)
+#   Opponent last week: ..., choice Attack
+```
+
+In Studio (**Local Server, 2 Players**):
+
+1. **Practice.** In Player1 press **Practice**, then **Auto** until `Week 2 Plan`.
+   - The board has a line `Event this week: <name> (<what it does>). <flavor text>`. Week 1 has no event line.
+   - Turn **Autoplay** on. Every week from 2 to 11 shows a different event; week 12 shows none.
+2. **A Choice week.** Keep pressing **Auto** until the event line says `Choice: add "choice attack|defend|ignore" ...`. Then type `plan choice defend` (add other actions if you like, e.g. `plan rally XX jobs; choice defend`). It locks.
+   - The next week the board shows `Last week's event <name>: you Defend (...), them <answer> (...)`, and `Opponent last week:` ends with `choice <answer>`.
+   - In a week that isn't a Choice week, `plan choice attack` is rejected with `rejected Submit: UnexpectedChoice`. `plan choice maybe` gives a local error.
+3. **Private match without events.** In Player1 type `host noevents`, and in Player2 `join <code>`. Play to week 2 with **Auto**: there is no `Event this week` line all match. A plain `host` match does have one.
+
+**Send back:** the board text (copy the client Output or a screenshot) from steps 1 and 2, and the rejection line from step 2.
