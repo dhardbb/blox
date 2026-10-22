@@ -6,6 +6,7 @@
 local Test = require("@testlib/Test")
 local Fixtures = require("@testlib/Fixtures")
 local Config = require("@sim/Config")
+local Events = require("@sim/Events")
 local Match = require("@sim/Match")
 local Session = require("@net/Session")
 local State = require("@sim/State")
@@ -14,6 +15,7 @@ local View = require("@sim/View")
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
+local OFF = Config.with(C, { EVENTS_ENABLED = false })
 
 -- Keys that name hidden simulation data. None may appear anywhere in a view.
 local FORBIDDEN = {
@@ -261,6 +263,46 @@ describe("View: no leaks", function()
 		match = Fixtures.advanceTo(match, "Plan", 5)
 		view = View.build(C, match, 1)
 		expect(view.nextDebate and view.nextDebate.week):toBe(9)
+	end)
+
+	it("Helen Strand sees next week's event; nobody else does (D-035)", function()
+		local match = Fixtures.advanceTo(
+			Fixtures.campaign({ seed = 5, candidates = { "strand", "okafor" } }),
+			"Plan",
+			3
+		)
+		local view = View.build(C, match, 1)
+		checkView(view)
+		expect(view.nextEvent and view.nextEvent.week):toBe(4)
+		expect(view.nextEvent and view.nextEvent.id):toBe(match.eventDeck[4])
+		expect(view.nextEvent and view.nextEvent.kind):toBe(Events.byId[match.eventDeck[4]].kind)
+		expect(View.build(C, match, 2).nextEvent):toBe(nil)
+		-- Only the next week: the rest of the deck stays hidden from her too.
+		local before = serialize(view)
+		local secret = State.clone(match)
+		for week = 1, C.WEEKS do
+			if week ~= secret.week and week ~= secret.week + 1 then
+				secret.eventDeck[week] = if secret.eventDeck[week] == "memo" then "clip" else "memo"
+			end
+		end
+		expect(serialize(View.build(C, secret, 1))):toBe(before)
+		-- Week 12 has no event, so in week 11 there is nothing to preview; the preview
+		-- is gone once the campaign is over.
+		match = Fixtures.advanceTo(match, "Plan", 11)
+		expect(View.build(C, match, 1).event ~= nil):toBe(true)
+		expect(View.build(C, match, 1).nextEvent):toBe(nil)
+		match = Fixtures.advanceTo(match, "Election")
+		expect(View.build(C, match, 1).nextEvent):toBe(nil)
+		-- With events off there is nothing to see.
+		local off = Fixtures.advanceTo(
+			Match.advance(OFF, Match.new(OFF, 5, { "a", "b" }), {
+				{ candidate = "strand", color = "Crimson", platform = { "Jobs", "Health", "Schools" } },
+				{ candidate = "okafor", color = "Cobalt", platform = { "Jobs", "Health", "Schools" } },
+			}),
+			"Plan",
+			3
+		)
+		expect(View.build(OFF, off, 1).nextEvent):toBe(nil)
 	end)
 
 	it("the election result appears only on election night", function()

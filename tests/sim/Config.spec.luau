@@ -141,20 +141,24 @@ describe("Candidates", function()
 		expect(hi - lo <= C.DEBATE_MAX_STAT_GAP):toBe(true)
 	end)
 
-	it("applies the roster overrides (revision 2 as retuned in D-022, D-023)", function()
+	it("applies the roster overrides (revision 2 as retuned in D-022, D-023, D-037)", function()
 		expect(Candidates.profile(C, "calloway").apPerWeek):toBe(4)
 		expect(Candidates.profile(C, "calloway").rallySupport):toBe(2.3)
 		expect(Candidates.profile(C, "hale").debateStat):toBe(C.DEBATE_STAT) -- D-023: prep, not stat
-		expect(Candidates.profile(C, "hale").debatePrep):toBe(8)
+		expect(Candidates.profile(C, "hale").debatePrep):toBe(7) -- 8 -> 7 in D-037: debates matter now
 		expect(Candidates.profile(C, "hale").startCash):toBe(0)
 		expect(Candidates.profile(C, "venkat").debateStat):toBe(C.DEBATE_STAT) -- D-023: income, not stat
-		expect(Candidates.profile(C, "venkat").passiveIncome):toBe(3)
+		expect(Candidates.profile(C, "venkat").passiveIncome):toBe(2) -- 3 -> 2 in D-037
+		expect(Candidates.profile(C, "venkat").mediaSaturation):toBe(0.65)
 		expect(Candidates.profile(C, "okafor").rallyMult):toBe(1)
-		expect(Candidates.profile(C, "okafor").fundraiseMult):toBe(1.5)
+		expect(Candidates.profile(C, "okafor").fundraiseMult):toBe(1.25) -- 1.5 -> 1.25 in D-037: money counts now
 		expect(Candidates.profile(C, "alvarado").startCash):toBe(20)
 		expect(Candidates.profile(C, "alvarado").passiveIncome):toBe(3.75)
 		expect(Candidates.profile(C, "reyes").momentumGainMult):toBe(1.65)
-		expect(Candidates.profile(C, "strand").mediaMult):toBe(0.85)
+		expect(Candidates.profile(C, "strand").mediaMult):toBe(0.9) -- 0.85 -> 0.9 in D-037
+		expect(Candidates.profile(C, "strand").freePolls):toBe(2)
+		expect(Candidates.profile(C, "strand").eventPreview):toBe(1) -- D-035: sees next week's event
+		expect(Candidates.profile(C, "okafor").eventPreview):toBe(0)
 		expect(Candidates.profile(C, "begay").rallySupport):toBe(2.9)
 		expect(Candidates.profile(C, "begay").gotvCost):toBe(1)
 		expect(Candidates.profile(C, "reyes").momentumDecay):toBe(0.25)

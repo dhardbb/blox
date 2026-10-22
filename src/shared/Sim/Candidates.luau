@@ -2,7 +2,7 @@
 -- The candidate roster as data. Each candidate is the default profile (built from
 -- Config) plus a few overrides, so a ninth candidate is a data change, not code.
 -- Values are revision 2 (docs/DESIGN.md D-011) as retuned by the first balance pass
--- (D-022, D-023). Names are fictional placeholders.
+-- (D-022, D-023) and the second (D-035, D-037). Names are fictional placeholders.
 
 local ConfigModule = require("./Config")
 
@@ -25,6 +25,7 @@ export type Profile = {
 	mediaMult: number, -- effect of media buys (positive and attack)
 	mediaSaturation: number, -- value of each extra buy in the same state and week
 	freePolls: number, -- free single-state internal polls per week
+	eventPreview: number, -- weeks ahead this candidate sees the event deck (0 = only this week's event)
 	gotvCost: number,
 	gotvMaxUnits: number,
 	momentumGainMult: number,
@@ -51,9 +52,9 @@ local ROSTER: { Entry } = {
 		id = "okafor",
 		name = "Dana Okafor",
 		archetype = "The Fundraiser",
-		perk = "Fundraisers yield +50%",
+		perk = "Fundraisers yield +25%",
 		drawback = "None",
-		overrides = { fundraiseMult = 1.5 },
+		overrides = { fundraiseMult = 1.25 },
 	},
 	{
 		id = "calloway",
@@ -67,17 +68,17 @@ local ROSTER: { Entry } = {
 		id = "venkat",
 		name = "Priya Venkat",
 		archetype = "The Ad Wizard",
-		perk = "Media buys cost $2; repeat buys keep 70% of their value",
-		drawback = "Income $3 a week instead of $4",
-		overrides = { mediaCost = 2, mediaSaturation = 0.7, passiveIncome = 3 },
+		perk = "Media buys cost $2; repeat buys keep 65% of their value",
+		drawback = "Income $2 a week instead of $4",
+		overrides = { mediaCost = 2, mediaSaturation = 0.65, passiveIncome = 2 },
 	},
 	{
 		id = "hale",
 		name = "Marcus Hale",
 		archetype = "The Debater",
-		perk = "8 debate prep points instead of 6",
+		perk = "7 debate prep points instead of 6",
 		drawback = "Starts with no money",
-		overrides = { debatePrep = 8, startCash = 0 },
+		overrides = { debatePrep = 7, startCash = 0 },
 	},
 	{
 		id = "alvarado",
@@ -106,9 +107,9 @@ local ROSTER: { Entry } = {
 		id = "strand",
 		name = "Helen Strand",
 		archetype = "The Pollster",
-		perk = "Two free internal polls per week",
-		drawback = "Media buys -15%",
-		overrides = { freePolls = 2, mediaMult = 0.85 },
+		perk = "Sees next week's event a week early; two free internal polls a week",
+		drawback = "Media buys -10%",
+		overrides = { eventPreview = 1, freePolls = 2, mediaMult = 0.9 },
 	},
 	{
 		id = "begay",
@@ -163,6 +164,7 @@ function Candidates.profile(config: Config, id: string): Profile
 		mediaMult = 1,
 		mediaSaturation = config.MEDIA_SATURATION,
 		freePolls = 0,
+		eventPreview = 0,
 		gotvCost = config.GOTV_COST,
 		gotvMaxUnits = config.GOTV_MAX_UNITS,
 		momentumGainMult = 1,

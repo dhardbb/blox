@@ -6,8 +6,9 @@
 -- seed or RNG state, opponents' exact cash, GOTV units, backlash, internal polls,
 -- fundraiser yields, or debate prep before the debate resolves, anyone's
 -- candidate or platform before the Select phase ends, the event deck beyond the
--- current week, or anyone's Choice answer before the week resolves (answers live
--- only in the submitted plans until then). tests/sim/View.spec enforces it.
+-- current week (next week's event only for a candidate whose perk previews it,
+-- D-035), or anyone's Choice answer before the week resolves (answers live only
+-- in the submitted plans until then). tests/sim/View.spec enforces it.
 
 local ConfigModule = require("./Config")
 local Debate = require("./Debate")
@@ -80,6 +81,7 @@ export type View = {
 	nextDebate: { week: number, topics: { Types.Issue } }?,
 	debates: { State.DebateResult },
 	event: EventView?, -- this week's event, during its Debate and Plan phases
+	nextEvent: EventView?, -- next week's event, only for a candidate with eventPreview (D-035)
 	eventLog: { State.EventResult }, -- resolved events, Choice answers revealed
 	internalPolls: { State.InternalPoll }, -- yours, from last week's plan
 	raised: number, -- what your fundraisers raised last week
@@ -162,21 +164,33 @@ function View.build(config: Config, match: MatchState, you: number): View
 		end
 	end
 
-	local event: EventView? = nil
-	local current = Events.at(match)
-	if current ~= nil and (match.phase == "Plan" or match.phase == "Debate") then
-		event = {
-			week = match.week,
-			id = current.id,
-			kind = current.kind,
-			name = current.name,
-			text = current.text,
-			issue = current.issue,
-			region = current.region,
+	local me = match.players[you]
+	local function eventView(week: number): EventView?
+		local definition = Events.at(match, week)
+		if definition == nil then
+			return nil
+		end
+		return {
+			week = week,
+			id = definition.id,
+			kind = definition.kind,
+			name = definition.name,
+			text = definition.text,
+			issue = definition.issue,
+			region = definition.region,
 		}
 	end
+	local event: EventView? = nil
+	local nextEvent: EventView? = nil
+	if match.phase == "Plan" or match.phase == "Debate" then
+		event = eventView(match.week)
+		-- The Pollster's briefing (D-035): a candidate with eventPreview sees that many
+		-- weeks ahead. Nothing else about the deck leaves the server.
+		if me.profile.eventPreview >= 1 and match.week + 1 <= config.WEEKS then
+			nextEvent = eventView(match.week + 1)
+		end
+	end
 
-	local me = match.players[you]
 	local drafting = match.phase == "Draft"
 	return {
 		you = you,
@@ -193,6 +207,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 		nextDebate = nextDebate,
 		debates = copy(match.debates),
 		event = event,
+		nextEvent = nextEvent,
 		eventLog = copy(match.eventLog),
 		internalPolls = copy(me.internalPolls),
 		raised = me.raised,

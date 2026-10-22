@@ -179,9 +179,10 @@ describe("Resolve: fundraisers", function()
 		oh.isHome, oh.owner = true, 1
 		match = run(match, { { kind = "Fundraise", state = "OH" } }, {})
 		local raw = 2 + 6 * 0.35
-		expect(match.players[1].raised):toBeCloseTo(raw * 1.5 * C.HOME_FUNDRAISE_MULT)
+		expect(match.players[1].raised):toBeCloseTo(raw * 1.25 * C.HOME_FUNDRAISE_MULT) -- Okafor +25% (D-037)
+		-- Only the raw yield left the pool (since D-034 a week's refill covers it).
 		expect(at(match, "OH").capacity - at(match, "OH").pool):toBeCloseTo(
-			raw - at(match, "OH").capacity * C.POOL_REFILL
+			math.max(0, raw - at(match, "OH").capacity * C.POOL_REFILL)
 		)
 	end)
 
@@ -235,13 +236,13 @@ describe("Resolve: media and attacks", function()
 		expect(at(match, "IA").support[1]):toBeCloseTo(before + 0.96 - C.BACKLASH_PENALTY)
 	end)
 
-	it("Helen's media is 10% weaker; Priya's repeat buys keep 70%", function()
+	it("Helen's media is 10% weaker; Priya's repeat buys keep 65%", function()
 		local two = {
 			{ kind = "Media", state = "OH", issue = "Jobs" },
 			{ kind = "Media", state = "OH", issue = "Jobs" },
 		}
 		local priya = run(clean({ "venkat", "hale" }), two, {})
-		expect(at(priya, "OH").momentum[1]):toBeCloseTo(1.7)
+		expect(at(priya, "OH").momentum[1]):toBeCloseTo(1.65) -- 1 + 0.65 (D-037)
 		local helen = run(clean({ "strand", "hale" }), { two[1] }, {})
 		local base = run(clean(), { two[1] }, {})
 		expect(at(helen, "OH").support[1] < at(base, "OH").support[1]):toBe(true)

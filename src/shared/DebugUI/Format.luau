@@ -319,6 +319,9 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	if view.event then
 		add("Event this week: " .. Format.event(view.event))
 	end
+	if view.nextEvent then
+		add(`Next week's event (your pollster's briefing): {Format.event(view.nextEvent)}`)
+	end
 	local lastEvent = view.eventLog[#view.eventLog]
 	if lastEvent and lastEvent.week == view.week - 1 and lastEvent.choices and lastEvent.national then
 		local definition = Events.byId[lastEvent.id]

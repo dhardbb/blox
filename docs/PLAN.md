@@ -183,16 +183,16 @@ The character select replaces the original's primary. Eight fictional candidates
 
 | Candidate | Archetype | Perk | Drawback |
 | --- | --- | --- | --- |
-| Dana Okafor | The Fundraiser | Fundraisers yield +30% (applied after the pool cap; the bonus does not drain the pool) | Rallies −10% |
+| Dana Okafor | The Fundraiser | Fundraisers yield +25% (applied after the pool cap; the bonus does not drain the pool; D-023, D-037) | None (D-023) |
 | Rex Calloway | The Barnstormer | 4 AP per week | Rallies +2.2 base instead of +3.0 ("more stops, smaller crowds"); media buys cost $4 |
-| Priya Venkat | The Ad Wizard | Media buys cost $2; saturation steps are 70% / 49% | Debate stat 0 |
-| Marcus Hale | The Debater | Debate stat 2 | Starts with $4 instead of $8 |
+| Priya Venkat | The Ad Wizard | Media buys cost $2; saturation steps are 65% / 42% (D-037) | Income $2 instead of $4 (D-023, D-037) |
+| Marcus Hale | The Debater | 7 debate prep points instead of 6 (D-023, D-037) | Starts with no money |
 | June Alvarado | The Insider | Starts with $18 | Passive income $3 instead of $4 |
 | Tomas Reyes | The Insurgent | Underdog multipliers doubled; momentum gained +50% | Momentum keeps 25% per week instead of 50%; while leading by 40+ projected EV, rallies ×0.9 and fundraisers ×0.85 |
-| Helen Strand | The Pollster | Two free internal polls per week | Media buys −10% |
+| Helen Strand | The Pollster | Sees next week's event a week early (her View alone carries it, D-035); two free internal polls per week | Media buys −10% (D-037) |
 | Walt Begay | The Organizer | GOTV units cost $1 and cap at 6 per state | Rallies +2.4 base instead of +3.0 |
 
-All eight have debate stat 1 and 6 prep points unless the table says otherwise. These are revision-2 values from a paper review (`DESIGN.md` D-011); the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
+All eight have debate stat 1 and 6 prep points unless the table says otherwise. These are revision-2 values from a paper review (`DESIGN.md` D-011), except where a later entry is cited; `Candidates.luau` with `DESIGN.md` D-022, D-023 and D-035 has the current numbers, and the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
 
 Presentation: each candidate is a Roblox avatar-style portrait built from a humanoid rig with a fixed outfit and color palette rendered to a ViewportFrame, so no uploaded images are required for MVP. Player color (six options: Crimson, Cobalt, Emerald, Amber, Violet, Teal) is picked separately so the two sides never read as real parties.
 

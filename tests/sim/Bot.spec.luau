@@ -134,6 +134,35 @@ describe("Bot", function()
 		expect(tally("donors", trailingFund) >= tally(nil, trailingFund)):toBe(true)
 	end)
 
+	it("Helen Strand's bot ends the week where next week's Regional event is (D-035)", function()
+		-- With the preview of a Pacific event next week, her last stop lands in the
+		-- Pacific more often, so next week's boosted rallies start without a flight.
+		local function lastStopInPacific(nextId: string?): number
+			local total = 0
+			for seed = 31, 46 do
+				local match = Fixtures.advanceTo(
+					Fixtures.campaign({ seed = seed, candidates = { "strand", "okafor" } }),
+					"Plan",
+					5
+				)
+				match.eventDeck[5] = nil
+				match.eventDeck[6] = nextId
+				local view = View.build(C, match, 1)
+				local last = nil
+				for _, action in Bot.plan(C, view, Rng.new(seed), "Balanced").actions do
+					if action.kind == "Rally" or action.kind == "Fundraise" then
+						last = action.state
+					end
+				end
+				if last and StateData.byId[last].region == "Pacific" then
+					total += 1
+				end
+			end
+			return total
+		end
+		expect(lastStopInPacific("coast") > lastStopInPacific(nil)):toBe(true)
+	end)
+
 	it("no answer is dominant: the bot's mix leaves every pure answer at zero edge", function()
 		local split = 2 - C.GAIN_FROM_UNDECIDED
 		local function margin(v: number): number

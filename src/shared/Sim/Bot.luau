@@ -15,7 +15,9 @@
 -- This week's event (View.event) enters the same estimates: a Spotlight issue
 -- and a Regional rally are worth their multiplier, a Windfall fundraiser in a
 -- trailing state its bonus, each within EVENT_CAP per state. A Choice event is
--- answered by sampling the game's mixed equilibrium (Bot.choiceWeights).
+-- answered by sampling the game's mixed equilibrium (Bot.choiceWeights). A
+-- candidate who previews next week's event (View.nextEvent) ends the route in a
+-- coming Regional's region.
 --
 -- Styles restrict the balanced policy for the harness's dominance checks.
 
@@ -57,7 +59,7 @@ Bot.tuning = {
 	pollMinCash = 0, -- only buy paid polls with at least this much cash
 	pollFromWeek = 4, -- first week the bot buys paid polls
 	gotvFromWeek = 7, -- start banking ground game this week (9 -> 7, D-021: six weeks of spend, placed after the first debate)
-	gotvPremium = 1.2, -- GOTV is hidden and never saturates: value it a little higher
+	gotvPremium = 1.3, -- GOTV is hidden and never saturates: value it a little higher (1.2 -> 1.3, D-037: the flat economy pulled late money into ads)
 	moneyValue = 0.4, -- value of $1 as a share of the best media buy per dollar (banked money waits a week and buys worse ads than the best one)
 	sandbagLead = 4, -- the sandbag bot never pads past this estimated margin
 	minValuePerDollar = 0.002, -- below this, money is better banked
@@ -425,7 +427,15 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	end
 	local ap = profile.apPerWeek
 	local reserve = 0
-	for _ = 1, ap do
+	-- The Pollster's preview (D-035): with a Regional event due next week, ending this
+	-- week's route in its region saves the flight and starts the boosted rallies
+	-- without one. Worth a flight plus a share of a rally there.
+	local nextRegion: Types.Region? = nil
+	local preview = view.nextEvent
+	if preview ~= nil and preview.kind == "Regional" then
+		nextRegion = preview.region
+	end
+	for k = 1, ap do
 		local best: any, bestValue = nil, 0
 		for i, record in StateData.list do
 			local adjacent = Plan.isAdjacent(location, record.id)
@@ -433,6 +443,11 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 			if flight <= cash - reserve then
 				local e = estimates[i]
 				local flightValue = flight * lambda
+				if k == ap and nextRegion ~= nil and record.region == nextRegion then
+					local boostedRally = (config.EVENT_REGIONAL_MULT - 1) * profile.rallySupport * bg(i)
+					local stayValue = marginValue(e, record.ev) * marginFromGain(config, e, boostedRally)
+					flightValue -= config.FLIGHT_COST * lambda + stayValue
+				end
 				if style ~= "FundraiseOnly" and not capped(i) then
 					local issue: Types.Issue, mult = bestIssue(config, platform, i, spotlight)
 					local base = profile.rallySupport
