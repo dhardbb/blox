@@ -3,18 +3,20 @@
 -- its 5-character code. While queued or hosting it shows what is happening and a
 -- Cancel button. Everything is built once; update() only flips Visible and text,
 -- so a half-typed code survives server messages.
+--
+-- Layout (docs/UI-OVERHAUL.md §3.1): one centered column, at most 560 px wide,
+-- that does not scroll (so "Play vs Bot", the one primary, is never in a scroll
+-- area). Messages (rejections, notices, a bad code) go to the global toast.
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
-local Messages = require(script.Parent.Common.Messages)
 local Types = require(script.Parent.Types)
 
 local Screen = {}
 
-local MAX_WIDTH = 480 -- px
-local BUTTON_HEIGHT = 52 -- px
-local TOAST_SECONDS = 4
+local MAX_WIDTH = 560 -- px
 local CODE_LENGTH = 5
+local SHORT_SCREEN = 480 -- px; below this the pitch line is dropped to make room
 
 local PITCH = "Race a rival to 270 electoral votes: draft the map, run the campaign, win election night."
 
@@ -24,8 +26,17 @@ local function validCode(code: string): boolean
 end
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
-	local page = Layout.page(parent, { maxWidth = MAX_WIDTH })
-	local content = page.content
+	local content = Layout.lane(parent, MAX_WIDTH, { Name = "Content" })
+	local list = Kit.list("Vertical", Kit.space.sm)
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Parent = content
+	Kit.new("UIPadding", {
+		PaddingLeft = UDim.new(0, 2),
+		PaddingRight = UDim.new(0, 2),
+		PaddingBottom = UDim.new(0, 0),
+		Parent = content,
+	})
 
 	local order = 0
 	local function nextOrder(): number
@@ -33,57 +44,36 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return order
 	end
 
-	Kit.box({ Name = "Spacer", LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 24), Parent = content })
-
 	Kit.text("270", {
 		Name = "Title",
 		LayoutOrder = nextOrder(),
-		Size = UDim2.new(1, 0, 0, 84),
+		Size = UDim2.new(1, 0, 0, Kit.size.hero + 8),
 		Font = Kit.font.bold,
-		TextSize = 72,
-		TextScaled = true,
+		TextSize = Kit.size.hero,
 		TextColor3 = Kit.colors.accent,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
 	})
-	Kit.text(PITCH, {
+	local pitch = Kit.caption(PITCH, {
 		Name = "Pitch",
 		LayoutOrder = nextOrder(),
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = content,
+	})
+	-- Always there (empty until the profile arrives), so nothing jumps.
+	local record = Kit.text("", {
+		Name = "Record",
+		LayoutOrder = nextOrder(),
+		Size = UDim2.new(1, 0, 0, Kit.size.caption + 6),
+		TextSize = Kit.size.caption,
 		TextColor3 = Kit.colors.muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
 	})
-
-	local record = Kit.text("", {
-		Name = "Record",
-		LayoutOrder = nextOrder(),
-		Size = UDim2.new(1, 0, 0, 24),
-		TextScaled = true,
-		TextSize = Kit.size.heading,
-		Font = Kit.font.medium,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Visible = false,
-		Parent = content,
-	})
-
-	local toast = Kit.text("", {
-		Name = "Toast",
-		LayoutOrder = nextOrder(),
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		TextSize = Kit.size.body,
-		TextColor3 = Kit.colors.accent,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Visible = false,
-		Parent = content,
-	})
-	local fullBanner = Kit.text("Server full. Try again in a minute.", {
+	local fullBanner = Kit.caption("Server full. Try again in a minute.", {
 		Name = "ServerFull",
 		LayoutOrder = nextOrder(),
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		TextSize = Kit.size.body,
 		TextColor3 = Kit.colors.danger,
 		Font = Kit.font.medium,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -100,7 +90,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Visible = false,
 			Parent = content,
 		})
-		Kit.list("Vertical", 10).Parent = box
+		Kit.list("Vertical", Kit.space.sm).Parent = box
 		return box
 	end
 
@@ -108,56 +98,40 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local waiting = section("Waiting")
 	local starting = section("Starting")
 
-	-- Current lobby facts, read by the button handlers.
-	local toastUntil = 0
-	local lastMessageId = 0 -- id of the newest message already handled
-
-	local function showToast(text: string)
-		toast.Text = text
-		toast.Visible = true
-		toastUntil = ctx.now() + TOAST_SECONDS
+	-- A local problem (a malformed code) shows in the global toast like a rejection.
+	local function complain(text: string)
+		ctx.store.say(text, true)
 	end
 
-	local buttonCount = 0
-	local function mainButton(text: string, name: string, op: string, primary: boolean): TextButton
-		-- Never disabled by "server full": that status can be stale, and the server
-		-- answers ServerFull with a toast if there is still no room.
-		local button = Kit.button(text, function()
-			ctx.net.send(op)
-		end, {
-			Name = name,
-			LayoutOrder = buttonCount + 1,
-			Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
-			TextSize = Kit.size.heading,
-			BackgroundColor3 = if primary then Kit.colors.accent else Kit.colors.raised,
-			TextColor3 = if primary then Kit.colors.background else Kit.colors.text,
-			Parent = idle,
-		})
-		buttonCount += 1
-		return button
-	end
-	mainButton("Play vs Bot", "Practice", "Practice", true)
-	mainButton("Find Match", "FindMatch", "Queue", false)
-	mainButton("Host Private Match", "Host", "Host", false)
+	-- Never disabled by "server full": that status can be stale, and the server
+	-- answers ServerFull with a toast if there is still no room.
+	local practice = Kit.button("Play vs Bot", function()
+		ctx.net.send("Practice")
+	end, { variant = "primary", Name = "Practice", LayoutOrder = 1, Parent = idle })
+	practice:SetAttribute("PrimaryAction", true)
+	Kit.button("Find Match", function()
+		ctx.net.send("Queue")
+	end, { variant = "secondary", Name = "FindMatch", LayoutOrder = 2, Parent = idle })
+	Kit.button("Host Private Match", function()
+		ctx.net.send("Host")
+	end, { variant = "secondary", Name = "Host", LayoutOrder = 3, Parent = idle })
 
-	Kit.text("Have a code from a friend?", {
-		Name = "JoinHint",
-		LayoutOrder = 10,
-		Size = UDim2.new(1, 0, 0, 22),
-		TextColor3 = Kit.colors.muted,
+	Kit.caption("Have a code?", { Name = "JoinHint", LayoutOrder = 10, Parent = idle })
+	local joinRow = Kit.box({
+		Name = "JoinRow",
+		LayoutOrder = 11,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = idle,
 	})
-	local joinRow =
-		Kit.box({ Name = "JoinRow", LayoutOrder = 11, Size = UDim2.new(1, 0, 0, 48), Parent = idle })
-	Kit.list("Horizontal", 8).Parent = joinRow
+	Kit.list("Horizontal", Kit.space.sm).Parent = joinRow
 	local codeBox = Kit.new("TextBox", {
 		Name = "CodeBox",
 		LayoutOrder = 1,
-		Size = UDim2.new(0.6, -4, 1, 0),
-		BackgroundColor3 = Kit.colors.surface,
+		Size = UDim2.new(0.6, -Kit.space.sm / 2, 1, 0),
+		BackgroundColor3 = Kit.colors.field,
 		BorderSizePixel = 0,
 		Font = Kit.font.mono,
-		TextSize = Kit.size.heading,
+		TextSize = Kit.size.body,
 		TextColor3 = Kit.colors.text,
 		PlaceholderText = "CODE",
 		PlaceholderColor3 = Kit.colors.muted,
@@ -165,7 +139,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Text = "",
 		Parent = joinRow,
 	}) :: TextBox
-	Kit.corner(8).Parent = codeBox
+	Kit.corner(Kit.radius.control).Parent = codeBox
 	Kit.stroke(Kit.colors.line, 1).Parent = codeBox
 
 	local function normalizeCode(): string
@@ -180,14 +154,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	Kit.button("Join", function()
 		local code = normalizeCode()
 		if not validCode(code) then
-			showToast("Enter the 5-character code: letters A-Z and numbers 2-9.")
+			complain("Enter the 5-character code: letters A-Z and numbers 2-9.")
 			return
 		end
 		ctx.net.send("Join", { code = code })
 	end, {
+		variant = "secondary",
 		Name = "Join",
 		LayoutOrder = 2,
-		Size = UDim2.new(0.4, -4, 1, 0),
+		Size = UDim2.new(0.4, -Kit.space.sm / 2, 1, 0),
 		Parent = joinRow,
 	})
 
@@ -197,54 +172,53 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		LayoutOrder = 1,
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		Font = Kit.font.medium,
+		Font = Kit.font.bold,
 		TextSize = Kit.size.heading,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = waiting,
 	})
-	local codeLabel = Kit.text("", {
-		Name = "CodeLabel",
+	local codeWell = Kit.new("Frame", {
+		Name = "CodeWell",
 		LayoutOrder = 2,
-		Size = UDim2.new(1, 0, 0, 84),
-		Font = Kit.font.mono,
-		TextSize = 64,
-		TextScaled = true,
-		TextColor3 = Kit.colors.accent,
-		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, Kit.size.hero + 2 * Kit.space.lg),
+		BackgroundColor3 = Kit.colors.field,
+		BorderSizePixel = 0,
 		Visible = false,
 		Parent = waiting,
+	}) :: Frame
+	Kit.corner(Kit.radius.panel).Parent = codeWell
+	local codeLabel = Kit.text("", {
+		Name = "CodeLabel",
+		Size = UDim2.fromScale(1, 1),
+		Font = Kit.font.mono,
+		TextSize = Kit.size.hero,
+		TextColor3 = Kit.colors.accent,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = codeWell,
 	})
-	local waitingHint = Kit.text("", {
+	local waitingHint = Kit.caption("", {
 		Name = "WaitingHint",
 		LayoutOrder = 3,
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		TextColor3 = Kit.colors.muted,
+		TextSize = Kit.size.body,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = waiting,
 	})
 	Kit.button("Cancel", function()
 		ctx.net.send("Leave")
-	end, {
-		Name = "Cancel",
-		LayoutOrder = 4,
-		Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
-		TextSize = Kit.size.heading,
-		Parent = waiting,
-	})
+	end, { variant = "danger", Name = "Cancel", LayoutOrder = 4, Parent = waiting })
 
-	Kit.text("Match found. Starting...", {
+	Kit.text("Match found. Starting…", {
 		Name = "StartingText",
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		Font = Kit.font.medium,
+		Font = Kit.font.bold,
 		TextSize = Kit.size.heading,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = starting,
 	})
 
 	local function relayout()
-		page.setPortrait(ctx.portrait())
+		pitch.Visible = parent.AbsoluteSize.Y >= SHORT_SCREEN
 	end
 
 	local function update(state: Types.State)
@@ -253,45 +227,33 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local status = if lobby then lobby.state else "Idle"
 		local isFull = lobby ~= nil and lobby.full == true
 		local profile = if lobby then lobby.profile else nil
-		record.Visible = profile ~= nil
-		if profile then
-			record.Text = `Rating {profile.rating} · {profile.wins} won, {profile.losses} lost`
-		end
+		record.Text = if profile
+			then `Rating {profile.rating} · {profile.wins} won, {profile.losses} lost`
+			else ""
 
 		fullBanner.Visible = isFull and status == "Idle"
 
 		idle.Visible = status == "Idle"
 		waiting.Visible = status == "Queued" or status == "Hosting"
 		starting.Visible = status == "InMatch"
+		-- Only the idle Lobby has something to press first (UI audit rule "primary").
+		parent:SetAttribute("PrimaryOptional", status ~= "Idle")
 		if status == "Queued" then
 			local count = if lobby then lobby.queued else 0
 			waitingTitle.Text = `Looking for an opponent… ({count} waiting)`
 			waitingHint.Text = "You will be matched as soon as someone else joins."
-			codeLabel.Visible = false
+			codeWell.Visible = false
 		elseif status == "Hosting" then
 			waitingTitle.Text = "Your private match"
 			waitingHint.Text = "Tell your friend to enter this code"
 			codeLabel.Text = if lobby and lobby.code then lobby.code else "-----"
-			codeLabel.Visible = true
-		end
-
-		-- A new message (rejection, notice) shows as a toast for a few seconds.
-		local newest = Messages.newestAfter(state, lastMessageId)
-		if newest then
-			lastMessageId = newest.id
-			showToast(newest.text)
+			codeWell.Visible = true
 		end
 	end
 
-	-- Messages already in the store belong to an earlier screen; do not toast them.
-	lastMessageId = Messages.lastId(ctx.store.get())
-
 	return {
 		update = update,
-		tick = function(now: number)
-			if toast.Visible and now >= toastUntil then
-				toast.Visible = false
-			end
+		tick = function(_now: number)
 			relayout()
 		end,
 		destroy = function() end,

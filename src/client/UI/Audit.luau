@@ -62,10 +62,6 @@ export type Options = {
 -- Rules each screen still breaks while the overhaul is in progress. Each work
 -- package empties (deletes) its own entries; keep one entry per line.
 Audit.PENDING = {
-	-- WP2: Lobby, Select, Results.
-	Lobby = { primary = true, typeScale = true },
-	Select = { primary = true, oneAccent = true },
-	Results = { primary = true, typeScale = true },
 	-- WP3: Campaign.
 	Campaign = { primary = true, oneAccent = true },
 	-- WP4: Draft, Election.

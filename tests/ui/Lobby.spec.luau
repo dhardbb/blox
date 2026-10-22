@@ -3,7 +3,8 @@
 -- render offline with a clean UI audit, the controls do what they say, and a
 -- live practice match runs from the Lobby to the Results screen and back. Also
 -- the v0.3.1 bug-hunt cases for the Lobby: message ids, the toast, the page
--- padding, and a full server that never locks the buttons.
+-- padding, and a full server that never locks the buttons; and the UI overhaul
+-- (WP2, docs/UI-OVERHAUL.md §3.1): one accent button, the global toast only.
 
 local process = require("@lune/process")
 
@@ -109,6 +110,16 @@ local function storeOf(peer: FakeRoblox.Peer): any
 	error("no Store module loaded")
 end
 
+-- The global toast's text while it shows, or nil (the Lobby has no toast of its own).
+local function toastText(peer: FakeRoblox.Peer): string?
+	local layer = FakeRoblox.find(peer, "ToastLayer")
+	local frame = if layer then layer:FindFirstChild("Toast") else nil
+	if frame == nil or frame.Visible == false then
+		return nil
+	end
+	return tostring(frame:FindFirstChild("ToastText").Text)
+end
+
 local FIXTURES: { { fixture: string, screen: string } } = {
 	{ fixture = "Lobby", screen = "Lobby" },
 	{ fixture = "Select", screen = "Select" },
@@ -153,7 +164,7 @@ describe("Lobby", function()
 			tap(world, peer, "Lobby", "Join")
 		end
 		expect(count(peer, "DEBUG_UI send Join")):toBe(0)
-		expect(visible(peer, "Lobby", "Toast")):toBe(true)
+		expect(toastText(peer)):toBe("Enter the 5-character code: letters A-Z and numbers 2-9.")
 
 		box.Text = " ab3cd "
 		tap(world, peer, "Lobby", "Join")
@@ -185,8 +196,8 @@ describe("Select", function()
 		tap(world, peer, "Select", "Issue_Schools")
 		tap(world, peer, "Select", "LockIn")
 		expect(count(peer, "DEBUG_UI submit")):toBe(1)
-		expect(string.find(textOf(peer, "Select", "Status"), "Locked", 1, true) ~= nil):toBe(true)
-		expect(textOf(peer, "Select", "LockIn")):toBe("Locked")
+		expect(textOf(peer, "Select", "BarStatus")):toBe("Locked in · waiting for opponent")
+		expect(textOf(peer, "Select", "LockIn")):toBe("Locked in")
 
 		-- Locked is final: a second press submits nothing more.
 		tap(world, peer, "Select", "LockIn")
@@ -229,7 +240,7 @@ describe("Select", function()
 			need(peer, "Select", `Color_{name}`)
 		end
 		expect(string.sub(textOf(peer, "Select", "Perk"), 1, 1)):toBe("+")
-		expect(string.sub(textOf(peer, "Select", "Drawback"), 1, 1)):toBe("-")
+		expect(string.sub(textOf(peer, "Select", "Drawback"), 1, 3)):toBe("−")
 		noErrors(world)
 	end)
 end)
@@ -238,11 +249,11 @@ describe("Results", function()
 	it("shows the outcome, both sides and the closest states", function()
 		local world, peer = mountFixture("Over", nil)
 		local banner = textOf(peer, "Results", "Banner")
-		expect(banner == "YOU WON" or banner == "You lost" or banner == "No result"):toBe(true)
+		expect(banner == "You won" or banner == "You lost" or banner == "No result"):toBe(true)
 		need(peer, "Results", "Player_You")
 		need(peer, "Results", "Player_Opponent")
 		check(string.find(textOf(peer, "Results", "EV"), " EV", 1, true) ~= nil, "no EV total")
-		check(findIn(peer, "Results", "ClosestHeading") ~= nil, "no closest states")
+		check(findIn(peer, "Results", "Closest") ~= nil, "no closest states")
 		noErrors(world)
 	end)
 
@@ -261,7 +272,7 @@ describe("Results", function()
 			return textOf(peer, "Results", "Banner") .. " | " .. textOf(peer, "Results", "Reason")
 		end
 		local you = store.get().payload.you
-		expect(with(you, "Forfeit")):toBe("YOU WON | Your opponent forfeited the match.")
+		expect(with(you, "Forfeit")):toBe("You won | Your opponent forfeited the match.")
 		local lost = with(3 - you, "Forfeit")
 		expect(string.find(lost, "You lost | You forfeited", 1, true) ~= nil):toBe(true)
 		local none = with(0, "Abandoned")
@@ -276,7 +287,7 @@ describe("Results", function()
 		expect(FakeRoblox.find(peer, "Results")):toBe(nil)
 
 		local world2, peer2 = mountFixture("Over", nil)
-		expect(textOf(peer2, "Results", "PlayAgain")):toBe("Practice again")
+		expect(textOf(peer2, "Results", "PlayAgain")):toBe("Play vs Bot again")
 		tap(world2, peer2, "Results", "PlayAgain")
 		expect(logged(peer2, "DEBUG_UI send Practice")):toBe(true)
 		check(FakeRoblox.find(peer2, "Lobby") ~= nil, "no Lobby after Play again")
@@ -301,7 +312,7 @@ describe("live: Lobby to Results and back", function()
 		FakeRoblox.run(world, 1)
 		expect(logged(peer, "UI audit Results: 0 problem(s)")):toBe(true)
 		local banner = textOf(peer, "Results", "Banner")
-		expect(banner == "YOU WON" or banner == "You lost"):toBe(true)
+		expect(banner == "You won" or banner == "You lost"):toBe(true)
 
 		tap(world, peer, "Results", "BackToLobby")
 		check(FakeRoblox.find(peer, "Lobby") ~= nil, "no Lobby after Back to lobby")
@@ -352,9 +363,7 @@ describe("live: Lobby to Results and back", function()
 		-- An unknown code comes back as a toast.
 		need(peer, "Lobby", "CodeBox").Text = "ZZZZ9"
 		tap(world, peer, "Lobby", "Join")
-		expect(string.find(textOf(peer, "Lobby", "Toast"), "No match with that code", 1, true) ~= nil):toBe(
-			true
-		)
+		expect(string.find(toastText(peer) or "", "No match with that code", 1, true) ~= nil):toBe(true)
 		noErrors(world)
 	end)
 end)
@@ -378,15 +387,15 @@ describe("Lobby messages are told apart by id", function()
 		Rig.noErrors(world)
 	end)
 
-	it("shows the Lobby toast for every rejection, not only the first 20", function()
+	it("toasts every Lobby rejection, not only the first 20", function()
 		local world, peer = Rig.practice(3)
 		local box = Rig.need(peer, "Lobby", "CodeBox")
 		for k = 1, 24 do
 			box.Text = "ZZZZ9"
 			Rig.tap(world, peer, "Lobby", "Join", 0.3)
-			check(Rig.shown(Rig.need(peer, "Lobby", "Toast"), "Lobby"), `no toast for attempt {k}`)
+			check(toastText(peer) ~= nil, `no toast for attempt {k}`)
 			FakeRoblox.run(world, 5)
-			check(not Rig.shown(Rig.need(peer, "Lobby", "Toast"), "Lobby"), "the toast never went away")
+			check(toastText(peer) == nil, "the toast never went away")
 		end
 		Rig.noErrors(world)
 	end)
@@ -435,5 +444,73 @@ describe("A full server never locks the Lobby", function()
 		world.current = nil
 		FakeRoblox.run(world, 0.3)
 		check(not Rig.shown(Rig.need(peer, "Lobby", "ServerFull"), "Lobby"), "the banner stays")
+	end)
+end)
+
+-- ------------------------------------------------------------------ UI overhaul (WP2)
+
+local function same(a: any, b: any): boolean
+	return math.abs(a.R - b.R) < 0.003 and math.abs(a.G - b.G) < 0.003 and math.abs(a.B - b.B) < 0.003
+end
+
+local function strictAudit(world: FakeRoblox.World, peer: FakeRoblox.Peer): number
+	local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
+	return Audit.run(need(peer, "Screens", "Lobby"), "Lobby", { strict = true })
+end
+
+describe("Lobby design system", function()
+	it("fills only Play vs Bot with the accent and makes it the primary action", function()
+		local world, peer = mountFixture("Lobby", nil)
+		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
+		local holder = need(peer, "Screens", "Lobby")
+		local accents = {}
+		for _, inst in holder:GetDescendants() do
+			if inst:IsA("GuiButton") and same(inst.BackgroundColor3, Kit.colors.accent) then
+				table.insert(accents, inst.Name)
+			end
+		end
+		expect(table.concat(accents, ",")):toBe("Practice")
+		expect(textOf(peer, "Lobby", "Practice")):toBe("Play vs Bot")
+		expect(need(peer, "Lobby", "Practice"):GetAttribute("PrimaryAction")):toBe(true)
+		expect(need(peer, "Lobby", "FindMatch"):GetAttribute("Variant")):toBe("secondary")
+		expect(need(peer, "Lobby", "Host"):GetAttribute("Variant")):toBe("secondary")
+		expect(need(peer, "Lobby", "Join"):GetAttribute("Variant")):toBe("secondary")
+		expect(need(peer, "Lobby", "Cancel"):GetAttribute("Variant")):toBe("danger")
+		expect(need(peer, "Lobby", "Title").TextSize):toBe(Kit.size.hero)
+		noErrors(world)
+	end)
+
+	it("has no toast of its own", function()
+		local world, peer = mountFixture("Lobby", nil)
+		expect(findIn(peer, "Lobby", "Toast")):toBe(nil)
+		noErrors(world)
+	end)
+
+	it("reserves the record line before the profile arrives", function()
+		local world, peer = mountFixture("Lobby", nil)
+		local record = need(peer, "Lobby", "Record")
+		check(Rig.shown(record, "Lobby"), "the record line takes no space before the profile")
+		local lobby = Fixtures.lobby("Idle")
+		lobby.profile = { rating = 1000, wins = 3, losses = 2 }
+		world.current = peer
+		storeOf(peer).setLobby(lobby)
+		world.current = nil
+		FakeRoblox.run(world, 0.3)
+		expect(textOf(peer, "Lobby", "Record")):toBe("Rating 1000 · 3 won, 2 lost")
+		noErrors(world)
+	end)
+
+	it("audits clean, strictly, idle and hosting at both sizes", function()
+		for _, screen in { PHONE, { x = 1280, y = 720 } } do
+			local world, peer = mountFixture("Lobby", screen)
+			expect(strictAudit(world, peer)):toBe(0)
+			world.current = peer
+			storeOf(peer).setLobby(Fixtures.lobby("Hosting"))
+			world.current = nil
+			FakeRoblox.run(world, 0.3)
+			expect(textOf(peer, "Lobby", "CodeLabel")):toBe("AB3CD")
+			expect(strictAudit(world, peer)):toBe(0)
+			noErrors(world)
+		end
 	end)
 end)
