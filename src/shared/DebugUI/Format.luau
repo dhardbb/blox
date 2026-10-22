@@ -9,6 +9,7 @@ local Issues = require("../Sim/Issues")
 local StateData = require("../Sim/StateData")
 local Colors = require("../UI/Colors")
 local Drafted = require("../UI/Drafted")
+local Explain = require("../UI/Explain")
 local Numbers = require("../UI/Numbers")
 local PlanDraft = require("../UI/PlanDraft")
 local Profile = require("../Net/Profile")
@@ -220,7 +221,8 @@ function Format.debate(debate: State.DebateResult, you: number): string
 end
 
 -- Short tags for one state in the board list: "BG", "home P1", "SH P2", a
--- nominated stronghold as "SH P2 nominated" (it lost its bonus), lean, gotv.
+-- nominated stronghold as "SH P2 nominated" (it lost its bonus), the lean from
+-- your side ("leans you +4"), gotv.
 function Format.stateTags(s: View.StateView, you: number): { string }
 	local tags = {}
 	if s.battleground then
@@ -236,7 +238,7 @@ function Format.stateTags(s: View.StateView, you: number): { string }
 		end
 	end
 	if s.leanTo then
-		table.insert(tags, `lean {if s.leanTo == you then "+" else "-"}{s.lean}`)
+		table.insert(tags, `leans {if s.leanTo == you then "you" else "them"} +{s.lean}`)
 	end
 	if s.gotv > 0 then
 		table.insert(tags, `gotv {s.gotv}`)
@@ -269,8 +271,9 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		if player.platform then
 			text ..= `  platform {table.concat(player.platform, "/")}`
 		end
-		if player.underdogTier > 0 then
-			text ..= `  underdog tier {player.underdogTier}`
+		local tier = Explain.underdogText(Config.defaults, view, p)
+		if tier then
+			text ..= `  {tier}`
 		end
 		if not seat.connected then
 			text ..= string.format("  DISCONNECTED (grace %ds)", secondsLeft(seat.graceUntil or now, now))
@@ -406,7 +409,12 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	table.sort(rows, function(a, b)
 		return a.closeness < b.closeness
 	end)
-	add("Closest states (you-them, undecided, momentum you/them):")
+	local C = Config.defaults
+	add(
+		`Closest states (you-them, undecided, momentum you/them; momentum keeps {math.floor(
+			C.MOMENTUM_DECAY * 100 + 0.5
+		)}% a week and its leader gains {C.DRIFT_RATE} support per point of lead, max {C.DRIFT_CAP}):`
+	)
 	for k = 1, math.min(CLOSEST, #rows) do
 		local row = rows[k]
 		local s, record = row.s, row.record
@@ -420,7 +428,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 				s.momentum[you],
 				s.momentum[them],
 				table.concat(record.issues, "/"),
-				table.concat(tags, " ")
+				table.concat(tags, ", ")
 			)
 		)
 	end
@@ -445,13 +453,25 @@ function Format.rejected(payload: Session.StatePayload?, op: string?, reason: st
 	return text
 end
 
--- Details of one state.
+-- Details of one state, then what its lean, momentum and backlash mean and, in a
+-- plan, what each action would do there (Shared/UI/Explain, empty plan).
 function Format.state(payload: Session.StatePayload, id: string): string
 	local view = payload.view
 	for i, s in view.states do
 		if s.id == id then
 			local record = StateData.list[i]
 			local text = marginText(s.poll, payload.you)
+			local lines = { Explain.leanText(view, s), Explain.momentumNote(Config.defaults, view, s) }
+			local backlash = Explain.backlashNote(Config.defaults, view, s)
+			if backlash then
+				table.insert(lines, backlash)
+			end
+			if view.phase == "Plan" and view.players[view.you].candidate then
+				local message: Types.Issue = PlanDraft.bestIssue(Config.defaults, view, id)
+				for _, entry in Explain.previews(Config.defaults, view, PlanDraft.new(), id, message) do
+					table.insert(lines, entry.text)
+				end
+			end
 			return string.format(
 				"%s (%s): %d EV, issues %s, region %s, neighbors %s, pool cap %s, poll %s, battleground %s",
 				record.name,
@@ -463,10 +483,22 @@ function Format.state(payload: Session.StatePayload, id: string): string
 				Numbers.money(s.capacity),
 				text,
 				if s.battleground then "yes" else "no"
-			)
+			) .. "\n  " .. table.concat(lines, "\n  ")
 		end
 	end
 	return `no state {id}`
+end
+
+-- The "How it works" text (Shared/UI/Explain.help), for the `rules` command.
+function Format.rules(payload: Session.StatePayload?): string
+	local out = {}
+	for _, section in Explain.help(Config.defaults, if payload then payload.view else nil) do
+		table.insert(out, `== {section.title} ==`)
+		for _, line in section.lines do
+			table.insert(out, line)
+		end
+	end
+	return table.concat(out, "\n")
 end
 
 return table.freeze(Format)

@@ -11,7 +11,7 @@
 --     rpoll REGION | gotv ST UNITS | pivot DROP ADD | prep N N N
 --     choice attack|defend|ignore              (only in a week with a Choice event)
 --   pass                                       (submit an empty plan)
---   auto | autoplay on|off | show ST
+--   auto | autoplay on|off | show ST | rules  (rules: the "How it works" text)
 
 local Candidates = require("../Sim/Candidates")
 local Issues = require("../Sim/Issues")
@@ -23,7 +23,7 @@ export type Parsed = {
 	events: boolean?, -- Host: false for "host noevents"
 	pick: any?, -- PrePick
 	input: any?, -- Submit
-	action: string?, -- Local: "auto" | "autoplay" | "show" | "help"
+	action: string?, -- Local: "auto" | "autoplay" | "show" | "help" | "rules"
 	arg: string?, -- Local argument
 	message: string?, -- Error
 }
@@ -235,7 +235,7 @@ function Commands.parse(text: string): Parsed
 			end
 		end
 		return { kind = "Request", op = "Submit", input = { actions = actions, prep = prep, choice = choice } }
-	elseif head == "auto" or head == "help" then
+	elseif head == "auto" or head == "help" or head == "rules" then
 		return { kind = "Local", action = head }
 	elseif head == "autoplay" then
 		local arg = string.lower(w[2] or "")
@@ -258,7 +258,8 @@ Commands.HELP = table.concat({
 	"Select: select CANDIDATE COLOR ISSUE ISSUE ISSUE      Draft: draft OH PA",
 	"Plan: plan rally OH Jobs; fund PA; media MI Jobs; attack IA Farms; poll OH; rpoll Pacific;",
 	"      gotv OH 2; pivot Schools Farms; prep 2 2 2; choice defend (Choice weeks)      pass = empty plan",
-	"Any time: auto (bot fills this step) | autoplay on/off | bank | skip | show OH | resync",
+	"Any time: auto (bot fills this step) | autoplay on/off | bank | skip | show OH | rules | resync",
+	"  show OH = a state's numbers and what each action does there; rules = how everything works",
 }, "\n")
 
 return table.freeze(Commands)

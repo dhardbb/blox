@@ -274,6 +274,8 @@ local function command(text: string)
 			buttons.Autoplay.Text = if autoplay then "Autoplay ON" else "Autoplay"
 			say(`autoplay {parsed.arg}`)
 			runAuto()
+		elseif parsed.action == "rules" then
+			say(Format.rules(current))
 		elseif parsed.action == "show" and current then
 			say(Format.state(current :: Session.StatePayload, parsed.arg :: string))
 		end
