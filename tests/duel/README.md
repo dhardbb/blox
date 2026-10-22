@@ -36,6 +36,16 @@ All writes are atomic (temp file, then rename). The commands are the debug panel
 
 Header (TURN, REFRESH, player, attempt), the output of your last command file (after `show ST` that is where its numbers are), `WHAT TO DO` (the stage's rules, your cash and route, costs, what each action would do in the state of your last `show` this turn, else where your candidate is, commands, examples), `BOARD` (the debug panel's board: players, projection, this week's event, next debate, your draft with nominated strongholds listed apart, the closest states), debates and events so far, the projected-EV trend, `LOG SINCE YOUR LAST TURN` (the debug panel's log: last week's events in words, rejections, notices; lines already shown as command output are left out) and, after Select, every state. Each fact appears once. Money is floored to $0.1 (you can always spend what you see); a plan rejected for money says what it costs and what you have.
 
+## Choice weeks and debates
+
+A Choice week asks for a stance on one issue: add `choice a`, `choice b` or `choice c` to the plan (`c`, the hedge, is the default; `pass` takes it). The screen shows what the game's event card and map show, in words:
+
+- `WHAT TO DO` lists every state each stance moves for you (`A · Side with the staff: +1.5 in GA, IN … · -1.5 in AL …`) and each stance's flavor line.
+- The `BOARD` has the states you need (within 5 points in the public poll, either way: "you trail WI by 2 · you lead OH by 3") and one summary per stance: `Stance A · …: +6.0 in 9 states (4 you need: OH, PA …) · -3.0 in 5 states (2 you lead: KY by 3 …) · could flip PA (+19 EV), lose WI (-10 EV)`. Flips are on today's public polls, from your stance alone (the opponent's is secret).
+- The week after, the board says what both stances moved and which poll leaders they flipped; earlier Choice weeks are under `DEBATES AND EVENTS SO FAR`.
+
+After a debate the board names the states each topic swung and every flip (`Your Jobs win swung OH, MI, PA (+1.0 each) - PA flipped to you (+19 EV)`, `Their gaffe on Safety: -0.6 in TX, AZ`); the score breakdown (prep, platform, stat, roll) is under `DEBATES AND EVENTS SO FAR`, and the log has one line per flipped state.
+
 ## Scripted players
 
-`tests/duel/scripted_agent.sh DIR N [candidate] [pass|example]` is a dumb player used to prove the protocol end to end: it picks a fixed candidate, drafts the first two legal states, then passes every week (or, with `example`, sends each week's first example plan).
+`tests/duel/scripted_agent.sh DIR N [candidate] [pass|example]` is a dumb player used to prove the protocol end to end: it picks a fixed candidate, drafts the first two legal states, then passes every week (or, with `example`, sends each week's first example plan, which takes stance `a` in a Choice week). It needs no `timeout` command, so it runs on macOS as is.

@@ -45,6 +45,7 @@ local Format = require("@shared/DebugUI/Format")
 local Numbers = require("@shared/UI/Numbers")
 local PlanDraft = require("@shared/UI/PlanDraft")
 local StateData = require("@shared/Sim/StateData")
+local Swing = require("@shared/UI/Swing")
 local Verdict = require("./duel/Verdict")
 
 -- ---------------------------------------------------------------- arguments
@@ -550,10 +551,13 @@ local function planGuide(payload: any, turn: Turn): { string }
 		if view.event.kind == "Choice" then
 			table.insert(
 				out,
-				'CHOICE WEEK: add "choice attack", "choice defend" or "choice ignore" to your plan (default ignore). National points for you, by their answer:'
+				`CHOICE WEEK ({view.event.name}, issue {view.event.issue}): add "choice a", "choice b" or "choice c" to your plan (default c, the hedge). The board below has the states you need and one summary per stance (what it gains, the leads it risks, the poll leaders it would flip on today's polls, before their stance). Every state each stance moves, for you:`
 			)
-			for _, line in Explain.choiceLines(C) do
+			for _, line in Explain.choiceLines(C, view.event, me.platform) do
 				table.insert(out, `  {line}`)
+			end
+			for _, stance in view.event.stances or {} do
+				table.insert(out, `  {stance.id}: "{stance.text}"`)
 			end
 		end
 	end
@@ -612,7 +616,7 @@ local function planGuide(payload: any, turn: Turn): { string }
 		out,
 		"     rally ST ISSUE   fund ST   ad ST ISSUE   attack ad ST ISSUE   poll ST   rpoll REGION"
 	)
-	table.insert(out, "     gotv ST UNITS    pivot DROP ADD   prep A B C   choice attack|defend|ignore")
+	table.insert(out, "     gotv ST UNITS    pivot DROP ADD   prep A B C   choice a|b|c")
 	table.insert(
 		out,
 		"     (names as the game says them: ad = Ad (media also works), attack ad = Attack ad (attack also works), gotv = Ground game, rpoll = Region poll)"
@@ -621,7 +625,7 @@ local function planGuide(payload: any, turn: Turn): { string }
 	table.insert(out, `     REGION is one of: {table.concat(Issues.regions, " ")}`)
 	table.insert(
 		out,
-		"  pass                          empty plan (AP lost, money banks; default prep / ignore)"
+		"  pass                          empty plan (AP lost, money banks; default prep / stance c, the hedge)"
 	)
 	table.insert(
 		out,
@@ -654,7 +658,7 @@ local function planGuide(payload: any, turn: Turn): { string }
 	end
 	local extra = prepText
 	if view.event and view.event.kind == "Choice" then
-		extra ..= "; choice defend"
+		extra ..= "; choice a"
 	end
 	table.insert(
 		out,
@@ -677,21 +681,37 @@ local function recapLines(payload: any): { string }
 	for _, debate in view.debates do
 		table.insert(out, Format.debate(debate, you))
 		if debate.week == view.week then
+			-- This week's: the score breakdown (what each topic swung is on the board).
 			for t, topic in debate.topics do
 				table.insert(out, `  {topic}: {Explain.debateLine(Config.defaults, view, debate, t)}`)
 			end
+		else
+			-- Earlier ones: what each topic swung and flipped, in words.
+			for t = 1, #debate.topics do
+				local entry = Swing.debateTopic(Config.defaults, view, debate, t)
+				table.insert(out, `  {entry.line}`)
+				for _, gaffe in entry.gaffeLines do
+					table.insert(out, `  {gaffe}`)
+				end
+			end
+			local other = {}
+			for _, flip in Swing.debateOther(view, debate) do
+				table.insert(other, Swing.flipPhrase(view, flip))
+			end
+			if #other > 0 then
+				table.insert(out, `  And from the points every state got: {table.concat(other, ", ")}`)
+			end
 		end
 	end
+	local lastChoice = Swing.lastChoice(view)
 	for _, e in view.eventLog do
-		if e.choices and e.national then
-			local them = if you == 1 then 2 else 1
-			table.insert(
-				out,
-				`Event week {e.week} ({e.id}): you {e.choices[you]} ({Numbers.signed(e.national[you])}), them {e.choices[them]} ({Numbers.signed(
-					e.national[them]
-				)})`
-			)
-		else
+		if e.choices and e ~= lastChoice then
+			-- Last week's Choice is on the board; earlier ones are summed up here.
+			table.insert(out, `Event week {e.week} ({e.id}):`)
+			for _, line in Swing.choiceLines(Config.defaults, view, e) do
+				table.insert(out, `  {line}`)
+			end
+		elseif not e.choices then
 			table.insert(out, `Event week {e.week}: {e.id}`)
 		end
 	end
@@ -829,7 +849,7 @@ local GLOSS: { [string]: string } = {
 	NotEnoughMoney = "the plan costs more than your cash (ads, attack ads, polls, ground game (gotv) and flights cost money)",
 	BadPrep = "prep must be your debate points split over the 3 topics, max 4 on one topic",
 	UnexpectedPrep = "prep is only accepted in the week before a debate",
-	BadChoice = "choice must be attack, defend or ignore",
+	BadChoice = "choice must be a, b or c (the stances on the board; c is the hedge)",
 	UnexpectedChoice = "choice is only accepted in a Choice-event week",
 	StaleStep = "the stage moved on",
 	AlreadyLocked = "you are already locked in",
