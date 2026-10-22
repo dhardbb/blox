@@ -35,6 +35,7 @@ local Support = require("./e2e/Support")
 local Candidates = require("@shared/Sim/Candidates")
 local Config = require("@shared/Sim/Config")
 local Issues = require("@shared/Sim/Issues")
+local Numbers = require("@shared/UI/Numbers")
 local StateData = require("@shared/Sim/StateData")
 
 -- ---------------------------------------------------------------- arguments
@@ -360,12 +361,12 @@ local function mapText(): string
 		table.insert(
 			out,
 			string.format(
-				"%s %-20s %2d EV  pop %5.2fM  pool $%.1f  %-13s %-21s adjacent: %s",
+				"%s %-20s %2d EV  pop %5.2fM  pool %-6s  %-13s %-21s adjacent: %s",
 				r.id,
 				r.name,
 				r.ev,
 				r.pop,
-				cap,
+				Numbers.money(cap),
 				r.region,
 				table.concat(r.issues, "/"),
 				if #r.adjacent > 0 then table.concat(r.adjacent, " ") else "none (fly)"
@@ -490,10 +491,10 @@ local function planGuide(payload: any): { string }
 	local out = {
 		`STAGE: Week {view.week} of {C.WEEKS} Plan. Simultaneous and hidden: the opponent plans now too; both plans resolve together.`,
 		string.format(
-			"You: %s (%s). Cash $%.1f. AP %d (use it or lose it). Candidate is in %s; free route hop to: %s.",
+			"You: %s (%s). Cash %s. AP %d (use it or lose it). Candidate is in %s; free route hop to: %s.",
 			profile.name,
 			me.candidate,
-			me.cash or 0,
+			Numbers.money(me.cash or 0),
 			profile.apPerWeek,
 			location or "?",
 			if location then table.concat(stateRecord(location).adjacent, " ") else "?"

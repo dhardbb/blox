@@ -7,6 +7,7 @@ local Config = require("../Sim/Config")
 local Events = require("../Sim/Events")
 local Issues = require("../Sim/Issues")
 local StateData = require("../Sim/StateData")
+local Numbers = require("../UI/Numbers")
 local Profile = require("../Net/Profile")
 local View = require("../Sim/View")
 local Remotes = require("../Net/Remotes")
@@ -78,7 +79,7 @@ function Format.status(payload: Session.StatePayload?, lobby: Remotes.LobbyStatu
 		text ..= if locked then " · LOCKED" else " · your move"
 	end
 	if me.cash then
-		text ..= string.format(" · $%.1f", me.cash)
+		text ..= ` · {Numbers.money(me.cash)}`
 	end
 	return text
 end
@@ -143,7 +144,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 			p,
 			name(player.candidate),
 			player.color or "?",
-			if player.cash then string.format("$%.1f", player.cash) else `money {player.money}`,
+			if player.cash then Numbers.money(player.cash) else `money {player.money}`,
 			player.home or "-"
 		)
 		if player.platform then
@@ -253,7 +254,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		add("Your internal polls: " .. table.concat(parts, ", "))
 	end
 	if view.raised > 0 then
-		add(string.format("You raised $%.1f last week", view.raised))
+		add(`You raised {Numbers.money(view.raised)} last week`)
 	end
 
 	if #view.draftLog > 0 and (view.phase == "Draft" or view.week <= 1) then
@@ -319,14 +320,14 @@ function Format.state(payload: Session.StatePayload, id: string): string
 			local record = StateData.list[i]
 			local text = marginText(s.poll, payload.you)
 			return string.format(
-				"%s (%s): %d EV, issues %s, region %s, neighbors %s, pool cap $%.1f, poll %s, battleground %s",
+				"%s (%s): %d EV, issues %s, region %s, neighbors %s, pool cap %s, poll %s, battleground %s",
 				record.name,
 				id,
 				record.ev,
 				table.concat(record.issues, "/"),
 				record.region,
 				if #record.adjacent > 0 then table.concat(record.adjacent, " ") else "none (fly)",
-				s.capacity,
+				Numbers.money(s.capacity),
 				text,
 				if s.battleground then "yes" else "no"
 			)

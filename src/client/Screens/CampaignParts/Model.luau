@@ -13,6 +13,7 @@ local Candidates = require(SharedFolder.Sim.Candidates)
 local ConfigModule = require(SharedFolder.Sim.Config)
 local Issues = require(SharedFolder.Sim.Issues)
 local Plan = require(SharedFolder.Sim.Plan)
+local Numbers = require(SharedFolder.UI.Numbers)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
 local Session = require(SharedFolder.Net.Session)
 local StateData = require(SharedFolder.Sim.StateData)
@@ -156,8 +157,9 @@ function Part.regionName(region: string?): string
 	return Issues.regionName[region :: SharedTypes.Region] or region
 end
 
+-- Money is floored, never rounded up (Numbers.money).
 function Part.money(amount: number): string
-	return string.format("$%.1f", amount)
+	return Numbers.money(amount)
 end
 
 function Part.plural(n: number, word: string): string
