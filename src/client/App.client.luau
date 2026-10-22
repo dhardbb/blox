@@ -22,6 +22,7 @@ local Kit = require(script.Parent.UI.Kit)
 local Net = require(script.Parent.Net)
 local Router = require(script.Parent.Router)
 local Store = require(script.Parent.Store)
+local Toast = require(script.Parent.UI.Toast)
 local Types = require(script.Parent.Screens.Types)
 
 local player = Players.LocalPlayer
@@ -55,6 +56,9 @@ local gui = Kit.new("ScreenGui", {
 local background = Kit.box({ Name = "Background", Parent = gui })
 local container = Kit.box({ Name = "Screens", Parent = background })
 Kit.pad(10).Parent = container
+-- One toast layer above every screen (rejections and notices), so no screen
+-- or reveal can hide a message.
+Toast.mount(background, Store)
 
 -- The debug panel opens with F2 or the workspace attribute DebugText = true;
 -- there is no on-screen button, so it never covers the game.

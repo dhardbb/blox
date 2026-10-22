@@ -68,7 +68,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Name = "BackToLobby",
 		LayoutOrder = 1,
 		Size = UDim2.new(0.5, -4, 1, 0),
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		Parent = footer,
 	})
 	local againBot = false
@@ -79,7 +79,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Name = "PlayAgain",
 		LayoutOrder = 2,
 		Size = UDim2.new(0.5, -4, 1, 0),
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		BackgroundColor3 = Kit.colors.accent,
 		TextColor3 = Kit.colors.background,
 		Parent = footer,
@@ -123,7 +123,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		label(box, if mine then "YOU" else "OPPONENT", {
 			Name = "Tag",
 			LayoutOrder = 1,
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.muted,
 			Font = Kit.font.bold,
 		})
@@ -133,7 +133,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Size = UDim2.new(1, 0, 0, 44),
 			AutomaticSize = Enum.AutomaticSize.None,
 			Font = Kit.font.bold,
-			TextSize = Kit.size.huge,
+			TextSize = Kit.size.hero,
 			TextScaled = true,
 			TextColor3 = tint,
 		})
@@ -148,7 +148,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = "Candidate",
 			LayoutOrder = 4,
 			Font = Kit.font.bold,
-			TextSize = Kit.size.large,
+			TextSize = Kit.size.heading,
 		})
 		local colorRow = Kit.box({
 			Name = "ColorRow",
@@ -176,7 +176,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		label(box, `Platform: {Data.platformText(if entry then entry.platform else nil)}`, {
 			Name = "Platform",
 			LayoutOrder = 6,
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.muted,
 		})
 	end
@@ -289,7 +289,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				Name = "ClosestHeading",
 				LayoutOrder = 1,
 				Font = Kit.font.bold,
-				TextSize = Kit.size.large,
+				TextSize = Kit.size.heading,
 			})
 			local row = 1
 			for k = #election.results, math.max(1, #election.results - CLOSEST_STATES + 1), -1 do
@@ -336,7 +336,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				Name = "DebateHeading",
 				LayoutOrder = 1,
 				Font = Kit.font.bold,
-				TextSize = Kit.size.large,
+				TextSize = Kit.size.heading,
 			})
 			for index, line in lines do
 				label(box, line, {

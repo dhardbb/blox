@@ -205,7 +205,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		"",
 		merge(auto(), {
 			Name = "Hint",
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			LayoutOrder = 4,
 			Parent = slots,
 		})
@@ -236,7 +236,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			"",
 			merge(auto(), {
 				Name = "Sub",
-				TextSize = Kit.size.small,
+				TextSize = Kit.size.caption,
 				TextColor3 = Kit.colors.muted,
 				LayoutOrder = 2,
 				Parent = frame,

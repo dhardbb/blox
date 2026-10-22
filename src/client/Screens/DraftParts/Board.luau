@@ -84,7 +84,7 @@ function Board.newSummary(): Summary
 				})
 				local detail = Kit.text("", {
 					Name = "Detail",
-					TextSize = Kit.size.small,
+					TextSize = Kit.size.caption,
 					TextColor3 = Kit.colors.muted,
 					LayoutOrder = 2,
 					AutomaticSize = Enum.AutomaticSize.Y,
@@ -137,13 +137,13 @@ function Board.newLegend(): Legend
 			Position = UDim2.fromOffset(24, 0),
 			Size = UDim2.new(1, -26, 1, 0),
 			TextScaled = true,
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			Parent = half,
 		})
 	end
 	local note = Kit.text("", {
 		Name = "LegendNote",
-		TextSize = Kit.size.small,
+		TextSize = Kit.size.caption,
 		TextColor3 = Kit.colors.muted,
 		LayoutOrder = 2,
 		AutomaticSize = Enum.AutomaticSize.Y,

@@ -3,6 +3,9 @@
 -- every campaign fixture mounts cleanly in 16:9 and phone portrait, the plan can
 -- be built and locked in by pressing buttons, debate prep keeps its total, the
 -- reveals play, and a whole autoplayed practice match runs through the screen.
+-- Also the v0.3.1 bug-hunt cases for this screen: the state list and its
+-- ordering, auto-submit, retries after a rejection, the forfeit countdown, and
+-- readable rejection codes (Net).
 
 local process = require("@lune/process")
 
@@ -10,7 +13,12 @@ local Config = require("@sim/Config")
 local Events = require("@sim/Events")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
+local Plan = require("@sim/Plan")
 local PlanDraft = require("@ui/PlanDraft")
+local Rig = require("./Rig")
+local Session = require("@net/Session")
+local StateData = require("@sim/StateData")
+local StateOrder = require("@ui/StateOrder")
 local Support = require("../e2e/Support")
 local Test = require("@testlib/Test")
 
@@ -550,5 +558,321 @@ describe("Campaign screen", function()
 			distinct += 1
 		end
 		check(distinct > 10, "the countdown never ticked")
+	end)
+end)
+
+-- ------------------------------------------------------------------ v0.3.1 bug hunt
+-- (moved here from ClientFixes.spec when it was split per screen)
+
+describe("StateOrder", function()
+	local view = Fixtures.payload(Config.defaults, "Plan").view
+
+	it("sorts by closeness, then size, then code", function()
+		local ids = StateOrder.sort(view, "Closest")
+		expect(#ids):toBe(#StateData.list)
+		local index: { [string]: number } = {}
+		for i, record in StateData.list do
+			index[record.id] = i
+		end
+		for k = 2, #ids do
+			local a, b = view.states[index[ids[k - 1]]], view.states[index[ids[k]]]
+			local gapA, gapB = math.abs(StateOrder.margin(view, a)), math.abs(StateOrder.margin(view, b))
+			check(gapA <= gapB, `{ids[k - 1]} ({gapA}) is listed before {ids[k]} ({gapB})`)
+			if gapA == gapB then
+				local evA, evB = StateData.byId[ids[k - 1]].ev, StateData.byId[ids[k]].ev
+				check(evA >= evB, "equally close states are not biggest first")
+			end
+		end
+	end)
+
+	it("sorts by size and by name", function()
+		local big = StateOrder.sort(view, "Biggest")
+		for k = 2, #big do
+			check(StateData.byId[big[k - 1]].ev >= StateData.byId[big[k]].ev, "not biggest first")
+		end
+		local names = StateOrder.sort(view, "Name")
+		expect(StateData.byId[names[1]].name):toBe("Alabama")
+		for k = 2, #names do
+			check(StateData.byId[names[k - 1]].name < StateData.byId[names[k]].name, "not A to Z")
+		end
+	end)
+
+	it("cycles through every mode and back", function()
+		local mode = StateOrder.MODES[1]
+		local seen = {}
+		for _ = 1, #StateOrder.MODES do
+			seen[mode] = true
+			mode = StateOrder.nextMode(mode)
+		end
+		expect(mode):toBe(StateOrder.MODES[1])
+		for _, each in StateOrder.MODES do
+			check(seen[each] == true and #StateOrder.label(each) > 0, `mode {each} was skipped`)
+		end
+	end)
+
+	it("reads the margin from the poll, or from the lean before one", function()
+		local sv = Rig.deepCopy(view.states[1])
+		sv.poll = { support = { [view.you] = 44, [3 - view.you] = 41 }, undecided = 15 }
+		expect(StateOrder.margin(view, sv)):toBe(3)
+		expect(StateOrder.marginText(view, sv)):toBe("You +3")
+		sv.poll = { support = { [view.you] = 40, [3 - view.you] = 45 }, undecided = 15 }
+		expect(StateOrder.marginText(view, sv)):toBe("Them +5")
+		sv.poll = { support = { [view.you] = 40, [3 - view.you] = 40 }, undecided = 20 }
+		expect(StateOrder.marginText(view, sv)):toBe("Tied")
+		sv.poll = nil
+		sv.leanTo = 3 - view.you
+		sv.lean = 4
+		expect(StateOrder.margin(view, sv)):toBe(-4)
+		expect(StateOrder.marginText(view, sv)):toBe("Lean: Them +4")
+		sv.leanTo = nil
+		expect(StateOrder.marginText(view, sv)):toBe("No poll")
+	end)
+
+	it("writes your momentum with a sign", function()
+		local sv = Rig.deepCopy(view.states[1])
+		sv.momentum = { [view.you] = 1.26 }
+		expect(StateOrder.momentumText(view, sv)):toBe("Mom +1.3")
+		sv.momentum = { [view.you] = -0.5 }
+		expect(StateOrder.momentumText(view, sv)):toBe("Mom -0.5")
+		sv.momentum = { [view.you] = 0.01 }
+		expect(StateOrder.momentumText(view, sv)):toBe("Mom 0")
+	end)
+end)
+
+describe("Campaign state list", function()
+	it("is collapsed until asked for, then lists every state", function()
+		local world, peer = Rig.fixture("Plan", Rig.PHONE)
+		local toggle = Rig.need(peer, "Campaign", "StatesToggle")
+		check(Rig.shown(toggle, "Campaign"), "no states button on the campaign screen")
+		check(not Rig.shown(Rig.need(peer, "Campaign", "StatePicker"), "Campaign"), "the list starts open")
+		Rig.tap(world, peer, "Campaign", "StatesToggle")
+		check(Rig.shown(Rig.need(peer, "Campaign", "StatePicker"), "Campaign"), "the list did not open")
+		for _, record in StateData.list do
+			Rig.need(peer, "Campaign", `Row_{record.id}`)
+		end
+		local problems = Rig.audit(peer, "Campaign")
+		check(#problems == 0, "open list: " .. table.concat(problems, "; "))
+		Rig.noErrors(world)
+	end)
+
+	it("selects the states the phone map hides, in two taps", function()
+		local world, peer = Rig.fixture("Plan", Rig.PHONE)
+		for _, id in { "MA", "DE", "DC", "CT", "WV" } do
+			Rig.tap(world, peer, "Campaign", "StatesToggle")
+			Rig.tap(world, peer, "Campaign", `Row_{id}`)
+			local title = Rig.textOf(peer, "Campaign", "CardTitle")
+			check(Rig.contains(title, StateData.byId[id].name), `{id}: the card shows "{title}"`)
+			check(not Rig.shown(Rig.need(peer, "Campaign", "StatePicker"), "Campaign"), "the list stays open")
+		end
+		Rig.noErrors(world)
+	end)
+
+	it("works on a wide screen and the state's actions follow the pick", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		Rig.tap(world, peer, "Campaign", "StatesToggle")
+		Rig.tap(world, peer, "Campaign", "Row_WY")
+		check(Rig.contains(Rig.textOf(peer, "Campaign", "CardTitle"), "Wyoming"), "Wyoming was not selected")
+		check(Rig.contains(Rig.textOf(peer, "Campaign", "Fundraise"), "Fundraise"), "no action buttons")
+		Rig.tap(world, peer, "Campaign", "Fundraise")
+		check(
+			Rig.contains(Rig.textOf(peer, "Campaign", "PlanItem1"), "Wyoming"),
+			Rig.textOf(peer, "Campaign", "PlanItem1")
+		)
+		Rig.noErrors(world)
+	end)
+
+	it("shows each row's poll and your momentum, and re-sorts", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		Rig.tap(world, peer, "Campaign", "StatesToggle")
+		local row = Rig.need(peer, "Campaign", "Row_OH")
+		local texts = {}
+		for _, inst in row:GetDescendants() do
+			if inst.ClassName == "TextLabel" then
+				table.insert(texts, tostring(inst.Text))
+			end
+		end
+		local all = table.concat(texts, " | ")
+		check(Rig.contains(all, "OH") and Rig.contains(all, "EV"), `row text: {all}`)
+		check(Rig.contains(all, "Mom"), `no momentum in the row: {all}`)
+		local first = Rig.textOf(peer, "Campaign", "StatesSort")
+		Rig.tap(world, peer, "Campaign", "StatesSort")
+		check(Rig.textOf(peer, "Campaign", "StatesSort") ~= first, "the sort button did not change")
+		local biggest = StateData.list[1]
+		for _, record in StateData.list do
+			if record.ev > biggest.ev or (record.ev == biggest.ev and record.id < biggest.id) then
+				biggest = record
+			end
+		end
+		check(
+			Rig.need(peer, "Campaign", `Row_{biggest.id}`).LayoutOrder == 1,
+			`{biggest.id} is not first when sorted by size`
+		)
+		Rig.tap(world, peer, "Campaign", "StatesSort")
+		check(Rig.need(peer, "Campaign", "Row_AL").LayoutOrder == 1, "Alabama is not first by name")
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Campaign auto-submit before the timer ends", function()
+	it("Campaign locks the plan that was built", function()
+		local world, peer = Rig.practice(3)
+		Rig.toPlanInput(world, peer)
+		local view = Rig.payloadOf(world, peer).view
+		local calls = Rig.spySubmits(world, peer)
+		Rig.tap(world, peer, "Campaign", view.players[1].location, 0.05)
+		Rig.tap(world, peer, "Campaign", "Rally", 0.05)
+		Rig.tap(world, peer, "Campaign", "Ad", 0.05)
+		Rig.waitFor(world, function()
+			return Rig.payloadOf(world, peer).reveal == "Resolve"
+		end, 200, "the resolve reveal")
+		FakeRoblox.run(world, 1)
+		expect(#calls):toBe(1)
+		local mentions = 0
+		for k = 1, 8 do
+			local line = Rig.findIn(peer, "Campaign", `RevealLine{k}`)
+			if line and Rig.contains(tostring(line.Text), "You rallied") then
+				mentions += 1
+			end
+		end
+		check(mentions == 1, `the reveal shows {mentions} lines about your rally`)
+		Rig.noErrors(world)
+	end)
+
+	it("Campaign never double-submits after a manual lock", function()
+		local world, peer = Rig.practice(3)
+		Rig.toPlanInput(world, peer)
+		local calls = Rig.spySubmits(world, peer)
+		Rig.tap(world, peer, "Campaign", "LockIn")
+		Rig.waitFor(world, function()
+			return Rig.payloadOf(world, peer).reveal == "Resolve"
+		end, 200, "the resolve reveal")
+		expect(#calls):toBe(1)
+		Rig.noErrors(world)
+	end)
+
+	it("an offline Campaign fixture submits once, half a second early", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		local left = Rig.payloadOf(world, peer).deadline - world.clock
+		FakeRoblox.run(world, left - 2)
+		expect(Rig.count(peer, "DEBUG_UI submit")):toBe(0)
+		FakeRoblox.run(world, 1.9)
+		expect(Rig.count(peer, "DEBUG_UI submit")):toBe(1)
+		FakeRoblox.run(world, 10)
+		expect(Rig.count(peer, "DEBUG_UI submit")):toBe(1)
+		Rig.noErrors(world)
+	end)
+
+	it("Campaign submits nothing when the draft has a problem", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		local view = Rig.payloadOf(world, peer).view
+		Rig.tap(world, peer, "Campaign", view.players[view.you].location, 0.05)
+		Rig.tap(world, peer, "Campaign", "Ad", 0.05)
+		-- The money is gone by the time the timer ends: the plan no longer fits.
+		local broke = Rig.deepCopy(Rig.payloadOf(world, peer))
+		broke.view.players[broke.view.you].cash = 0
+		Rig.push(world, peer, broke)
+		FakeRoblox.run(world, broke.deadline - world.clock + 5)
+		expect(Rig.count(peer, "DEBUG_UI submit")):toBe(0)
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Campaign rejections with a full message log", function()
+	it("lets Campaign retry a rejected plan even with a full log", function()
+		local world, peer = Rig.practice(3)
+		local store = Rig.storeOf(world, peer)
+		Rig.toPlanInput(world, peer)
+		for k = 1, 25 do
+			store.say(`filler {k}`)
+		end
+		Rig.sabotageSubmits(world, peer, { actions = { { kind = "Zzz" } } })
+		Rig.tap(world, peer, "Campaign", "LockIn", 1)
+		check(Rig.enabled(peer, "Campaign", "LockIn"), "Lock in stays disabled after a rejection")
+		check(
+			not Rig.contains(Rig.textOf(peer, "Campaign", "StageLabel"), "Locked"),
+			"the stage still says Locked in"
+		)
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Campaign with a disconnected opponent", function()
+	it("drops the auto-submit countdown once the grace period is over", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		local base = Rig.payloadOf(world, peer)
+		local them = 3 - base.you
+		local away = Rig.deepCopy(base)
+		away.seats[them].connected = false
+		away.seats[them].graceUntil = world.clock + 5
+		Rig.push(world, peer, away)
+		local notice = Rig.need(peer, "Campaign", "OpponentNotice")
+		check(notice.Visible ~= false, "no disconnected notice")
+		check(Rig.contains(tostring(notice.Text), "auto-submit in"), tostring(notice.Text))
+		FakeRoblox.run(world, 6)
+		expect(tostring(notice.Text)):toBe("Opponent disconnected")
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Rejection codes", function()
+	local CODES: { string } = {
+		-- Server and request checks
+		"NotInMatch",
+		"Internal",
+		"RateLimited",
+		"BadShape",
+		"UnknownOp",
+		"BadCode",
+		"Rejected",
+		-- Lobby
+		"InMatch",
+		"ServerFull",
+		"CodeTaken",
+		"NoSuchCode",
+		"OwnCode",
+		-- Match and Draft
+		"WrongPhase",
+		"UnknownCandidate",
+		"UnknownColor",
+		"BadPlatform",
+		"UnknownPlayer",
+		"UnknownState",
+		"BadChoiceCount",
+		"DuplicateChoice",
+		"IllegalChoice",
+	}
+	for _, code in Plan.Reason do
+		table.insert(CODES, code)
+	end
+	for _, code in Session.Reason do
+		table.insert(CODES, code)
+	end
+
+	it("has readable text for every code the client can receive", function()
+		local world, peer = Rig.practice(3)
+		local net = Rig.netOf(world, peer)
+		local missing = {}
+		for _, code in CODES do
+			local reason = net.reasonText(code)
+			if string.sub(reason, 1, 9) == "Rejected:" then
+				table.insert(missing, code)
+			end
+		end
+		check(#missing == 0, "no text for: " .. table.concat(missing, ", "))
+	end)
+
+	it("falls back to the code itself for one it does not know", function()
+		local world, peer = Rig.practice(3)
+		expect(Rig.netOf(world, peer).reasonText("Brand New")):toBe("Rejected: Brand New")
+		expect(Rig.netOf(world, peer).reasonText(nil)):toBe("Rejected: unknown")
+	end)
+
+	it("labels the fundraising pool as its size", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		local view = Rig.payloadOf(world, peer).view
+		Rig.tap(world, peer, "Campaign", view.players[view.you].location)
+		local ground = Rig.textOf(peer, "Campaign", "CardGround")
+		check(Rig.contains(ground, "pool size $"), ground)
+		check(not Rig.contains(ground, "fundraising pool"), ground)
 	end)
 end)

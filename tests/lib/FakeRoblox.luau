@@ -8,7 +8,9 @@
 -- Roblox-style argument copying, Players (PlayerAdded/Removing, LocalPlayer,
 -- PlayerGui), RunService.Heartbeat/RenderStepped, workspace:GetServerTimeNow,
 -- the task library, Random, Enum, Color3/UDim/UDim2/Vector2, and a rough
--- AbsoluteSize/TextFits layout so the debug UI's size checks run. Also
+-- AbsoluteSize/AbsolutePosition/TextFits layout so the UI audit's checks run
+-- (Size, Position, AnchorPoint and UISizeConstraint; list, grid and padding
+-- layouts are not run, so a child of a list sits at its parent's corner). Also
 -- DataStoreService (a world-level key/value table with switches for an
 -- unpublished place and transient failures: world.data), game.JobId,
 -- game:BindToClose (FakeRoblox.shutdown runs the handlers), and os.time on the
@@ -68,6 +70,8 @@ export type World = {
 	data: DataState,
 	jobId: string, -- the server's game.JobId
 	closeHandlers: { () -> () }, -- game:BindToClose callbacks
+	studio: boolean, -- what RunService:IsStudio() answers (default true)
+	clientFolder: any, -- this world's StarterPlayerScripts tree (src/client)
 }
 
 -- ---------------------------------------------------------------- data types
@@ -380,8 +384,9 @@ local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
 
 local newInstance: (world: World, className: string, name: string?) -> any
 
--- Rough layout: size from UDim2 against the parent's size (padding and list
--- layouts ignored), enough for the debug UI's 44 px and truncation checks.
+-- Rough layout: size from UDim2 against the parent's size, clamped by a child
+-- UISizeConstraint (padding and list layouts ignored), enough for the UI audit's
+-- 44 px, truncation and on-screen checks.
 local function absoluteSize(world: World, inst: any): (number, number)
 	local raw = rawget(inst, "_props")
 	local parent = rawget(inst, "_parent")
@@ -395,8 +400,48 @@ local function absoluteSize(world: World, inst: any): (number, number)
 	end
 	local x = px * size.X.Scale + size.X.Offset
 	local y = py * size.Y.Scale + size.Y.Offset
-	if raw.AutomaticSize ~= nil then
+	if raw.AutomaticSize ~= nil and raw.AutomaticSize.Name ~= "None" then
 		y = math.max(y, 20)
+	end
+	for _, child in rawget(inst, "_children") do
+		if child.ClassName == "UISizeConstraint" then
+			local props = rawget(child, "_props")
+			local min, max = props.MinSize, props.MaxSize
+			if max then
+				x, y = math.min(x, max.X), math.min(y, max.Y)
+			end
+			if min then
+				x, y = math.max(x, min.X), math.max(y, min.Y)
+			end
+		end
+	end
+	return x, y
+end
+
+-- Top-left corner from the parent's corner, Position and AnchorPoint. Objects
+-- without a Size (folders, unsized frames) sit at their parent's corner; a
+-- ScreenGui at the origin.
+local function absolutePosition(world: World, inst: any): (number, number)
+	local raw = rawget(inst, "_props")
+	local parent = rawget(inst, "_parent")
+	if inst.ClassName == "ScreenGui" or parent == nil then
+		return 0, 0
+	end
+	local ox, oy = absolutePosition(world, parent)
+	if raw.Size == nil then
+		return ox, oy
+	end
+	local pw, ph = absoluteSize(world, parent)
+	local w, h = absoluteSize(world, inst)
+	local position, anchor = raw.Position, raw.AnchorPoint
+	local x, y = ox, oy
+	if position then
+		x += pw * position.X.Scale + position.X.Offset
+		y += ph * position.Y.Scale + position.Y.Offset
+	end
+	if anchor then
+		x -= w * anchor.X
+		y -= h * anchor.Y
 	end
 	return x, y
 end
@@ -563,9 +608,9 @@ function methods.BindToClose(self: any, callback: () -> ())
 	table.insert((rawget(self, "_world") :: World).closeHandlers, callback)
 end
 
--- RunService: the fake always runs "in Studio" (there is no live server to test).
-function methods.IsStudio(_self: any): boolean
-	return true
+-- RunService: the fake runs "in Studio" unless a test sets world.studio = false.
+function methods.IsStudio(self: any): boolean
+	return (rawget(self, "_world") :: World).studio
 end
 
 function methods.IsServer(self: any): boolean
@@ -613,6 +658,9 @@ function instanceMeta.__index(self: any, key: string): any
 		return rawget(self, "_parent")
 	elseif key == "AbsoluteSize" then
 		local x, y = absoluteSize(rawget(self, "_world"), self)
+		return vector2(x, y)
+	elseif key == "AbsolutePosition" then
+		local x, y = absolutePosition(rawget(self, "_world"), self)
 		return vector2(x, y)
 	elseif key == "TextFits" then
 		return textFits(rawget(self, "_world"), self)
@@ -675,11 +723,19 @@ newInstance = function(world: World, className: string, name: string?): any
 	}, instanceMeta)
 	if TEXT_CLASSES[className] then
 		rawget(inst, "_props").Text = if className == "TextBox" then "" else "Label"
+		rawget(inst, "_props").TextSize = 14 -- Roblox's default
 	end
 	if GUI_OBJECTS[className] or className == "ScreenGui" then
 		-- Like Roblox: GUI objects are visible and enabled unless told otherwise.
 		rawget(inst, "_props").Visible = true
 		rawget(inst, "_props").Enabled = true
+	end
+	if GUI_OBJECTS[className] then
+		rawget(inst, "_props").BackgroundTransparency = 0
+	end
+	if className == "UITextSizeConstraint" then
+		rawget(inst, "_props").MinTextSize = 1
+		rawget(inst, "_props").MaxTextSize = 100
 	end
 	if className == "RemoteEvent" then
 		-- One signal for the server, one per client peer.
@@ -924,6 +980,8 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		},
 		jobId = "job-1",
 		closeHandlers = {},
+		studio = true,
+		clientFolder = nil,
 	} :: World
 	world.shared = newInstance(world, "ReplicatedStorage", "ReplicatedStorage")
 	local sharedFolder = newInstance(world, "Folder", "Shared")
@@ -937,6 +995,7 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 	mount(world, `{world.root}/src/server`, serverFolder)
 	clientFolder = newInstance(world, "Folder", "Client")
 	mount(world, `{world.root}/src/client`, clientFolder)
+	world.clientFolder = clientFolder
 	for _, inst in serverFolder:GetDescendants() do
 		if inst.ClassName == "Script" then
 			spawnOn(world, world.server, function()
@@ -988,7 +1047,7 @@ function FakeRoblox.join(world: World, name: string, extra: any?): Peer
 	serverPlayers.PlayerAdded.fire(serverPlayer)
 	world.current = nil
 
-	for _, inst in clientFolder:GetDescendants() do
+	for _, inst in world.clientFolder:GetDescendants() do
 		if inst.ClassName == "LocalScript" then
 			spawnOn(world, peer, function()
 				loadScript(world, peer, rawget(inst, "_path"), inst)
@@ -1120,6 +1179,31 @@ function FakeRoblox.shutdown(world: World): boolean
 end
 
 -- ---------------------------------------------------------------- client UI helpers
+
+-- Requires a client module as `peer` would (its own copy, sharing that peer's
+-- cache): `path` is relative to the repository root, e.g. "src/client/UI/Kit.luau".
+function FakeRoblox.require(world: World, peer: Peer, path: string): any
+	local full = `{world.root}/{path}`
+	for _, inst in world.clientFolder:GetDescendants() do
+		if rawget(inst, "_path") == full then
+			local previous = world.current
+			world.current = peer
+			local result = loadScript(world, peer, full, inst)
+			world.current = previous
+			return result
+		end
+	end
+	error(`no client module at {path}`)
+end
+
+-- The fake engine's value types, for tests that build GUI trees themselves.
+FakeRoblox.types = {
+	UDim = { new = udim },
+	UDim2 = UDim2,
+	Vector2 = { new = vector2 },
+	Color3 = Color3,
+	Enum = Enum,
+}
 
 local function gui(peer: Peer): any
 	return peer.player:FindFirstChild("PlayerGui")

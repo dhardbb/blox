@@ -34,6 +34,40 @@ describe("Colors", function()
 		local half = Colors.stateFill({ 40, 46 }, colors)
 		expect(half):toEqual(Colors.mix(Colors.neutral, Colors.player.Cobalt, 0.5))
 	end)
+
+	it("has the design-system tokens (D-030)", function()
+		expect(Colors.onAccent):toEqual(Colors.background)
+		expect(Colors.warn):toEqual(Colors.accent)
+		expect(Colors.disabledText):toEqual(Colors.muted)
+		local field = Colors.field
+		-- The field well sits between the background and a panel.
+		expect(field.r > Colors.background.r and field.r < Colors.surface.r):toBe(true)
+	end)
+
+	it("tints toward a color, clamped, and keeps mix as the same function", function()
+		expect(Colors.mix):toBe(Colors.tint)
+		local base, color = Colors.raised, Colors.player.Crimson
+		expect(Colors.tint(base, color, 0)):toEqual({ r = base.r, g = base.g, b = base.b })
+		expect(Colors.tint(base, color, 1)):toEqual({ r = color.r, g = color.g, b = color.b })
+		expect(Colors.tint(base, color, 2)):toEqual(Colors.tint(base, color, 1))
+		expect(Colors.tint({ r = 0, g = 0, b = 0 }, { r = 100, g = 200, b = 50 }, 0.35)):toEqual({
+			r = 35,
+			g = 70,
+			b = 18,
+		})
+	end)
+
+	it("picks dark text on light swatches and light text on dark ones", function()
+		for _, name in { "Amber", "Teal", "Emerald" } do
+			expect(Colors.onColor(Colors.player[name])):toEqual(Colors.background)
+		end
+		for _, name in { "Crimson", "Cobalt", "Violet" } do
+			expect(Colors.onColor(Colors.player[name])):toEqual(Colors.text)
+		end
+		expect(Colors.onColor({ r = 255, g = 255, b = 255 })):toEqual(Colors.background)
+		expect(Colors.onColor({ r = 0, g = 0, b = 0 })):toEqual(Colors.text)
+		expect(Colors.onColor(Colors.accent)):toEqual(Colors.onAccent)
+	end)
 end)
 
 describe("MapLayout", function()

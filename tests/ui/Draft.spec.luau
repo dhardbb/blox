@@ -3,7 +3,8 @@
 -- fixtures render offline with a clean UI audit in 16:9 and phone portrait, the
 -- list and map pickers fill the ranked top 2, illegal states are refused, Lock In
 -- submits, reveals show both picks, and a live practice match drafts through the
--- screen and on to week 1.
+-- screen and on to week 1. Also the v0.3.1 bug-hunt cases: auto-submit, a
+-- retry after a rejection, and the disconnected opponent.
 
 local process = require("@lune/process")
 
@@ -11,6 +12,7 @@ local Test = require("@testlib/Test")
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
+local Rig = require("./Rig")
 local Session = require("@net/Session")
 local Support = require("../e2e/Support")
 
@@ -450,4 +452,92 @@ describe("Draft screen: a live match", function()
 			end
 		end)
 	end
+end)
+
+-- ------------------------------------------------------------------ v0.3.1 bug hunt
+-- (moved here from ClientFixes.spec when it was split per screen)
+
+describe("Draft auto-submit before the timer ends", function()
+	it("Draft locks the current choices", function()
+		local world, peer = Rig.practice(3)
+		Rig.toDraftInput(world, peer)
+		local view = Rig.payloadOf(world, peer).view
+		local mine = Rig.safeState(view)
+		local calls = Rig.spySubmits(world, peer)
+		Rig.tap(world, peer, "Draft", `Row_{mine}`)
+		Rig.waitFor(world, function()
+			return Rig.payloadOf(world, peer).reveal == "Draft"
+		end, 60, "the draft reveal")
+		expect(#calls):toBe(1)
+		local got = false
+		for _, pick in Rig.payloadOf(world, peer).view.draftLog do
+			if pick.player == 1 and pick.state == mine then
+				got = true
+			end
+		end
+		check(got, `the pick {mine} was thrown away at the deadline`)
+		Rig.noErrors(world)
+	end)
+
+	it("Draft submits nothing when no state is picked", function()
+		local world, peer = Rig.practice(3)
+		Rig.toDraftInput(world, peer)
+		local calls = Rig.spySubmits(world, peer)
+		Rig.waitFor(world, function()
+			return Rig.payloadOf(world, peer).reveal == "Draft"
+		end, 60, "the draft reveal")
+		expect(#calls):toBe(0)
+		Rig.noErrors(world)
+	end)
+
+	it("Draft never double-submits after a manual lock", function()
+		local world, peer = Rig.practice(3)
+		Rig.toDraftInput(world, peer)
+		local mine = Rig.safeState(Rig.payloadOf(world, peer).view)
+		local calls = Rig.spySubmits(world, peer)
+		Rig.tap(world, peer, "Draft", `Row_{mine}`)
+		Rig.tap(world, peer, "Draft", "LockIn")
+		Rig.waitFor(world, function()
+			return Rig.payloadOf(world, peer).reveal == "Draft"
+		end, 60, "the draft reveal")
+		expect(#calls):toBe(1)
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Draft rejections with a full message log", function()
+	it("lets Draft retry a rejected lock-in even with a full log", function()
+		local world, peer = Rig.practice(3)
+		local store = Rig.storeOf(world, peer)
+		for k = 1, 25 do
+			store.say(`filler {k}`)
+		end
+		Rig.toDraftInput(world, peer)
+		Rig.sabotageSubmits(world, peer, { choices = { "ZZ" } })
+		Rig.tap(world, peer, "Draft", `Row_{Rig.safeState(Rig.payloadOf(world, peer).view)}`)
+		Rig.tap(world, peer, "Draft", "LockIn", 1)
+		expect(Rig.textOf(peer, "Draft", "LockIn")):toBe("Lock In")
+		check(Rig.enabled(peer, "Draft", "LockIn"), "Lock In stays disabled after a rejection")
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Draft with a disconnected opponent", function()
+	it("shows on the Draft screen", function()
+		local world, peer = Rig.fixture("Draft", nil)
+		local base = Rig.payloadOf(world, peer)
+		local them = 3 - base.you
+		local before = Rig.textOf(peer, "Draft", "OpponentStatus")
+		local away = Rig.deepCopy(base)
+		away.seats[them].connected = false
+		away.seats[them].graceUntil = world.clock + 20
+		Rig.push(world, peer, away)
+		check(
+			Rig.contains(Rig.textOf(peer, "Draft", "OpponentStatus"), "disconnected"),
+			Rig.textOf(peer, "Draft", "OpponentStatus")
+		)
+		Rig.push(world, peer, Rig.deepCopy(base))
+		expect(Rig.textOf(peer, "Draft", "OpponentStatus")):toBe(before)
+		Rig.noErrors(world)
+	end)
 end)

@@ -1,12 +1,16 @@
 --!strict
 -- The Lobby, Select and Results screens on the fake Roblox engine: fixtures
 -- render offline with a clean UI audit, the controls do what they say, and a
--- live practice match runs from the Lobby to the Results screen and back.
+-- live practice match runs from the Lobby to the Results screen and back. Also
+-- the v0.3.1 bug-hunt cases for the Lobby: message ids, the toast, the page
+-- padding, and a full server that never locks the buttons.
 
 local process = require("@lune/process")
 
 local Test = require("@testlib/Test")
 local FakeRoblox = require("@testlib/FakeRoblox")
+local Fixtures = require("@ui/Fixtures")
+local Rig = require("./Rig")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -352,5 +356,84 @@ describe("live: Lobby to Results and back", function()
 			true
 		)
 		noErrors(world)
+	end)
+end)
+
+-- ------------------------------------------------------------------ v0.3.1 bug hunt
+-- (moved here from ClientFixes.spec when it was split per screen)
+
+describe("Lobby messages are told apart by id", function()
+	it("keeps counting past the size of the log", function()
+		local world, peer = Rig.practice(3)
+		local store = Rig.storeOf(world, peer)
+		local last = 0
+		for k = 1, 30 do
+			store.say(`message {k}`)
+			local messages = store.get().messages
+			local newest = messages[#messages]
+			check(type(newest) == "table" and newest.text == `message {k}`, "newest message is wrong")
+			check(newest.id > last, "ids do not grow")
+			last = newest.id
+		end
+		Rig.noErrors(world)
+	end)
+
+	it("shows the Lobby toast for every rejection, not only the first 20", function()
+		local world, peer = Rig.practice(3)
+		local box = Rig.need(peer, "Lobby", "CodeBox")
+		for k = 1, 24 do
+			box.Text = "ZZZZ9"
+			Rig.tap(world, peer, "Lobby", "Join", 0.3)
+			check(Rig.shown(Rig.need(peer, "Lobby", "Toast"), "Lobby"), `no toast for attempt {k}`)
+			FakeRoblox.run(world, 5)
+			check(not Rig.shown(Rig.need(peer, "Lobby", "Toast"), "Lobby"), "the toast never went away")
+		end
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Lobby keeps no space for a Debug button", function()
+	it("does not pad the bottom of the Lobby page", function()
+		local _, peer = Rig.fixture("Lobby", Rig.PHONE)
+		local content = Rig.need(peer, "Lobby", "Content")
+		expect(content:FindFirstChildOfClass("UIPadding").PaddingBottom.Offset <= 16):toBe(true)
+	end)
+end)
+
+describe("A full server never locks the Lobby", function()
+	it("keeps the banner as information and the buttons working", function()
+		local world, peer = Rig.fixture("Lobby", nil)
+		local full = Fixtures.lobby("Idle")
+		full.full = true
+		world.current = peer
+		Rig.storeOf(world, peer).setLobby(full)
+		world.current = nil
+		FakeRoblox.run(world, 0.3)
+		check(Rig.shown(Rig.need(peer, "Lobby", "ServerFull"), "Lobby"), "no server full banner")
+		for _, name in { "Practice", "FindMatch", "Host", "Join" } do
+			check(Rig.enabled(peer, "Lobby", name), `{name} is disabled while the status says full`)
+		end
+		Rig.tap(world, peer, "Lobby", "Practice")
+		expect(Rig.count(peer, "DEBUG_UI send Practice")):toBe(1)
+		Rig.tap(world, peer, "Lobby", "FindMatch")
+		expect(Rig.count(peer, "DEBUG_UI send Queue")):toBe(1)
+		Rig.tap(world, peer, "Lobby", "Host")
+		expect(Rig.count(peer, "DEBUG_UI send Host")):toBe(1)
+		Rig.need(peer, "Lobby", "CodeBox").Text = "AB3CD"
+		Rig.tap(world, peer, "Lobby", "Join")
+		expect(Rig.count(peer, "DEBUG_UI send Join")):toBe(1)
+		Rig.noErrors(world)
+	end)
+
+	it("hides the banner again when the status says there is room", function()
+		local world, peer = Rig.fixture("Lobby", nil)
+		local full = Fixtures.lobby("Idle")
+		full.full = true
+		world.current = peer
+		Rig.storeOf(world, peer).setLobby(full)
+		Rig.storeOf(world, peer).setLobby(Fixtures.lobby("Idle"))
+		world.current = nil
+		FakeRoblox.run(world, 0.3)
+		check(not Rig.shown(Rig.need(peer, "Lobby", "ServerFull"), "Lobby"), "the banner stays")
 	end)
 end)

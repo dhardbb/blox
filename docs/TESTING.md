@@ -172,3 +172,18 @@ In Studio (**Local Server, 2 Players**):
    - The other sees "Opponent: disconnected"; once the grace time is up the notice says "Opponent disconnected" with no negative countdown.
 
 **Send back:** anything that looks off, with a screenshot and the Output lines starting with `[270]`.
+
+## UI overhaul WP0: the design system (unreleased)
+
+Groundwork only: the screens are redesigned by the next four packages. This build should look and play like v0.3.1.
+
+1. Connect Rojo, press **Play** and play a few weeks against the bot.
+   - Every screen still works; small grey text is a touch smaller (13 px); panels have slightly rounder corners.
+2. In the Lobby, type `ZZZZ9` in the code box and press **Join**.
+   - A message box appears at the top center with a red outline and disappears after about 5 seconds (the Lobby's own message line still shows too, until the Lobby package removes it).
+3. Press **F2** with the phone emulator (Test → Device, a phone in portrait).
+   - The debug panel's buttons sit in two rows (Practice … Autoplay, then Pass … Help); none is squashed.
+4. With `workspace:SetAttribute("DebugScreen", "Plan")` before **Play**, then rotate the emulated device (or switch between a phone and a 16:9 device).
+   - The Output shows `[270] UI audit Campaign: 0 problem(s), N pending, M text size(s)` once after the screen appears and again after the rotation, plus a few `[270] UI audit Campaign pending ...` lines. No `WARN` lines.
+
+**Send back:** the Output lines starting with `[270] UI audit`, and a screenshot of the toast from step 2.

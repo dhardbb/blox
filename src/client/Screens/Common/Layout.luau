@@ -8,7 +8,7 @@ local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 
 local Layout = {}
 
-Layout.GAP = 8 -- px between grid cells and stacked rows
+Layout.GAP = Kit.space.sm -- px between grid cells and stacked rows
 
 export type Page = {
 	root: Frame,
@@ -60,11 +60,11 @@ function Layout.page(parent: Instance, options: PageOptions): Page
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 	})
-	Kit.list("Vertical", 12).Parent = content
+	Kit.list("Vertical", Kit.space.md).Parent = content
 	Kit.new("UIPadding", {
 		PaddingLeft = UDim.new(0, 2),
 		PaddingRight = UDim.new(0, 2),
-		PaddingBottom = UDim.new(0, 12),
+		PaddingBottom = UDim.new(0, Kit.space.md),
 		Parent = content,
 	})
 
@@ -132,7 +132,7 @@ function Layout.heading(parent: Instance, text: string, order: number, name: str
 		LayoutOrder = order,
 		Size = UDim2.new(1, 0, 0, 26),
 		Font = Kit.font.bold,
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		TextScaled = true,
 		Parent = parent,
 	})

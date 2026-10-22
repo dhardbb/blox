@@ -274,7 +274,7 @@ local function scaled(parent: Instance?, order: number, name: string, props: { [
 		Size = UDim2.new(1, 0, 0, ROW_H),
 		TextScaled = true,
 		TextWrapped = false,
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		Font = Kit.font.medium,
 		Parent = parent,
 	}
@@ -511,14 +511,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		banner,
 		1,
 		"EventKind",
-		{ TextSize = Kit.size.small, TextColor3 = Kit.colors.accent, Font = Kit.font.medium }
+		{ TextSize = Kit.size.caption, TextColor3 = Kit.colors.accent, Font = Kit.font.medium }
 	)
 	local bannerTitle =
 		scaled(banner, 2, "EventTitle", { Size = UDim2.new(1, 0, 0, 30), Font = Kit.font.bold })
 	local bannerText = sentence(banner, 3, "EventText", { TextColor3 = Kit.colors.muted })
 	local bannerEffect = sentence(banner, 4, "EventEffect", { Font = Kit.font.medium })
 	local bannerMapNote =
-		sentence(banner, 5, "EventMapNote", { TextSize = Kit.size.small, TextColor3 = Kit.colors.muted })
+		sentence(banner, 5, "EventMapNote", { TextSize = Kit.size.caption, TextColor3 = Kit.colors.muted })
 	local answerRow = row(banner, 6, "ChoiceRow")
 	local choiceButtons: { [string]: TextButton } = {}
 	for k = 1, #Events.CHOICES do
@@ -534,7 +534,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		choiceButtons[answer] = button
 	end
 	local choiceNote =
-		sentence(banner, 7, "ChoiceNote", { TextSize = Kit.size.small, TextColor3 = Kit.colors.muted })
+		sentence(banner, 7, "ChoiceNote", { TextSize = Kit.size.caption, TextColor3 = Kit.colors.muted })
 
 	-- ------------------------------------------------------------ build: reveal panel
 
@@ -648,16 +648,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local cardDetails = stack(card, 4, "CardDetails", 2)
 	local cardTags =
-		sentence(cardDetails, 1, "CardTags", { TextSize = Kit.size.small, TextColor3 = Kit.colors.accent })
-	local cardIssues = sentence(cardDetails, 2, "CardIssues", { TextSize = Kit.size.small })
-	local cardPoll = sentence(cardDetails, 3, "CardPoll", { TextSize = Kit.size.small })
-	local cardMomentum = sentence(cardDetails, 4, "CardMomentum", { TextSize = Kit.size.small })
-	local cardLean = sentence(cardDetails, 5, "CardLean", { TextSize = Kit.size.small })
-	local cardInternal =
-		sentence(cardDetails, 6, "CardInternal", { TextSize = Kit.size.small, TextColor3 = Kit.colors.good })
-	local cardGround = sentence(cardDetails, 7, "CardGround", { TextSize = Kit.size.small })
+		sentence(cardDetails, 1, "CardTags", { TextSize = Kit.size.caption, TextColor3 = Kit.colors.accent })
+	local cardIssues = sentence(cardDetails, 2, "CardIssues", { TextSize = Kit.size.caption })
+	local cardPoll = sentence(cardDetails, 3, "CardPoll", { TextSize = Kit.size.caption })
+	local cardMomentum = sentence(cardDetails, 4, "CardMomentum", { TextSize = Kit.size.caption })
+	local cardLean = sentence(cardDetails, 5, "CardLean", { TextSize = Kit.size.caption })
+	local cardInternal = sentence(
+		cardDetails,
+		6,
+		"CardInternal",
+		{ TextSize = Kit.size.caption, TextColor3 = Kit.colors.good }
+	)
+	local cardGround = sentence(cardDetails, 7, "CardGround", { TextSize = Kit.size.caption })
 	local cardMove =
-		sentence(cardDetails, 8, "CardMove", { TextSize = Kit.size.small, TextColor3 = Kit.colors.muted })
+		sentence(cardDetails, 8, "CardMove", { TextSize = Kit.size.caption, TextColor3 = Kit.colors.muted })
 
 	local actionsBox = stack(card, 5, "Actions", 6)
 	local issueRow = row(actionsBox, 1, "IssueRow")
@@ -708,7 +712,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		actionButtons[name] = button
 	end
 	local actionHint =
-		sentence(actionsBox, 5, "ActionHint", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.small })
+		sentence(actionsBox, 5, "ActionHint", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.caption })
 
 	-- ------------------------------------------------------------ build: debate prep
 
@@ -722,7 +726,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = `PrepTopic{t}`,
 			LayoutOrder = 1,
 			Size = UDim2.new(1, -(3 * BUTTON_H + 18), 1, 0),
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			Parent = prepRow,
 		})
 		local minus: TextButton
@@ -751,7 +755,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		prepRows[t] = { topic = topic, value = value, minus = minus, plus = plus }
 	end
 	local prepTotal =
-		sentence(prepPanel, 10, "PrepTotal", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.small })
+		sentence(prepPanel, 10, "PrepTotal", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.caption })
 
 	-- ------------------------------------------------------------ build: plan tray
 
@@ -799,7 +803,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		BackgroundColor3 = Kit.colors.accent,
 		TextColor3 = Kit.colors.background,
 		Font = Kit.font.bold,
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		Parent = tray,
 	})
 
@@ -844,7 +848,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local feedPolls = sentence(feed, 5, "FeedPolls")
 	local feedDebate = sentence(feed, 6, "FeedDebate", { TextColor3 = Kit.colors.accent })
 	local feedMessages =
-		sentence(feed, 7, "FeedMessages", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.small })
+		sentence(feed, 7, "FeedMessages", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.caption })
 
 	-- ------------------------------------------------------------ layout
 
@@ -1503,7 +1507,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				Name = `PlanItem{k}`,
 				LayoutOrder = 1,
 				Size = UDim2.new(1, -(BUTTON_H + 6), 1, 0),
-				TextSize = Kit.size.small,
+				TextSize = Kit.size.caption,
 				Parent = itemRow,
 			})
 			local remove = Kit.button("×", function()

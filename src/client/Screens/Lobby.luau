@@ -61,7 +61,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		LayoutOrder = nextOrder(),
 		Size = UDim2.new(1, 0, 0, 24),
 		TextScaled = true,
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		Font = Kit.font.medium,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Visible = false,
@@ -128,7 +128,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = name,
 			LayoutOrder = buttonCount + 1,
 			Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
-			TextSize = Kit.size.large,
+			TextSize = Kit.size.heading,
 			BackgroundColor3 = if primary then Kit.colors.accent else Kit.colors.raised,
 			TextColor3 = if primary then Kit.colors.background else Kit.colors.text,
 			Parent = idle,
@@ -157,7 +157,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		BackgroundColor3 = Kit.colors.surface,
 		BorderSizePixel = 0,
 		Font = Kit.font.mono,
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		TextColor3 = Kit.colors.text,
 		PlaceholderText = "CODE",
 		PlaceholderColor3 = Kit.colors.muted,
@@ -198,7 +198,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Font = Kit.font.medium,
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = waiting,
 	})
@@ -229,7 +229,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Name = "Cancel",
 		LayoutOrder = 4,
 		Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		Parent = waiting,
 	})
 
@@ -238,7 +238,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Font = Kit.font.medium,
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = starting,
 	})

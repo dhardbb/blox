@@ -30,7 +30,14 @@ local toClient = folder:WaitForChild(Remotes.TO_CLIENT) :: RemoteEvent
 -- ---------------------------------------------------------------- UI
 
 local MIN_TOUCH = 44 -- px, PLAN.md minimum touch target
-local BUTTONS = { "Practice", "Queue", "Host", "Auto", "Autoplay", "Pass", "Bank", "Skip", "Help" }
+local ROW_H = 44 -- px, each of the two button rows
+local INPUT_H = 52 -- px, the command box row
+local GAP = 6 -- px between rows and buttons
+-- Two rows, so each button stays wider than MIN_TOUCH on a 390 px phone.
+local BUTTON_ROWS = {
+	{ "Practice", "Queue", "Host", "Auto", "Autoplay" },
+	{ "Pass", "Bank", "Skip", "Help" },
+}
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "DebugUI"
@@ -78,7 +85,7 @@ status.TextColor3 = Color3.fromRGB(255, 214, 102)
 
 local scroll = Instance.new("ScrollingFrame")
 scroll.LayoutOrder = 2
-scroll.Size = UDim2.new(1, 0, 1, -(40 + 100 + 52 + 52 + 4 * 6))
+scroll.Size = UDim2.new(1, 0, 1, -(40 + 100 + 2 * ROW_H + INPUT_H + 5 * GAP))
 scroll.BackgroundColor3 = Color3.fromRGB(28, 31, 40)
 scroll.BorderSizePixel = 0
 scroll.CanvasSize = UDim2.new()
@@ -103,17 +110,6 @@ local log = label(3, UDim.new(0, 100), 14)
 log.Name = "Log"
 log.TextColor3 = Color3.fromRGB(160, 200, 255)
 
-local row = Instance.new("Frame")
-row.LayoutOrder = 4
-row.Size = UDim2.new(1, 0, 0, 52)
-row.BackgroundTransparency = 1
-row.Parent = root
-local rowLayout = Instance.new("UIListLayout")
-rowLayout.FillDirection = Enum.FillDirection.Horizontal
-rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
-rowLayout.Padding = UDim.new(0, 6)
-rowLayout.Parent = row
-
 local function button(order: number, text: string, parent: Instance, width: UDim): TextButton
 	local b = Instance.new("TextButton")
 	b.LayoutOrder = order
@@ -122,6 +118,7 @@ local function button(order: number, text: string, parent: Instance, width: UDim
 	b.TextColor3 = Color3.fromRGB(240, 240, 245)
 	b.Font = Enum.Font.GothamMedium
 	b.TextSize = 16
+	b.TextWrapped = true -- "Autoplay ON" takes two lines on a phone
 	b.Text = text
 	b.Name = text
 	b.Parent = parent
@@ -129,18 +126,31 @@ local function button(order: number, text: string, parent: Instance, width: UDim
 end
 
 local buttons: { [string]: TextButton } = {}
-for k, text in BUTTONS do
-	buttons[text] = button(k, text, row, UDim.new(1 / #BUTTONS, -6))
+for r, names in BUTTON_ROWS do
+	local row = Instance.new("Frame")
+	row.Name = `ButtonRow{r}`
+	row.LayoutOrder = 3 + r
+	row.Size = UDim2.new(1, 0, 0, ROW_H)
+	row.BackgroundTransparency = 1
+	row.Parent = root
+	local rowLayout = Instance.new("UIListLayout")
+	rowLayout.FillDirection = Enum.FillDirection.Horizontal
+	rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	rowLayout.Padding = UDim.new(0, GAP)
+	rowLayout.Parent = row
+	for k, text in names do
+		buttons[text] = button(k, text, row, UDim.new(1 / #names, -GAP))
+	end
 end
 
 local inputRow = Instance.new("Frame")
-inputRow.LayoutOrder = 5
-inputRow.Size = UDim2.new(1, 0, 0, 52)
+inputRow.LayoutOrder = 6
+inputRow.Size = UDim2.new(1, 0, 0, INPUT_H)
 inputRow.BackgroundTransparency = 1
 inputRow.Parent = root
 local inputLayout = Instance.new("UIListLayout")
 inputLayout.FillDirection = Enum.FillDirection.Horizontal
-inputLayout.Padding = UDim.new(0, 6)
+inputLayout.Padding = UDim.new(0, GAP)
 inputLayout.SortOrder = Enum.SortOrder.LayoutOrder
 inputLayout.Parent = inputRow
 local box = Instance.new("TextBox")
@@ -169,6 +179,9 @@ task.defer(function()
 	for text, b in buttons do
 		if b.AbsoluteSize.Y < MIN_TOUCH then
 			warn(`[270] debug UI: button {text} is {b.AbsoluteSize.Y}px tall, under {MIN_TOUCH}px`)
+		end
+		if b.AbsoluteSize.X < MIN_TOUCH then
+			warn(`[270] debug UI: button {text} is {b.AbsoluteSize.X}px wide, under {MIN_TOUCH}px`)
 		end
 		if not b.TextFits then
 			warn(`[270] debug UI: button {text} label is truncated at {b.AbsoluteSize.X}px wide`)

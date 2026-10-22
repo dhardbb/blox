@@ -2,6 +2,10 @@
 -- Color tokens for the client, as plain {r, g, b} 0-255 tables so this module stays
 -- pure (the client turns them into Color3 with Color3.fromRGB). Player colors are
 -- the six picks from character select; none pairs into a real party's colors.
+--
+-- Design system (docs/DESIGN.md D-030): these are the only colors the client
+-- uses. Data colors (map fills, player colors, feed tints) are derived from them
+-- through stateFill, tint and onColor, never written as literals in a screen.
 
 export type RGB = { r: number, g: number, b: number }
 
@@ -29,18 +33,37 @@ Colors.text = rgb(234, 236, 242)
 Colors.muted = rgb(150, 156, 172)
 Colors.neutral = rgb(118, 122, 134) -- a state nobody leads
 Colors.undecided = rgb(190, 194, 204) -- the undecided ring
-Colors.accent = rgb(255, 214, 102) -- timers, highlights
+Colors.accent = rgb(255, 214, 102) -- the one primary button per screen, timer digits
 Colors.danger = rgb(232, 84, 84)
 Colors.good = rgb(92, 200, 128)
+Colors.onAccent = Colors.background -- text on an accent fill
+Colors.field = rgb(22, 25, 33) -- text boxes and read-only wells (between background and surface)
+Colors.warn = Colors.accent -- warning text (a timer under Kit.TIMER_WARN uses danger instead)
+Colors.disabledText = Colors.muted -- labels of disabled buttons
 
--- Linear blend from a to b, t in [0, 1].
-function Colors.mix(a: RGB, b: RGB, t: number): RGB
+-- Linear blend from `base` toward `color`, t in [0, 1]. Used for map fills, the
+-- Election feed rows (0.35) and the draft board legend (0.6).
+function Colors.tint(base: RGB, color: RGB, t: number): RGB
 	local k = math.clamp(t, 0, 1)
 	return {
-		r = math.floor(a.r + (b.r - a.r) * k + 0.5),
-		g = math.floor(a.g + (b.g - a.g) * k + 0.5),
-		b = math.floor(a.b + (b.b - a.b) * k + 0.5),
+		r = math.floor(base.r + (color.r - base.r) * k + 0.5),
+		g = math.floor(base.g + (color.g - base.g) * k + 0.5),
+		b = math.floor(base.b + (color.b - base.b) * k + 0.5),
 	}
+end
+
+-- The old name for tint; kept so existing callers keep working.
+Colors.mix = Colors.tint
+
+-- Luma (Rec. 709 weights on 0-255 channels), 0 for black to 1 for white.
+function Colors.luma(color: RGB): number
+	return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b) / 255
+end
+
+-- Readable text on a fill of `color`: dark (background) on light fills such as
+-- Amber, Teal and Emerald, light (text) on dark ones.
+function Colors.onColor(color: RGB): RGB
+	return if Colors.luma(color) > 0.5 then Colors.background else Colors.text
 end
 
 -- Player color by name, neutral if unknown (e.g. before Select ends).
@@ -67,7 +90,7 @@ function Colors.stateFill(support: { number }?, colors: { RGB }): RGB
 	if best == second or leader == 0 then
 		return Colors.neutral
 	end
-	return Colors.mix(Colors.neutral, colors[leader] or Colors.neutral, (best - second) / Colors.FULL_MARGIN)
+	return Colors.tint(Colors.neutral, colors[leader] or Colors.neutral, (best - second) / Colors.FULL_MARGIN)
 end
 
 return table.freeze(Colors)

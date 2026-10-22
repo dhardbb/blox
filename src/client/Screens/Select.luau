@@ -126,7 +126,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local status = Kit.text("", {
 		Name = "Status",
 		Size = UDim2.new(1, -(LOCK_WIDTH + 8), 1, 0),
-		TextSize = Kit.size.small,
+		TextSize = Kit.size.caption,
 		Parent = footer,
 	})
 	local lockIn: TextButton
@@ -168,7 +168,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			LayoutOrder = 1,
 			Size = UDim2.new(1, 0, 0, 22),
 			Font = Kit.font.bold,
-			TextSize = Kit.size.large,
+			TextSize = Kit.size.heading,
 			TextScaled = true,
 			Parent = card,
 		})
@@ -176,7 +176,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = "Archetype",
 			LayoutOrder = 2,
 			Size = UDim2.new(1, 0, 0, 18),
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			TextScaled = true,
 			TextColor3 = Kit.colors.muted,
 			Parent = card,
@@ -186,7 +186,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			LayoutOrder = 3,
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.good,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Parent = card,
@@ -196,7 +196,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			LayoutOrder = 4,
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.danger,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Parent = card,
@@ -242,7 +242,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			LayoutOrder = nextOrder(),
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
-			TextSize = Kit.size.small,
+			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.muted,
 			Parent = content,
 		}
@@ -291,7 +291,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
 		Size = UDim2.fromOffset(LOCK_WIDTH, 52),
-		TextSize = Kit.size.large,
+		TextSize = Kit.size.heading,
 		Parent = footer,
 	}) :: TextButton
 
