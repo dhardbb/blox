@@ -68,9 +68,9 @@ function Support.new(root: string, seed: number?, screen: { x: number, y: number
 	return { world = world, peers = {}, history = {}, last = {}, logBoxes = {} }
 end
 
--- Adds a player and lets their client start up.
-function Support.join(rig: Rig, name: string): FakeRoblox.Peer
-	local peer = FakeRoblox.join(rig.world, name)
+-- Adds a player and lets their client start up. `userId` brings a returning player back.
+function Support.join(rig: Rig, name: string, userId: number?): FakeRoblox.Peer
+	local peer = FakeRoblox.join(rig.world, name, userId)
 	table.insert(rig.peers, peer)
 	rig.history[peer] = {}
 	rig.last[peer] = {}
