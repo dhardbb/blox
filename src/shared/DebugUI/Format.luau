@@ -8,6 +8,7 @@ local Events = require("../Sim/Events")
 local Issues = require("../Sim/Issues")
 local StateData = require("../Sim/StateData")
 local Colors = require("../UI/Colors")
+local Drafted = require("../UI/Drafted")
 local Numbers = require("../UI/Numbers")
 local PlanDraft = require("../UI/PlanDraft")
 local Profile = require("../Net/Profile")
@@ -218,6 +219,31 @@ function Format.debate(debate: State.DebateResult, you: number): string
 	)} you, {Numbers.signed(debate.national[them] or 0)} them`
 end
 
+-- Short tags for one state in the board list: "BG", "home P1", "SH P2", a
+-- nominated stronghold as "SH P2 nominated" (it lost its bonus), lean, gotv.
+function Format.stateTags(s: View.StateView, you: number): { string }
+	local tags = {}
+	if s.battleground then
+		table.insert(tags, "BG")
+	end
+	if s.owner then
+		if s.isHome then
+			table.insert(tags, `home P{s.owner}`)
+		elseif s.battleground then
+			table.insert(tags, `SH P{s.owner} nominated`)
+		else
+			table.insert(tags, `SH P{s.owner}`)
+		end
+	end
+	if s.leanTo then
+		table.insert(tags, `lean {if s.leanTo == you then "+" else "-"}{s.lean}`)
+	end
+	if s.gotv > 0 then
+		table.insert(tags, `gotv {s.gotv}`)
+	end
+	return tags
+end
+
 -- The full board summary.
 function Format.board(payload: Session.StatePayload, now: number, rating: Remotes.RatingChange?): string
 	local view = payload.view
@@ -362,6 +388,10 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		add("Draft: " .. table.concat(parts, ", "))
 	end
 
+	if view.phase ~= "Select" then
+		add(`Your draft: home {view.players[you].home or "-"}; {Drafted.summary(view, you)}`)
+	end
+
 	-- The closest states by public poll (or, before polls, by lean).
 	local rows = {}
 	for i, s in view.states do
@@ -380,19 +410,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	for k = 1, math.min(CLOSEST, #rows) do
 		local row = rows[k]
 		local s, record = row.s, row.record
-		local tags = {}
-		if s.battleground then
-			table.insert(tags, "BG")
-		end
-		if s.owner then
-			table.insert(tags, `{if s.isHome then "home" else "SH"} P{s.owner}`)
-		end
-		if s.leanTo then
-			table.insert(tags, `lean {if s.leanTo == you then "+" else "-"}{s.lean}`)
-		end
-		if s.gotv > 0 then
-			table.insert(tags, `gotv {s.gotv}`)
-		end
+		local tags = Format.stateTags(s, you)
 		add(
 			string.format(
 				"  %s %2d EV  %s  mom %.1f/%.1f  %s  [%s]",

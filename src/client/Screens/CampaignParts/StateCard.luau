@@ -636,7 +636,12 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 			end
 			if s.owner then
 				local whose = if s.owner == me then "Your" else "Their"
-				table.insert(tagTexts, `{whose} {if s.isHome then "home state" else "stronghold"}`)
+				if s.battleground and not s.isHome then
+					-- Nominated: the stronghold bonus is gone (playtest 1).
+					table.insert(tagTexts, `Was {string.lower(whose)} stronghold`)
+				else
+					table.insert(tagTexts, `{whose} {if s.isHome then "home state" else "stronghold"}`)
+				end
 			end
 			if view.players[me].location == id then
 				table.insert(tagTexts, "You are here")

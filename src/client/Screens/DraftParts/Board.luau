@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
+local Drafted = require(ReplicatedStorage.Shared.UI.Drafted)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
@@ -95,10 +96,22 @@ function Board.newSummary(): Summary
 			end
 			block.name.Text = if p == view.you then "You" else "Them"
 			block.name.TextColor3 = colors[p] or Kit.colors.text
-			block.detail.Text =
+			-- A stronghold someone nominated lost its bonus: list it apart (playtest 1).
+			local active, nominated = Drafted.strongholds(view, p)
+			local lost = {}
+			for _, entry in nominated do
+				if entry.by ~= p then
+					table.insert(lost, entry.state)
+				end
+			end
+			local text =
 				`{Board.candidateName(config, view, p)} · home {player.home or "—"} · strongholds {listText(
-					player.strongholds
-				)} · battlegrounds {listText(player.nominations)}`
+					active
+				)}`
+			if #lost > 0 then
+				text ..= ` · nominated by {if p == view.you then "the opponent" else "you"}: {listText(lost)}`
+			end
+			block.detail.Text = text .. ` · battlegrounds {listText(player.nominations)}`
 		end
 	end
 

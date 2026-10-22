@@ -35,6 +35,7 @@ local Support = require("./e2e/Support")
 local Candidates = require("@shared/Sim/Candidates")
 local Config = require("@shared/Sim/Config")
 local Issues = require("@shared/Sim/Issues")
+local Drafted = require("@shared/UI/Drafted")
 local Format = require("@shared/DebugUI/Format")
 local Numbers = require("@shared/UI/Numbers")
 local StateData = require("@shared/Sim/StateData")
@@ -314,10 +315,15 @@ local function statesTable(payload: any): { string }
 			table.insert(tags, "BG")
 		end
 		if s.owner then
-			table.insert(
-				tags,
-				`{if s.isHome then "home" else "stronghold"} P{s.owner}{if s.owner == you then "(you)" else ""}`
-			)
+			local holder = `P{s.owner}{if s.owner == you then "(you)" else ""}`
+			if s.isHome then
+				table.insert(tags, `home {holder}`)
+			elseif s.battleground then
+				-- Nominated: the stronghold bonus is gone (playtest 1).
+				table.insert(tags, `nominated stronghold of {holder}, no bonus`)
+			else
+				table.insert(tags, `stronghold {holder}`)
+			end
 		end
 		if s.leanTo then
 			table.insert(tags, `lean {if s.leanTo == you then "+" else "-"}{s.lean}`)
@@ -500,10 +506,7 @@ local function planGuide(payload: any): { string }
 			location or "?",
 			if location then table.concat(stateRecord(location).adjacent, " ") else "?"
 		),
-		`Platform: {if me.platform then table.concat(me.platform, ", ") else "?"}.  Home {me.home or "-"}, strongholds {table.concat(
-			me.strongholds,
-			" "
-		)}, nominated battlegrounds {table.concat(me.nominations, " ")}.`,
+		`Platform: {if me.platform then table.concat(me.platform, ", ") else "?"}.  Your draft: see "Your draft" on the board.`,
 		string.format(
 			"Costs: rally 1 AP; fund 1 AP; flight (a rally/fund stop that is neither your state nor adjacent to the previous stop) +$%d; media/attack $%g; poll $%d (%d free per week for you); rpoll $%d; gotv $%g per unit (max %d per state); pivot 1 AP, once per match (%s).",
 			C.FLIGHT_COST,
@@ -1105,7 +1108,7 @@ local function playerSummary(slot: Slot): string
 	local me = view.players[payload.you]
 	local p = profileOf(me.candidate)
 	return string.format(
-		"p%d (%s, seat P%d): %s (%s), platform %s, home %s, strongholds %s, nominated %s",
+		"p%d (%s, seat P%d): %s (%s), platform %s, home %s, %s",
 		slot.n,
 		slot.name,
 		payload.you,
@@ -1113,8 +1116,7 @@ local function playerSummary(slot: Slot): string
 		me.color or "?",
 		if me.platform then table.concat(me.platform, "/") else "?",
 		me.home or "-",
-		table.concat(me.strongholds, " "),
-		table.concat(me.nominations, " ")
+		Drafted.summary(view, payload.you)
 	)
 end
 
