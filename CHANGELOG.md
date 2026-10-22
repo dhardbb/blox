@@ -2,6 +2,23 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## 0.3.1 — Bug hunt fixes (Oct 22, 2026)
+
+Fixes from the first test build's four bug hunts (rules, server and saving, client, and a 2,900-match soak with 0 script errors). Every fix has a spec that failed before it. Specs: 448.
+
+- **Client.**
+  - The campaign state card has "Pick a state from the list": all 51 states with EV, public poll margin and your momentum, sorted closest, biggest or A to Z. Small states (DC, DE, RI...) are now easy to pick on a phone.
+  - When the timer runs out, a finished pick or plan is locked in for you (0.5 s before the deadline) instead of being lost; an unfinished one falls back to the server default.
+  - Rejection and toast messages are tracked by id, so they keep working after 20 messages.
+  - The Draft lock bar says "Opponent: disconnected"; the forfeit notice stops counting below zero.
+  - Every server reason code has player-facing text; the state card reads "pool size $X".
+  - "Server full" is information only: the lobby buttons stay usable.
+  - Removed the space left for the old Debug button.
+- **Server and saving.** The forfeit counter is truly consecutive; election results never leak before election night; a player's result is never dropped while their profile reloads; a double leave during a slow save no longer leaks a lock; unrated human matches and forfeits record nothing they shouldn't; the lobby status is re-sent to everyone in the lobby whenever it changes. Details in `docs/DESIGN.md` (Phase 2 and ratings sections).
+- **Rules (3–4 players only; 1v1 unaffected).** Map leans no longer error when a balanced draw is impossible; election tiebreaks compare only the tied players.
+
+**Test:** `docs/TESTING.md` → Bug hunt fixes (v0.3.1).
+
 ## 0.3.0 — Phase 3: Client MVP (first test build, Oct 22, 2026)
 
 The real game screens replace the text UI (still available as a debug panel: F2, or the workspace attribute `DebugText`).

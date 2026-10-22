@@ -8,10 +8,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
+-- One line of the message log. Ids only ever grow, so a screen tells "new" apart
+-- from "already seen" by id even after old lines have been dropped.
+export type Message = {
+	id: number,
+	text: string,
+	rejected: boolean, -- the server turned a request down (Net's "Rejected")
+}
+
 export type State = {
 	payload: Session.StatePayload?,
 	lobby: Remotes.LobbyStatus?,
-	messages: { string }, -- newest last, for toasts and the debug panel
+	messages: { Message }, -- newest last, for toasts and the week card
 	resultSeen: boolean, -- the player dismissed the last match's result screen
 	prePick: any?, -- the selection remembered for the next Select
 	rating: Remotes.RatingChange?, -- the rating change after the last rated match
@@ -20,6 +28,7 @@ export type State = {
 local Store = {}
 
 local MAX_MESSAGES = 20
+local lastMessageId = 0 -- id of the newest message ever said
 
 local state: State = {
 	payload = nil,
@@ -65,8 +74,9 @@ function Store.setLobby(lobby: Remotes.LobbyStatus)
 	changed()
 end
 
-function Store.say(message: string)
-	table.insert(state.messages, message)
+function Store.say(text: string, rejected: boolean?)
+	lastMessageId += 1
+	table.insert(state.messages, { id = lastMessageId, text = text, rejected = rejected == true })
 	while #state.messages > MAX_MESSAGES do
 		table.remove(state.messages, 1)
 	end

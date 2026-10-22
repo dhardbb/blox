@@ -71,7 +71,7 @@ export type View = {
 	draftRound: number,
 	draftKind: Draft.Kind?, -- during the draft
 	draftPriority: number?, -- player with clash priority this draft round
-	priorityA: number, -- public from the map reveal: who holds priority in "A" rounds
+	priorityA: number?, -- who holds priority in "A" rounds; public from the map reveal, absent during Select
 	players: { PlayerView },
 	states: { StateView },
 	projectedEV: { number },
@@ -183,7 +183,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 		draftRound = match.draftRound,
 		draftKind = if drafting then Draft.kind(config, match.draftRound) else nil,
 		draftPriority = if drafting then Draft.priorityPlayer(config, match, match.draftRound) else nil,
-		priorityA = match.priorityA,
+		priorityA = if match.phase == "Select" then nil else match.priorityA,
 		players = players,
 		states = states,
 		projectedEV = Polls.projectedEV(match),

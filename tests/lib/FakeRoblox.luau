@@ -420,10 +420,21 @@ function methods.GetService(self: any, name: string): any
 	return service
 end
 
-function methods.FindFirstChild(self: any, name: string): any
-	for _, child in rawget(self, "_children") do
+-- FindFirstChild(name, recursive): with `recursive` true it searches every
+-- descendant (children first, then theirs, as Roblox does), not only the children.
+function methods.FindFirstChild(self: any, name: string, recursive: boolean?): any
+	local children = rawget(self, "_children")
+	for _, child in children do
 		if rawget(child, "_props").Name == name then
 			return child
+		end
+	end
+	if recursive then
+		for _, child in children do
+			local found = methods.FindFirstChild(child, name, true)
+			if found ~= nil then
+				return found
+			end
 		end
 	end
 	return nil

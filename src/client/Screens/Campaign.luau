@@ -23,12 +23,15 @@ local PlanDraft = require(Shared.UI.PlanDraft)
 local Resolve = require(Shared.Sim.Resolve)
 local Session = require(Shared.Net.Session)
 local SimState = require(Shared.Sim.State)
+local StateOrder = require(Shared.UI.StateOrder)
 local StateData = require(Shared.Sim.StateData)
 local SharedTypes = require(Shared.Types)
 local ViewModule = require(Shared.Sim.View)
 
+local AutoLock = require(script.Parent.Common.AutoLock)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
+local Messages = require(script.Parent.Common.Messages)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local Types = require(script.Parent.Types)
 
@@ -347,7 +350,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Current data.
 	local payload: Payload? = nil
-	local messages: { string } = {}
+	local messages: { Types.Message } = {}
 
 	-- The plan being built (kept for the whole Input stage, keyed by step).
 	local draft = PlanDraft.new()
@@ -358,7 +361,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local pivotStage: string? = nil -- nil, "drop" or "add"
 	local pivotDrop: Issue? = nil
 	local lockStep: number? = nil -- step we pressed Lock in for (before the server confirms)
-	local lockMessages = 0 -- message count when we pressed Lock in
+	local lockMessageId = 0 -- id of the newest message when we pressed Lock in
+	local autoLock = AutoLock.new()
+	local statesOpen = false -- the state list is expanded
+	local sortMode: StateOrder.Mode = "Closest"
 	local skipStep: number? = nil -- step we pressed Skip for
 
 	-- Reveal state.
@@ -370,8 +376,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local revealOldView: View? = nil
 
 	-- Messages.
-	local seenMessages = 0
-	local seenLast: string? = nil
+	local seenMessageId = 0
 	local toast: string? = nil
 	local toastUntil = 0
 
@@ -380,6 +385,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Re-renders everything from `payload` and the draft (defined below).
 	local render: () -> ()
+	-- Selects a state, as a tap on the map or on the list does (defined below).
+	local selectState: (id: string) -> ()
 
 	-- ------------------------------------------------------------ build: frame
 
@@ -554,7 +561,92 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local card = panel(side, 2, "StateCard")
 	local cardTitle = scaled(card, 1, "CardTitle", { Size = UDim2.new(1, 0, 0, 30), Font = Kit.font.bold })
-	local cardDetails = stack(card, 2, "CardDetails", 2)
+
+	-- The state list: every state as a row, for the ones the phone map hides.
+	local statesToggle = Kit.button("", function()
+		statesOpen = not statesOpen
+		render()
+	end, { Name = "StatesToggle", LayoutOrder = 2, Parent = card })
+	local statePicker = stack(card, 3, "StatePicker", 4)
+	statePicker.Visible = false
+	local statesSort = Kit.button("", function()
+		sortMode = StateOrder.nextMode(sortMode)
+		render()
+	end, { Name = "StatesSort", LayoutOrder = 0, Parent = statePicker })
+	type PickerRow = {
+		index: number,
+		button: TextButton,
+		stroke: UIStroke,
+		code: TextLabel,
+		name: TextLabel,
+		ev: TextLabel,
+		margin: TextLabel,
+		momentum: TextLabel,
+	}
+	local pickerRows: { [string]: PickerRow } = {}
+	for index, record in StateData.list do
+		local id = record.id
+		local button = Kit.new("TextButton", {
+			Name = `Row_{id}`,
+			Size = UDim2.new(1, 0, 0, BUTTON_H),
+			BackgroundColor3 = Kit.colors.raised,
+			BorderSizePixel = 0,
+			AutoButtonColor = true,
+			Text = "",
+			LayoutOrder = index,
+			Parent = statePicker,
+		}) :: TextButton
+		Kit.corner(8).Parent = button
+		local stroke = Kit.stroke(Kit.colors.accent, 2)
+		stroke.Thickness = 0
+		stroke.Parent = button
+		Kit.new("UIPadding", {
+			PaddingLeft = UDim.new(0, 6),
+			PaddingRight = UDim.new(0, 6),
+			PaddingTop = UDim.new(0, 3),
+			PaddingBottom = UDim.new(0, 3),
+			Parent = button,
+		})
+		local function pickerCell(name: string, x: number, w: number, props: { [string]: any }): TextLabel
+			local base: { [string]: any } = {
+				Name = name,
+				Position = UDim2.fromScale(x, 0),
+				Size = UDim2.fromScale(w, 1),
+				TextScaled = true,
+				TextSize = 15,
+				Parent = button,
+			}
+			for key, value in props do
+				base[key] = value
+			end
+			return Kit.text("", base)
+		end
+		local entry: PickerRow = {
+			index = index,
+			button = button,
+			stroke = stroke,
+			code = pickerCell("Code", 0, 0.1, { Font = Kit.font.bold, TextSize = 18 }),
+			name = pickerCell("Name", 0.1, 0.36, {}),
+			ev = pickerCell("EV", 0.46, 0.12, { TextXAlignment = Enum.TextXAlignment.Center }),
+			margin = pickerCell("Margin", 0.58, 0.24, {
+				Font = Kit.font.medium,
+				TextXAlignment = Enum.TextXAlignment.Center,
+			}),
+			momentum = pickerCell("Momentum", 0.82, 0.18, {
+				TextColor3 = Kit.colors.muted,
+				TextXAlignment = Enum.TextXAlignment.Right,
+			}),
+		}
+		entry.code.Text = id
+		entry.name.Text = record.name
+		entry.ev.Text = `{record.ev} EV`
+		button.Activated:Connect(function()
+			selectState(id)
+		end)
+		pickerRows[id] = entry
+	end
+
+	local cardDetails = stack(card, 4, "CardDetails", 2)
 	local cardTags =
 		sentence(cardDetails, 1, "CardTags", { TextSize = Kit.size.small, TextColor3 = Kit.colors.accent })
 	local cardIssues = sentence(cardDetails, 2, "CardIssues", { TextSize = Kit.size.small })
@@ -567,7 +659,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local cardMove =
 		sentence(cardDetails, 8, "CardMove", { TextSize = Kit.size.small, TextColor3 = Kit.colors.muted })
 
-	local actionsBox = stack(card, 3, "Actions", 6)
+	local actionsBox = stack(card, 5, "Actions", 6)
 	local issueRow = row(actionsBox, 1, "IssueRow")
 	local issueButton: TextButton
 	issueButton = Kit.button("Message", function()
@@ -679,18 +771,27 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	)
 	lockedNote.Text = "Locked — waiting for opponent"
 
-	local lockButton: TextButton
-	lockButton = Kit.button("Lock in", function()
+	-- Sends the plan as drafted (the Lock in button, or the timer about to end).
+	local function lockPlan()
 		local current = payload
-		if lockButton.Active == false or current == nil then
+		if current == nil then
 			return
 		end
 		lockStep = current.step
-		lockMessages = #messages
+		lockMessageId = Messages.lastId(ctx.store.get())
 		pickerOpen = false
 		pivotStage = nil
+		autoLock:spent(current)
 		ctx.net.submit(PlanDraft.payload(draft))
 		render()
+	end
+
+	local lockButton: TextButton
+	lockButton = Kit.button("Lock in", function()
+		if lockButton.Active == false then
+			return
+		end
+		lockPlan()
 	end, {
 		Name = "LockIn",
 		LayoutOrder = 5,
@@ -1007,7 +1108,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local away = seat ~= nil and not seat.connected
 		if away then
 			local grace = (seat :: Session.SeatInfo).graceUntil
-			notice.Text = if grace
+			notice.Text = if grace ~= nil and grace > now
 				then `Opponent disconnected · their moves auto-submit in {Kit.clock(grace - now)}`
 				else "Opponent disconnected"
 		end
@@ -1161,7 +1262,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local planned = plannedUnits(id)
 		cardGround.Text = `Ground game: {s.gotv} of {profile.gotvMaxUnits} units`
 			.. (if planned > 0 then ` (+{planned} planned)` else "")
-			.. ` · fundraising pool {money(s.capacity)}`
+			.. ` · pool size {money(s.capacity)}`
 		local from = PlanDraft.location(view, draft)
 		cardMove.Text = if Plan.isAdjacent(from, id)
 			then "Rally or fundraise here: no flight needed"
@@ -1213,6 +1314,35 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		actionHint.Text = hint
 			or "Rally and Fundraise move your candidate (1 AP each). Ads, polls and GOTV cost money."
+	end
+
+	-- ------------------------------------------------------------ render: state list
+
+	local function renderPicker(p: Payload)
+		local view = p.view
+		statesToggle.Text = if statesOpen then "Hide the state list" else "Pick a state from the list"
+		setVisible(statePicker, statesOpen)
+		if not statesOpen then
+			return
+		end
+		statesSort.Text = `Sorted: {StateOrder.label(sortMode)} (tap to change)`
+		local you, them = view.you, opponentOf(view)
+		for rank, id in StateOrder.sort(view, sortMode) do
+			local entry = pickerRows[id]
+			local sv = view.states[entry.index]
+			local chosen = id == selected
+			entry.button.LayoutOrder = rank
+			entry.button.BackgroundColor3 = if chosen then Kit.colors.raisedHover else Kit.colors.raised
+			entry.stroke.Thickness = if chosen then 2 else 0
+			entry.code.TextColor3 = if sv.owner ~= nil then playerColor(view, sv.owner) else Kit.colors.text
+			entry.margin.Text = StateOrder.marginText(view, sv)
+			local margin = StateOrder.margin(view, sv)
+			entry.margin.TextColor3 = if margin > 0
+				then playerColor(view, you)
+				elseif margin < 0 then playerColor(view, them)
+				else Kit.colors.muted
+			entry.momentum.Text = StateOrder.momentumText(view, sv)
+		end
 	end
 
 	-- ------------------------------------------------------------ render: event banner
@@ -1470,7 +1600,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		setVisible(feedDebate, debate ~= nil)
 		local latest: { string } = {}
 		for k = math.max(1, #messages - FEED_MESSAGES + 1), #messages do
-			table.insert(latest, messages[k])
+			table.insert(latest, messages[k].text)
 		end
 		feedMessages.Text = table.concat(latest, "\n")
 		setVisible(feedMessages, #latest > 0)
@@ -1709,6 +1839,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		paintRoute(p)
 		renderCard(p)
+		renderPicker(p)
 		renderEvent(p)
 		renderPrep(p)
 		renderTray(p)
@@ -1719,7 +1850,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ store updates
 
-	map:onSelect(function(id: string)
+	selectState = function(id: string)
 		if not alive then
 			return
 		end
@@ -1732,19 +1863,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			pickerOpen = false
 		end
 		selected = id
+		statesOpen = false
 		render()
-	end)
+	end
+
+	map:onSelect(selectState)
 
 	local function takeMessages(state: Types.State, now: number)
-		local list = state.messages or {}
-		local last = list[#list]
-		if last ~= nil and (#list ~= seenMessages or last ~= seenLast) then
-			toast = last
+		local newest = Messages.newestAfter(state, seenMessageId)
+		if newest ~= nil then
+			toast = newest.text
 			toastUntil = now + TOAST_SECONDS
+			seenMessageId = newest.id
 		end
-		seenMessages = #list
-		seenLast = last
-		messages = list
+		messages = state.messages
 	end
 
 	local function update(state: Types.State)
@@ -1766,7 +1898,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			planView = p.view
 			-- A rejection after Lock in: the seat is still open, so allow editing again.
-			if lockStep == p.step and not p.seats[p.you].locked and #messages > lockMessages then
+			if
+				lockStep == p.step
+				and not p.seats[p.you].locked
+				and Messages.rejectionAfter(state, lockMessageId) ~= nil
+			then
 				lockStep = nil
 			end
 		elseif draftStep ~= nil then
@@ -1788,9 +1924,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 
 	-- First messages already in the store are old news: no toast for them.
-	local initial = ctx.store.get().messages or {}
-	seenMessages = #initial
-	seenLast = initial[#initial]
+	seenMessageId = Messages.lastId(ctx.store.get())
 	relayout(true)
 
 	return {
@@ -1812,6 +1946,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				tickDebate(p, now)
 			else
 				renderCaption(now)
+			end
+			-- The timer is about to end on a plan that was never locked: lock the
+			-- draft as it stands. A draft with a problem is left to the server's default.
+			if planning(p) and draftStep == p.step and autoLock:due(p, now, isLocked(p)) then
+				if PlanDraft.problem(config, p.view, draft) == nil then
+					lockPlan()
+				end
 			end
 		end,
 		destroy = function()

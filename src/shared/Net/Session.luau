@@ -162,6 +162,16 @@ function Session.payload(session: Session, p: number): StatePayload
 	local deadline = if session.stage == "Input"
 		then seatDeadline(session, session.seats[p])
 		else session.skippedTo or session.deadline
+	local view = View.build(session.config, session.match, p)
+	-- Week 12's resolve reveal already runs in phase Election, and a forfeit after
+	-- it leaves a computed result nobody saw: the result is sent only from election
+	-- night on (the Show stage, then the end of a match decided by it).
+	local result = session.result
+	local night = (session.stage == "Show" and session.match.phase == "Election")
+		or (session.stage == "Over" and result ~= nil and result.reason == "Election")
+	if not night then
+		view.election = nil
+	end
 	return {
 		matchId = session.id,
 		step = session.step,
@@ -170,7 +180,7 @@ function Session.payload(session: Session, p: number): StatePayload
 		stageStart = session.stageStart,
 		deadline = deadline,
 		you = p,
-		view = View.build(session.config, session.match, p),
+		view = view,
 		events = View.events(session.events, p),
 		seats = seats,
 		result = if session.result then table.clone(session.result) else nil,
@@ -284,10 +294,12 @@ local function closeInput(session: Session, now: number)
 			inputs[p] = seat.prePick
 		end
 		if phase == "Plan" and seat.kind == "Human" then
-			if not seat.locked and not seat.connected then
-				seat.missed += 1
-			elseif seat.locked then
+			-- Consecutive: any week the player was here (locked in or just idle) or
+			-- played before dropping starts the count again.
+			if seat.locked or seat.connected then
 				seat.missed = 0
+			else
+				seat.missed += 1
 			end
 		end
 	end

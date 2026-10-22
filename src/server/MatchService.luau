@@ -52,10 +52,24 @@ local function sendLobby(id: string)
 	Replication.send(id, { kind = "Lobby", lobby = status })
 end
 
+-- Sends the current lobby status to everyone who is not in a match. Whenever the
+-- queue or the number of running matches changes, every idle, queued and hosting
+-- player's screen (queue count, "server full") has to follow.
+local function broadcastLobby()
+	for _, player in Players:GetPlayers() do
+		local id = idOf(player)
+		if matchOf[id] == nil then
+			sendLobby(id)
+		end
+	end
+end
+
 -- Applies a finished match to each human's saved profile and tells them how
 -- their rating moved. Only a human-vs-human match decided by an election or a
 -- forfeit is rated (and only if both ratings were known at the start); against
--- the bot it only adds to the practice record; an abandoned match changes nothing.
+-- the bot it only adds to the practice record; an unrated human match and an
+-- abandoned match change nothing. A player whose profile is still loading gets
+-- the result when the load finishes.
 local function settle(session: Session.Session)
 	local starts = ratingsAtStart[session.id]
 	ratingsAtStart[session.id] = nil
@@ -63,7 +77,18 @@ local function settle(session: Session.Session)
 	if result.reason == "Abandoned" or result.winner == 0 then
 		return
 	end
-	local election = session.match.election
+	local vsBot = false
+	for _, seat in session.seats do
+		if seat.kind == "Bot" then
+			vsBot = true
+		end
+	end
+	if starts == nil and not vsBot then
+		return
+	end
+	-- A forfeit can follow the last plan, after the election was computed but
+	-- before anyone saw it: only a shown election has electoral votes to record.
+	local election = if result.reason == "Election" then session.match.election else nil
 	local at = os.time()
 	for me, seat in session.seats do
 		if seat.kind ~= "Human" then
@@ -82,21 +107,25 @@ local function settle(session: Session.Session)
 			evAgainst = if election then election.ev[them] else nil,
 		}
 		local change: Profile.Change? = nil
+		local function announce()
+			local applied = change
+			if applied and applied.rated then
+				Replication.send(seat.id, {
+					kind = "Rating",
+					rating = { matchId = session.id, before = applied.before, after = applied.after },
+				})
+				print(
+					`[270] player {seat.id} rating {applied.before} -> {applied.after} (match {session.id})`
+				)
+			end
+		end
 		local how = DataService.update(seat.id, function(profile: Profile.Profile): Profile.Profile
 			local updated, applied = Profile.applyResult(profile, input, config)
 			change = applied
 			return updated
-		end)
+		end, announce)
 		if how == "Skipped" and starts then
 			warn(`[270] match {session.id}: could not record the result for player {seat.id}`)
-		end
-		local applied = change
-		if how == "Live" and applied and applied.rated then
-			Replication.send(seat.id, {
-				kind = "Rating",
-				rating = { matchId = session.id, before = applied.before, after = applied.after },
-			})
-			print(`[270] player {seat.id} rating {applied.before} -> {applied.after} (match {session.id})`)
 		end
 	end
 end
@@ -125,9 +154,7 @@ local function flush(session: Session.Session)
 		if not settled then
 			warn(`[270] match {session.id}: could not apply the result to saved data: {err}`)
 		end
-		for _, id in ids do
-			sendLobby(id)
-		end
+		broadcastLobby()
 		local result = session.result :: Session.Result
 		print(`[270] match {session.id} over: {result.reason}, winner seat {result.winner}`)
 	end
@@ -191,9 +218,7 @@ local function startMatch(outcome: Lobby.Outcome)
 		-- The lobby already counted this match; hand the players back.
 		warn(`[270] match {matchId} could not start: {err}`)
 		Lobby.ended(lobby, outcome.players)
-		for _, id in outcome.players do
-			sendLobby(id)
-		end
+		broadcastLobby()
 		return
 	end
 	sessions[matchId] = session
@@ -216,6 +241,7 @@ local function startMatch(outcome: Lobby.Outcome)
 		matchOf[id] = matchId
 		sendLobby(id)
 	end
+	broadcastLobby() -- the queue shrank and a match slot filled up
 	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}`)
 	flush(session)
 end
@@ -241,8 +267,10 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 	end
 	if outcome and (outcome.kind == "Match" or outcome.kind == "Practice") then
 		startMatch(outcome)
+	elseif request.op == "PrePick" or reason then
+		sendLobby(id) -- only this player's own screen changes
 	else
-		sendLobby(id)
+		broadcastLobby() -- the queue or the open codes changed
 	end
 end
 
@@ -317,8 +345,12 @@ function MatchService.start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		local id = idOf(player)
+		local before = Lobby.state(lobby, id)
 		Lobby.leave(lobby, id)
 		prePicks[id] = nil
+		if before == "Queued" or before == "Hosting" then
+			broadcastLobby()
+		end
 		local session = sessions[matchOf[id] or ""]
 		if session then
 			guard(session, function()

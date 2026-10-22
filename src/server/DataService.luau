@@ -54,6 +54,12 @@ type Entry = {
 	saving: boolean, -- a save loop is running
 	dirty: boolean, -- changed since the last save started
 	release: boolean, -- the next save also clears the lock
+	queued: { Queued }, -- results that arrived before the load finished, applied in order once it does
+}
+
+type Queued = {
+	transform: (Profile.Profile) -> Profile.Profile,
+	applied: (() -> ())?,
 }
 
 local store: Store? = nil
@@ -63,6 +69,9 @@ local jobId = "studio"
 local started = false
 local warnedMemory = false
 local entries: { [string]: Entry } = {}
+-- Loads waiting on an earlier visit's entry, by player id. A player who leaves
+-- meanwhile cancels the load, so it never takes a lock nobody would release.
+local pending: { [string]: { cancelled: boolean } } = {}
 local inflight = 0 -- save and offline-update threads running
 local listeners: { (id: string) -> () } = {}
 
@@ -364,12 +373,40 @@ end
 
 -- ---------------------------------------------------------------- public API
 
+-- Applies the results that arrived while the profile was loading, in order.
+-- A profile that can't be saved (read-only, or never loaded) drops them with a warning.
+local function applyQueued(entry: Entry)
+	local queued = entry.queued
+	entry.queued = {}
+	for _, item in queued do
+		local profile = entry.profile
+		if profile and entry.writable then
+			entry.profile = item.transform(profile)
+			entry.dirty = true
+			local applied = item.applied
+			if applied then
+				applied()
+			end
+		else
+			warn(`[270] could not record a result for {entry.name}: their data is not writable`)
+		end
+	end
+end
+
 -- Loads a player's profile (yields). Call it from its own thread.
 function DataService.load(id: string, name: string)
 	-- A previous visit may still be saving and releasing the lock.
+	local ticket = { cancelled = false }
+	pending[id] = ticket
 	waitUntil(function()
-		return entries[id] == nil
+		return entries[id] == nil or ticket.cancelled
 	end, SHUTDOWN_WAIT)
+	if pending[id] == ticket then
+		pending[id] = nil
+	end
+	if ticket.cancelled then
+		return -- the player left again before this load began
+	end
 	local entry: Entry = {
 		id = id,
 		key = KEY_PREFIX .. id,
@@ -381,13 +418,18 @@ function DataService.load(id: string, name: string)
 		saving = false,
 		dirty = false,
 		release = false,
+		queued = {},
 	}
 	entries[id] = entry
 	acquire(entry)
 	entry.loaded = true
+	applyQueued(entry)
 	if entry.leaving then
 		finalize(entry)
 		return
+	end
+	if entry.dirty then
+		task.spawn(persist, entry)
 	end
 	local profile = entry.profile
 	if profile then
@@ -402,7 +444,13 @@ function DataService.load(id: string, name: string)
 end
 
 -- The player left: saves, releases the lock, forgets them (on its own thread).
+-- A load still waiting on an earlier visit is cancelled.
 function DataService.remove(id: string)
+	local waiting = pending[id]
+	if waiting then
+		waiting.cancelled = true
+		pending[id] = nil
+	end
 	local entry = entries[id]
 	if entry == nil or entry.leaving then
 		return
@@ -436,7 +484,7 @@ end
 -- rated only if both players have one.
 function DataService.rating(id: string): number?
 	local entry = entries[id]
-	if entry and entry.loaded and entry.writable and entry.profile then
+	if entry and entry.loaded and entry.writable and not entry.leaving and entry.profile then
 		return entry.profile.rating
 	end
 	return nil
@@ -444,21 +492,36 @@ end
 
 -- Applies `transform` to a player's profile and saves it in the background.
 --   "Live": the player is here; the change is in memory now, the save is under way.
+--   "Queued": their profile is still loading; the change is applied, in order,
+--     the moment the load finishes (and dropped with a warning if it can't be saved).
 --   "Offline": the player has left; their stored record is updated on its own thread.
---   "Skipped": their data is not loaded or not writable; nothing changed.
--- `transform` must not mutate its argument and may run more than once.
-function DataService.update(id: string, transform: (Profile.Profile) -> Profile.Profile): string
+--   "Skipped": their data is not writable; nothing changed.
+-- `applied` is called once the change is in memory: at once for "Live", after the
+-- load for "Queued", never otherwise. `transform` must not mutate its argument and
+-- may run more than once (for "Offline").
+function DataService.update(
+	id: string,
+	transform: (Profile.Profile) -> Profile.Profile,
+	applied: (() -> ())?
+): string
 	local entry = entries[id]
 	if entry == nil then
 		task.spawn(updateOffline, id, KEY_PREFIX .. id, id, transform)
 		return "Offline"
 	end
+	if not entry.loaded then
+		table.insert(entry.queued, { transform = transform, applied = applied })
+		return "Queued"
+	end
 	local profile = entry.profile
-	if not entry.loaded or not entry.writable or profile == nil then
+	if not entry.writable or profile == nil then
 		return "Skipped"
 	end
 	entry.profile = transform(profile)
 	task.spawn(persist, entry)
+	if applied then
+		applied()
+	end
 	return "Live"
 end
 

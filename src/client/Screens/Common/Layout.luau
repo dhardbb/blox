@@ -9,10 +9,6 @@ local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Layout = {}
 
 Layout.GAP = 8 -- px between grid cells and stacked rows
--- The corner Debug button (App.client.luau) is 72 x 44 px with a 6 px margin; keep
--- pinned footers clear of it: sideways on landscape, above it on portrait.
-Layout.DEBUG_INSET = 84 -- px
-Layout.DEBUG_DROP = 52 -- px
 
 export type Page = {
 	root: Frame,
@@ -68,31 +64,28 @@ function Layout.page(parent: Instance, options: PageOptions): Page
 	Kit.new("UIPadding", {
 		PaddingLeft = UDim.new(0, 2),
 		PaddingRight = UDim.new(0, 2),
-		PaddingBottom = UDim.new(0, if footerH > 0 then 12 else Layout.DEBUG_DROP + 8),
+		PaddingBottom = UDim.new(0, 12),
 		Parent = content,
 	})
 
 	local footerBar: Frame? = nil
-	local footerPad: UIPadding? = nil
 	local footer: Frame? = nil
 	if footerH > 0 then
 		local bar = Kit.box({ Name = "FooterBar", AnchorPoint = Vector2.new(0, 1), Parent = root })
 		footerBar = bar
-		footerPad = Kit.new("UIPadding", { Parent = bar })
 		footer = Layout.lane(bar, options.maxWidth, { Name = "Footer", Size = UDim2.fromScale(1, 1) })
 	end
 
-	local function setPortrait(portrait: boolean)
-		local inset = if portrait then 0 else Layout.DEBUG_INSET
-		local drop = if portrait then Layout.DEBUG_DROP else 0
+	-- The page looks the same in both orientations; screens still call this when
+	-- ctx.portrait() flips, so a page that needs to differ has one place to do it.
+	local function setPortrait(_portrait: boolean)
 		local top = if headerH > 0 then headerH + Layout.GAP else 0
-		local bottom = if footerH > 0 then footerH + drop + Layout.GAP else 0
+		local bottom = if footerH > 0 then footerH + Layout.GAP else 0
 		scroll.Position = UDim2.fromOffset(0, top)
 		scroll.Size = UDim2.new(1, 0, 1, -(top + bottom))
-		if footerBar and footerPad then
+		if footerBar then
 			footerBar.Size = UDim2.new(1, 0, 0, footerH)
-			footerBar.Position = UDim2.new(0, 0, 1, -drop)
-			footerPad.PaddingRight = UDim.new(0, inset)
+			footerBar.Position = UDim2.fromScale(0, 1)
 		end
 	end
 	setPortrait(false)

@@ -9,8 +9,20 @@ local Store = require(script.Parent.Store)
 
 local Net = {}
 
--- Readable text for rejection and notice codes.
+-- Readable text for rejection codes: every code the server can send back (Plan,
+-- Session, Draft, Match, Schemas, Lobby and the server's own checks). The greyed
+-- action buttons read "Greyed out: {text}", so the plan reasons are phrased to fit.
 local REASONS: { [string]: string } = {
+	-- Plan (Plan.Reason)
+	WrongPhase = "You can't do that right now.",
+	BadShape = "The server couldn't read that request.",
+	TooManyActions = "That's more actions than one week allows.",
+	UnknownKind = "That isn't an action you can take.",
+	UnknownState = "That isn't a state on this map.",
+	UnknownIssue = "That isn't an issue in this game.",
+	UnknownRegion = "That isn't a region on this map.",
+	BadTarget = "That action can't target that player.",
+	BadUnits = "That's not a valid number of ground-game units.",
 	NotEnoughAP = "Not enough action points for that plan.",
 	NotEnoughMoney = "Not enough money for that plan.",
 	GotvCap = "That's over the ground-game limit for a state.",
@@ -18,16 +30,37 @@ local REASONS: { [string]: string } = {
 	PivotUsed = "You can only pivot once per match.",
 	BadPivot = "That pivot isn't allowed.",
 	BadPrep = "Debate prep must use all your points, at most 4 per topic.",
+	UnexpectedPrep = "There is no debate to prepare for this week.",
+	BadChoice = "That isn't a valid answer to this week's event.",
+	UnexpectedChoice = "This week's event has no question to answer.",
+	-- Session (Session.Reason)
 	StaleStep = "Too late: that step is over.",
+	NotInput = "This part of the match isn't taking input right now.",
 	AlreadyLocked = "You already locked in.",
 	NoBank = "No time bank left.",
 	NotSkippable = "This part can't be skipped.",
+	Over = "The match is over.",
+	-- Select and Draft
+	UnknownCandidate = "Pick one of the eight candidates.",
+	UnknownColor = "Pick one of the six colors.",
+	BadPlatform = "Pick exactly three different issues.",
+	UnknownPlayer = "The server doesn't know that player.",
+	BadChoiceCount = "Pick one state, or two with a backup.",
+	DuplicateChoice = "Your two choices must be different states.",
+	IllegalChoice = "That state can't be picked this round.",
+	-- Lobby
 	ServerFull = "This server is full. Try again in a minute.",
 	NoSuchCode = "No match with that code.",
 	OwnCode = "That's your own code. Give it to a friend.",
+	CodeTaken = "That code is already in use. Try hosting again.",
 	InMatch = "You're already in a match.",
+	BadCode = "Codes are 5 characters: letters A-Z and numbers 2-9.",
+	-- The server's own checks
+	NotInMatch = "That match isn't running for you anymore.",
+	UnknownOp = "The server doesn't know that request.",
 	RateLimited = "Slow down a little.",
-	IllegalChoice = "That state can't be picked this round.",
+	Internal = "Something went wrong on the server. Try again.",
+	Rejected = "The server turned that down.",
 }
 
 local NOTICES: { [string]: string } = {
@@ -55,7 +88,7 @@ function Net.start()
 		elseif message.kind == "Notice" then
 			Store.say(NOTICES[message.notice or ""] or (message.notice or "Notice"))
 		elseif message.kind == "Rejected" then
-			Store.say(Net.reasonText(message.reason))
+			Store.say(Net.reasonText(message.reason), true)
 		end
 	end)
 	Net.send("Resync")

@@ -278,6 +278,7 @@ Still red: the blowout share (structural, revised target in D-024), the wrong-le
 - **Rate limit:** 40 requests per player per 10 s, well above what play needs (a whole plan is one request).
 - **Reconnect window:** a player who comes back during an Input stage they haven't locked is guaranteed `RECONNECT_WINDOW` (15 s, new in `Sim/Config`) from the moment they return, even if their deadline already passed while grace held the stage open. Only their own deadline moves; it doesn't spend time bank or show the opponent anything, and it resets with the next Input stage. A rate-limited player is warned and told once per window; the rest of their requests are dropped silently.
 - **If a match throws:** `MatchService` abandons it (`Session.abort`, result `Abandoned`) and frees the lobby, so a bug can't trap players in a stuck match.
+- **Bug hunt fixes (server pass).** The forfeit counter is now really consecutive: a Plan close where the player was connected (locked in or just idle) resets `missed` to 0, so two drops with a played or idle week between them no longer forfeit. `Session.payload` strips `view.election` unless it is election night (Show stage in phase Election) or the match ended by `Election`: week 12's resolve reveal already runs in phase Election, and a forfeit after it leaves a computed result nobody saw. `View.priorityA` is absent during Select (it becomes public at the map reveal); the client's Draft screen only reads it from the map reveal on.
 
 ## Phase 5: event deck
 
@@ -364,6 +365,15 @@ A match deals 10 of them, so it sees about 4 Spotlights, 2.5 Regionals, 1.5 Wind
 
 **Roblox APIs used** (checked against the creator-docs reference): `DataStoreService:GetDataStore(name)`; `GlobalDataStore:UpdateAsync(key, transform)` and `:GetAsync(key)` (`DataStore` inherits both); `DataModel:BindToClose(fn)` (30 s limit, functions run in parallel); `DataModel.JobId` (empty in Studio, so the lock owner there is `"studio"`); `RunService:IsStudio()`; `Players.PlayerAdded`/`PlayerRemoving`.
 
+**Bug hunt fixes (server pass).**
+
+- **A result is never dropped for a reloading player.** `DataService.update` returns `"Queued"` for a profile that is still loading and applies the transform, in order, the moment the load finishes (saved right after; dropped with a warning only if the profile ends up read-only). An optional `applied` callback runs when the change is in memory, so the "Rating a → b" message still reaches a player who came back mid-match. Ratings stay zero-sum.
+- **Leaving twice during a slow save no longer leaks.** A load waiting on an earlier visit's entry is registered in `pending`; `DataService.remove` cancels it, so it never creates an entry and takes a lock nobody would release.
+- **An unrated human match changes nothing.** Practice stats are only for matches against the bot (`MatchService.settle` returns early for a human match with no recorded starting ratings).
+- **A forfeit records no electoral votes.** `evFor` and `evAgainst` are written only when the match ended by `Election`; after week 12's plan the server has computed a result nobody was shown.
+- **`DataService.rating` ignores an entry that is leaving**, so a player who rejoins while their old record is still saving is not rated into a match on stale data. (A save that finds another live server's lock already refused to write; there is now a spec for it.)
+- **The lobby status follows the server.** Whenever the queue, the open codes or the number of running matches changes (a match starts or ends, a queue/host/join request, a queued or hosting player leaves), `MatchService.broadcastLobby` sends the current status to every player who is not in a match, so "server full" and the queue count never go stale. A rejected request or a pre-pick still answers only the requester.
+
 ## Phase 3: client MVP
 
 ### D-029 — Client structure and UI rules (Oct 22, 2026)
@@ -372,3 +382,15 @@ A match deals 10 of them, so it sees about 4 Spotlights, 2.5 Regionals, 1.5 Wind
 - **Map nodes are exempt from the 44 px touch rule.** Small states are small circles by design (tap targets are at least 30 px); every screen that picks states also offers a list. The layout audit skips buttons inside `NodeMap`.
 - The game's ScreenGui uses `CoreUISafeInsets` so Roblox's own top-left buttons never cover it; a separate backdrop fills the screen.
 - The debug text panel stays in the build, hidden (F2 or `DebugText`), because agents and the e2e specs drive matches through it.
+
+### Bug hunt fixes (client pass, Oct 22, 2026)
+
+- **Auto-lock on timeout.** 0.5 s before the deadline the client sends what the player has, once per step: Select if complete, Draft if at least one state is picked, Campaign only if `PlanDraft.problem` is nil. Otherwise nothing is sent and the server default applies. A manual lock marks the step spent, so nothing is sent twice. `PrePick` is sent whenever a Select pick becomes complete.
+- **State list.** The campaign state card offers a collapsible list of every state (two taps to select), so small states on the node map are never the only way in. Ordering lives in `Shared/UI/StateOrder` (closest, biggest, A to Z).
+- **Messages carry growing ids** (`Store.say`), and screens compare ids, never counts, so detection survives the 20-line cap.
+- **"Server full" never disables lobby buttons**; the server's answer decides.
+
+### Bug hunt fixes (rules, Oct 22, 2026)
+
+- With 3 or more players the 1v1 lean-balance threshold is often unreachable; `Leans.generate` now keeps the most balanced draw it saw instead of erroring after `MAX_ATTEMPTS`. 1v1 maps are unchanged.
+- Election tiebreaks (EV, then states, then popular vote, then the seeded coin) narrow to the tied players at each step, so a player who lost on EV can't win on states.

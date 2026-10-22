@@ -60,6 +60,8 @@ end
 -- Leans by state index (StateData.list order) for a match with `players` players.
 function Leans.generate(config: Config, rng: Rng.Rng, players: number): { Lean }
 	assert(players >= 2, "leans need at least two players")
+	local best: { Lean }? = nil
+	local bestSpread = math.huge
 	for _ = 1, MAX_ATTEMPTS do
 		local leans, weighted = draw(config, rng, players)
 		local lo, hi = math.huge, -math.huge
@@ -69,8 +71,13 @@ function Leans.generate(config: Config, rng: Rng.Rng, players: number): { Lean }
 		if hi - lo <= config.LEAN_MAX_EV_IMBALANCE then
 			return leans
 		end
+		if hi - lo < bestSpread then
+			best, bestSpread = leans, hi - lo
+		end
 	end
-	error("could not draw balanced leans")
+	-- With three or more players the 1v1 threshold is rarely reachable; use the most
+	-- balanced draw seen rather than failing to create the match.
+	return best :: { Lean }
 end
 
 -- Starting support for a state with lean L toward one player: that player gets

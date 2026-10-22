@@ -10,9 +10,11 @@ local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
+local AutoLock = require(script.Parent.Common.AutoLock)
 local Data = require(script.Parent.Common.Data)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local Messages = require(script.Parent.Common.Messages)
 local Types = require(script.Parent.Types)
 
 local Screen = {}
@@ -40,6 +42,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local color: string? = nil
 	local platform: { string } = {}
 	local lockedLocal = false -- pressed Lock In (the offline fixtures never echo it back)
+	local messageAtLock = 0 -- id of the newest message when Lock In was pressed
+	local sentPick = "" -- the last complete pick sent as a PrePick
+	local autoLock = AutoLock.new()
 	local touched = false -- the player changed something, so stop applying the pre-pick
 	local appliedPick: any = nil
 	local payload: Session.StatePayload? = nil
@@ -61,6 +66,36 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local function isReady(): boolean
 		return candidate ~= nil and color ~= nil and #platform == platformSize
+	end
+
+	-- The complete pick as the server wants it, or nil while something is missing.
+	local function currentPick(): { candidate: string?, color: string?, platform: { string } }?
+		if not isReady() then
+			return nil
+		end
+		return { candidate = candidate, color = color, platform = table.clone(platform) }
+	end
+
+	local function pickKey(pick: { candidate: string?, color: string?, platform: { string } }): string
+		local issues = table.clone(pick.platform)
+		table.sort(issues)
+		return `{pick.candidate}|{pick.color}|{table.concat(issues, ",")}`
+	end
+
+	-- Remembers a complete pick for the next match (and for a Select that times out
+	-- before the next one), once per distinct pick.
+	local function rememberPick()
+		local pick = currentPick()
+		if pick == nil then
+			return
+		end
+		local key = pickKey(pick)
+		if key == sentPick then
+			return
+		end
+		sentPick = key
+		ctx.net.send("PrePick", { pick = pick })
+		ctx.store.setPrePick(pick)
 	end
 
 	-- ------------------------------------------------------------ header
@@ -238,18 +273,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ behavior
 
-	lockIn = Kit.button("Lock In", function()
-		if isLocked() or not isReady() then
+	local function lockPick()
+		local pick = currentPick()
+		if isLocked() or pick == nil then
 			return
 		end
 		lockedLocal = true
-		local pick = { candidate = candidate, color = color, platform = table.clone(platform) }
+		messageAtLock = Messages.lastId(ctx.store.get())
+		autoLock:spent(payload)
 		ctx.net.submit(pick)
-		-- Remember it for the next match (and for a Select that times out).
-		ctx.net.send("PrePick", { pick = pick })
-		ctx.store.setPrePick(pick)
+		rememberPick()
 		refresh()
-	end, {
+	end
+
+	lockIn = Kit.button("Lock In", lockPick, {
 		Name = "LockIn",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
@@ -284,9 +321,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 		platform = list
+		-- The pre-pick is already remembered: do not send it back.
+		local applied = currentPick()
+		if applied then
+			sentPick = pickKey(applied)
+		end
 	end
 
 	refresh = function()
+		rememberPick()
 		local locked = isLocked()
 		for id, card in cards do
 			local picked = id == candidate
@@ -369,6 +412,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	return {
 		update = function(state: Types.State)
 			payload = state.payload :: Session.StatePayload?
+			-- A rejected lock-in leaves a message and no lock: let the player fix the pick.
+			local mine = seats()
+			if lockedLocal and not (mine ~= nil and mine.locked) then
+				if Messages.rejectionAfter(state, messageAtLock) ~= nil then
+					lockedLocal = false
+				end
+			end
 			relayout()
 			applyPrePick()
 			refresh()
@@ -377,6 +427,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		tick = function(now: number)
 			relayout()
 			updateTimer(now)
+			-- The timer is about to end with a complete pick that was never locked.
+			local current = payload
+			if current ~= nil and isReady() and autoLock:due(current, now, isLocked()) then
+				lockPick()
+			end
 		end,
 		destroy = function() end,
 	}

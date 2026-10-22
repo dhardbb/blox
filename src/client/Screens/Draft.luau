@@ -17,10 +17,12 @@ local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 
+local AutoLock = require(script.Parent.Common.AutoLock)
 local Board = require(script.Parent.DraftParts.Board)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Logic = require(script.Parent.DraftParts.Logic)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
+local Messages = require(script.Parent.Common.Messages)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local StateList = require(script.Parent.DraftParts.StateList)
 local Types = require(script.Parent.Types)
@@ -54,7 +56,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local choices: Logic.Choices = {}
 	local target: number? = nil -- slot the player aimed at by tapping Choice1 / Choice2
 	local localLocked = false -- pressed Lock In; the server's lock arrives with the next payload
-	local messagesAtLock = 0
+	local messageAtLock = 0 -- id of the newest message when Lock In was pressed
+	local autoLock = AutoLock.new()
 	local submitted: { round: number, choices: { string } }? = nil
 	local hint: string? = nil
 	local hintUntil = 0
@@ -392,8 +395,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local list = Logic.list(choices)
 		submitted = { round = view.draftRound, choices = list }
 		localLocked = true
-		messagesAtLock = #state.messages
+		messageAtLock = Messages.lastId(state)
 		hint = nil
+		autoLock:spent(state.payload)
 		ctx.net.submit({ choices = list })
 		refresh()
 	end
@@ -463,9 +467,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		local serverLocked = payload.seats[you].locked
 		-- A rejected lock-in leaves a message and no lock: let the player fix it.
-		if localLocked and not serverLocked and #state.messages > messagesAtLock then
+		local rejection = Messages.rejectionAfter(state, messageAtLock)
+		if localLocked and not serverLocked and rejection ~= nil then
 			localLocked = false
-			hint = state.messages[#state.messages]
+			hint = rejection.text
 			hintUntil = ctx.now() + HINT_SECONDS
 		end
 		local locked = localLocked or serverLocked
@@ -592,7 +597,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			lockStatus.TextColor3 = Kit.colors.text
 		end
 		local theirSeat = payload.seats[them]
-		if theirSeat ~= nil and theirSeat.locked then
+		if theirSeat ~= nil and not theirSeat.connected then
+			opponentStatus.Text = "Opponent: disconnected"
+		elseif theirSeat ~= nil and theirSeat.locked then
 			opponentStatus.Text = "Opponent: locked in"
 		else
 			opponentStatus.Text = "Opponent: still choosing"
@@ -678,6 +685,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if hint ~= nil and now > hintUntil then
 				hint = nil
 				render()
+			end
+			-- The timer is about to end with a pick that was never locked: lock it.
+			if mode == "Input" and choices.first ~= nil and autoLock:due(payload, now, isLocked()) then
+				lockInPressed()
 			end
 		end,
 		destroy = function()

@@ -159,3 +159,16 @@ In Studio (**Local Server, 2 Players**):
 4. Any screen without a server: in the command bar run `workspace:SetAttribute("DebugScreen", "Plan")` (or Select, Draft, Resolve, ChoiceWeek, Election, Over...) before **Play**.
 
 **Send back:** screenshots of each screen, anything confusing, and the Output lines starting with `[270] UI audit`.
+
+## Bug hunt fixes (v0.3.1)
+
+1. **Play vs Bot**, reach a plan week on a phone (Test → Device, portrait). Tap **Pick a state from the list**, then **DC**.
+   - The list shows all 51 states; the sort button cycles closest / biggest / A to Z; tapping DC selects it and closes the list.
+2. In a plan week, queue a valid plan and **don't** press Lock in. Let the timer run out.
+   - Your plan is used (the week card shows your actions), not a blank week.
+3. Do the same in Select (candidate, color and 3 issues chosen) and in the Draft (one state picked).
+   - The match moves on with your choices.
+4. Two-player test (Test → Clients and Servers, 2 players): during the Draft, close one client.
+   - The other sees "Opponent: disconnected"; once the grace time is up the notice says "Opponent disconnected" with no negative countdown.
+
+**Send back:** anything that looks off, with a screenshot and the Output lines starting with `[270]`.

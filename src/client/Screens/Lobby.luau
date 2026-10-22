@@ -6,6 +6,7 @@
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local Messages = require(script.Parent.Common.Messages)
 local Types = require(script.Parent.Types)
 
 local Screen = {}
@@ -108,9 +109,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local starting = section("Starting")
 
 	-- Current lobby facts, read by the button handlers.
-	local isFull = false
 	local toastUntil = 0
-	local lastMessageKey = ""
+	local lastMessageId = 0 -- id of the newest message already handled
 
 	local function showToast(text: string)
 		toast.Text = text
@@ -118,23 +118,22 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		toastUntil = ctx.now() + TOAST_SECONDS
 	end
 
-	local buttons: { TextButton } = {}
+	local buttonCount = 0
 	local function mainButton(text: string, name: string, op: string, primary: boolean): TextButton
+		-- Never disabled by "server full": that status can be stale, and the server
+		-- answers ServerFull with a toast if there is still no room.
 		local button = Kit.button(text, function()
-			if isFull then
-				return
-			end
 			ctx.net.send(op)
 		end, {
 			Name = name,
-			LayoutOrder = #buttons + 1,
+			LayoutOrder = buttonCount + 1,
 			Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 			TextSize = Kit.size.large,
 			BackgroundColor3 = if primary then Kit.colors.accent else Kit.colors.raised,
 			TextColor3 = if primary then Kit.colors.background else Kit.colors.text,
 			Parent = idle,
 		})
-		table.insert(buttons, button)
+		buttonCount += 1
 		return button
 	end
 	mainButton("Play vs Bot", "Practice", "Practice", true)
@@ -178,10 +177,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	codeBox.FocusLost:Connect(function()
 		normalizeCode()
 	end)
-	local joinButton = Kit.button("Join", function()
-		if isFull then
-			return
-		end
+	Kit.button("Join", function()
 		local code = normalizeCode()
 		if not validCode(code) then
 			showToast("Enter the 5-character code: letters A-Z and numbers 2-9.")
@@ -194,7 +190,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.new(0.4, -4, 1, 0),
 		Parent = joinRow,
 	})
-	table.insert(buttons, joinButton)
 
 	-- Queued or hosting: one box, one Cancel.
 	local waitingTitle = Kit.text("", {
@@ -256,7 +251,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		relayout()
 		local lobby = state.lobby
 		local status = if lobby then lobby.state else "Idle"
-		isFull = lobby ~= nil and lobby.full == true
+		local isFull = lobby ~= nil and lobby.full == true
 		local profile = if lobby then lobby.profile else nil
 		record.Visible = profile ~= nil
 		if profile then
@@ -264,9 +259,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 
 		fullBanner.Visible = isFull and status == "Idle"
-		for _, button in buttons do
-			Kit.setEnabled(button, not isFull)
-		end
 
 		idle.Visible = status == "Idle"
 		waiting.Visible = status == "Queued" or status == "Hosting"
@@ -284,21 +276,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 
 		-- A new message (rejection, notice) shows as a toast for a few seconds.
-		local messages = state.messages
-		local key = `{#messages}|{messages[#messages] or ""}`
-		if key ~= lastMessageKey then
-			lastMessageKey = key
-			if #messages > 0 then
-				showToast(messages[#messages])
-			end
+		local newest = Messages.newestAfter(state, lastMessageId)
+		if newest then
+			lastMessageId = newest.id
+			showToast(newest.text)
 		end
 	end
 
 	-- Messages already in the store belong to an earlier screen; do not toast them.
-	do
-		local messages = ctx.store.get().messages
-		lastMessageKey = `{#messages}|{messages[#messages] or ""}`
-	end
+	lastMessageId = Messages.lastId(ctx.store.get())
 
 	return {
 		update = update,

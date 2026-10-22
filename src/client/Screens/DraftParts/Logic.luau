@@ -77,12 +77,15 @@ function Logic.help(config: Config, kind: Draft.Kind): string
 end
 
 -- The player who wins a clash in `round` (0-based), same rule as Draft.priorityPlayer.
+-- The server leaves priorityA out until the map reveal; the Draft screen is never
+-- shown before that, so the fallback only keeps the types honest.
 function Logic.priorityPlayer(config: Config, view: View.View, round: number): number
 	local slot = config.DRAFT_PRIORITY[round + 1]
+	local a = view.priorityA or 1
 	if slot == 1 then
-		return view.priorityA
+		return a
 	end
-	return view.priorityA % #view.players + 1
+	return a % #view.players + 1
 end
 
 -- "You have priority: ties go to you" / "They have priority: ties go to them".

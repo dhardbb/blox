@@ -110,18 +110,33 @@ function Election.count(
 		return a.state < b.state
 	end)
 
+	-- Each tiebreak only compares the players still tied at the top.
+	local contenders = {}
+	for p = 1, n do
+		contenders[p] = p
+	end
 	local winner, decidedBy = 0, "EV"
 	for _, key in { "EV", "States", "Popular" } do
 		local values = if key == "EV" then ev elseif key == "States" then statesWon else popular
-		local w = decide(values)
-		if w > 0 then
-			winner, decidedBy = w, key
+		local best = -math.huge
+		for _, p in contenders do
+			best = math.max(best, values[p])
+		end
+		local tied = {}
+		for _, p in contenders do
+			if values[p] == best then
+				table.insert(tied, p)
+			end
+		end
+		if #tied == 1 then
+			winner, decidedBy = tied[1], key
 			break
 		end
+		contenders = tied
 	end
 	if winner == 0 then
 		-- Only reachable on an exact popular-vote tie among the leaders.
-		winner = Rng.nextInt(Rng.fork(match.rng, "election-coin"), 1, n)
+		winner = contenders[Rng.nextInt(Rng.fork(match.rng, "election-coin"), 1, #contenders)]
 		decidedBy = "Coin"
 	end
 	return {

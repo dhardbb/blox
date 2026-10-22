@@ -11,10 +11,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 
+export type Message = {
+	id: number, -- only grows: compare ids, never counts
+	text: string,
+	rejected: boolean, -- the server turned a request down
+}
+
 export type State = {
 	payload: any?, -- Session.StatePayload
 	lobby: any?, -- Remotes.LobbyStatus
-	messages: { string },
+	messages: { Message }, -- newest last; old lines are dropped
 	resultSeen: boolean,
 	prePick: any?,
 	rating: any?, -- Remotes.RatingChange after the last rated match
@@ -32,7 +38,7 @@ export type Store = {
 	get: () -> State,
 	dismissResult: () -> (),
 	setPrePick: (pick: any) -> (),
-	say: (message: string) -> (),
+	say: (text: string, rejected: boolean?) -> (),
 }
 
 export type Ctx = {
