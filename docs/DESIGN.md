@@ -183,3 +183,12 @@ Places where `PLAN.md` left a choice open. None changes a mechanic's intent; fla
 4. **GOTV rarely matters (1.8%) and Walt Begay is at 37%.** Partly the bot (it values GOTV conservatively), partly that blowout margins dwarf a few GOTV points. Revisit after 1 and 3.
 5. **Underdog tiers flip 4.1 times a match** (target ≤ 3). Projected EV swings because many states poll near 50–50. Raising `UNDERDOG_HYSTERESIS` from 20 to 30 is the obvious tuning knob.
 6. **The "debates change the winner" metric is confounded.** In a paired replay with debates off, the bots react to a different board, so the two matches diverge. A 0.3-point debate still "changes" about 50% of winners, which is mostly chaos. Replace it with a counterfactual that removes only the debates' support deltas from the final state.
+
+## Phase 2: server and networking
+
+### D-018 — The server core is pure and lives in Shared/Net (Oct 22, 2026)
+
+- `Net/Session` is the PLAN's TurnController: it owns phase timers, lock-ins, the time bank, skips, reveals, disconnect grace and forfeits for one match. It takes the server time as an argument, so `tests/net/` covers every timer path headlessly. `server/MatchService` only feeds it requests and `workspace:GetServerTimeNow()`. It lives in `ReplicatedStorage.Shared` because Roblox server scripts can't require ServerScriptService modules by string path, and Lune needs string paths. Clients can read it, but it holds no secrets: every hidden value stays in the server's `MatchState`, and clients receive only `View.build` output.
+- **One request remote, one message remote.** Each request carries the `step` it was made for. A request for an earlier step is rejected as `StaleStep`, so a late click can't land in the next phase.
+- **Rules the PLAN left open:** the time bank extends only the tapping player's own deadline, and the opponent sees the bank drop. A disconnected player's grace can hold a phase past its deadline. Only weeks missed while disconnected count toward the forfeit; a connected player who idles gets the empty-plan default every week but isn't forfeited. Draft reveals and debates can't be skipped. A match with no human left after grace is abandoned with no result.
+- **Rate limit:** 40 requests per player per 10 s, well above what play needs (a whole plan is one request).

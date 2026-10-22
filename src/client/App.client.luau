@@ -226,7 +226,7 @@ local function runAuto()
 		if input then
 			matchRequest("Submit", input)
 		end
-	elseif payload.stage ~= "Over" then
+	elseif payload.reveal == "Resolve" or (payload.stage == "Show" and payload.view.phase == "Election") then
 		matchRequest("Skip")
 	end
 end

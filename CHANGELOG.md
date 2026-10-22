@@ -2,6 +2,19 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## 0.2.0 — Phase 2: Server and networking (Oct 22, 2026)
+
+Two players can now play a full match in Studio through a temporary text UI. The real screens come in Phase 3.
+
+- `Net/Session`: one live match on the server: input timers, lock-ins, the 2 × 15 s time bank, resolve and election skips, map/draft/resolve/debate reveals, disconnect grace (30 s, twice per match), forfeit after two missed weeks, abandonment, and bot seats. It's pure (the server passes the clock in), so it's tested like the sim.
+- `Net/Lobby`: public queue, private 5-character match codes, practice against the bot; at most 10 matches per server.
+- `Net/Schemas`, `Net/Remotes`: every client request is size-checked and shape-checked before anything reads it. Game inputs are then checked by `Match.validate`. Rejections are logged in the server Output with a reason code and echoed to the client.
+- `server/Replication`, `server/MatchService`: the two RemoteEvents, rate limiting, and the clock that drives every match. Each player only ever receives their own `View`.
+- `client/App`: a debug text UI. It has buttons for Practice, Queue, Host, Auto (the bot fills in your current step from your own view), Autoplay, Pass, Bank, Skip and Help, plus a command line for typed moves (`plan rally OH Jobs; fund PA; ...`).
+- 199 specs. `Net/` and `DebugUI/` are held to the same purity rules as `Sim/`.
+
+**Test:** `docs/TESTING.md` → Phase 2.
+
 ## 0.1.0 — Phase 1: Simulation core (Oct 22, 2026)
 
 The whole game runs headless: two bots can play a full match, and the balance harness reports on thousands of them. There's no UI yet.

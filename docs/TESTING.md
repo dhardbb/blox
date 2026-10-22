@@ -41,3 +41,36 @@ There's still no game UI. This checks that the simulation, which so far has only
 3. In the Explorer, check that `ReplicatedStorage > Shared > Sim` contains `Bot`, `Debate`, `Draft`, `Election`, `Leans`, `Match`, `Plan`, `Polls`, `Resolve`, `State`, `Support` and `View`, next to the Phase 0 modules.
 
 **Send back:** the two Output lines from step 1 (and the `FAILED` warning in full, if you see one), plus the milliseconds figure from both runs.
+
+## Phase 2: Server and networking (v0.2.0)
+
+The screen is a plain text debug UI: a yellow status line, the board as text, a log, a row of buttons, and a command box. It's ugly on purpose; Phase 3 replaces it.
+
+Start with **Test → Clients and Servers → Local Server, 2 Players → Start**. You get a server window and two client windows (Player1, Player2).
+
+1. **Both clients load.**
+   - Each client shows the debug UI and the status line says `Lobby: Idle · 0 in queue`.
+   - The server Output shows `[270] server up: v0.2.0 (2 Server and networking), 12 weeks` and the sim self-test line.
+   - Each client's Output shows a `[270] debug UI sizes: ...` line and **no** `button ... under 44px` or `truncated` warnings. If you see those, screenshot the client window.
+2. **Practice vs the bot (one client).** In Player1, press **Practice**, then **Autoplay**.
+   - The status line walks through Select, MapReveal, 8 Draft rounds, Week 1–12 (with Debate in weeks 4 and 9), Election, and ends back at `Lobby: Idle`.
+   - The log shows `match over: Election`, and the board shows `YOU WON` or `You lost` with the EV score.
+   - With Autoplay on, a match takes about 1½ minutes (the draft reveals and debates can't be skipped).
+3. **Two players (both clients).** Press **Queue** in Player1, then in Player2.
+   - Both status lines switch to `m2 · Select · Input · 30s · your move` (the match number may differ).
+   - In Player1, type `select hale teal jobs farms safety` and press Enter. The status shows `LOCKED`. In Player2, press **Auto**. Both move on to MapReveal.
+   - Turn **Autoplay** on in both clients and let the match finish. Both should see the same final EV score, mirrored (yours first).
+4. **A hand-typed week.** In a new two-player match, play to Week 1 with Auto. Then, in Player1:
+   - Type `show OH` to see a state's details.
+   - Press **Bank** before locking: your countdown jumps up by 15 s, and the other client shows your bank dropping from 30 to 15.
+   - Type a plan that uses your home state (shown as `home XX` on your `YOU` line), for example `plan rally XX jobs; fund XX; poll OH`. It should lock without a rejection.
+   - Before that lock, type `plan gotv OH 9`. That's over the per-state cap, so the log shows `rejected Submit: GotvCap`, and the server Output shows a `[270] rejected Submit from Player1 ...` line. Nothing is spent.
+5. **Private code.** In Player1 press **Host**: the status line shows `your code ABCDE`. In Player2 type `join ABCDE` with that code. A match starts. Typing `join ZZZZZ` instead should log `rejected Join: NoSuchCode`.
+6. **Disconnect.** During a two-player match, close the Player2 window.
+   - Player1's log says `Opponent disconnected...`, and the board shows `DISCONNECTED (grace 30s)` counting down.
+   - After 30 s Player2's turns auto-submit. Two weeks later Player1 wins by forfeit: `YOU WON (Forfeit)`.
+7. **A cheating client (optional).** In Player1's command bar (View → Command Bar, set to the client), run:
+   `game.ReplicatedStorage.Remotes.ToServer:FireServer({ op = "Submit", matchId = "x", step = 1, input = { actions = { { kind = "Rally", state = "OH", issue = "Jobs", support = 99 } } } })`
+   The server Output shows `[270] rejected Submit from Player1 (...): NotInMatch` (or `StaleStep`/a plan reason during a match), and nothing changes.
+
+**Send back:** the server Output and both client Outputs (right-click → Copy all) from steps 1–3, any rejection or red error lines from the rest, a screenshot of one client mid-campaign, and how long the step 2 practice match took.
