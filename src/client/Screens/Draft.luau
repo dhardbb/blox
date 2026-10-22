@@ -4,21 +4,37 @@
 -- and locks it in; after the round both picks are revealed together. The screen
 -- reads only the player's own View and sends only { choices = { first, second? } }.
 --
--- Wide screens: map on the left with the legend and draft board under it, the
--- panel (round info, choice slots, state list) on the right. Phones in portrait:
--- map on top, the same panel below it. The Lock In bar stays pinned at the bottom
--- of the panel.
+-- Layout (docs/UI-OVERHAUL.md §3.3), every big box explicitly positioned:
+--   Header     "Round 4 of 8 · Stronghold" · the round's help line · timer
+--   16:9       map 65 % on the left (legend and draft board under it, in Below),
+--              panel 35 % on the right
+--   portrait   map on top, min(width / ASPECT, 34 % of the height) px tall, the
+--              panel right under it (pixel math, no dead band)
+--   panel      priority line → slots row (1st / 2nd chips, each with a ×) → the
+--              state list → (portrait) a collapsed "Draft board" card at the end.
+--              The map reveal shows the legend and how the draft works instead;
+--              a round's reveal shows both picks above the list.
+--   ActionBar  pinned under the panel while picking: status (tone bad for an
+--              illegal tap, until the next tap), opponent, primary "Lock in".
+--
+-- Stable names for tests and agents: LockIn (the primary), Choice1, Choice2,
+-- Clear1, Clear2, Row_<id>, the map nodes by id, Priority, Explain (the header
+-- subtitle), Timer, StateList, Board, Legend, BoardCard, RevealBox, YouPick,
+-- ThemPick, ClashNote, HowItWorks, BarStatus, BarOpponent, MapArea, Panel.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Draft = require(ReplicatedStorage.Shared.Sim.Draft)
+local MapLayout = require(ReplicatedStorage.Shared.UI.MapLayout)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
-local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 
+local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local AutoLock = require(script.Parent.Common.AutoLock)
 local Board = require(script.Parent.DraftParts.Board)
+local Collapsible = require(script.Parent.Parent.UI.Collapsible)
+local Header = require(script.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Logic = require(script.Parent.DraftParts.Logic)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
@@ -29,9 +45,21 @@ local Types = require(script.Parent.Types)
 
 local Screen = {}
 
-local LOCK_BAR = 104 -- px, the pinned Lock In bar
-local GAP = 8
-local HINT_SECONDS = 3 -- how long a "can't pick that" hint stays up
+local GAP = Kit.space.sm -- px, between the big blocks
+local MAP_SHARE = 0.65 -- of the width, wide screens
+local MAP_HEIGHT_SHARE = 0.66 -- of the map column, wide screens (the rest is Below)
+local MAP_SHARE_PORTRAIT = 0.34 -- of the height at most, phones
+
+-- Panel order (PanelScroll's list).
+local ORDER = {
+	priority = 1,
+	slots = 2,
+	howItWorks = 3,
+	legend = 4, -- map reveal only
+	reveal = 5,
+	list = 6,
+	boardCard = 7, -- portrait only, always last
+}
 
 type Mode = "Map" | "Input" | "Reveal"
 
@@ -55,13 +83,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local stepKey = ""
 	local choices: Logic.Choices = {}
 	local target: number? = nil -- slot the player aimed at by tapping Choice1 / Choice2
-	local localLocked = false -- pressed Lock In; the server's lock arrives with the next payload
-	local messageAtLock = 0 -- id of the newest message when Lock In was pressed
+	local localLocked = false -- pressed Lock in; the server's lock arrives with the next payload
+	local messageAtLock = 0 -- id of the newest message when Lock in was pressed
 	local autoLock = AutoLock.new()
 	local submitted: { round: number, choices: { string } }? = nil
-	local hint: string? = nil
-	local hintUntil = 0
-	local portraitMode: boolean? = nil
+	local hint: string? = nil -- why the last tap failed; stays until the next tap
+	local laidOut = "" -- the shape applyLayout last laid out for
+	local placed = "" -- where the legend and board last went
 	local mode: Mode = "Map"
 	local lastView: View.View? = nil
 	local lastKind: Draft.Kind? = nil
@@ -69,6 +97,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- ------------------------------------------------------------ layout
 
 	local root = Kit.box({ Name = "DraftRoot", Parent = parent })
+	local header = Header.new(root, { title = "" })
+	header.subtitle.Name = "Explain"
 
 	local mapArea = Kit.box({ Name = "MapArea", Parent = root })
 	local mapHolder = Kit.box({ Name = "MapHolder", Parent = mapArea })
@@ -88,7 +118,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		Parent = mapArea,
 	})
-	Kit.list("Vertical", 6).Parent = below
+	Kit.list("Vertical", Kit.space.xs).Parent = below
 
 	local panel = Kit.panel({ Name = "Panel", Parent = root })
 	local scroll = Kit.new("ScrollingFrame", {
@@ -103,59 +133,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = panel,
 	})
 	Kit.list("Vertical", GAP).Parent = scroll
-	Kit.new("UIPadding", { PaddingRight = UDim.new(0, 10), Parent = scroll })
+	Kit.new("UIPadding", { PaddingRight = UDim.new(0, Kit.space.md), Parent = scroll })
 
 	-- ------------------------------------------------------------ panel contents
 
-	local header = Kit.text(
-		"",
-		merge(auto(), {
-			Name = "Header",
-			Font = Kit.font.bold,
-			TextSize = 22,
-			LayoutOrder = 1,
-			Parent = scroll,
-		})
-	)
-	local explain = Kit.text(
-		"",
-		merge(auto(), {
-			Name = "Explain",
-			TextSize = 15,
-			TextColor3 = Kit.colors.muted,
-			LayoutOrder = 2,
-			Parent = scroll,
-		})
-	)
+	local priority = Kit.caption("", { Name = "Priority", LayoutOrder = ORDER.priority, Parent = scroll })
 
-	local infoRow = Kit.box({
-		Name = "InfoRow",
-		Size = UDim2.new(1, 0, 0, 48),
-		LayoutOrder = 3,
+	-- The ranked top 2: one row of two chips, each with a × once it is filled.
+	local slots = Kit.box({
+		Name = "Slots",
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		LayoutOrder = ORDER.slots,
 		Parent = scroll,
 	})
-	local priority = Kit.text("", {
-		Name = "Priority",
-		Size = UDim2.new(1, -96, 1, 0),
-		Font = Kit.font.medium,
-		Parent = infoRow,
-	})
-	local timer = Kit.text("", {
-		Name = "Timer",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0, 90, 1, 0),
-		Font = Kit.font.bold,
-		TextScaled = true,
-		TextSize = 30,
-		TextColor3 = Kit.colors.accent,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Parent = infoRow,
-	})
-
-	-- The ranked top 2.
-	local slots = Kit.box(merge(auto(), { Name = "Slots", LayoutOrder = 4, Parent = scroll }))
-	Kit.list("Vertical", 6).Parent = slots
 	local refresh: () -> () = function() end
 	local tapState: (id: string) -> () = function(_id: string) end
 	local lockInPressed: () -> () = function() end
@@ -163,181 +153,160 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local choiceButtons: { TextButton } = {}
 	local clearButtons: { TextButton } = {}
 	for slot = 1, 2 do
-		local row = Kit.box({
-			Name = `SlotRow{slot}`,
-			Size = UDim2.new(1, 0, 0, 48),
-			LayoutOrder = slot,
+		local half = Kit.box({
+			Name = `Slot{slot}`,
+			Position = UDim2.new((slot - 1) * 0.5, if slot == 2 then GAP // 2 else 0, 0, 0),
+			Size = UDim2.new(0.5, -GAP // 2, 1, 0),
 			Parent = slots,
 		})
 		choiceButtons[slot] = Kit.button("", function()
 			if mode == "Input" and not localLocked then
 				target = if target == slot then nil else slot
+				hint = nil
 				refresh()
 			end
 		end, {
+			variant = "chip",
 			Name = `Choice{slot}`,
-			Size = UDim2.new(1, -80, 1, 0),
-			TextWrapped = true,
-			Parent = row,
+			Size = UDim2.fromScale(1, 1),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = half,
 		})
-		clearButtons[slot] = Kit.button("Clear", function()
+		clearButtons[slot] = Kit.iconButton("×", function()
 			if mode == "Input" and not localLocked then
 				choices = Logic.clear(choices, slot)
 				target = nil
+				hint = nil
 				refresh()
 			end
 		end, {
 			Name = `Clear{slot}`,
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.fromScale(1, 0),
-			Size = UDim2.new(0, 72, 1, 0),
-			Parent = row,
+			Visible = false,
+			Parent = half,
 		})
 	end
-	local clearAll = Kit.button("Clear both", function()
-		if mode == "Input" and not localLocked then
-			choices = {}
-			target = nil
-			refresh()
-		end
-	end, { Name = "ClearChoices", LayoutOrder = 3, Parent = slots })
-	local hintLabel = Kit.text(
-		"",
-		merge(auto(), {
-			Name = "Hint",
-			TextSize = Kit.size.caption,
-			LayoutOrder = 4,
-			Parent = slots,
-		})
-	)
 
-	-- The reveal: what each of you got.
-	local revealBox =
-		Kit.box(merge(auto(), { Name = "RevealBox", LayoutOrder = 5, Visible = false, Parent = scroll }))
-	Kit.list("Vertical", 6).Parent = revealBox
-	local function chip(name: string, order: number): (Frame, TextLabel, TextLabel)
-		local frame = Kit.panel(
-			merge(
-				auto(),
-				{ Name = name, BackgroundColor3 = Kit.colors.raised, LayoutOrder = order, Parent = revealBox }
-			)
-		)
-		Kit.list("Vertical", 2).Parent = frame
-		local stroke = Kit.stroke(Kit.colors.accent, 2)
-		stroke.Parent = frame
-		local big = Kit.text(
-			"",
-			merge(
-				auto(),
-				{ Name = "Title", Font = Kit.font.bold, TextSize = 22, LayoutOrder = 1, Parent = frame }
-			)
-		)
-		local small = Kit.text(
-			"",
-			merge(auto(), {
-				Name = "Sub",
-				TextSize = Kit.size.caption,
-				TextColor3 = Kit.colors.muted,
-				LayoutOrder = 2,
-				Parent = frame,
-			})
-		)
+	-- The map reveal: how the draft works.
+	local howItWorks = Kit.caption(Logic.howItWorks(totalRounds), {
+		Name = "HowItWorks",
+		TextColor3 = Kit.colors.text,
+		LayoutOrder = ORDER.howItWorks,
+		Visible = false,
+		Parent = scroll,
+	})
+
+	-- The reveal: what each of you got, side by side, and the clash note.
+	local revealBox = Kit.box(
+		merge(auto(), { Name = "RevealBox", LayoutOrder = ORDER.reveal, Visible = false, Parent = scroll })
+	)
+	Kit.list("Vertical", Kit.space.xs).Parent = revealBox
+	local revealRow = Kit.box(merge(auto(), { Name = "RevealRow", LayoutOrder = 1, Parent = revealBox }))
+	Kit.list("Horizontal", GAP).Parent = revealRow
+	local function pickCard(name: string, order: number): (Frame, TextLabel, TextLabel)
+		local frame = Kit.panel({
+			Name = name,
+			Size = UDim2.new(0.5, -GAP // 2, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundColor3 = Kit.colors.raised,
+			LayoutOrder = order,
+			Parent = revealRow,
+		})
+		Kit.list("Vertical", Kit.space.xs).Parent = frame
+		Kit.stroke(Kit.colors.accent, 2).Parent = frame
+		local big = Kit.heading("", { Name = "Title", LayoutOrder = 1, Parent = frame })
+		local small = Kit.caption("", { Name = "Sub", LayoutOrder = 2, Parent = frame })
 		return frame, big, small
 	end
-	local youChip, youBig, youSmall = chip("YouPick", 1)
-	local themChip, themBig, themSmall = chip("ThemPick", 2)
+	local youCard, youBig, youSmall = pickCard("YouPick", 1)
+	local themCard, themBig, themSmall = pickCard("ThemPick", 2)
 	local clashNote = Kit.text(
 		"",
 		merge(
 			auto(),
-			{ Name = "ClashNote", TextColor3 = Kit.colors.accent, LayoutOrder = 3, Parent = revealBox }
+			{ Name = "ClashNote", TextColor3 = Kit.colors.accent, LayoutOrder = 2, Parent = revealBox }
 		)
 	)
-
-	local legend = Board.newLegend()
-	local summary = Board.newSummary()
 
 	local stateList = StateList.new(function(id: string)
 		tapState(id)
 	end)
-	stateList.root.LayoutOrder = 8
+	stateList.root.LayoutOrder = ORDER.list
 	stateList.root.Parent = scroll
 
-	-- Lock In, pinned under the scrolling panel.
-	local lockBar = Kit.box({
-		Name = "LockBar",
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(1, 0, 0, LOCK_BAR),
-		Visible = false,
-		Parent = panel,
+	-- Portrait: the legend and board in a card at the very end, collapsed.
+	local boardCard = Collapsible.new(scroll, {
+		title = "Draft board",
+		name = "BoardCard",
+		order = ORDER.boardCard,
+		expanded = false,
 	})
-	Kit.list("Vertical", 4).Parent = lockBar
-	local lockIn = Kit.button("Lock In", function()
-		lockInPressed()
-	end, {
-		Name = "LockIn",
-		Size = UDim2.new(1, 0, 0, 52),
-		TextSize = 20,
-		Font = Kit.font.bold,
-		BackgroundColor3 = Kit.colors.accent,
-		TextColor3 = Kit.colors.background,
-		LayoutOrder = 1,
-		Parent = lockBar,
-	})
-	local lockStatus = Kit.text("", {
-		Name = "LockStatus",
-		Size = UDim2.new(1, 0, 0, 20),
-		TextScaled = true,
-		TextSize = 15,
-		Font = Kit.font.medium,
-		LayoutOrder = 2,
-		Parent = lockBar,
-	})
-	local opponentStatus = Kit.text("", {
-		Name = "OpponentStatus",
-		Size = UDim2.new(1, 0, 0, 20),
-		TextScaled = true,
-		TextSize = 15,
-		TextColor3 = Kit.colors.muted,
-		LayoutOrder = 3,
-		Parent = lockBar,
+
+	local legend = Board.newLegend()
+	local summary = Board.newSummary()
+
+	-- Lock in, pinned under the scrolling panel (picking only).
+	local bar = ActionBar.new(panel, {
+		primary = "Pick a state",
+		onPrimary = function()
+			lockInPressed()
+		end,
+		primaryName = "LockIn",
 	})
 
 	-- ------------------------------------------------------------ orientation
 
-	-- Lays the screen out for the current orientation (re-run when it changes).
+	-- Lays the screen out for its current size (re-run when it changes). Phones
+	-- get pixel math so the panel starts exactly GAP under the map.
 	local function applyLayout()
 		local portrait = ctx.portrait()
-		if portrait == portraitMode then
+		local size = root.AbsoluteSize
+		local shape = `{portrait}:{size.X}x{size.Y}`
+		if shape == laidOut then
 			return
 		end
-		portraitMode = portrait
+		laidOut = shape
+		local top = Kit.HEADER_H + GAP
 		if portrait then
-			mapArea.Position = UDim2.fromScale(0, 0)
-			mapArea.Size = UDim2.fromScale(1, 0.3)
+			local mapH = math.floor(math.min(size.X / MapLayout.ASPECT, MAP_SHARE_PORTRAIT * size.Y))
+			mapArea.Position = UDim2.fromOffset(0, top)
+			mapArea.Size = UDim2.new(1, 0, 0, mapH)
 			mapHolder.Size = UDim2.fromScale(1, 1)
 			below.Visible = false
-			panel.Position = UDim2.fromScale(0, 0.31)
-			panel.Size = UDim2.fromScale(1, 0.69)
-			legend.root.LayoutOrder = 6
-			legend.root.Parent = scroll
-			summary.root.LayoutOrder = 7
-			summary.root.Parent = scroll
+			panel.Position = UDim2.fromOffset(0, top + mapH + GAP)
+			panel.Size = UDim2.new(1, 0, 1, -(top + mapH + GAP))
 		else
-			mapArea.Position = UDim2.fromScale(0, 0)
-			mapArea.Size = UDim2.fromScale(0.65, 1)
-			mapHolder.Size = UDim2.fromScale(1, 0.66)
-			below.Position = UDim2.fromScale(0, 0.68)
-			below.Size = UDim2.fromScale(1, 0.32)
+			mapArea.Position = UDim2.fromOffset(0, top)
+			mapArea.Size = UDim2.new(MAP_SHARE, -GAP // 2, 1, -top)
+			mapHolder.Size = UDim2.fromScale(1, MAP_HEIGHT_SHARE)
+			below.Position = UDim2.new(0, 0, MAP_HEIGHT_SHARE, GAP)
+			below.Size = UDim2.new(1, 0, 1 - MAP_HEIGHT_SHARE, -GAP)
 			below.Visible = true
-			panel.Position = UDim2.fromScale(0.665, 0)
-			panel.Size = UDim2.fromScale(0.335, 1)
-			legend.root.LayoutOrder = 1
-			legend.root.Parent = below
-			summary.root.LayoutOrder = 2
-			summary.root.Parent = below
+			panel.Position = UDim2.new(MAP_SHARE, GAP // 2, 0, top)
+			panel.Size = UDim2.new(1 - MAP_SHARE, -GAP // 2, 1, -top)
 		end
+	end
+
+	-- Where the legend and the board go: the map reveal shows the legend in the
+	-- panel; otherwise both sit under the map (16:9) or in the board card (portrait).
+	local function place()
+		local portrait = ctx.portrait()
+		local key = `{portrait}:{mode}`
+		if key == placed then
+			return
+		end
+		placed = key
+		if mode == "Map" then
+			legend.root.LayoutOrder = ORDER.legend
+			legend.root.Parent = scroll
+		else
+			legend.root.LayoutOrder = 1
+			legend.root.Parent = if portrait then boardCard.body else below
+		end
+		summary.root.LayoutOrder = 2
+		summary.root.Parent = if portrait then boardCard.body else below
+		boardCard.root.Visible = portrait
 	end
 
 	-- ------------------------------------------------------------ actions
@@ -376,7 +345,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		if not Logic.legal(kind, sv) then
 			hint = Logic.reason(kind, sv)
-			hintUntil = ctx.now() + HINT_SECONDS
 			refresh()
 			return
 		end
@@ -408,8 +376,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ rendering
 
-	-- Fills one chip of the reveal: "You got OH" and what it makes the state.
-	local function fillChip(
+	-- Fills one card of the reveal: "You got OH" and what it makes the state.
+	local function fillCard(
 		frame: Frame,
 		big: TextLabel,
 		small: TextLabel,
@@ -429,6 +397,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		big.Text = `{who} got {pick.state}`
 		small.Text = `{Logic.nameOf(pick.state)} · {Logic.noun(pick.kind)}`
+	end
+
+	-- The header's title: shorter in portrait, where the timer shares one row.
+	local function titleText(view: View.View, kind: Draft.Kind?, revealRound: number?): string
+		local portrait = ctx.portrait()
+		if mode == "Map" then
+			return if portrait then "The map" else "The map for this match"
+		elseif mode == "Input" and kind ~= nil then
+			local round = `Round {view.draftRound + 1} of {totalRounds}`
+			return if portrait then round else `{round} · {Logic.title(kind)}`
+		end
+		local round = (revealRound or view.draftRound) + 1
+		return if portrait
+			then `Round {round} revealed`
+			else `Round {round} of {totalRounds} · picks revealed`
 	end
 
 	local function render()
@@ -464,6 +447,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			newMode = "Input"
 		end
 		mode = newMode
+		place()
+		-- Nothing to press during the map reveal and a round's reveal (UI/Audit rule "primary").
+		parent:SetAttribute("PrimaryOptional", mode ~= "Input")
 
 		local serverLocked = payload.seats[you].locked
 		-- A rejected lock-in leaves a message and no lock: let the player fix it.
@@ -471,7 +457,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if localLocked and not serverLocked and rejection ~= nil then
 			localLocked = false
 			hint = rejection.text
-			hintUntil = ctx.now() + HINT_SECONDS
 		end
 		local locked = localLocked or serverLocked
 
@@ -499,75 +484,55 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		local revealRound = Logic.lastRound(view)
 
-		-- Header, explanation, priority.
+		-- Header and priority.
+		header:setTitle(titleText(view, kind, revealRound))
 		local priorityLine = ""
 		if mode == "Map" then
-			header.Text = "The map for this match"
-			explain.Text =
-				"Each state leans toward one candidate by a few points. Leans are exact and public. The draft starts when the timer ends."
+			header:setSubtitle(
+				"Each state leans a few points toward one candidate. Leans are exact and public."
+			)
 			priorityLine = Logic.priorityIn(Logic.priorityPlayer(config, view, 0), you, 0)
 		elseif mode == "Input" and kind ~= nil then
-			header.Text = `Round {view.draftRound + 1} of {totalRounds} — {Logic.title(kind)}`
-			explain.Text = Logic.help(config, kind)
+			header:setSubtitle(Logic.help(config, kind))
 			priorityLine = Logic.priorityText(view.draftPriority or you, you)
 		else
 			local round = revealRound or view.draftRound
-			header.Text = `Round {round + 1} of {totalRounds} — picks revealed`
 			if round + 1 < totalRounds then
 				local nextKind: Draft.Kind = Draft.kind(config, round + 1)
-				explain.Text = `Next: round {round + 2} of {totalRounds}, {Logic.noun(nextKind)}.`
+				header:setSubtitle(`Next: round {round + 2} of {totalRounds}, {Logic.noun(nextKind)}.`)
 			else
-				explain.Text = "The draft is over. Polls come out and the campaign begins."
+				header:setSubtitle("The draft is over. Polls come out and the campaign begins.")
 			end
 			if revealRound ~= nil then
 				priorityLine = Logic.priorityWas(Logic.priorityPlayer(config, view, revealRound), you)
 			end
 		end
 		priority.Text = priorityLine
+		priority.Visible = priorityLine ~= ""
+		howItWorks.Visible = mode == "Map"
 
 		-- The ranked slots.
 		slots.Visible = mode == "Input"
 		for slot = 1, 2 do
 			local id = if slot == 1 then choices.first else choices.second
-			local label = if slot == 1 then "1st choice" else "2nd choice (backup)"
 			local button = choiceButtons[slot]
-			if id ~= nil then
-				local record = StateData.byId[id]
-				button.Text = `{label}: {record.name} ({id}), {record.ev} EV`
-			else
-				button.Text = `{label}: tap a state`
-			end
-			button.BackgroundColor3 = if target == slot then Kit.colors.raisedHover else Kit.colors.raised
+			local label = if slot == 1 then "1st" else "2nd"
+			button.Text = `{label}: {id or "—"}`
+			local filled = id ~= nil and not locked
+			clearButtons[slot].Visible = filled
+			button.Size = if filled
+				then UDim2.new(1, -(Kit.MIN_TOUCH + Kit.space.xs), 1, 0)
+				else UDim2.fromScale(1, 1)
 			Kit.setEnabled(button, not locked)
-			Kit.setEnabled(clearButtons[slot], not locked and id ~= nil)
+			Kit.setSelected(button, target == slot and not locked)
+			Kit.setEnabled(clearButtons[slot], filled)
 		end
-		Kit.setEnabled(clearAll, not locked and choices.first ~= nil)
-		local hintText = hint
-		if hintText ~= nil then
-			hintLabel.TextColor3 = Kit.colors.danger
-		elseif locked then
-			hintText = "Your picks are locked in."
-			hintLabel.TextColor3 = Kit.colors.muted
-		elseif choices.first == nil then
-			hintText =
-				"Tap states on the map or in the list. Your 2nd choice is the backup if you both want the same state."
-			hintLabel.TextColor3 = Kit.colors.muted
-		elseif choices.second == nil then
-			hintText =
-				"No backup picked: if you both want your 1st choice and they have priority, we pick one for you."
-			hintLabel.TextColor3 = Kit.colors.muted
-		else
-			hintText =
-				"If you both want your 1st choice, the player with priority gets it and you get your 2nd."
-			hintLabel.TextColor3 = Kit.colors.muted
-		end
-		hintLabel.Text = hintText or ""
 
 		-- The reveal.
 		revealBox.Visible = mode == "Reveal"
 		if mode == "Reveal" then
-			fillChip(youChip, youBig, youSmall, "You", mine, colors[you])
-			fillChip(themChip, themBig, themSmall, "They", theirs, colors[them])
+			fillCard(youCard, youBig, youSmall, "You", mine, colors[you])
+			fillCard(themCard, themBig, themSmall, "They", theirs, colors[them])
 			local note: string? = nil
 			if mine ~= nil and theirs ~= nil and revealRound ~= nil then
 				local sub = submitted
@@ -582,27 +547,37 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			clashNote.Visible = note ~= nil
 		end
 
-		-- Lock bar.
-		lockBar.Visible = mode == "Input"
-		scroll.Size = if mode == "Input" then UDim2.new(1, 0, 1, -(LOCK_BAR + GAP)) else UDim2.fromScale(1, 1)
+		-- The action bar.
+		bar.root.Visible = mode == "Input"
+		scroll.Size = if mode == "Input"
+			then UDim2.new(1, 0, 1, -(Kit.BAR_H + GAP))
+			else UDim2.fromScale(1, 1)
 		if locked then
-			lockIn.Text = "Locked"
-			Kit.setEnabled(lockIn, false)
-			lockStatus.Text = "Locked — waiting for opponent"
-			lockStatus.TextColor3 = Kit.colors.good
+			bar:setPrimary("Locked in", false)
+		elseif choices.first == nil then
+			bar:setPrimary("Pick a state", false)
 		else
-			lockIn.Text = if choices.first == nil then "Pick a state to lock in" else "Lock In"
-			Kit.setEnabled(lockIn, choices.first ~= nil)
-			lockStatus.Text = if choices.first == nil then "Choose your 1st choice" else "Ready to lock in"
-			lockStatus.TextColor3 = Kit.colors.text
+			bar:setPrimary("Lock in", true)
+		end
+		local why = hint
+		if why ~= nil then
+			bar:setStatus(why, "bad")
+		elseif locked then
+			bar:setStatus("Locked in · waiting for opponent", "ok")
+		elseif choices.first == nil then
+			bar:setStatus("Choose your 1st choice", "muted")
+		elseif choices.second == nil then
+			bar:setStatus("Tap a backup (optional)", "muted")
+		else
+			bar:setStatus("Ready: your 2nd is the backup", "muted")
 		end
 		local theirSeat = payload.seats[them]
 		if theirSeat ~= nil and not theirSeat.connected then
-			opponentStatus.Text = "Opponent: disconnected"
+			bar:setOpponent("Opponent: disconnected")
 		elseif theirSeat ~= nil and theirSeat.locked then
-			opponentStatus.Text = "Opponent: locked in"
+			bar:setOpponent("Opponent: locked in")
 		else
-			opponentStatus.Text = "Opponent: still choosing"
+			bar:setOpponent("Opponent: thinking")
 		end
 
 		-- The map.
@@ -662,8 +637,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		})
 		stateList.root.Visible = mode ~= "Map"
 
-		-- Countdown.
-		timer.Text = Kit.clock(payload.deadline - ctx.now())
+		-- Countdown: it only warns while there is something to lock in.
+		header:setTimer(payload.deadline - ctx.now(), if mode == "Input" then nil else 0)
 	end
 	refresh = render
 
@@ -678,14 +653,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if payload == nil then
 				return
 			end
+			local shape = laidOut
 			applyLayout()
-			local left = payload.deadline - now
-			timer.Text = Kit.clock(left)
-			timer.TextColor3 = if mode == "Input" and left <= 5 then Kit.colors.danger else Kit.colors.accent
-			if hint ~= nil and now > hintUntil then
-				hint = nil
+			if shape ~= laidOut then
+				-- Rotated or resized: titles and the legend's place depend on it.
 				render()
 			end
+			header:setTimer(payload.deadline - now, if mode == "Input" then nil else 0)
 			-- The timer is about to end with a pick that was never locked: lock it.
 			if mode == "Input" and choices.first ~= nil and autoLock:due(payload, now, isLocked()) then
 				lockInPressed()

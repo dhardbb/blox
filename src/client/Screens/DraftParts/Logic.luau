@@ -35,24 +35,30 @@ local function nameOf(id: string): string
 end
 Logic.nameOf = nameOf
 
--- Why a tapped state can't be picked this round, for the hint line.
+-- Why a tapped state can't be picked this round: short enough for the action
+-- bar's status line ("TX: already drafted").
 function Logic.reason(kind: Draft.Kind, sv: View.StateView): string
-	local name = nameOf(sv.id)
 	if sv.battleground then
-		return `{name} is already a battleground.`
+		return `{sv.id}: already a battleground`
 	elseif kind == "Nominate" and sv.isHome then
-		return `{name} is a home state and can't be nominated.`
+		return `{sv.id}: a home state, can't nominate`
 	end
-	return `{name} is already drafted.`
+	return `{sv.id}: already drafted`
 end
 
+-- The round's kind for the header: "Home state", "Stronghold", "Nominate".
 function Logic.title(kind: Draft.Kind): string
 	if kind == "Home" then
-		return "pick your HOME state"
+		return "Home state"
 	elseif kind == "Stronghold" then
-		return "pick a STRONGHOLD"
+		return "Stronghold"
 	end
-	return "NOMINATE a battleground"
+	return "Nominate"
+end
+
+-- How the draft works, for the map reveal (three short lines).
+function Logic.howItWorks(rounds: number): string
+	return `{rounds} blind rounds: you both pick at the same time.\nEach round, a 1st choice and an optional backup.\nIf you both want the same state, priority decides.`
 end
 
 -- "home state", "stronghold", "battleground": what a pick of this kind makes the state.

@@ -20,9 +20,6 @@ local FOLDERS = { "src/client/Screens", "src/client/Map" }
 local PENDING: { [string]: number } = {
 	-- WP3 (Campaign)
 	["src/client/Screens/Campaign.luau"] = 2,
-	-- WP4 (Draft, Election)
-	["src/client/Screens/Draft.luau"] = 10,
-	["src/client/Screens/DraftParts/StateList.luau"] = 6,
 }
 
 -- What a screen file may not contain, as Lua patterns.

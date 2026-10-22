@@ -64,9 +64,6 @@ export type Options = {
 Audit.PENDING = {
 	-- WP3: Campaign.
 	Campaign = { primary = true, oneAccent = true },
-	-- WP4: Draft, Election.
-	Draft = { primary = true, typeScale = true },
-	Election = { primary = true, contained = true },
 } :: { [string]: { [Rule]: boolean } }
 
 -- The rules in the order they are reported.

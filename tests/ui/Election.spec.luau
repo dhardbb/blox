@@ -2,7 +2,9 @@
 -- The Election Night screen on the fake Roblox engine: it renders the "Election"
 -- fixture offline (DebugScreen), calls states on the clock, ticks the EV
 -- counters, shows the banner, and sends Skip. Also plays a live practice match to
--- election night. The fake layout is rough, so nothing here asserts pixels.
+-- election night. The UI overhaul (WP4) cases check the explicitly positioned
+-- boxes the fake engine can measure: the clock, the feed above the action bar,
+-- the opponent's skip, the 270 tick inside its bar, and a strict audit.
 
 local process = require("@lune/process")
 
@@ -16,6 +18,9 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local AUDIT_OK = "UI audit Election: 0 problem(s)"
 local FULL_TIME = 50 -- s, past the 45 s stage
+local PHONE = { x = 390, y = 844 }
+local BAR_H = 84 -- px, Kit.BAR_H
+local STRIP_H = 72 -- px, the counters strip
 
 local function check(condition: boolean, message: string)
 	if not condition then
@@ -65,6 +70,59 @@ local function feedLines(peer: FakeRoblox.Peer): number
 		end
 	end
 	return count
+end
+
+-- `name` inside the Election screen's holder (FakeRoblox.find searches the whole
+-- PlayerGui, where other layers reuse names like "Timer").
+local function inScreen(peer: FakeRoblox.Peer, name: string): any
+	local holder = FakeRoblox.find(peer, "Election")
+	check(holder ~= nil, "the Election screen is not mounted")
+	for _, inst in holder:GetDescendants() do
+		if inst.Name == name then
+			return inst
+		end
+	end
+	error(`the Election screen has no element {name}`, 0)
+end
+
+local function storeOf(rig: Rig): any
+	local store = rig.peer.modules[`{rig.world.root}/src/client/Store.luau`]
+	check(store ~= nil, "could not reach the client Store")
+	return store
+end
+
+local function push(rig: Rig, payload: any)
+	rig.world.current = rig.peer
+	storeOf(rig).setPayload(payload)
+	rig.world.current = nil
+	FakeRoblox.run(rig.world, 0.3)
+end
+
+local function deepCopy(value: any): any
+	if type(value) ~= "table" then
+		return value
+	end
+	local out = {}
+	for key, child in value do
+		out[key] = deepCopy(child)
+	end
+	return out
+end
+
+-- Every audit finding off the map (the map is WP1's), with the PENDING list ignored.
+local function strictFindings(rig: Rig): { string }
+	local Audit = FakeRoblox.require(rig.world, rig.peer, "src/client/UI/Audit.luau")
+	local out = {}
+	for _, finding in Audit.check(FakeRoblox.find(rig.peer, "Election")) do
+		if not finding.onMap then
+			table.insert(out, `{finding.rule}: {finding.message}`)
+		end
+	end
+	return out
+end
+
+local function bottom(inst: any): number
+	return inst.AbsolutePosition.Y + inst.AbsoluteSize.Y
 end
 
 local expected = Fixtures.payload(Config.defaults, "Election")
@@ -141,7 +199,7 @@ describe("Election screen", function()
 		FakeRoblox.run(rig.world, 0.5)
 		expect(#Support.outputLines(rig.peer, "DEBUG_UI skip")):toBe(1)
 		check(
-			string.find(text(rig.peer, "SkipButton"), "Waiting for opponent to skip", 1, true) ~= nil,
+			string.find(text(rig.peer, "SkipButton"), "Waiting for opponent", 1, true) ~= nil,
 			`skip button says "{text(rig.peer, "SkipButton")}"`
 		)
 		-- A second press does not send again.
@@ -201,5 +259,92 @@ describe("Election screen", function()
 		noErrors(rig.world)
 		expect(#Support.outputLines(p1, AUDIT_OK)):toBe(1)
 		expect(#Support.outputLines(p1, "WARN [270] UI audit Election")):toBe(0)
+	end)
+end)
+
+describe("Election screen: UI overhaul (WP4)", function()
+	for _, phone in { false, true } do
+		local label = if phone then "on a phone" else "at 16:9"
+		it(`passes the strict audit {label}, counting and at the end`, function()
+			local rig = fixtureRig(if phone then PHONE else nil)
+			FakeRoblox.run(rig.world, 10)
+			local during = strictFindings(rig)
+			check(#during == 0, "while counting: " .. table.concat(during, " | "))
+			FakeRoblox.run(rig.world, FULL_TIME)
+			local after = strictFindings(rig)
+			check(#after == 0, "at the end: " .. table.concat(after, " | "))
+			noErrors(rig.world)
+		end)
+
+		it(`keeps the whole feed above the action bar {label} (B6)`, function()
+			local rig = fixtureRig(if phone then PHONE else nil)
+			FakeRoblox.run(rig.world, FULL_TIME)
+			local feed, side = inScreen(rig.peer, "Feed"), inScreen(rig.peer, "Side")
+			check(
+				bottom(feed) <= bottom(side) - BAR_H,
+				`feed ends at {bottom(feed)}, the bar starts at {bottom(side) - BAR_H}`
+			)
+			local padding = feed:FindFirstChildOfClass("UIPadding")
+			check(padding ~= nil and padding.PaddingBottom.Offset >= 8, "the feed has no bottom padding")
+			local skip = inScreen(rig.peer, "SkipButton")
+			check(skip:GetAttribute("PrimaryAction") == true, "Skip is not the pinned primary")
+			check(skip.AbsolutePosition.Y >= bottom(feed), "Skip overlaps the feed")
+		end)
+
+		it(`has a 72 px counters strip with the 270 tick inside its bar {label} (B9)`, function()
+			local rig = fixtureRig(if phone then PHONE else nil)
+			expect(inScreen(rig.peer, "Counters").AbsoluteSize.Y):toBe(STRIP_H)
+			local marker = inScreen(rig.peer, "Marker270")
+			local box = marker.Parent
+			check(marker.AbsolutePosition.Y >= box.AbsolutePosition.Y, "the tick pokes out above its bar")
+			check(bottom(marker) <= bottom(box), "the tick pokes out below its bar")
+			check(visible(rig.peer, "Goal"), "the 270 to win label is hidden")
+		end)
+	end
+
+	it("counts down to the results in the header (B8)", function()
+		local rig = fixtureRig()
+		local Kit = FakeRoblox.require(rig.world, rig.peer, "src/client/UI/Kit.luau")
+		local deadline = storeOf(rig).get().payload.deadline
+		for _ = 1, 4 do
+			FakeRoblox.run(rig.world, 3)
+			local shown = tostring(inScreen(rig.peer, "Timer").Text)
+			local now = rig.world.clock
+			-- The screen ticks four times a second, so the clock may be one tick old.
+			local fresh = `Results in {Kit.clock(deadline - now)}`
+			local stale = `Results in {Kit.clock(deadline - now + 0.25)}`
+			check(shown == fresh or shown == stale, `timer says "{shown}", want "{fresh}"`)
+			check(inScreen(rig.peer, "Timer").Visible ~= false, "the timer is hidden")
+		end
+	end)
+
+	it("shows when the opponent has skipped (B7)", function()
+		local rig = fixtureRig()
+		local base = storeOf(rig).get().payload
+		local them = if base.you == 1 then 2 else 1
+		local watching = deepCopy(base)
+		watching.seats[them].skip = false
+		push(rig, watching)
+		expect(tostring(inScreen(rig.peer, "BarOpponent").Text)):toBe("Opponent: watching")
+		local skipped = deepCopy(base)
+		skipped.seats[them].skip = true
+		push(rig, skipped)
+		expect(tostring(inScreen(rig.peer, "BarOpponent").Text)):toBe("Opponent: skipped")
+		-- Our own button is unaffected: we have not skipped.
+		expect(tostring(inScreen(rig.peer, "SkipButton").Text)):toBe("Skip to results")
+		noErrors(rig.world)
+	end)
+
+	it("says what is being called in the header and in the bar", function()
+		local rig = fixtureRig()
+		expect(tostring(inScreen(rig.peer, "Title").Text)):toBe("Election night")
+		FakeRoblox.run(rig.world, 10)
+		local status = tostring(inScreen(rig.peer, "CallStatus").Text)
+		check(
+			string.find(status, "states called", 1, true) ~= nil
+				or string.find(status, "Too close", 1, true) ~= nil,
+			`call status says "{status}"`
+		)
+		expect(tostring(inScreen(rig.peer, "BarStatus").Text)):toBe("Safe states first, closest last")
 	end)
 end)

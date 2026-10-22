@@ -1,7 +1,9 @@
 --!strict
 -- The Draft screen's list picker: every state, biggest first, one tappable row
 -- each ("Row_OH") with its lean and who drafted it. It is the phone-friendly twin
--- of tapping the map, and shares its choice slots.
+-- of tapping the map, and shares its choice slots. Rows are Kit.MIN_TOUCH tall,
+-- text on the Kit.size scale (the drafted-by tag is a caption); a chosen row
+-- shows the accent outline, never a fill.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -40,7 +42,7 @@ type Row = {
 
 local StateList = {}
 
-local ROW_HEIGHT = 48
+local ROW_HEIGHT = Kit.MIN_TOUCH -- px
 
 -- Columns as fractions of the row width: rank, code, name, EV, lean.
 local X_RANK, W_RANK = 0, 0.08
@@ -77,13 +79,10 @@ function StateList.new(onTap: (id: string) -> ()): List
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 	})
-	Kit.list("Vertical", 4).Parent = root
-	Kit.text("All states, biggest first. Tap one to pick it.", {
+	Kit.list("Vertical", Kit.space.xs).Parent = root
+	Kit.caption("All states, biggest first. Tap one to pick it.", {
 		Name = "ListTitle",
-		Font = Kit.font.bold,
 		LayoutOrder = 0,
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Size = UDim2.fromScale(1, 0),
 		Parent = root,
 	})
 
@@ -112,15 +111,15 @@ function StateList.new(onTap: (id: string) -> ()): List
 			LayoutOrder = order,
 			Parent = root,
 		})
-		Kit.corner(8).Parent = button
+		Kit.corner(Kit.radius.control).Parent = button
 		local stroke = Kit.stroke(Kit.colors.accent, 2)
 		stroke.Thickness = 0
 		stroke.Parent = button
 		Kit.new("UIPadding", {
-			PaddingLeft = UDim.new(0, 6),
-			PaddingRight = UDim.new(0, 6),
-			PaddingTop = UDim.new(0, 3),
-			PaddingBottom = UDim.new(0, 3),
+			PaddingLeft = UDim.new(0, Kit.space.sm),
+			PaddingRight = UDim.new(0, Kit.space.sm),
+			PaddingTop = UDim.new(0, Kit.space.xs),
+			PaddingBottom = UDim.new(0, Kit.space.xs),
 			Parent = button,
 		})
 		local row: Row = {
@@ -129,14 +128,22 @@ function StateList.new(onTap: (id: string) -> ()): List
 			stroke = stroke,
 			rank = cell(button, "Rank", X_RANK, W_RANK, 0, 1, {
 				Font = Kit.font.bold,
-				TextSize = 20,
+				TextSize = Kit.size.heading,
 				TextColor3 = Kit.colors.accent,
 				TextXAlignment = Enum.TextXAlignment.Center,
 			}),
-			code = cell(button, "Code", X_CODE, W_CODE, 0, 1, { Font = Kit.font.bold, TextSize = 20 }),
-			name = cell(button, "Name", X_NAME, W_NAME, 0, 1, { TextSize = 16 }),
+			code = cell(
+				button,
+				"Code",
+				X_CODE,
+				W_CODE,
+				0,
+				1,
+				{ Font = Kit.font.bold, TextSize = Kit.size.heading }
+			),
+			name = cell(button, "Name", X_NAME, W_NAME, 0, 1, { TextSize = Kit.size.body }),
 			tag = cell(button, "Tag", X_NAME, W_NAME, 0.62, 0.38, {
-				TextSize = 11,
+				TextSize = Kit.size.caption,
 				TextColor3 = Kit.colors.muted,
 				Visible = false,
 			}),
@@ -147,10 +154,10 @@ function StateList.new(onTap: (id: string) -> ()): List
 				W_EV,
 				0,
 				1,
-				{ TextSize = 16, TextXAlignment = Enum.TextXAlignment.Center }
+				{ TextSize = Kit.size.body, TextXAlignment = Enum.TextXAlignment.Center }
 			),
 			lean = cell(button, "Lean", X_LEAN, W_LEAN, 0, 1, {
-				TextSize = 15,
+				TextSize = Kit.size.body,
 				Font = Kit.font.medium,
 				TextXAlignment = Enum.TextXAlignment.Right,
 			}),
