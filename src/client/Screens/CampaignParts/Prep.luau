@@ -6,8 +6,9 @@
 --   Schools  (your platform)                     [−]  2  [+]
 --   ●●○○                                                      dot strip: the allocation
 --   take from another topic                                   why a stepper is greyed
+--   You: 2 prep + 2 platform + 1 stat = 5, plus a roll 0 to 6 · them: ...
 --   ... one row per topic ...
---   0 prep on a lost topic is a gaffe.
+--   6 of 6 points placed. Higher total wins ... (odds from Shared/UI/Explain)
 --
 -- The steppers keep the total: + takes a point from the topic with the most, −
 -- gives one to the topic with the least.
@@ -16,10 +17,12 @@
 --   prep:render(p) · prep:summary() -> "prep 2/2/2" or nil · prep.root (Frame "PrepPanel")
 --
 -- Element names: PrepTitle, PrepRow<t>, PrepTopic<t>, PrepMinus<t>, PrepValue<t>,
--- PrepPlus<t>, PrepDots<t>, PrepNote<t>, PrepTotal.
+-- PrepPlus<t>, PrepDots<t>, PrepNote<t>, PrepScore<t>, PrepTotal.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Explain = require(ReplicatedStorage.Shared.UI.Explain)
+local Numbers = require(ReplicatedStorage.Shared.UI.Numbers)
 local PlanDraft = require(ReplicatedStorage.Shared.UI.PlanDraft)
 local SharedTypes = require(ReplicatedStorage.Shared.Types)
 
@@ -46,6 +49,7 @@ type Row = {
 	plus: TextButton,
 	dots: { Frame },
 	note: TextLabel,
+	score: TextLabel,
 }
 
 function Prep.new(parent: Instance, model: Model.Model, order: number): Prep
@@ -170,7 +174,16 @@ function Prep.new(parent: Instance, model: Model.Model, order: number): Prep
 			Parent = controls,
 		})
 		local note = Kit.caption("", { Name = `PrepNote{t}`, LayoutOrder = 2, Visible = false, Parent = box })
-		rows[t] = { topic = topic, value = value, minus = minus, plus = plus, dots = dots, note = note }
+		local score = Kit.caption("", { Name = `PrepScore{t}`, LayoutOrder = 3, Parent = box })
+		rows[t] = {
+			topic = topic,
+			value = value,
+			minus = minus,
+			plus = plus,
+			dots = dots,
+			note = note,
+			score = score,
+		}
 	end
 	local total = Kit.caption("0 prep on a lost topic is a gaffe.", {
 		Name = "PrepTotal",
@@ -250,8 +263,15 @@ function Prep.new(parent: Instance, model: Model.Model, order: number): Prep
 				end
 				row.note.Text = table.concat(why, " · ")
 				row.note.Visible = #why > 0
+				row.score.Text = if topic then Explain.prepLine(config, view, topic, value) else ""
 			end
-			total.Text = `{placed} of {points} points placed. 0 prep on a lost topic is a gaffe.`
+			local even = Explain.debateOdds(config, 0)
+			local ahead = Explain.debateOdds(config, 2)
+			total.Text = `{placed} of {points} points placed. Higher total wins the topic ({Numbers.signed(
+				config.DEBATE_TOPIC_WIN
+			)} national); a tie gives it to nobody. Level, you win {math.floor(even * 100 + 0.5)}% of topics; 2 points ahead, {math.floor(
+				ahead * 100 + 0.5
+			)}%. 0 prep on a lost topic is a gaffe ({Numbers.signed(-config.DEBATE_GAFFE)}).`
 		end,
 	}
 	return prepPart

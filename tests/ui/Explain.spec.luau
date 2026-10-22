@@ -342,6 +342,19 @@ describe("Explain: debates, Choice events, election night", function()
 		has(line, "them 4 prep")
 	end)
 
+	it("states a prep topic's known score", function()
+		local view = ohio()
+		local line = Explain.prepLine(C, view, "Jobs", 3)
+		has(
+			line,
+			`You: 3 prep + {C.DEBATE_PLATFORM_BONUS} platform + {C.DEBATE_STAT} stat = {3 + C.DEBATE_PLATFORM_BONUS + C.DEBATE_STAT}`
+		)
+		has(line, `roll 0 to {C.DEBATE_ROLL_MAX}`)
+		has(line, `their hidden prep ({Candidates.profile(C, "calloway").debatePrep} points in all)`)
+		local theirs = Explain.prepLine(C, view, "Safety", 0)
+		has(theirs, `them: {C.DEBATE_PLATFORM_BONUS} platform`)
+	end)
+
 	it("shows every Choice payoff from Config", function()
 		local lines = Explain.choiceLines(C)
 		expect(#lines):toBe(3)

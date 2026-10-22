@@ -686,6 +686,29 @@ function Explain.debateLine(config: Config, view: View, result: SimState.DebateR
 	)}`
 end
 
+-- One prep row's known score: "You: 2 prep + 2 platform + 1 stat = 5, plus a
+-- roll 0 to 6 · them: 1 stat + their hidden prep (6 points)". Their prep stays
+-- hidden until the debate; their platform and candidate are public.
+function Explain.prepLine(config: Config, view: View, topic: Types.Issue, prep: number): string
+	local me, rival = view.you, opponentOf(view)
+	local function bonus(p: number): number
+		local platform: { Types.Issue } = view.players[p].platform or {}
+		return if table.find(platform, topic) then config.DEBATE_PLATFORM_BONUS else 0
+	end
+	local mine, theirs = profileOf(config, view, me), profileOf(config, view, rival)
+	local myFixed = prep + bonus(me) + mine.debateStat
+	local text = `You: {prep} prep`
+	if bonus(me) > 0 then
+		text ..= ` + {bonus(me)} platform`
+	end
+	text ..= ` + {mine.debateStat} stat = {myFixed}, plus a roll 0 to {config.DEBATE_ROLL_MAX} · them: `
+	if bonus(rival) > 0 then
+		text ..= `{bonus(rival)} platform + `
+	end
+	return text
+		.. `{theirs.debateStat} stat + their hidden prep ({theirs.debatePrep} points in all), plus a roll`
+end
+
 -- ---------------------------------------------------------------- Choice events
 
 -- National points for answering `mine` against `theirs` (1v1, clamped like the sim).

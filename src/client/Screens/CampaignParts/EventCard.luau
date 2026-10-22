@@ -4,27 +4,31 @@
 -- The event card, a Collapsible: "Event · Windfall · Donor retreat +" with the
 -- effect line always under it (so collapsed it is still two lines), and the
 -- flavor text, the map note and, in Choice weeks, the three answer chips in its
--- body. Expanded by default in Choice, Spotlight and Regional weeks, collapsed
+-- body, with what each answer pays against each of theirs (Shared/UI/Explain,
+-- from Config's payoff matrix). Expanded by default in Choice, Spotlight and Regional weeks, collapsed
 -- otherwise; the player's own toggle holds for the rest of the week. Hidden
 -- during every reveal (B1). In Choice weeks it moves above the state card.
 --
 -- The week card, a Collapsible: last week's public moves by the opponent, their
--- money bracket, last week's event, what you raised, your internal polls, the
--- next debate, the latest messages. Expanded on 16:9, collapsed on phones.
+-- money bracket, either side's underdog tier and what it gives, last week's
+-- event, what you raised, your internal polls, this week's debate topic by
+-- topic (prep, platform, stat and roll), the next debate, the latest messages. Expanded on 16:9, collapsed on phones.
 --
 --   local event = EventCard.new(parent, model)        event:render(p, order)
 --   local week = EventCard.week(parent, model, order) week:render(p); week:setPortrait(portrait)
 --
 -- Element names: EventCard (attributes EventKind, EventName), EventToggle,
 -- EventEffect, EventText, EventMapNote, ChoiceRow, ChoiceAttack, ChoiceDefend,
--- ChoiceIgnore, ChoiceNote; WeekCard, WeekToggle, FeedOpponent, FeedMoney,
--- FeedEvent, FeedRaised, FeedPolls, FeedDebate, FeedMessages.
+-- ChoiceIgnore, ChoiceNote, ChoicePayHead, ChoicePay1..3; WeekCard, WeekToggle,
+-- FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog, FeedEvent,
+-- FeedRaised, FeedPolls, FeedLastDebate, FeedDebate, FeedMessages.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SharedFolder = ReplicatedStorage.Shared
 local ConfigModule = require(SharedFolder.Sim.Config)
 local Events = require(SharedFolder.Sim.Events)
+local Explain = require(SharedFolder.UI.Explain)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
 local SharedTypes = require(SharedFolder.Types)
 local ViewModule = require(SharedFolder.Sim.View)
@@ -94,6 +98,20 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		choiceButtons[answer] = button
 	end
 	local choiceNote = Kit.caption("", { Name = "ChoiceNote", LayoutOrder = 4, Parent = card.body })
+	local payHead = Kit.caption("National points for you, by their answer:", {
+		Name = "ChoicePayHead",
+		LayoutOrder = 5,
+		Parent = card.body,
+	})
+	local payLines: { TextLabel } = {}
+	for k = 1, #Events.CHOICES do
+		payLines[k] = Kit.caption("", {
+			Name = `ChoicePay{k}`,
+			LayoutOrder = 5 + k,
+			TextColor3 = Kit.colors.text,
+			Parent = card.body,
+		})
+	end
 
 	local defaultFor: string? = nil -- the event whose default expansion was applied
 
@@ -122,6 +140,15 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			local choosing = event.kind == "Choice" and Model.planning(p)
 			answerRow.Visible = choosing
 			choiceNote.Visible = choosing
+			local isChoice = event.kind == "Choice"
+			payHead.Visible = isChoice
+			for k, line in Explain.choiceLines(config) do
+				local label = payLines[k]
+				if label then
+					label.Text = line
+					label.Visible = isChoice
+				end
+			end
 			if not choosing then
 				return
 			end
@@ -196,11 +223,14 @@ function EventCard.week(parent: Instance, model: Model.Model, order: number): We
 	end
 	local opponent = line(1, "FeedOpponent")
 	local money = line(2, "FeedMoney", Kit.colors.muted)
-	local lastEvent = line(3, "FeedEvent")
-	local raised = line(4, "FeedRaised", Kit.colors.good)
-	local polls = line(5, "FeedPolls")
-	local debateLine = line(6, "FeedDebate")
-	local messages = Kit.caption("", { Name = "FeedMessages", LayoutOrder = 7, Parent = card.body })
+	local underdog = line(3, "FeedUnderdog")
+	local theirUnderdog = line(4, "FeedTheirUnderdog")
+	local lastEvent = line(5, "FeedEvent")
+	local raised = line(6, "FeedRaised", Kit.colors.good)
+	local polls = line(7, "FeedPolls")
+	local lastDebate = Kit.caption("", { Name = "FeedLastDebate", LayoutOrder = 8, Parent = card.body })
+	local debateLine = line(9, "FeedDebate")
+	local messages = Kit.caption("", { Name = "FeedMessages", LayoutOrder = 10, Parent = card.body })
 	local portrait: boolean? = nil
 
 	local week: WeekCard = {
@@ -216,6 +246,12 @@ function EventCard.week(parent: Instance, model: Model.Model, order: number): We
 			local you, them = view.you, Model.opponentOf(view)
 			opponent.Text = opponentCard(config, view)
 			money.Text = `Their money: {view.players[them].money}`
+			local mine = Explain.underdogText(config, view, you)
+			underdog.Text = mine or ""
+			underdog.Visible = mine ~= nil
+			local theirs = Explain.underdogText(config, view, them)
+			theirUnderdog.Text = theirs or ""
+			theirUnderdog.Visible = theirs ~= nil
 			local eventLine = PlanDraft.lastEventLine(view)
 			lastEvent.Text = eventLine or ""
 			lastEvent.Visible = eventLine ~= nil
@@ -235,6 +271,26 @@ function EventCard.week(parent: Instance, model: Model.Model, order: number): We
 			end
 			polls.Text = `Your internal polls (you-them): {table.concat(pollParts, ", ")}`
 			polls.Visible = #pollParts > 0
+			-- This week's debate, topic by topic: why each was won or tied.
+			local result = view.debates[#view.debates]
+			if result and result.week == view.week then
+				local rows: { string } = {}
+				for t, topic in result.topics do
+					local winner = result.winners[t]
+					local verdict = if winner == you
+						then "you won"
+						elseif winner == 0 then "tie"
+						else "they won"
+					table.insert(
+						rows,
+						`{Model.issueName(topic)} ({verdict}): {Explain.debateLine(config, view, result, t)}`
+					)
+				end
+				lastDebate.Text = `This week's debate: {table.concat(rows, "\n")}`
+				lastDebate.Visible = true
+			else
+				lastDebate.Visible = false
+			end
 			local debate = view.nextDebate
 			if debate then
 				local names: { string } = {}
