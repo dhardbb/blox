@@ -31,6 +31,8 @@ export type Record = {
 	underdogWrong: number, -- ... where that player was truly ahead by 20+ EV
 	gotvSpend: { number },
 	gotvDecided: boolean, -- the winner changes if GOTV is removed
+	debateDecided: boolean, -- the winner changes if the debates' support shifts are removed
+	debateShiftEV: number, -- |EV swing| the debates' shifts account for in the final count
 	projectionWrong: boolean, -- the week-12 projected leader lost
 	leanEV: { number }, -- EV of states leaning toward each player
 	leanedStates: number,
@@ -144,6 +146,7 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	local result = match.election :: State.ElectionResult
 	projectionWrong = projectedLeader ~= 0 and projectedLeader ~= result.winner
 	local noGotv = Election.count(config, match, { gotv = false })
+	local noDebates = Election.count(config, match, { debates = false })
 	local tossupElection, spread = tossupEV(config, match, true)
 
 	local leanEV = { 0, 0 }
@@ -188,6 +191,8 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		underdogWrong = underdogWrong,
 		gotvSpend = gotvSpend,
 		gotvDecided = noGotv.winner ~= result.winner,
+		debateDecided = noDebates.winner ~= result.winner,
+		debateShiftEV = math.abs((result.ev[1] - result.ev[2]) - (noDebates.ev[1] - noDebates.ev[2])) / 2,
 		projectionWrong = projectionWrong,
 		leanEV = leanEV,
 		leanedStates = leanedStates,

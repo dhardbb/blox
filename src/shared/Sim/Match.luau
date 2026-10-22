@@ -84,6 +84,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 			momentum = table.create(n, 0),
 			backlash = table.create(n, 0),
 			gotv = table.create(n, 0),
+			debateShift = table.create(n, 0),
 			pollError = table.create(n, 0),
 			pollErrorUndecided = 0,
 			poll = nil,

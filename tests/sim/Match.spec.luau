@@ -84,7 +84,7 @@ describe("Match", function()
 		local same = { candidate = "hale", color = "Teal", platform = { "Jobs", "Farms", "Safety" } }
 		match = Match.advance(C, match, { same, same })
 		expect(match.players[1].candidate):toBe("hale")
-		expect(match.players[1].cash):toBe(4)
+		expect(match.players[1].cash):toBe(0) -- Hale starts with nothing (D-023)
 		expect(match.players[1].color ~= match.players[2].color):toBe(true)
 		expect(match.players[1].color == "Teal" or match.players[2].color == "Teal"):toBe(true)
 	end)

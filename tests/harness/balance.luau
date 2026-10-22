@@ -84,10 +84,10 @@ end
 
 local priorityWins, comebacks, comebackEligible = 0, 0, 0
 local margins: { number } = {}
-local blowouts, invalid = 0, 0
+local blowouts, routs, invalid = 0, 0, 0
 local unspent, gotvSpend = 0, 0
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
-local gotvDecided, projectionWrong = 0, 0
+local gotvDecided, debateDecided, debateShiftEV, projectionWrong = 0, 0, 0, 0
 local tossupDraft, tossupElection, spread = 0, 0, 0
 local leaned, flipped = 0, 0
 local leanX, winY = {}, {}
@@ -120,6 +120,9 @@ for seed = 1, N do
 	if margin >= 40 then
 		blowouts += 1
 	end
+	if margin >= 100 then
+		routs += 1
+	end
 	invalid += r.invalid
 	unspent += (r.unspent[1] + r.unspent[2]) / 2
 	gotvSpend += (r.gotvSpend[1] + r.gotvSpend[2]) / 2
@@ -129,6 +132,10 @@ for seed = 1, N do
 	if r.gotvDecided then
 		gotvDecided += 1
 	end
+	if r.debateDecided then
+		debateDecided += 1
+	end
+	debateShiftEV += r.debateShiftEV
 	if r.projectionWrong then
 		projectionWrong += 1
 	end
@@ -232,11 +239,16 @@ line(
 	"20-40%",
 	comebackRate >= 0.2 and comebackRate <= 0.4
 )
+local medianMargin = margins[math.ceil(#margins / 2)]
 line(
 	"Mean / median final EV margin",
-	string.format("%.0f / %.0f", meanMargin, margins[math.ceil(#margins / 2)])
+	string.format("%.0f / %.0f", meanMargin, medianMargin),
+	"median <= 60",
+	medianMargin <= 60
 )
-line("Decided by 40+ EV", pct(blowouts / N), "<= 15%", blowouts / N <= 0.15)
+-- Revised target (D-024): winner-take-all makes "<= 15% by 40+ EV" unreachable.
+line("Decided by 40+ EV", pct(blowouts / N), "<= 65%", blowouts / N <= 0.65)
+line("Decided by 100+ EV", pct(routs / N), "<= 25%", routs / N <= 0.25)
 line("Average money unspent at the end", string.format("$%.1f", unspent / N))
 line("Invalid bot inputs", tostring(invalid), "0", invalid == 0)
 local deciles = {}
@@ -264,29 +276,12 @@ line("GOTV changes the winner", pct(gotvDecided / N), ">= 10%", gotvDecided / N 
 line("Average GOTV spend per player", string.format("$%.1f", gotvSpend / N))
 line("Week-12 projected leader loses", pct(projectionWrong / N))
 
--- Debates: replay a subset with debates switched off; same seeds and bot seeds.
-local debateN = math.max(50, math.floor(N / 4))
-local noDebates = Config.with(config, {
-	DEBATE_TOPIC_WIN = 0,
-	DEBATE_SWEEP = 0,
-	DEBATE_SWEEP_MOMENTUM = 0,
-	DEBATE_GAFFE = 0,
-})
-local debateDecided = 0
-for seed = 1, debateN do
-	local cands = pairFor(seed)
-	local with = Play.match(config, seed, cands)
-	local without = Play.match(noDebates, seed, cands)
-	if with.winner ~= without.winner then
-		debateDecided += 1
-	end
-end
-line(
-	`Debates change the winner ({debateN} paired replays)`,
-	pct(debateDecided / debateN),
-	">= 10%",
-	debateDecided / debateN >= 0.1
-)
+-- Debates: recount the final board with the debates' support shifts subtracted
+-- (same election noise), like the GOTV check. A paired replay with debates off
+-- was tried first and rejected: the bots react to a different board, so the two
+-- matches diverge and the number mostly measures chaos (D-017 finding 6).
+line("Debates change the winner (counterfactual)", pct(debateDecided / N), ">= 10%", debateDecided / N >= 0.1)
+line("Average EV the debates swing", string.format("%.1f EV", debateShiftEV / N))
 for _, id in ids do
 	local rate = topicWins[id] / math.max(1, topicGames[id])
 	line(`Debate topic win rate: {id}`, pct(rate))

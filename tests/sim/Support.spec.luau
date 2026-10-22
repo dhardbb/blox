@@ -28,6 +28,7 @@ local function stateSim(a: number, b: number, u: number): State.StateSim
 		momentum = { 0, 0 },
 		backlash = { 0, 0 },
 		gotv = { 0, 0 },
+		debateShift = { 0, 0 },
 		pollError = { 0, 0 },
 		pollErrorUndecided = 0,
 		poll = nil,

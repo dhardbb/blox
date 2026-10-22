@@ -71,7 +71,7 @@ local Config = {
 	REGION_POLL_COST = 3, -- money for an internal poll of a whole region
 	INTERNAL_POLL_ERROR = 1, -- internal polls are within +/- this of the truth
 	GOTV_COST = 2, -- money per ground-game unit
-	GOTV_PER_UNIT = 1.0, -- election-day margin per unit (D-003)
+	GOTV_PER_UNIT = 1.5, -- election-day margin per unit (D-003; 1.0 -> 1.5 in D-021 so ground game beats media where it should)
 	GOTV_MAX_UNITS = 4, -- units per state per player
 	PIVOT_AP = 1, -- AP cost of the once-per-match platform pivot
 	PIVOT_PENALTY = 1, -- national support lost on a pivot
@@ -100,13 +100,13 @@ local Config = {
 	DEBATE_PREP = 6, -- default prep points per debate
 	DEBATE_MAX_PER_TOPIC = 4, -- prep cap on one topic
 	DEBATE_PLATFORM_BONUS = 2, -- score bonus when the topic is in your platform
-	DEBATE_ROLL_MAX = 2, -- seeded roll 0..this added to each topic score
+	DEBATE_ROLL_MAX = 6, -- seeded roll 0..this added to each topic score (2 -> 6 in D-019: a one-point edge is a nudge, not a lock)
 	DEBATE_STAT = 1, -- default debate stat
 	DEBATE_MAX_STAT_GAP = 2, -- no candidate's stat may exceed another's by more
-	DEBATE_TOPIC_WIN = 0.8, -- national points per topic won
-	DEBATE_SWEEP = 0.5, -- extra national points for a 3-0 sweep
+	DEBATE_TOPIC_WIN = 0.2, -- national points per topic won (0.8 -> 0.2 in D-019: each topic is worth ~12 EV of close states, not ~50)
+	DEBATE_SWEEP = 0.2, -- extra national points for a 3-0 sweep (0.5 -> 0.2, D-019)
 	DEBATE_SWEEP_MOMENTUM = 2, -- momentum in every battleground for a sweep
-	DEBATE_GAFFE = 0.5, -- national points lost for losing an unprepped topic
+	DEBATE_GAFFE = 0.2, -- national points lost for losing an unprepped topic (0.5 -> 0.2, D-019)
 
 	-- Anti-snowball (D-006)
 	CLOSING_MULT = 1.15, -- rallies and media in the closing weeks
@@ -117,8 +117,8 @@ local Config = {
 	UNDERDOG_RALLY_1 = 1.10, -- tier 1 rally multiplier
 	UNDERDOG_FUND_2 = 1.25, -- tier 2 fundraiser multiplier
 	UNDERDOG_RALLY_2 = 1.20, -- tier 2 rally multiplier
-	UNDERDOG_SMOOTHING = 0.5, -- EMA weight on the newest week's projected gap
-	UNDERDOG_HYSTERESIS = 20, -- EV below a threshold before leaving its tier
+	UNDERDOG_SMOOTHING = 0.4, -- EMA weight on the newest week's projected gap (0.5 -> 0.4, D-020)
+	UNDERDOG_HYSTERESIS = 30, -- EV below a threshold before leaving its tier (20 -> 30, D-020)
 
 	-- Events (Phase 5)
 	EVENT_CAP = 2, -- maximum points of effect from one event
