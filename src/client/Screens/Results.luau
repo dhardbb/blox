@@ -2,14 +2,20 @@
 -- Results: who won and why, the final electoral votes and states, both
 -- candidates, the closest states and the debate topics each side won. The
 -- player leaves with Back to lobby or goes straight into another match.
+--
+-- Layout (docs/UI-OVERHAUL.md §3.6): a scrolling column (banner, EV bar with
+-- the 270 tick, both players side by side, the closest states and the debates
+-- as Collapsibles) over the pinned ActionBar: "Play vs Bot again" / "Play
+-- again" (primary) and "Back to lobby".
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
 
+local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local Collapsible = require(script.Parent.Parent.UI.Collapsible)
 local Data = require(script.Parent.Common.Data)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
@@ -18,9 +24,11 @@ local Types = require(script.Parent.Types)
 local Screen = {}
 
 local MAX_WIDTH = 760 -- px
-local FOOTER = 64 -- px
 local CLOSEST_STATES = 5
 local TOTAL_EV = 538
+local WIN_EV = 270
+local EV_BAR_H = 14 -- px
+local TICK_W = 2 -- px, the 270 mark on the EV bar
 
 local DECIDED_BY: { [string]: string } = {
 	EV = "Decided on electoral votes.",
@@ -49,40 +57,26 @@ local function reasonText(payload: Session.StatePayload, election: State.Electio
 	return "Decided on election night."
 end
 
-local function playerColor(view: any, player: number): Color3
-	local entry = view.players[player]
-	return Kit.color(Colors.of(if entry then entry.color else nil))
-end
-
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
-	local page = Layout.page(parent, { maxWidth = MAX_WIDTH, footer = FOOTER })
-	local footer = page.footer :: Frame
-	Kit.list("Horizontal", 8).Parent = footer
+	local page = Layout.page(parent, { maxWidth = MAX_WIDTH, footer = Kit.BAR_H })
 
 	local rendered: Session.StatePayload? = nil
 	local details: Frame? = nil
+	local ratingLine: TextLabel? = nil
 
-	Kit.button("Back to lobby", function()
-		ctx.store.dismissResult()
-	end, {
-		Name = "BackToLobby",
-		LayoutOrder = 1,
-		Size = UDim2.new(0.5, -4, 1, 0),
-		TextSize = Kit.size.heading,
-		Parent = footer,
-	})
 	local againBot = false
-	local playAgain = Kit.button("Play again", function()
-		ctx.store.dismissResult()
-		ctx.net.send(if againBot then "Practice" else "Queue")
-	end, {
-		Name = "PlayAgain",
-		LayoutOrder = 2,
-		Size = UDim2.new(0.5, -4, 1, 0),
-		TextSize = Kit.size.heading,
-		BackgroundColor3 = Kit.colors.accent,
-		TextColor3 = Kit.colors.background,
-		Parent = footer,
+	local bar = ActionBar.new(page.footer :: Frame, {
+		primary = "Play again",
+		onPrimary = function()
+			ctx.store.dismissResult()
+			ctx.net.send(if againBot then "Practice" else "Queue")
+		end,
+		primaryName = "PlayAgain",
+		secondary = "Back to lobby",
+		onSecondary = function()
+			ctx.store.dismissResult()
+		end,
+		secondaryName = "BackToLobby",
 	})
 
 	local function label(into: Instance, text: string, props: { [string]: any }?): TextLabel
@@ -107,7 +101,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = into,
 		})
-		Kit.list("Vertical", 6).Parent = frame
+		Kit.list("Vertical", Kit.space.xs).Parent = frame
 		return frame
 	end
 
@@ -116,9 +110,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local election = view.election
 		local mine = player == current.you
 		local entry = view.players[player]
-		local tint = playerColor(view, player)
-		local box =
-			panel(into, if mine then "Player_You" else "Player_Opponent", order, UDim2.new(0.5, -4, 0, 0))
+		local tint = Kit.playerColor(view, player)
+		local box = panel(
+			into,
+			if mine then "Player_You" else "Player_Opponent",
+			order,
+			UDim2.new(0.5, -Kit.space.sm / 2, 0, 0)
+		)
 
 		label(box, if mine then "YOU" else "OPPONENT", {
 			Name = "Tag",
@@ -130,10 +128,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		label(box, if election then `{election.ev[player]} EV` else "- EV", {
 			Name = "EV",
 			LayoutOrder = 2,
-			Size = UDim2.new(1, 0, 0, 44),
+			Size = UDim2.new(1, 0, 0, Kit.size.title + 6),
 			AutomaticSize = Enum.AutomaticSize.None,
 			Font = Kit.font.bold,
-			TextSize = Kit.size.hero,
+			TextSize = Kit.size.title,
 			TextScaled = true,
 			TextColor3 = tint,
 		})
@@ -153,14 +151,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local colorRow = Kit.box({
 			Name = "ColorRow",
 			LayoutOrder = 5,
-			Size = UDim2.new(1, 0, 0, 22),
+			Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
 			Parent = box,
 		})
-		Kit.list("Horizontal", 6).Parent = colorRow
+		local rowList = Kit.list("Horizontal", Kit.space.sm)
+		rowList.VerticalAlignment = Enum.VerticalAlignment.Center
+		rowList.Parent = colorRow
 		local swatch = Kit.box({
 			Name = "Swatch",
 			LayoutOrder = 1,
-			Size = UDim2.fromOffset(16, 16),
+			Size = UDim2.fromOffset(Kit.space.lg, Kit.space.lg),
 			BackgroundTransparency = 0,
 			BackgroundColor3 = tint,
 			Parent = colorRow,
@@ -169,7 +169,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Kit.text(if entry and entry.color then entry.color else "No color", {
 			Name = "ColorName",
 			LayoutOrder = 2,
-			Size = UDim2.new(1, -22, 1, 0),
+			Size = UDim2.new(1, -(Kit.space.lg + Kit.space.sm), 1, 0),
 			TextColor3 = Kit.colors.muted,
 			Parent = colorRow,
 		})
@@ -196,13 +196,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = page.content,
 		})
-		Kit.list("Vertical", 12).Parent = column
+		Kit.list("Vertical", Kit.space.md).Parent = column
 		details = column
 
 		-- Banner.
 		local bannerText, bannerColor = "No result", Kit.colors.muted
 		if result and result.winner == you then
-			bannerText, bannerColor = "YOU WON", Kit.colors.good
+			bannerText, bannerColor = "You won", Kit.colors.good
 		elseif result and result.winner ~= 0 then
 			bannerText, bannerColor = "You lost", Kit.colors.danger
 		end
@@ -214,9 +214,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Kit.text(bannerText, {
 			Name = "Banner",
 			LayoutOrder = nextOrder(),
-			Size = UDim2.new(1, 0, 0, 72),
+			Size = UDim2.new(1, 0, 0, Kit.size.hero + 8),
 			Font = Kit.font.bold,
-			TextSize = 64,
+			TextSize = Kit.size.hero,
 			TextScaled = true,
 			TextColor3 = bannerColor,
 			TextXAlignment = Enum.TextXAlignment.Center,
@@ -228,26 +228,35 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextColor3 = Kit.colors.muted,
 			TextXAlignment = Enum.TextXAlignment.Center,
 		})
-		label(column, "", {
-			Name = "RatingChange",
+		-- The rating line's room is always there, so the layout never shifts when
+		-- the change arrives (rated matches only).
+		local slot = Kit.box({
+			Name = "RatingSlot",
 			LayoutOrder = nextOrder(),
-			TextColor3 = Kit.colors.accent,
+			Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
+			Parent = column,
+		})
+		ratingLine = Kit.text("", {
+			Name = "RatingChange",
+			Size = UDim2.fromScale(1, 1),
+			TextColor3 = Kit.colors.text,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Visible = false,
+			Parent = slot,
 		})
 
 		-- Electoral vote bar.
 		if election then
-			local bar = Kit.box({
+			local evBar = Kit.box({
 				Name = "EVBar",
 				LayoutOrder = nextOrder(),
-				Size = UDim2.new(1, 0, 0, 14),
+				Size = UDim2.new(1, 0, 0, EV_BAR_H),
 				BackgroundTransparency = 0,
 				BackgroundColor3 = Kit.colors.surface,
 				ClipsDescendants = true,
 				Parent = column,
 			})
-			Kit.corner(7).Parent = bar
+			Kit.corner(EV_BAR_H / 2).Parent = evBar
 			local left = 0
 			for player = 1, #view.players do
 				local share = election.ev[player] / TOTAL_EV
@@ -256,11 +265,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					Position = UDim2.fromScale(left, 0),
 					Size = UDim2.fromScale(share, 1),
 					BackgroundTransparency = 0,
-					BackgroundColor3 = playerColor(view, player),
-					Parent = bar,
+					BackgroundColor3 = Kit.playerColor(view, player),
+					Parent = evBar,
 				})
 				left += share
 			end
+			Kit.box({
+				Name = "Marker270",
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.fromScale(WIN_EV / TOTAL_EV, 0),
+				Size = UDim2.new(0, TICK_W, 1, 0),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = Kit.colors.text,
+				ZIndex = 2,
+				Parent = evBar,
+			})
 		end
 
 		-- You and your opponent, side by side.
@@ -271,7 +290,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = column,
 		})
-		Kit.list("Horizontal", 8).Parent = versus
+		Kit.list("Horizontal", Kit.space.sm).Parent = versus
 		local players: { number } = { you }
 		for player = 1, #view.players do
 			if player ~= you then
@@ -284,14 +303,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		-- The closest states, closest first.
 		if election and #election.results > 0 then
-			local box = panel(column, "Closest", nextOrder())
-			label(box, "Closest states", {
-				Name = "ClosestHeading",
-				LayoutOrder = 1,
-				Font = Kit.font.bold,
-				TextSize = Kit.size.heading,
+			local card = Collapsible.new(column, {
+				title = "Closest states",
+				expanded = true,
+				name = "Closest",
+				order = nextOrder(),
 			})
-			local row = 1
+			local box = card.body
+			local row = 0
 			for k = #election.results, math.max(1, #election.results - CLOSEST_STATES + 1), -1 do
 				local r = election.results[k]
 				local record = StateData.byId[r.state]
@@ -305,14 +324,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				label(box, `{stateName} ({votes} EV): {who}`, {
 					Name = `Closest_{r.state}`,
 					LayoutOrder = row,
-					TextColor3 = if r.winner == 0 then Kit.colors.muted else playerColor(view, r.winner),
+					TextColor3 = if r.winner == 0 then Kit.colors.muted else Kit.playerColor(view, r.winner),
 				})
 			end
 		end
 
 		-- Debate topics.
 		if #view.debates > 0 then
-			local box = panel(column, "Debates", nextOrder())
 			local mine, theirs = 0, 0
 			local lines: { string } = {}
 			for _, debate in view.debates do
@@ -332,16 +350,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				end
 				table.insert(lines, `Week {debate.week} - {table.concat(parts, ", ")}`)
 			end
-			label(box, `Debate topics won: you {mine}, opponent {theirs}`, {
-				Name = "DebateHeading",
-				LayoutOrder = 1,
-				Font = Kit.font.bold,
-				TextSize = Kit.size.heading,
+			local card = Collapsible.new(column, {
+				title = `Debate topics won: you {mine}, opponent {theirs}`,
+				expanded = true,
+				name = "Debates",
+				order = nextOrder(),
 			})
 			for index, line in lines do
-				label(box, line, {
+				label(card.body, line, {
 					Name = `Debate_{index}`,
-					LayoutOrder = index + 1,
+					LayoutOrder = index,
 					TextColor3 = Kit.colors.muted,
 				})
 			end
@@ -349,7 +367,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		local _, opponent = Data.opponent(current)
 		againBot = opponent ~= nil and opponent.kind == "Bot"
-		playAgain.Text = if againBot then "Practice again" else "Play again"
+		bar:setPrimary(if againBot then "Play vs Bot again" else "Play again", true)
 	end
 
 	local function relayout()
@@ -368,7 +386,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			-- Rated matches: "Rating 1000 → 1016 (+16)", once the server sends it.
 			local change = state.rating
-			local line = parent:FindFirstChild("RatingChange", true) :: TextLabel?
+			local line = ratingLine
 			if line and current and change and change.matchId == current.matchId then
 				local delta = change.after - change.before
 				line.Text =

@@ -63,10 +63,6 @@ export type Options = {
 Audit.PENDING = {
 	-- WP1 (map): NodeMap tap targets under 36 px, label/badge sizes, badges overhanging nodes.
 	NodeMap = { mapNodes = true, typeScale = true, contained = true },
-	-- WP2: Lobby, Select, Results.
-	Lobby = { primary = true, typeScale = true },
-	Select = { primary = true, oneAccent = true },
-	Results = { primary = true, typeScale = true },
 	-- WP3: Campaign.
 	Campaign = { primary = true, oneAccent = true },
 	-- WP4: Draft, Election.
