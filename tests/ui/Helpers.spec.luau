@@ -138,6 +138,8 @@ describe("PlanDraft", function()
 
 	it("a previewed plan with no problem passes the real validator", function()
 		local match = Match.new(C, 5, { "a", "b" })
+		local pick = { candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } }
+		match = Match.advance(C, match, { pick, pick })
 		while match.phase ~= "Plan" do
 			match = Match.advance(C, match, {})
 		end
