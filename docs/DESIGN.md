@@ -112,3 +112,12 @@ Values were estimated in contested-state margin points (MP), where 1 AP ≈ 6 MP
 - **In-house test framework** (`tests/lib/Test.luau`, ~150 lines of describe/it/expect) instead of a package: no Wally dependency, and it runs on plain Lune.
 - **Toolchain install:** `rokit install` normally; `scripts/bootstrap.sh` falls back to building from crates.io when GitHub release downloads are blocked (the Claude cloud sandbox as of Oct 22, 2026). luau-lsp is not on crates.io, so type checking runs in CI only there.
 - **Replays are bit-exact per runtime only:** Gaussian draws use `math.log`/`math.cos`, which may differ in the last bit between platforms. Replays and determinism tests compare within one runtime.
+
+## Phase 1: simulation core
+
+### D-014 — Map data conventions (Oct 22, 2026)
+
+- **Regions are the nine US Census divisions** (renamed: New England, Mid-Atlantic, Great Lakes, Plains, South Atlantic, Deep South, South Central, Mountain, Pacific), not the four Census regions. *Why:* the $3 region poll and Regional events need groups of comparable size; the four-region split puts 17 states in the South.
+- **Adjacency is shared land borders only.** Water-only neighbors (MI–MN, NY–RI) and the Four Corners point contacts (AZ–CO, UT–NM) are excluded, DC borders MD and VA, and Alaska and Hawaii have no neighbors (flight only). *Why:* a rule a player can check by looking at a map.
+- **Top issues are generic game data,** balanced so each issue is a top issue for 100–170 EV (current spread 106–160). Texas uses Farms instead of Technology to keep Technology from covering 180 EV. A spec enforces the band.
+- **Fundraising pools are derived, not stored:** capacity will be computed in `Config.luau` from state population (the next step), so pool tuning stays in one file.

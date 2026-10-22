@@ -36,7 +36,7 @@ local function codeOnly(source: string): string
 end
 
 local function simFiles(): { string }
-	local files = {}
+	local files = { "src/shared/Types.luau" }
 	for _, entry in fs.readDir(SIM_DIR) do
 		if string.match(entry, "%.luau$") then
 			table.insert(files, `{SIM_DIR}/{entry}`)
