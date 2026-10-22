@@ -17,6 +17,7 @@ local View = require("../Sim/View")
 local Remotes = require("../Net/Remotes")
 local Session = require("../Net/Session")
 local State = require("../Sim/State")
+local Swing = require("../UI/Swing")
 local Types = require("../Types")
 
 local Format = {}
@@ -177,7 +178,7 @@ function Format.eventLine(event: State.Event, you: number): string?
 	elseif kind == "InternalPolls" then
 		return `your {plural(amount, "internal poll")} came back`
 	elseif kind == "Choice" then
-		return `{who} took stance {issue} ({Numbers.signed(amount)} points over the states that reacted)`
+		return `{who} took stance {issue} ({Numbers.signed(amount)} points in all over the states it moved)`
 	elseif kind == "DebateTopic" then
 		if event.player == nil or event.player == 0 then
 			return `debate: {issue} tied`
@@ -326,12 +327,23 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	end
 	if view.event then
 		add("Event this week: " .. Format.event(view.event))
+		-- A Choice week: the states you need and what each stance would do (D-042).
+		if view.event.kind == "Choice" and view.phase == "Plan" then
+			add(Swing.needText(Config.defaults, view))
+			for k = 1, #Events.CHOICES do
+				local id: Types.Choice = Events.CHOICES[k]
+				add(
+					"  "
+						.. Swing.stanceSummary(Config.defaults, view, Swing.stance(Config.defaults, view, id))
+				)
+			end
+		end
 	end
 	if view.nextEvent then
 		add(`Next week's event (your pollster's briefing): {Format.event(view.nextEvent)}`)
 	end
-	local lastEvent = view.eventLog[#view.eventLog]
-	if lastEvent and lastEvent.week == view.week - 1 and lastEvent.choices and lastEvent.moves then
+	local lastEvent = Swing.lastChoice(view)
+	if lastEvent and lastEvent.choices and lastEvent.moves then
 		local definition = Events.byId[lastEvent.id]
 		add(
 			string.format(
@@ -342,6 +354,9 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 				#lastEvent.moves
 			)
 		)
+		for _, line in Swing.choiceLines(Config.defaults, view, lastEvent) do
+			add("  " .. line)
+		end
 	end
 	if view.debatePrep then
 		add(`Your prep: {table.concat(view.debatePrep, "/")}`)
@@ -354,6 +369,20 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 			table.insert(winners, `{topic}: {if w == you then "you" elseif w == 0 then "tie" else "them"}`)
 		end
 		add("Debate: " .. table.concat(winners, ", "))
+		for t = 1, #last.topics do
+			local entry = Swing.debateTopic(Config.defaults, view, last, t)
+			add("  " .. entry.line)
+			for _, gaffe in entry.gaffeLines do
+				add("  " .. gaffe)
+			end
+		end
+		local other: { string } = {}
+		for _, flip in Swing.debateOther(view, last) do
+			table.insert(other, Swing.flipPhrase(view, flip))
+		end
+		if #other > 0 then
+			add(`  And from the points every state got: {table.concat(other, ", ")}`)
+		end
 	end
 
 	local card = view.players[them].card
