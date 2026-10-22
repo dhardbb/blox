@@ -160,10 +160,10 @@ This keeps the original game's "match the message to the state" skill without an
 Three topics are drawn from the eight issues (seeded) and announced in the week card before the debate. During that week's plan, each player secretly allocates 6 prep points across the three topics, max 4 on one topic (prefilled 2/2/2).
 
 ```
-topicScore(P) = prep[P][topic] + (2 if topic in platform[P]) + debateStat[P] + seededRandom(0..2)
+topicScore(P) = prep[P][topic] + (2 if topic in platform[P]) + debateStat[P] + seededRandom(0..3)
 ```
 
-Higher score wins the topic; an exact tie gives the topic to nobody. Each topic won is +0.8 national support; a 3–0 sweep adds +0.5 and +2 momentum in every battleground state. Losing a topic you put 0 prep on is a gaffe: an extra −0.5. **"National" means average:** a national shift of X moves each state by X × (that state's undecided ÷ the population-weighted mean undecided), so the population-weighted average move is exactly X and debates matter most where voters are still undecided. A sweep is worth about 3 points nationally: meaningful, never decisive. No candidate's debate stat may exceed another's by more than 2.
+Higher score wins the topic; an exact tie gives the topic to nobody. Each topic won is +0.3 national support; a 3–0 sweep adds +0.3 and +2 momentum in every battleground state. Losing a topic you put 0 prep on is a gaffe: an extra −0.3. **"National" means average:** a national shift of X moves each state by X × (that state's undecided ÷ the population-weighted mean undecided), so the population-weighted average move is exactly X and debates matter most where voters are still undecided. A sweep is worth 1.2 points nationally, about one big close state: meaningful, never decisive. Against the 0..3 roll a 2-point prep edge wins its topic 81% of the time and loses 6%; a 1-point edge wins 62%. No candidate's debate stat may exceed another's by more than 2. (Revision 1 had a 0..2 roll and 0.8 / 0.5 / −0.5; balance pass 1 cut the payoffs to 0.2 and widened the roll to 0..6, which made prep feel like noise; balance pass 2 set the numbers above: `DESIGN.md` D-019, D-033.)
 
 ### Events (Phase 5)
 
@@ -207,7 +207,7 @@ The design has five anti-snowball levers and one rubber band; keep all of them t
 5. **Closing argument.** Rallies and media in weeks 10–12 get ×1.15. Late game must matter at least as much as early game.
 6. **Underdog rubber band (the only one).** Trailing by 40+ projected EV: fundraisers ×1.15, rallies ×1.10. Trailing by 100+: ×1.25 and ×1.20. Measured from public polls, so it is visible to both, but smoothed: the gap is an exponential average with weight 0.5 on the newest week, and a tier switches on at its threshold and only switches off once the smoothed gap falls 20 EV below it. One noisy poll cannot toggle it. There is no underdog cash bonus.
 
-Variance budget. The only sources of randomness, all drawn from the per-match seed: draft priority (who is A), state leans, public poll noise, debate rolls (0–2 per topic), the event deck order, and election-day noise. Nothing else rolls dice. The same seed plus the same inputs must replay the same match exactly; this is also how replays, spectating, and regression tests work.
+Variance budget. The only sources of randomness, all drawn from the per-match seed: draft priority (who is A), state leans, public poll noise, debate rolls (0–3 per topic), the event deck order, and election-day noise. Nothing else rolls dice. The same seed plus the same inputs must replay the same match exactly; this is also how replays, spectating, and regression tests work.
 
 Required balance harness (`tests/harness/balance.luau`, run with Lune): play N bot-vs-bot matches (N = 2,000 should finish in under two minutes) and report per candidate win rate, the full 8×8 candidate matchup matrix, win rate by draft priority (A vs B), mean and median final EV margin, comeback rate (winner was trailing in true EV at week 8), average money unspent at the end, and distribution of game-deciding margins. Red flags that block a release: any candidate outside 45–55%, any matchup outside 40–60%, priority win rate outside 47–53%, comeback rate below 20% or above 40%, or more than 65% of matches decided by 40+ EV, a median margin over 60 EV, or more than 25% decided by 100+ EV (revised from "15% by 40+ EV", `DESIGN.md` D-024).
 

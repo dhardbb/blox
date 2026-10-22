@@ -40,7 +40,7 @@ local Config = {
 	BIG_STATE_EV = 20, -- states at or above this EV get reduced draft bonuses and leans
 	HOME_BONUS = 12, -- support added in the home state
 	HOME_BONUS_BIG = 6, -- home bonus in a big state
-	HOME_FUNDRAISE_MULT = 1.5, -- fundraiser yield multiplier at home, all game
+	HOME_FUNDRAISE_MULT = 1.25, -- fundraiser yield multiplier at home, all game (1.5 -> 1.25 in D-034: home funding was the whole economy)
 	STRONGHOLD_BONUS = 8, -- support added in a stronghold
 	STRONGHOLD_BONUS_BIG = 4, -- stronghold bonus in a big state
 	STRONGHOLD_ROUNDS = 5, -- draft rounds 1-5 pick strongholds
@@ -57,7 +57,8 @@ local Config = {
 	POOL_BASE = 6, -- state fundraising pool capacity: base
 	POOL_PER_MILLION = 0.25, -- plus this per million population
 	POOL_MAX = 12, -- capped so no state funds three fundraisers in one week (D-012, D-015)
-	POOL_REFILL = 0.25, -- share of capacity refilled each week
+	POOL_START = 0.5, -- share of capacity a pool holds when the match starts (D-034: no week-1 bonanza)
+	POOL_REFILL = 0.5, -- share of capacity refilled each week (0.25 -> 0.5 in D-034: a state worked weekly pays the same every week)
 	MEDIA_COST = 3, -- money per media buy
 	MEDIA_SUPPORT = 1.6, -- base support from a media buy
 	MEDIA_MOMENTUM = 1, -- momentum from a positive media buy
@@ -100,13 +101,13 @@ local Config = {
 	DEBATE_PREP = 6, -- default prep points per debate
 	DEBATE_MAX_PER_TOPIC = 4, -- prep cap on one topic
 	DEBATE_PLATFORM_BONUS = 2, -- score bonus when the topic is in your platform
-	DEBATE_ROLL_MAX = 6, -- seeded roll 0..this added to each topic score (2 -> 6 in D-019: a one-point edge is a nudge, not a lock)
+	DEBATE_ROLL_MAX = 3, -- seeded roll 0..this added to each topic score (2 -> 6 in D-019, 6 -> 3 in D-033: a 2-point prep edge wins 81%, a 1-point edge 62%)
 	DEBATE_STAT = 1, -- default debate stat
 	DEBATE_MAX_STAT_GAP = 2, -- no candidate's stat may exceed another's by more
-	DEBATE_TOPIC_WIN = 0.2, -- national points per topic won (0.8 -> 0.2 in D-019: each topic is worth ~12 EV of close states, not ~50)
-	DEBATE_SWEEP = 0.2, -- extra national points for a 3-0 sweep (0.5 -> 0.2, D-019)
+	DEBATE_TOPIC_WIN = 0.3, -- national points per topic won (0.8 -> 0.2 in D-019; 0.2 -> 0.3 in D-033: players could not feel 0.2)
+	DEBATE_SWEEP = 0.3, -- extra national points for a 3-0 sweep (0.5 -> 0.2 in D-019, 0.3 in D-033: a sweep is worth 1.2, about one big state)
 	DEBATE_SWEEP_MOMENTUM = 2, -- momentum in every battleground for a sweep
-	DEBATE_GAFFE = 0.2, -- national points lost for losing an unprepped topic (0.5 -> 0.2, D-019)
+	DEBATE_GAFFE = 0.3, -- national points lost for losing an unprepped topic (0.5 -> 0.2 in D-019, 0.3 in D-033: a zero is a risk, not a shrug)
 
 	-- Anti-snowball (D-006)
 	CLOSING_MULT = 1.15, -- rallies and media in the closing weeks
@@ -128,15 +129,17 @@ local Config = {
 	EVENT_SPOTLIGHT_MULT = 1.3, -- rallies and positive media on the spotlight issue, every state
 	EVENT_REGIONAL_MULT = 1.5, -- rallies in the event's region
 	EVENT_WINDFALL_MULT = 1.2, -- fundraisers where the fundraiser trails in the public poll (PLAN 1.5 -> 1.2, D-027: cheap media turned it into a Venkat edge)
-	-- Choice payoff matrix: national points for the row choice against the column choice
-	CHOICE_ATTACK_ATTACK = -0.2, -- both attack: mutual mudslinging
+	-- Choice payoff matrix: national points for the row choice against the column choice.
+	-- Attack beats Ignore, Defend beats Attack, Ignore beats Defend; the winner of each
+	-- exchange gains and the loser loses (D-036: the old matrix paid winners nothing).
+	CHOICE_ATTACK_ATTACK = -0.2, -- both attack: mutual mudslinging, both lose
 	CHOICE_ATTACK_DEFEND = -0.3, -- attack into a prepared defense backfires
-	CHOICE_ATTACK_IGNORE = 0.2, -- attack lands on an opponent who ignored it
-	CHOICE_DEFEND_ATTACK = 0, -- a defense that was needed costs nothing
-	CHOICE_DEFEND_DEFEND = -0.2, -- both defend: wasted effort
-	CHOICE_DEFEND_IGNORE = -0.2, -- defending against nothing costs a little
+	CHOICE_ATTACK_IGNORE = 0.3, -- attack lands on an opponent who ignored it
+	CHOICE_DEFEND_ATTACK = 0.2, -- the defense turns the attack around
+	CHOICE_DEFEND_DEFEND = 0, -- both defend: a quiet week
+	CHOICE_DEFEND_IGNORE = -0.2, -- defending against nothing looks weak
 	CHOICE_IGNORE_ATTACK = -0.2, -- ignoring an attack lets it land
-	CHOICE_IGNORE_DEFEND = 0, -- ignoring while the opponent wastes effort costs nothing
+	CHOICE_IGNORE_DEFEND = 0.2, -- staying above a needless defense looks strong
 	CHOICE_IGNORE_IGNORE = 0, -- both ignore: nothing happens
 
 	-- Timers (D-005)

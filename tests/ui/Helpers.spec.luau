@@ -270,7 +270,8 @@ describe("PlanDraft weekly events", function()
 			"Rallies and ads about Jobs are worth ×2 this week"
 		)
 		expect(PlanDraft.choiceNote(C)):toBe(
-			"Attack beats Ignore (+0.2 national points), Defend beats Attack, Ignore beats Defend. A wrong guess costs up to 0.3; answers stay secret until the week resolves."
+			-- Numbers follow the D-036 matrix (balance pass 2).
+			"Attack beats Ignore (+0.3 national points), Defend beats Attack, Ignore beats Defend. A wrong guess costs up to 0.3; answers stay secret until the week resolves."
 		)
 	end)
 
@@ -299,7 +300,8 @@ describe("PlanDraft weekly events", function()
 		local week = match.week
 		local view = View.build(C, match, 1)
 		expect(PlanDraft.lastEventLine(view)):toBe(nil)
-		-- Player 1 defends against an attack: nothing for them, the backfire for the attacker.
+		-- Player 1 defends against an attack: the turnaround for them, the backfire for the
+		-- attacker (D-036 matrix).
 		local after = Match.advance(C, match, {
 			{ actions = {}, choice = "Defend" },
 			{ actions = {}, choice = "Attack" },
@@ -311,11 +313,11 @@ describe("PlanDraft weekly events", function()
 		local mine = View.build(C, after, 1)
 		expect(mine.week):toBe(week + 1)
 		expect(PlanDraft.lastEventLine(mine)):toBe(
-			`Last week's event: {name}. You defended, they attacked: +0.0 / -0.3 national points.`
+			`Last week's event: {name}. You defended, they attacked: +0.2 / -0.3 national points.`
 		)
 		local theirs = View.build(C, after, 2)
 		expect(PlanDraft.lastEventLine(theirs)):toBe(
-			`Last week's event: {name}. You attacked, they defended: -0.3 / +0.0 national points.`
+			`Last week's event: {name}. You attacked, they defended: -0.3 / +0.2 national points.`
 		)
 	end)
 

@@ -126,7 +126,7 @@ describe("Commands.parse", function()
 		session.match = Match.advance(C, match, { { actions = {}, choice = "Attack" } })
 		board = Format.board(Session.payload(session, 1), 0)
 		expect(
-			string.find(board, "Last week's event Viral clip: you Attack (+0.2), them Ignore (-0.2)", 1, true)
+			string.find(board, "Last week's event Viral clip: you Attack (+0.3), them Ignore (-0.2)", 1, true)
 				~= nil
 		):toBe(true)
 		expect(string.find(board, "choice Ignore", 1, true) ~= nil):toBe(true)

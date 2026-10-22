@@ -147,7 +147,7 @@ describe("Resolve: rallies, momentum and drift", function()
 end)
 
 describe("Resolve: fundraisers", function()
-	it("yield 2 + 6 x share, capped by the pool, which refills 25% a week", function()
+	it("yield 2 + 6 x share, capped by the pool, which refills POOL_REFILL a week", function()
 		local match = clean()
 		local pool = at(match, "OH").capacity
 		match = run(match, { { kind = "Fundraise", state = "OH" } }, {})
@@ -155,6 +155,49 @@ describe("Resolve: fundraisers", function()
 		expect(match.players[1].raised):toBeCloseTo(raised)
 		expect(match.players[1].cash):toBeCloseTo(50 + raised + C.PASSIVE_INCOME)
 		expect(at(match, "OH").pool):toBeCloseTo(math.min(pool, pool - raised + pool * C.POOL_REFILL))
+	end)
+
+	it("pools start part full, so week 1 cannot be a bonanza (D-034)", function()
+		-- Playtest 1: three home fundraisers in week 1 raised $18-20, then pools were
+		-- dry for the rest of the match. A new match's pools hold POOL_START of capacity.
+		local fresh = Fixtures.campaign({ seed = 21, candidates = { "hale", "hale" }, platforms = SAME })
+		for _, s in fresh.states do
+			expect(s.pool):toBeCloseTo(s.capacity * C.POOL_START)
+		end
+		local match = clean()
+		local tx = at(match, "TX")
+		tx.pool = tx.capacity * C.POOL_START
+		tx.isHome, tx.owner = true, 1
+		tx.support = { 35 + C.HOME_BONUS_BIG, 35 }
+		tx.undecided = 30 - C.HOME_BONUS_BIG
+		match.players[1].location = "TX"
+		local fund = { kind = "Fundraise", state = "TX" }
+		match = run(match, { fund, fund, fund }, {})
+		expect(match.players[1].raised < 10):toBe(true)
+	end)
+
+	it("a home state worked once a week pays about the same every week (D-034)", function()
+		-- The pool refills faster than one fundraiser drains it, so the yield is flat
+		-- instead of $7 for four weeks and $4.5 after (the D-012 numbers).
+		local match = clean()
+		local oh = at(match, "OH")
+		oh.pool = oh.capacity * C.POOL_START
+		oh.isHome, oh.owner = true, 1
+		oh.support = { 35 + C.HOME_BONUS, 35 }
+		oh.undecided = 30 - C.HOME_BONUS
+		local raised = {}
+		for _ = 1, 6 do
+			match = run(match, { { kind = "Fundraise", state = "OH" } }, {})
+			table.insert(raised, match.players[1].raised)
+			match = Fixtures.advanceTo(match, "Plan") -- past the week-4 debate
+			at(match, "OH").support = { 35 + C.HOME_BONUS, 35 } -- hold support and the rubber band still
+			at(match, "OH").undecided = 30 - C.HOME_BONUS
+			match.players[1].underdogTier = 0
+		end
+		for week = 2, 6 do
+			expect(math.abs(raised[week] - raised[1]) / raised[1] < 0.1):toBe(true)
+		end
+		expect(raised[1] >= 5 and raised[1] <= 7):toBe(true)
 	end)
 
 	it("two fundraisers in one pool split it in proportion to their yields", function()

@@ -81,7 +81,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 			lean = leans[i].lean,
 			leanTo = leans[i].leanTo,
 			capacity = capacity,
-			pool = capacity,
+			pool = capacity * config.POOL_START,
 			battleground = false,
 			owner = nil,
 			isHome = false,

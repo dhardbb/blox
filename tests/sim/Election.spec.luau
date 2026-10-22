@@ -170,6 +170,32 @@ describe("Debates", function()
 		end
 	end)
 
+	it("a 2-point prep edge usually wins its topic, and 4 against 0 always does (D-033)", function()
+		-- Same platforms and stats, so only prep and the roll differ. Topic 1 is 4 vs 2,
+		-- topic 2 is 2 vs 2, topic 3 is 0 vs 4.
+		local same = { { "Jobs", "Health", "Schools" }, { "Jobs", "Health", "Schools" } }
+		local won, lost, swept = 0, 0, 0
+		local n = 150
+		for seed = 1, n do
+			local match =
+				Fixtures.advanceTo(Fixtures.campaign({ seed = seed, platforms = same }), "Debate", 4)
+			match.players[1].debatePrep = { 4, 2, 0 }
+			match.players[2].debatePrep = { 2, 2, 4 }
+			local result = Debate.resolve(C, match)
+			if result.winners[1] == 1 then
+				won += 1
+			elseif result.winners[1] == 2 then
+				lost += 1
+			end
+			if result.winners[3] == 2 then
+				swept += 1
+			end
+		end
+		expect(won / n >= 0.72):toBe(true)
+		expect(lost / n <= 0.14):toBe(true)
+		expect(swept):toBe(n)
+	end)
+
 	it("missing prep defaults to an even spread", function()
 		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Debate", 4)
 		expect(match.players[1].debatePrep):toEqual({ 2, 2, 2 })
