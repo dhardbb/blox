@@ -122,15 +122,15 @@ describe("Resolve: rallies, momentum and drift", function()
 		expect(at(match, "OH").momentum[1]):toBe(C.MOMENTUM_CAP * C.MOMENTUM_DECAY)
 	end)
 
-	it("Tomas gains 50% more momentum and keeps only 25%", function()
+	it("Tomas gains 65% more momentum and keeps only 25%", function()
 		local match = run(
 			clean({ "reyes", "hale" }),
 			{ { kind = "Rally", state = "OH", issue = "Jobs" } },
 			{}
 		)
-		expect(at(match, "OH").momentum[1]):toBe(3)
+		expect(at(match, "OH").momentum[1]):toBe(3.3)
 		match = run(match, {}, {})
-		expect(at(match, "OH").momentum[1]):toBe(0.75)
+		expect(at(match, "OH").momentum[1]):toBe(0.825)
 	end)
 
 	it("only the momentum leader drifts, by the gap, capped at 3", function()
