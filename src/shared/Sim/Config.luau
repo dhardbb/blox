@@ -104,10 +104,11 @@ local Config = {
 	DEBATE_ROLL_MAX = 3, -- seeded roll 0..this added to each topic score (2 -> 6 in D-019, 6 -> 3 in D-033: a 2-point prep edge wins 81%, a 1-point edge 62%)
 	DEBATE_STAT = 1, -- default debate stat
 	DEBATE_MAX_STAT_GAP = 2, -- no candidate's stat may exceed another's by more
-	DEBATE_TOPIC_WIN = 0.3, -- national points per topic won (0.8 -> 0.2 in D-019; 0.2 -> 0.3 in D-033: players could not feel 0.2)
-	DEBATE_SWEEP = 0.3, -- extra national points for a 3-0 sweep (0.5 -> 0.2 in D-019, 0.3 in D-033: a sweep is worth 1.2, about one big state)
+	DEBATE_TOPIC_WIN = 1.0, -- support points per topic won, in every state where the topic is a top issue (D-040: debates move states, not a national average; 1.2 sat on the 25% decide line)
+	DEBATE_TOPIC_NATIONAL = 0.1, -- flat support points in every state per topic won (the small national part, D-040)
+	DEBATE_SWEEP = 0.2, -- flat national points in every state for a 3-0 sweep (D-040)
 	DEBATE_SWEEP_MOMENTUM = 2, -- momentum in every battleground for a sweep
-	DEBATE_GAFFE = 0.3, -- national points lost for losing an unprepped topic (0.5 -> 0.2 in D-019, 0.3 in D-033: a zero is a risk, not a shrug)
+	DEBATE_GAFFE = 0.6, -- support points lost in every state where the topic is a top issue, for losing an unprepped topic (D-040)
 
 	-- Anti-snowball (D-006)
 	CLOSING_MULT = 1.15, -- rallies and media in the closing weeks
@@ -129,18 +130,14 @@ local Config = {
 	EVENT_SPOTLIGHT_MULT = 1.3, -- rallies and positive media on the spotlight issue, every state
 	EVENT_REGIONAL_MULT = 1.5, -- rallies in the event's region
 	EVENT_WINDFALL_MULT = 1.2, -- fundraisers where the fundraiser trails in the public poll (PLAN 1.5 -> 1.2, D-027: cheap media turned it into a Venkat edge)
-	-- Choice payoff matrix: national points for the row choice against the column choice.
-	-- Attack beats Ignore, Defend beats Attack, Ignore beats Defend; the winner of each
-	-- exchange gains and the loser loses (D-036: the old matrix paid winners nothing).
-	CHOICE_ATTACK_ATTACK = -0.2, -- both attack: mutual mudslinging, both lose
-	CHOICE_ATTACK_DEFEND = -0.3, -- attack into a prepared defense backfires
-	CHOICE_ATTACK_IGNORE = 0.3, -- attack lands on an opponent who ignored it
-	CHOICE_DEFEND_ATTACK = 0.2, -- the defense turns the attack around
-	CHOICE_DEFEND_DEFEND = 0, -- both defend: a quiet week
-	CHOICE_DEFEND_IGNORE = -0.2, -- defending against nothing looks weak
-	CHOICE_IGNORE_ATTACK = -0.2, -- ignoring an attack lets it land
-	CHOICE_IGNORE_DEFEND = 0.2, -- staying above a needless defense looks strong
-	CHOICE_IGNORE_IGNORE = 0, -- both ignore: nothing happens
+	-- Choice events are stances on an issue (D-039). Only states where the event's
+	-- issue is a top issue react, by their other top issue: liked +STANCE_POINTS,
+	-- disliked -STANCE_POINTS, otherwise (and for the hedge stance) +STANCE_HEDGE,
+	-- all x STANCE_PLATFORM_MULT for a candidate whose platform carries the issue.
+	STANCE_POINTS = 1.5, -- support points a stance adds (or costs) in a state that likes (dislikes) it
+	STANCE_HEDGE = 0.3, -- support points the hedge stance, or an indifferent state, gives where the issue is a top issue
+	STANCE_PLATFORM_MULT = 1.5, -- every reaction is this much stronger when the issue is on your platform (states listen harder; capped at EVENT_CAP)
+	STANCE_SPILL = 0, -- a state without the issue still moves this much per liked (+) or disliked (-) top issue of its own (0 = only the issue's states react)
 
 	-- Timers (D-005)
 	TIMER_SELECT = 30, -- candidate, color and platform

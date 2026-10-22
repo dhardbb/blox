@@ -35,6 +35,11 @@ export type Record = {
 	gotvDecided: boolean, -- the winner changes if GOTV is removed
 	debateDecided: boolean, -- the winner changes if the debates' support shifts are removed
 	debateShiftEV: number, -- |EV swing| the debates' shifts account for in the final count
+	stanceDecided: boolean, -- the winner changes if the Choice stances' support shifts are removed
+	stanceShiftEV: number, -- |EV swing| the stances' shifts account for in the final count
+	stances: { [string]: number }, -- how often each stance slot was taken, both players
+	choiceWeeks: number, -- Choice events dealt into this match
+	sameStance: number, -- Choice events where both players took the same stance (their moves then mostly cancel)
 	projectionWrong: boolean, -- the week-12 projected leader lost
 	leanEV: { number }, -- EV of states leaning toward each player
 	leanedStates: number,
@@ -155,6 +160,21 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	projectionWrong = projectedLeader ~= 0 and projectedLeader ~= result.winner
 	local noGotv = Election.count(config, match, { gotv = false })
 	local noDebates = Election.count(config, match, { debates = false })
+	local noStances = Election.count(config, match, { stances = false })
+	local stances: { [string]: number } = {}
+	local choiceWeeks, sameStance = 0, 0
+	for _, logged in match.eventLog do
+		local choices = logged.choices
+		if choices then
+			choiceWeeks += 1
+			for _, id in choices do
+				stances[id] = (stances[id] or 0) + 1
+			end
+			if choices[1] == choices[2] then
+				sameStance += 1
+			end
+		end
+	end
 	local tossupElection, spread = tossupEV(config, match, true)
 
 	local leanEV = { 0, 0 }
@@ -203,6 +223,11 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		gotvDecided = noGotv.winner ~= result.winner,
 		debateDecided = noDebates.winner ~= result.winner,
 		debateShiftEV = math.abs((result.ev[1] - result.ev[2]) - (noDebates.ev[1] - noDebates.ev[2])) / 2,
+		stanceDecided = noStances.winner ~= result.winner,
+		stanceShiftEV = math.abs((result.ev[1] - result.ev[2]) - (noStances.ev[1] - noStances.ev[2])) / 2,
+		stances = stances,
+		choiceWeeks = choiceWeeks,
+		sameStance = sameStance,
 		projectionWrong = projectionWrong,
 		leanEV = leanEV,
 		leanedStates = leanedStates,

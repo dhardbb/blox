@@ -368,7 +368,7 @@ function PlanDraft.eventEffect(config: Config, event: ViewModule.EventView): str
 			config.EVENT_WINDFALL_MULT
 		)} this week`
 	end
-	return "Choose how to respond: Attack / Defend / Ignore"
+	return "Take a stance: A / B / C"
 end
 
 -- The states a Spotlight or Regional event singles out, as a set of state ids
@@ -399,32 +399,24 @@ function PlanDraft.eventMapNote(event: ViewModule.EventView): string?
 	return nil
 end
 
--- One sentence on the Choice tradeoff, from the payoff matrix in Config.
+-- One sentence on how a stance lands, from Config (D-039).
 function PlanDraft.choiceNote(config: Config): string
-	local worst = math.max(
-		math.abs(config.CHOICE_ATTACK_DEFEND),
-		math.abs(config.CHOICE_ATTACK_ATTACK),
-		math.abs(config.CHOICE_DEFEND_DEFEND),
-		math.abs(config.CHOICE_DEFEND_IGNORE),
-		math.abs(config.CHOICE_IGNORE_ATTACK)
-	)
-	return `Attack beats Ignore ({points(config.CHOICE_ATTACK_IGNORE)} national points), Defend beats Attack, Ignore beats Defend. A wrong guess costs up to {string.format(
-		"%.1f",
-		worst
-	)}; answers stay secret until the week resolves.`
+	return `Only states with this issue as a top issue react, by their other top issue: {points(
+		config.STANCE_POINTS
+	)} where a stance is liked, {points(-config.STANCE_POINTS)} where it is not, {points(config.STANCE_HEDGE)} otherwise. C is the hedge: {points(
+		config.STANCE_HEDGE
+	)} in every such state. A candidate who runs on the issue is heard ×{config.STANCE_PLATFORM_MULT}. Stances stay secret until the week resolves.`
 end
-
-local VERB: { [string]: string } = { Attack = "attacked", Defend = "defended", Ignore = "ignored" }
 
 PlanDraft.points = points
 
--- "attacked", "defended" or "ignored" for a Choice answer.
+-- "took stance A" for a Choice stance.
 function PlanDraft.choiceVerb(choice: string): string
-	return VERB[choice] or choice
+	return `took stance {choice}`
 end
 
 -- Last week's resolved event for the week card, or nil. A Choice event names
--- both answers and the national points each side got.
+-- both stances and the support each side's stance asked for, summed over states.
 function PlanDraft.lastEventLine(view: View): string?
 	local entry = nil
 	for _, result in view.eventLog do
@@ -437,8 +429,8 @@ function PlanDraft.lastEventLine(view: View): string?
 	end
 	local event = Events.byId[entry.id]
 	local name = if event then event.name else "an event"
-	local choices, national = entry.choices, entry.national
-	if choices == nil or national == nil then
+	local choices, moves = entry.choices, entry.moves
+	if choices == nil or moves == nil then
 		return `Last week's event: {name}.`
 	end
 	local you = view.you
@@ -447,9 +439,14 @@ function PlanDraft.lastEventLine(view: View): string?
 	if mine == nil or theirs == nil then
 		return `Last week's event: {name}.`
 	end
-	return `Last week's event: {name}. You {PlanDraft.choiceVerb(mine)}, they {PlanDraft.choiceVerb(theirs)}: {points(
-		national[you] or 0
-	)} / {points(national[them] or 0)} national points.`
+	local net = { 0, 0 }
+	for _, move in moves do
+		net[1] += move.points[you] or 0
+		net[2] += move.points[them] or 0
+	end
+	return `Last week's event: {name}. You {PlanDraft.choiceVerb(mine)}, they {PlanDraft.choiceVerb(theirs)}: {#moves} states moved, {points(
+		net[1]
+	)} / {points(net[2])} points in all.`
 end
 
 return table.freeze(PlanDraft)

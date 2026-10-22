@@ -8,8 +8,10 @@ local Events = require("@sim/Events")
 local Fixtures = require("@ui/Fixtures")
 local MapLayout = require("@ui/MapLayout")
 local Match = require("@sim/Match")
+local Numbers = require("@ui/Numbers")
 local Plan = require("@sim/Plan")
 local PlanDraft = require("@ui/PlanDraft")
+local State = require("@sim/State")
 local StateData = require("@sim/StateData")
 local View = require("@sim/View")
 
@@ -208,14 +210,14 @@ local function planWeek(seed: number, choice: boolean): Match.MatchState
 end
 
 describe("PlanDraft weekly events", function()
-	it("sends a Choice answer only when one is set, and the server accepts it", function()
+	it("sends a Choice stance only when one is set, and the server accepts it", function()
 		local match = planWeek(1, true)
 		local view = View.build(C, match, 1)
 		local draft = PlanDraft.new()
 		expect(PlanDraft.isChoiceWeek(view)):toBe(true)
 		expect(PlanDraft.payload(draft).choice):toBe(nil)
-		draft.choice = "Attack"
-		expect(PlanDraft.payload(draft).choice):toBe("Attack")
+		draft.choice = "A"
+		expect(PlanDraft.payload(draft).choice):toBe("A")
 		expect(PlanDraft.problem(C, view, draft)):toBe(nil)
 		for _, answer in Events.CHOICES do
 			draft.choice = answer
@@ -225,13 +227,13 @@ describe("PlanDraft weekly events", function()
 		end
 	end)
 
-	it("rejects a Choice answer in any other week, like the server", function()
+	it("rejects a Choice stance in any other week, like the server", function()
 		local match = planWeek(1, false)
 		local view = View.build(C, match, 1)
 		expect(PlanDraft.isChoiceWeek(view)):toBe(false)
 		local draft = PlanDraft.new()
 		expect(PlanDraft.problem(C, view, draft)):toBe(nil)
-		draft.choice = "Defend"
+		draft.choice = "B"
 		expect(PlanDraft.problem(C, view, draft)):toBe(Plan.Reason.UnexpectedChoice)
 		local ok, reason = Match.validate(C, match, 1, PlanDraft.payload(draft))
 		expect(ok):toBe(false)
@@ -262,16 +264,14 @@ describe("PlanDraft weekly events", function()
 		expect(windfall):toBe(
 			"Fundraisers in states where you trail in the public poll raise ×1.2 this week"
 		)
-		expect(PlanDraft.eventEffect(C, event("Choice", nil, nil))):toBe(
-			"Choose how to respond: Attack / Defend / Ignore"
-		)
+		expect(PlanDraft.eventEffect(C, event("Choice", nil, nil))):toBe("Take a stance: A / B / C")
 		local more = Config.with(C, { EVENT_SPOTLIGHT_MULT = 2 })
 		expect(PlanDraft.eventEffect(more, event("Spotlight", "Jobs", nil))):toBe(
 			"Rallies and ads about Jobs are worth ×2 this week"
 		)
 		expect(PlanDraft.choiceNote(C)):toBe(
-			-- Numbers follow the D-036 matrix (balance pass 2).
-			"Attack beats Ignore (+0.3 national points), Defend beats Attack, Ignore beats Defend. A wrong guess costs up to 0.3; answers stay secret until the week resolves."
+			-- Numbers follow D-039 (stances).
+			`Only states with this issue as a top issue react, by their other top issue: +{C.STANCE_POINTS} where a stance is liked, -{C.STANCE_POINTS} where it is not, +{C.STANCE_HEDGE} otherwise. C is the hedge: +{C.STANCE_HEDGE} in every such state. A candidate who runs on the issue is heard ×{C.STANCE_PLATFORM_MULT}. Stances stay secret until the week resolves.`
 		)
 	end)
 
@@ -295,29 +295,36 @@ describe("PlanDraft weekly events", function()
 		expect(PlanDraft.eventMapNote(event("Windfall", nil, nil))):toBe(nil)
 	end)
 
-	it("reports last week's event with both Choice answers and the national points", function()
+	it("reports last week's event with both stances and the points each asked for", function()
 		local match = planWeek(1, true)
 		local week = match.week
-		local view = View.build(C, match, 1)
-		expect(PlanDraft.lastEventLine(view)):toBe(nil)
-		-- Player 1 defends against an attack: the turnaround for them, the backfire for the
-		-- attacker (D-036 matrix).
 		local after = Match.advance(C, match, {
-			{ actions = {}, choice = "Defend" },
-			{ actions = {}, choice = "Attack" },
+			{ actions = {}, choice = "B" },
+			{ actions = {}, choice = "A" },
 		})
 		while after.phase ~= "Plan" and after.week == week do
 			after = Match.advance(C, after, {})
 		end
-		local name = (Events.at(match) :: Events.Definition).name
+		local event = Events.at(match) :: Events.Definition
+		local logged = after.eventLog[#after.eventLog]
+		local moves = logged.moves :: { State.StateMove }
+		local net = { 0, 0 }
+		for _, move in moves do
+			net[1] += move.points[1]
+			net[2] += move.points[2]
+		end
 		local mine = View.build(C, after, 1)
 		expect(mine.week):toBe(week + 1)
 		expect(PlanDraft.lastEventLine(mine)):toBe(
-			`Last week's event: {name}. You defended, they attacked: +0.2 / -0.3 national points.`
+			`Last week's event: {event.name}. You took stance B, they took stance A: {#moves} states moved, {Numbers.signed(
+				net[1]
+			)} / {Numbers.signed(net[2])} points in all.`
 		)
 		local theirs = View.build(C, after, 2)
 		expect(PlanDraft.lastEventLine(theirs)):toBe(
-			`Last week's event: {name}. You attacked, they defended: -0.3 / +0.2 national points.`
+			`Last week's event: {event.name}. You took stance A, they took stance B: {#moves} states moved, {Numbers.signed(
+				net[2]
+			)} / {Numbers.signed(net[1])} points in all.`
 		)
 	end)
 

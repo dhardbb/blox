@@ -7,7 +7,7 @@
 -- fundraiser yields, or debate prep before the debate resolves, anyone's
 -- candidate or platform before the Select phase ends, the event deck beyond the
 -- current week (next week's event only for a candidate whose perk previews it,
--- D-035), or anyone's Choice answer before the week resolves (answers live only
+-- D-035), or anyone's Choice stance before the week resolves (stances live only
 -- in the submitted plans until then). tests/sim/View.spec enforces it.
 
 local ConfigModule = require("./Config")
@@ -55,15 +55,24 @@ export type PlayerView = {
 	card: State.WeekCard?,
 }
 
--- This week's event, as everyone sees it (D-027).
+-- One stance of a Choice event, as shown on its button (D-039). The per-state
+-- effect is Events.stanceEffects(config, Events.byId[event.id], stance.id).
+export type StanceView = {
+	id: Types.Choice,
+	name: string,
+	text: string,
+}
+
+-- This week's event, as everyone sees it (D-027, D-039).
 export type EventView = {
 	week: number,
 	id: string,
 	kind: Types.EventKind,
 	name: string,
 	text: string,
-	issue: Types.Issue?, -- Spotlight
+	issue: Types.Issue?, -- Spotlight and Choice
 	region: Types.Region?, -- Regional
+	stances: { StanceView }?, -- Choice: the three stances in Events.CHOICES order
 }
 
 export type View = {
@@ -170,6 +179,15 @@ function View.build(config: Config, match: MatchState, you: number): View
 		if definition == nil then
 			return nil
 		end
+		local stances: { StanceView }? = nil
+		local list = definition.stances
+		if list ~= nil then
+			local copied: { StanceView } = {}
+			for k, stance in list do
+				copied[k] = { id = stance.id, name = stance.name, text = stance.text }
+			end
+			stances = copied
+		end
 		return {
 			week = week,
 			id = definition.id,
@@ -178,6 +196,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 			text = definition.text,
 			issue = definition.issue,
 			region = definition.region,
+			stances = stances,
 		}
 	end
 	local event: EventView? = nil

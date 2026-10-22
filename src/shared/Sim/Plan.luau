@@ -33,7 +33,7 @@ export type Action = {
 export type Plan = {
 	actions: { Action },
 	prep: { number }?, -- debate prep, only in the week before a debate
-	choice: Types.Choice?, -- answer to a Choice event: only in a Choice week, where it defaults to "Ignore"
+	choice: Types.Choice?, -- stance on a Choice event: only in a Choice week, where it defaults to the hedge (Events.defaultChoice)
 }
 
 export type Cost = {
@@ -326,7 +326,7 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 		end
 		plan.choice = input.choice :: Types.Choice
 	elseif choiceWeek then
-		plan.choice = "Ignore"
+		plan.choice = Events.defaultChoice()
 	end
 
 	local cost = Plan.cost(config, match, p, plan)
@@ -340,12 +340,12 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 end
 
 -- The plan submitted for a player who does not lock in: nothing (money banks, AP is
--- lost), with default debate prep where one is due and "Ignore" in a Choice week.
+-- lost), with default debate prep where one is due and the hedge in a Choice week.
 function Plan.empty(config: Config, match: MatchState, p: number): Plan
 	local prep = if Plan.wantsPrep(config, match)
 		then Plan.defaultPrep(config, match.players[p].profile.debatePrep)
 		else nil
-	local choice: Types.Choice? = if Events.isChoiceWeek(match) then "Ignore" else nil
+	local choice: Types.Choice? = if Events.isChoiceWeek(match) then Events.defaultChoice() else nil
 	return { actions = {}, prep = prep, choice = choice }
 end
 

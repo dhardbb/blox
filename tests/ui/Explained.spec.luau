@@ -163,9 +163,10 @@ describe("Explained: the help overlay", function()
 end)
 
 describe("Explained: events and debates", function()
-	it("shows what each Choice answer pays against each of theirs", function()
+	it("shows where each stance of the week's Choice event moves support", function()
 		local world, peer = Rig.fixture("ChoiceWeek", nil)
-		for k, line in Explain.choiceLines(C) do
+		local view = Rig.payloadOf(world, peer).view
+		for k, line in Explain.choiceLines(C, view.event, view.players[view.you].platform) do
 			local label = need(peer, `ChoicePay{k}`)
 			expect(label.Text):toBe(line)
 			check(Rig.shown(label, "Campaign"), `ChoicePay{k} is hidden`)

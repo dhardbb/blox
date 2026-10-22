@@ -50,14 +50,14 @@ describe("Config", function()
 		return win / n, tie / n, lose / n
 	end
 
-	it("a debate sweep is worth about one big state, never the match (D-033)", function()
-		-- A 3-0 sweep moves the population-weighted average by one to two points: enough
-		-- to carry the states within a couple of points, not the leaned ones (D-019 had
-		-- it under one point, which players could not feel).
-		local sweep = C.DEBATE_TOPICS * C.DEBATE_TOPIC_WIN + C.DEBATE_SWEEP
-		expect(sweep >= 1 and sweep <= 2):toBe(true)
-		expect(C.DEBATE_GAFFE <= C.DEBATE_TOPIC_WIN):toBe(true)
-		expect(C.DEBATE_SWEEP <= C.DEBATE_TOPIC_WIN):toBe(true)
+	it("a topic win is felt in its states; the flat part and a sweep are small (D-040)", function()
+		-- A topic win moves every state where the topic is a top issue by a visible
+		-- amount (about a third of a rally), never more than the event cap; the flat
+		-- national part is a nudge, so debates decide the states they are about.
+		expect(C.DEBATE_TOPIC_WIN >= 1 and C.DEBATE_TOPIC_WIN <= C.EVENT_CAP):toBe(true)
+		expect(C.DEBATE_TOPIC_NATIONAL > 0 and C.DEBATE_TOPIC_NATIONAL <= 0.3):toBe(true)
+		expect(C.DEBATE_SWEEP > 0 and C.DEBATE_SWEEP <= 0.5):toBe(true)
+		expect(C.DEBATE_GAFFE > 0 and C.DEBATE_GAFFE <= C.DEBATE_TOPIC_WIN):toBe(true)
 	end)
 
 	it("prep decides topics: a 2-point edge usually wins, a 4-point edge always (D-033)", function()
@@ -85,46 +85,12 @@ describe("Config", function()
 		expect(C.POOL_MAX * C.POOL_REFILL >= raw):toBe(true)
 	end)
 
-	it("the Choice matrix is a real dilemma: winners gain, losers lose, no safe answer (D-036)", function()
-		-- Attack beats Ignore, Defend beats Attack, Ignore beats Defend. In every one of
-		-- those three exchanges the winner's payoff is positive and the loser's negative:
-		-- the old matrix paid 0 to a successful Defend or Ignore, so the only visible
-		-- outcomes were "Attack lost" and "nothing happened" (playtest 1).
-		local exchanges = {
-			{ C.CHOICE_ATTACK_IGNORE, C.CHOICE_IGNORE_ATTACK },
-			{ C.CHOICE_DEFEND_ATTACK, C.CHOICE_ATTACK_DEFEND },
-			{ C.CHOICE_IGNORE_DEFEND, C.CHOICE_DEFEND_IGNORE },
-		}
-		for _, pair in exchanges do
-			expect(pair[1] > 0):toBe(true)
-			expect(pair[2] < 0):toBe(true)
-		end
-		-- A landed attack is the biggest swing; mutual attacks hurt both; mutual Ignore
-		-- or Defend is a quiet week.
-		expect(C.CHOICE_ATTACK_IGNORE >= C.CHOICE_DEFEND_ATTACK):toBe(true)
-		expect(C.CHOICE_DEFEND_ATTACK >= C.CHOICE_IGNORE_DEFEND):toBe(true)
-		expect(C.CHOICE_ATTACK_ATTACK < 0):toBe(true)
-		expect(C.CHOICE_IGNORE_IGNORE):toBe(0)
-		expect(C.CHOICE_DEFEND_DEFEND <= 0):toBe(true)
-		-- No answer is weakly dominated: each is the unique best reply to some answer.
-		local rows = {
-			Attack = { C.CHOICE_ATTACK_ATTACK, C.CHOICE_ATTACK_DEFEND, C.CHOICE_ATTACK_IGNORE },
-			Defend = { C.CHOICE_DEFEND_ATTACK, C.CHOICE_DEFEND_DEFEND, C.CHOICE_DEFEND_IGNORE },
-			Ignore = { C.CHOICE_IGNORE_ATTACK, C.CHOICE_IGNORE_DEFEND, C.CHOICE_IGNORE_IGNORE },
-		}
-		for name, row in rows do
-			local unique = false
-			for col = 1, 3 do
-				local best = true
-				for other, otherRow in rows do
-					if other ~= name and otherRow[col] >= row[col] then
-						best = false
-					end
-				end
-				unique = unique or best
-			end
-			expect(unique):toBe(true)
-		end
+	it("a stance is a real decision: a camp is worth taking, the hedge is mild (D-039)", function()
+		-- A liked state moves about half a rally; a disliked one loses the same, so
+		-- a stance only pays where you need its camp. The hedge is a sure, small gain.
+		expect(C.STANCE_POINTS > 0 and C.STANCE_POINTS <= C.EVENT_CAP):toBe(true)
+		expect(C.STANCE_HEDGE > 0 and C.STANCE_HEDGE <= C.STANCE_POINTS / 2):toBe(true)
+		expect(C.STANCE_POINTS <= C.RALLY_SUPPORT):toBe(true)
 	end)
 
 	it("events stay small and off the first and last weeks (D-027)", function()
@@ -133,23 +99,8 @@ describe("Config", function()
 		for _, mult in { C.EVENT_SPOTLIGHT_MULT, C.EVENT_REGIONAL_MULT, C.EVENT_WINDFALL_MULT } do
 			expect(mult > 1 and mult <= 1.5):toBe(true)
 		end
-		-- Every Choice payoff is inside the cap and smaller than a 3-0 debate sweep.
-		local sweep = C.DEBATE_TOPICS * C.DEBATE_TOPIC_WIN + C.DEBATE_SWEEP
-		local payoffs = {
-			C.CHOICE_ATTACK_ATTACK,
-			C.CHOICE_ATTACK_DEFEND,
-			C.CHOICE_ATTACK_IGNORE,
-			C.CHOICE_DEFEND_ATTACK,
-			C.CHOICE_DEFEND_DEFEND,
-			C.CHOICE_DEFEND_IGNORE,
-			C.CHOICE_IGNORE_ATTACK,
-			C.CHOICE_IGNORE_DEFEND,
-			C.CHOICE_IGNORE_IGNORE,
-		}
-		for _, v in payoffs do
-			expect(math.abs(v) <= C.EVENT_CAP and math.abs(v) < sweep):toBe(true)
-		end
-		expect(C.CHOICE_IGNORE_IGNORE):toBe(0)
+		-- Every stance reaction is inside the cap.
+		expect(C.STANCE_POINTS <= C.EVENT_CAP and C.STANCE_HEDGE <= C.EVENT_CAP):toBe(true)
 	end)
 
 	it("ground game beats a poorly matched media buy per dollar (D-021)", function()

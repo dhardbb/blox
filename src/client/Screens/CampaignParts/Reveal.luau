@@ -107,7 +107,7 @@ local function eventCaption(config: ConfigModule.Config, view: View, event: Even
 				name = definition.name
 			end
 		end
-		return `{name}: {who} {PlanDraft.choiceVerb(event.issue or "Ignore")} ({PlanDraft.points(amount)} national points)`
+		return `{name}: {who} {PlanDraft.choiceVerb(event.issue or "C")} ({PlanDraft.points(amount)} points over the states that reacted)`
 	end
 	return nil
 end

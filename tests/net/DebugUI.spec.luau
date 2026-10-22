@@ -10,6 +10,7 @@ local Format = require("@shared/DebugUI/Format")
 local Match = require("@sim/Match")
 local Rng = require("@sim/Rng")
 local Session = require("@net/Session")
+local State = require("@sim/State")
 local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
@@ -87,21 +88,22 @@ describe("Commands.parse", function()
 		expect(ok):toBe(true)
 	end)
 
-	it("parses a Choice answer, and the validator takes it in a Choice week", function()
-		local parsed = Commands.parse("plan choice DEFEND; poll OH")
-		expect(parsed.input):toEqual({ actions = { { kind = "Poll", state = "OH" } }, choice = "Defend" })
+	it("parses a Choice stance, and the validator takes it in a Choice week", function()
+		local parsed = Commands.parse("plan choice b; poll OH")
+		expect(parsed.input):toEqual({ actions = { { kind = "Poll", state = "OH" } }, choice = "B" })
 		expect(Commands.parse("plan choice surrender").kind):toBe("Error")
+		expect(Commands.parse("plan choice attack").kind):toBe("Error")
 		local match = Match.new(C, 3, { "a", "b" })
 		while not (match.phase == "Plan" and match.week == 2) do
 			match = Match.advance(C, match, {})
 		end
-		match.eventDeck[2] = "clip"
-		local ok, reason = Match.validate(C, match, 1, Commands.parse("plan choice attack").input)
+		match.eventDeck[2] = "plant"
+		local ok, reason = Match.validate(C, match, 1, Commands.parse("plan choice A").input)
 		expect(reason):toBe(nil)
 		expect(ok):toBe(true)
 	end)
 
-	it("shows this week's event and last week's revealed answers on the board", function()
+	it("shows this week's event and last week's revealed stances on the board", function()
 		local session = Session.new(C, "m1", 11, {
 			{ id = "1", kind = "Human" },
 			{ id = "bot", kind = "Bot", candidate = "reyes" },
@@ -111,7 +113,7 @@ describe("Commands.parse", function()
 			match = Match.advance(C, match, {})
 		end
 		match.eventDeck[2] = "expo"
-		match.eventDeck[3] = "clip"
+		match.eventDeck[3] = "plant"
 		session.match = match
 		local board = Format.board(Session.payload(session, 1), 0)
 		expect(
@@ -123,13 +125,18 @@ describe("Commands.parse", function()
 			) ~= nil
 		):toBe(true)
 		match = Match.advance(C, match, {})
-		session.match = Match.advance(C, match, { { actions = {}, choice = "Attack" } })
+		session.match = Match.advance(C, match, { { actions = {}, choice = "A" } })
 		board = Format.board(Session.payload(session, 1), 0)
+		local moved = #(session.match.eventLog[#session.match.eventLog].moves :: { State.StateMove })
 		expect(
-			string.find(board, "Last week's event Viral clip: you Attack (+0.3), them Ignore (-0.2)", 1, true)
-				~= nil
+			string.find(
+				board,
+				`Last week's event Plant at a crossroads: you took stance A, them C ({moved} states moved)`,
+				1,
+				true
+			) ~= nil
 		):toBe(true)
-		expect(string.find(board, "choice Ignore", 1, true) ~= nil):toBe(true)
+		expect(string.find(board, "choice C", 1, true) ~= nil):toBe(true)
 	end)
 
 	it("parses local actions and rejects nonsense", function()
@@ -241,14 +248,14 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 	it("formats money and points in event lines", function()
 		local lines = Format.events({
 			{ kind = "Raised", player = 1, amount = 13.550725999999997, private = true },
-			{ kind = "Choice", player = 2, issue = "Attack", amount = -0.2 },
+			{ kind = "Choice", player = 2, issue = "A", amount = -0.2 },
 			{ kind = "Rally", player = 2, state = "OH", issue = "Jobs" },
 			{ kind = "Flights", player = 1, amount = 1 },
 			{ kind = "Polls" },
 		}, 1)
 		expect(lines):toEqual({
 			"you raised $13.5",
-			"P2 answered Attack (-0.2 national)",
+			"P2 took stance A (-0.2 points over the states that reacted)",
 			"P2 rallied in OH on Jobs",
 			"P1 (you) took 1 flight",
 			"new public polls",
@@ -294,7 +301,6 @@ end)
 describe("Format explanations (playtest 2: the numbers were opaque)", function()
 	local Explain = require("@ui/Explain")
 	local PlanDraft = require("@ui/PlanDraft")
-	local State = require("@sim/State")
 
 	local function has(text: string, part: string)
 		if string.find(text, part, 1, true) == nil then

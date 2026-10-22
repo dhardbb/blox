@@ -104,7 +104,7 @@ function Fixtures.payload(
 	seed: number?,
 	candidate: string?
 ): Session.StatePayload
-	local first = seed or 7
+	local first = seed or 18 -- 7 -> 18 with the 24-card deck (D-039): weeks 3 and 8 are still Windfalls
 	local tries = if moment == "ChoiceWeek" then 40 else 1
 	for k = 0, tries - 1 do
 		local payload = play(config, moment, first + k, candidate)

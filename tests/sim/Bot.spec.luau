@@ -11,7 +11,9 @@ local Config = require("@sim/Config")
 local Election = require("@sim/Election")
 local Events = require("@sim/Events")
 local Rng = require("@sim/Rng")
+local State = require("@sim/State")
 local StateData = require("@sim/StateData")
+local Types = require("@shared/Types")
 local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
@@ -38,7 +40,9 @@ describe("Bot", function()
 	end)
 
 	it("every style submits only valid inputs", function()
-		for k, style in { "Random", "FundraiseOnly", "RallyOnly", "AttackOnly", "NeverPoll", "Sandbag" } do
+		for k, style in
+			{ "Random", "FundraiseOnly", "RallyOnly", "AttackOnly", "NeverPoll", "Sandbag", "RandomStance" }
+		do
 			local record = Play.match(C, 200 + k, { "strand", "begay" }, { style :: any, "Balanced" })
 			expect(record.invalid):toBe(0)
 		end
@@ -163,47 +167,106 @@ describe("Bot", function()
 		expect(lastStopInPacific("coast") > lastStopInPacific(nil)):toBe(true)
 	end)
 
-	it("no answer is dominant: the bot's mix leaves every pure answer at zero edge", function()
-		local split = 2 - C.GAIN_FROM_UNDECIDED
-		local function margin(v: number): number
-			return if v > 0 then v * split else v
-		end
-		local weights = Bot.choiceWeights(C)
-		local total = weights[1] + weights[2] + weights[3]
-		for _, x in Events.CHOICES do
-			local edge = 0
-			for k, y in Events.CHOICES do
-				edge += weights[k] / total * (margin(Events.payoff(C, x, y)) - margin(Events.payoff(C, y, x)))
-			end
-			expect(edge):toBeCloseTo(0, 1e-9)
-		end
-		-- Every answer is played sometimes.
-		for _, w in weights do
-			expect(w / total > 0.15):toBe(true)
-		end
-	end)
-
-	it("answers a Choice event with the seeded equilibrium mix", function()
-		local weights = Bot.choiceWeights(C)
-		local total = weights[1] + weights[2] + weights[3]
-		local seen: { [string]: number } = { Attack = 0, Defend = 0, Ignore = 0 }
-		local rng = Rng.new(9)
-		local N = 3000
-		for _ = 1, N do
-			local choice = Bot.choose(C, rng, "Balanced")
-			seen[choice] += 1
-		end
-		for k, choice in Events.CHOICES do
-			expect(math.abs(seen[choice] / N - weights[k] / total) < 0.03):toBe(true)
-		end
-		-- In a Choice week every style's plan carries a valid answer; otherwise none.
+	-- Week 5 with a Choice event, every state 35/35 in the polls, no draft or lean.
+	local function stanceWeek(id: string): State.MatchState
 		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Plan", 5)
-		match.eventDeck[5] = "rumor"
-		for _, style in { "Balanced", "Random", "AttackOnly" } do
+		match.eventDeck[5] = id
+		for _, s in match.states do
+			s.support, s.undecided = { 35, 35 }, 30
+			s.poll = { support = { 35, 35 }, undecided = 30 }
+			s.lean, s.leanTo = 0, nil
+			s.battleground, s.owner, s.isHome = false, nil, false
+			s.momentum, s.gotv = { 0, 0 }, { 0, 0 }
+		end
+		return match
+	end
+
+	-- Polls every state in `camp` as close and every other state as decided.
+	local function needOnly(match: State.MatchState, camp: { [string]: boolean })
+		for _, s in match.states do
+			s.poll = if camp[s.id]
+				then { support = { 35, 35 }, undecided = 30 }
+				else { support = { 60, 20 }, undecided = 20 }
+		end
+	end
+
+	it(
+		"takes the stance that pays in the states it needs, and the hedge when it needs both camps (D-039)",
+		function()
+			local event = Events.byId.plant -- Jobs: A likes Transit and Farms, B likes Health and Safety
+			local likedByA: { [string]: boolean }, likedByB: { [string]: boolean } = {}, {}
+			for id, points in Events.stanceEffects(C, event, "A", {}) do
+				if points > 0.5 then
+					likedByA[id] = true
+				elseif points < 0 then
+					likedByB[id] = true
+				end
+			end
+			local match = stanceWeek("plant")
+			needOnly(match, likedByA)
+			expect(Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice):toBe("A")
+			expect(Bot.plan(C, View.build(C, match, 2), Rng.new(1)).choice):toBe("A")
+			needOnly(match, likedByB)
+			expect(Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice):toBe("B")
+			-- Close everywhere: a side nets about nothing, the hedge is a sure gain.
+			match = stanceWeek("plant")
+			expect(Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice):toBe("C")
+			-- The value the bot computes is the public per-state preview, EV-weighted.
+			local view = View.build(C, match, 1)
+			local estimates = Bot.estimates(C, view)
+			local platform = view.players[1].platform :: { Types.Issue }
+			local valueA = Bot.stanceValue(C, estimates, view.event :: any, "A", platform)
+			local valueC = Bot.stanceValue(C, estimates, view.event :: any, "C", platform)
+			expect(valueC > valueA):toBe(true)
+		end
+	)
+
+	it("the RandomStance style takes every slot about equally; every style carries a valid stance", function()
+		local match = stanceWeek("river")
+		local seen: { [string]: number } = { A = 0, B = 0, C = 0 }
+		local N = 600
+		for k = 1, N do
+			local plan = Bot.plan(C, View.build(C, match, 1), Rng.new(k), "RandomStance")
+			seen[plan.choice] += 1
+		end
+		for _, id in Events.CHOICES do
+			expect(math.abs(seen[id] / N - 1 / 3) < 0.07):toBe(true)
+		end
+		for _, style in { "Balanced", "Random", "AttackOnly", "RandomStance" } do
 			local plan = Bot.plan(C, View.build(C, match, 1), Rng.new(2), style :: Bot.Style)
 			expect(Events.isChoice(plan.choice)):toBe(true)
 		end
 		match.eventDeck[5] = nil
 		expect(Bot.plan(C, View.build(C, match, 1), Rng.new(2)).choice):toBe(nil)
+	end)
+
+	it("preps the topic whose states it needs, within the per-topic cap (D-040)", function()
+		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Plan", 3)
+		expect(match.debateTopics[4] ~= nil):toBe(true)
+		local topics = match.debateTopics[4]
+		for t = 1, #topics do
+			local camp: { [string]: boolean } = {}
+			for _, id in StateData.list do
+				camp[id.id] = table.find(id.issues, topics[t]) ~= nil
+			end
+			-- Only this topic's states are close; the rest are decided.
+			for _, s in match.states do
+				s.poll = if camp[s.id]
+					then { support = { 35, 35 }, undecided = 30 }
+					else { support = { 60, 20 }, undecided = 20 }
+			end
+			local prep = Bot.plan(C, View.build(C, match, 1), Rng.new(1)).prep :: { number }
+			local total = 0
+			for _, points in prep do
+				expect(points <= C.DEBATE_MAX_PER_TOPIC):toBe(true)
+				total += points
+			end
+			expect(total):toBe(match.players[1].profile.debatePrep)
+			for u = 1, #topics do
+				if u ~= t then
+					expect(prep[t] > prep[u]):toBe(true)
+				end
+			end
+		end
 	end)
 end)
