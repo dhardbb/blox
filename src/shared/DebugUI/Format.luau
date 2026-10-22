@@ -412,11 +412,11 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	table.sort(rows, function(a, b)
 		return a.closeness < b.closeness
 	end)
-	local C = Config.defaults
 	add(
-		`Closest states (you-them, undecided, momentum you/them; momentum keeps {math.floor(
-			C.MOMENTUM_DECAY * 100 + 0.5
-		)}% a week and its leader gains {C.DRIFT_RATE} support per point of lead, max {C.DRIFT_CAP}):`
+		`Closest states (you-them, undecided, momentum you/them). Momentum drift: {Explain.driftRule(
+			Config.defaults,
+			view
+		)}:`
 	)
 	for k = 1, math.min(CLOSEST, #rows) do
 		local row = rows[k]

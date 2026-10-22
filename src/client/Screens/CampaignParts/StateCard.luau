@@ -8,7 +8,7 @@
 --   you 35 – 37 them · 28 und.  +3 them
 --   Momentum                    Ground game
 --   ▲ you 2.0 · them 1.0        0 / 4 · pool size $8.9
---   You lead momentum: about +0.6 support drifts to you next week. ...
+--   You lead momentum: about +0.3 support drifts to you next week. Drift: ...
 --   Your attack backlash here: 1 of 3. ...           (only with backlash)
 --   Top issues: Jobs, Schools
 --   Message for rallies and ads

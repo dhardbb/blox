@@ -11,6 +11,7 @@
 --   Explain.action(config, view, draft, id, kind, issue?) -> Preview (one action here)
 --   Explain.previews(config, view, draft, id, message) -> { { name, text } } (the action grid)
 --   Explain.leanText(view, s) · momentumNote · backlashNote · underdogText
+--   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
 --   Explain.debateOdds(config, edge) -> (win, tie, lose)
 --   Explain.debateParts / debateLine (a resolved topic, split into prep, platform, stat, roll)
 --   Explain.choiceLines(config) (the Choice payoff matrix as three lines)
@@ -64,6 +65,14 @@ local function num(value: number): string
 	return text
 end
 Explain.num = num
+
+-- A rate with up to two decimals: 0.3 -> "0.3", 0.15 -> "0.15", 1 -> "1".
+local function exact(value: number): string
+	local text = string.format("%.2f", value)
+	text = string.gsub(text, "0+$", "")
+	text = string.gsub(text, "%.$", "")
+	return text
+end
 
 local function pct(share: number): string
 	return `{math.floor(share * 100 + 0.5)}%`
@@ -566,13 +575,13 @@ function Explain.momentumNote(config: Config, view: View, s: StateView): string
 		head =
 			`{if lead > 0 then "You lead" else "They lead"} momentum: about {signed(drift)} support drifts to {who} next week.`
 	end
-	local keeps = `Momentum keeps {pct(mine.momentumDecay)} a week`
+	local theirsNote = ""
 	if theirs.momentumDecay ~= mine.momentumDecay then
-		keeps ..= ` (theirs {pct(theirs.momentumDecay)})`
+		theirsNote = ` (their candidate keeps {pct(theirs.momentumDecay)})`
 	end
-	return `{head} {keeps}, max {num(config.MOMENTUM_CAP)}; the leader gains {num(config.DRIFT_RATE)} support per point of lead (max {num(
-		config.DRIFT_CAP
-	)} a week). It does not change what a rally gives.`
+	return `{head} Drift: {Explain.driftRule(config, view)}{theirsNote}. Momentum is capped at {num(
+		config.MOMENTUM_CAP
+	)}. It does not change what a rally gives.`
 end
 
 -- Your attack backlash in a state, or nil when there is none.
@@ -825,6 +834,27 @@ local function sheet(config: Config, view: View?): Numbersheet
 	}
 end
 
+-- Drift exactly as Resolve runs it (steps 6 and 7): each week every player's
+-- momentum in a state is first multiplied by what their candidate keeps, then
+-- that week's rallies and ads add to it, then the leader gains DRIFT_RATE x the
+-- gap to the runner-up, at most DRIFT_CAP. So the lead a player sees now drifts
+-- DRIFT_RATE x keep per point next week if nobody campaigns there (playtest 2:
+-- the old text quoted DRIFT_RATE alone, twice the real number).
+function Explain.driftPerPoint(config: Config, view: View?): number
+	return config.DRIFT_RATE * sheet(config, view).momentumDecay
+end
+
+-- The drift rule in one clause, with your candidate's numbers when the view
+-- names one. Starts lower case so callers can put it after "Drift: ".
+function Explain.driftRule(config: Config, view: View?): string
+	local keep = sheet(config, view).momentumDecay
+	return `with no new rallies or ads there, the leader gains about {exact(config.DRIFT_RATE * keep)} support next week per point of momentum lead shown now (momentum first keeps {pct(
+		keep
+	)}, then the leader gains {num(config.DRIFT_RATE)} per point of what is left, at most {num(
+		config.DRIFT_CAP
+	)} a week)`
+end
+
 local function oddsText(config: Config, edge: number): string
 	local win, tie, lose = Explain.debateOdds(config, edge)
 	return `win {pct(win)}, tie {pct(tie)}, lose {pct(lose)}`
@@ -895,11 +925,9 @@ function Explain.help(config: Config, view: View?): { Section }
 		)} ({signed(c.STRONGHOLD_BONUS_BIG)} if big). A nominated battleground loses its bonus but gets {times(
 			c.BATTLEGROUND_MULT
 		)} on every campaign effect.`,
-		`Momentum: rallies add {num(c.RALLY_MOMENTUM)}, ads {num(c.MEDIA_MOMENTUM)}, attacks none. It keeps {pct(
-			me.momentumDecay
-		)} each week (max {num(c.MOMENTUM_CAP)}). Each week the leader in a state gains {num(c.DRIFT_RATE)} support per point of momentum lead (at most {num(
-			c.DRIFT_CAP
-		)}). The ▲ on the map marks the leader.`,
+		`Momentum: rallies add {num(c.RALLY_MOMENTUM)}, ads {num(c.MEDIA_MOMENTUM)}, attacks none (max {num(
+			c.MOMENTUM_CAP
+		)}). Drift: {Explain.driftRule(c, view)}. The ▲ on the map marks the leader.`,
 		`Backlash: each attack ad fills your meter in that state by 1. Once it is at {c.BACKLASH_THRESHOLD}, the next attack there also costs you {points(
 			c.BACKLASH_PENALTY
 		)} support and empties it. It fades {num(c.BACKLASH_DECAY)} a week.`,

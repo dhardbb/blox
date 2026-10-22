@@ -311,7 +311,7 @@ local function statesTable(payload: any): { string }
 	end)
 	local C = Config.defaults
 	local out = {
-		`Momentum keeps {math.floor(C.MOMENTUM_DECAY * 100 + 0.5)}% a week (your candidate may differ); each week the leader in a state gains {C.DRIFT_RATE} support per point of lead (max {C.DRIFT_CAP}). "leans you +4" = the state started 4 points of margin your way.`,
+		`Momentum drift: {Explain.driftRule(C, payload.view)}. "leans you +4" = the state started 4 points of margin your way.`,
 		"ID  EV  issues                  poll (you-them, u=undecided)  momentum you/them  tags",
 	}
 	for _, row in rows do
