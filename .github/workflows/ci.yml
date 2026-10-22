@@ -18,15 +18,19 @@ jobs:
         run: stylua --check src tests
 
       - name: Lint simulation and tests (Selene, plain Luau)
+        if: ${{ !cancelled() }}
         run: selene --config selene.sim.toml src/shared/Sim tests
 
       - name: Lint game code (Selene, Roblox std)
+        if: ${{ !cancelled() }}
         run: selene src
 
       - name: Tests (Lune)
+        if: ${{ !cancelled() }}
         run: lune run tests
 
       - name: Type check (luau-lsp)
+        if: ${{ !cancelled() }}
         run: |
           rojo sourcemap default.project.json -o sourcemap.json
           curl -fsSL -o globalTypes.d.luau \
@@ -35,6 +39,7 @@ jobs:
             --definitions=@roblox=globalTypes.d.luau src
 
       - name: Build place (Rojo)
+        if: ${{ !cancelled() }}
         run: |
           mkdir -p build
           rojo build -o build/270.rbxl
