@@ -7,7 +7,7 @@ One section per feature, newest last. Each item: what to do, what should happen,
 Either:
 
 - **Place file:** download the `270-place` artifact from the latest green CI run (GitHub → Actions → CI → the run → Artifacts), unzip, and open `270.rbxl` in Roblox Studio. Or build it yourself: `rojo build -o build/270.rbxl`.
-- **Live sync:** in `~/Documents/Code/270/`, run `rojo serve`, then in Studio open the Rojo plugin and click **Connect**. Edits to files sync into the open place.
+- **Live sync:** clone once with `git clone https://github.com/dhardbb/blox ~/Documents/Code/270`, install the toolchain (`rokit install`), then in `~/Documents/Code/270/` run `rojo serve`, then in Studio open the Rojo plugin and click **Connect**. Edits to files sync into the open place.
 
 Two-player tests use **Test → Clients and Servers → Local Server, 2 Players → Start**. That opens one server window and two client windows; the Output of each is separate.
 
