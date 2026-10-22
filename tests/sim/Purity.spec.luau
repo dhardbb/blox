@@ -8,8 +8,8 @@ local Test = require("@testlib/Test")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
--- The simulation and the pure networking core (sessions, lobby, schemas).
-local PURE_DIRS = { "src/shared/Sim", "src/shared/Net" }
+-- The simulation, the pure networking core, and the debug UI text helpers.
+local PURE_DIRS = { "src/shared/Sim", "src/shared/Net", "src/shared/DebugUI" }
 
 local FORBIDDEN: { { pattern: string, label: string } } = {
 	{ pattern = "%f[%w_]game%f[^%w_]", label = "game" },

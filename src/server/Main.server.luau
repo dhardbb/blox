@@ -1,5 +1,5 @@
 --!strict
--- Server entry point. Phase 1: proves the Rojo tree wires up, then plays one
+-- Server entry point: starts the remotes and the match service, then plays one
 -- bot-vs-bot match through the simulation as a self-test, so the humans can
 -- confirm in Studio that the Sim modules load and run under Roblox.
 
@@ -13,7 +13,11 @@ local Candidates = require(Sim.Candidates)
 local Match = require(Sim.Match)
 local Rng = require(Sim.Rng)
 local View = require(Sim.View)
+local MatchService = require(script.Parent.MatchService)
+local Replication = require(script.Parent.Replication)
 
+Replication.init(MatchService.handle)
+MatchService.start()
 print(`[270] server up: v{Version.VERSION} ({Version.PHASE}), {Config.defaults.WEEKS} weeks`)
 
 local function selfTest(): string

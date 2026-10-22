@@ -10,7 +10,7 @@ Run from the repo root. All four must be clean before any commit.
 lune run tests                                   # every spec; filter: lune run tests Rng
 lune run tests/harness/balance.luau              # balance report (from Phase 1)
 mkdir -p build && rojo build -o build/270.rbxl   # place file
-stylua --check src tests && selene --config selene.sim.toml src/shared/Sim src/shared/Net tests && selene src
+stylua --check src tests && selene --config selene.sim.toml src/shared/Sim src/shared/Net src/shared/DebugUI tests && selene src
 ```
 
 Type check (CI runs it; locally only if luau-lsp is installed):

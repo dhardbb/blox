@@ -16,6 +16,8 @@ export type Lobby = {
 	playing: { [string]: boolean }, -- ids in a match
 }
 
+export type PlayerState = "Idle" | "Queued" | "Hosting" | "InMatch"
+
 -- What a lobby request produced.
 export type Outcome = {
 	kind: "Waiting" | "Match" | "Practice",
@@ -134,7 +136,7 @@ function Lobby.ended(lobby: Lobby, ids: { string })
 	end
 end
 
-function Lobby.state(lobby: Lobby, id: string): ("Idle" | "Queued" | "Hosting" | "InMatch", string?)
+function Lobby.state(lobby: Lobby, id: string): (PlayerState, string?)
 	if lobby.playing[id] then
 		return "InMatch", nil
 	elseif lobby.hosting[id] then

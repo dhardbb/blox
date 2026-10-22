@@ -4,6 +4,7 @@
 -- (server messages). Every request is one table with an `op`; every server
 -- message is one table with a `kind`. Net/Schemas validates requests at runtime.
 
+local Lobby = require("./Lobby")
 local Session = require("./Session")
 
 local Remotes = {}
@@ -36,7 +37,7 @@ export type Request = {
 
 -- Lobby status for one player.
 export type LobbyStatus = {
-	state: "Idle" | "Queued" | "Hosting" | "InMatch",
+	state: Lobby.PlayerState,
 	code: string?, -- while hosting
 	queued: number, -- players waiting in the public queue
 	full: boolean, -- the server has no room for another match
