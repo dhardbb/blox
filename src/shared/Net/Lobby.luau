@@ -13,16 +13,23 @@ export type Lobby = {
 	queue: { string }, -- player ids, first come first served
 	codes: { [string]: string }, -- code -> host id
 	hosting: { [string]: string }, -- host id -> code
+	options: { [string]: Options }, -- code -> the host's match options
 	playing: { [string]: boolean }, -- ids in a match
 }
 
 export type PlayerState = "Idle" | "Queued" | "Hosting" | "InMatch"
+
+-- What a private host may choose (same shape as Net/Session.Options).
+export type Options = {
+	events: boolean?, -- false turns the event deck off (D-027)
+}
 
 -- What a lobby request produced.
 export type Outcome = {
 	kind: "Waiting" | "Match" | "Practice",
 	players: { string }, -- Match: both ids, first in line first
 	code: string?, -- Waiting while hosting
+	events: boolean?, -- Match from a private code: false if the host turned events off
 }
 
 local Lobby = {}
@@ -34,6 +41,7 @@ function Lobby.new(config: Config): Lobby
 		queue = {},
 		codes = {},
 		hosting = {},
+		options = {},
 		playing = {},
 	}
 end
@@ -47,6 +55,7 @@ function Lobby.leave(lobby: Lobby, id: string)
 	local code = lobby.hosting[id]
 	if code then
 		lobby.codes[code] = nil
+		lobby.options[code] = nil
 		lobby.hosting[id] = nil
 	end
 end
@@ -86,7 +95,8 @@ function Lobby.queue(lobby: Lobby, id: string): (Outcome?, string?)
 end
 
 -- Opens a private match under `code` (made by the caller, unique on this server).
-function Lobby.host(lobby: Lobby, id: string, code: string): (Outcome?, string?)
+-- `options` are the host's settings for the match (events on unless false).
+function Lobby.host(lobby: Lobby, id: string, code: string, options: Options?): (Outcome?, string?)
 	local reason = check(lobby, id)
 	if reason then
 		return nil, reason
@@ -97,6 +107,7 @@ function Lobby.host(lobby: Lobby, id: string, code: string): (Outcome?, string?)
 	Lobby.leave(lobby, id)
 	lobby.codes[code] = id
 	lobby.hosting[id] = code
+	lobby.options[code] = { events = if options and options.events == false then false else nil }
 	return { kind = "Waiting", players = { id }, code = code }, nil
 end
 
@@ -114,8 +125,9 @@ function Lobby.join(lobby: Lobby, id: string, code: string): (Outcome?, string?)
 		return nil, "OwnCode"
 	end
 	local pair = { host, id }
+	local options = lobby.options[code]
 	start(lobby, pair)
-	return { kind = "Match", players = pair }, nil
+	return { kind = "Match", players = pair, events = options and options.events }, nil
 end
 
 -- Starts a practice match against the bot.

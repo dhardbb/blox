@@ -16,7 +16,7 @@ Remotes.TO_CLIENT = "ToClient"
 -- Client -> server operations.
 export type Op =
 	"Queue" -- join the public queue
-	| "Host" -- open a private match and get a code
+	| "Host" -- open a private match and get a code: { events? } (false = no event deck)
 	| "Join" -- join a private match: { code }
 	| "Practice" -- play the bot now
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
@@ -33,6 +33,7 @@ export type Request = {
 	matchId: string?,
 	step: number?,
 	input: any?,
+	events: boolean?, -- Host: false turns the event deck off for this private match
 }
 
 -- Lobby status for one player.

@@ -123,7 +123,7 @@ local function startMatch(outcome: Lobby.Outcome)
 	end
 	local created: Session.Session? = nil
 	local built, err = pcall(function(): string?
-		created = Session.new(config, matchId, seed, specs, now())
+		created = Session.new(config, matchId, seed, specs, now(), { events = outcome.events })
 		return nil
 	end)
 	local session = created
@@ -151,7 +151,7 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 	if request.op == "Queue" then
 		outcome, reason = Lobby.queue(lobby, id)
 	elseif request.op == "Host" then
-		outcome, reason = Lobby.host(lobby, id, newCode())
+		outcome, reason = Lobby.host(lobby, id, newCode(), { events = request.events })
 	elseif request.op == "Join" then
 		outcome, reason = Lobby.join(lobby, id, request.code :: string)
 	elseif request.op == "Practice" then

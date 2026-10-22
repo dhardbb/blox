@@ -78,7 +78,15 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 		return false, "UnknownOp", nil
 	end
 	local request: Remotes.Request = { op = op :: Remotes.Op }
-	if op == "Join" then
+	if op == "Host" then
+		-- Optional private-match setting: events = false turns the event deck off.
+		if raw.events ~= nil then
+			if type(raw.events) ~= "boolean" then
+				return false, "BadShape", nil
+			end
+			request.events = raw.events
+		end
+	elseif op == "Join" then
 		if not Schemas.isCode(raw.code) then
 			return false, "BadCode", nil
 		end

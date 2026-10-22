@@ -76,6 +76,23 @@ describe("Schemas.request", function()
 		end
 	end)
 
+	it("a Host request may carry events = false, nothing else (D-027)", function()
+		local ok, _, request = Schemas.request({ op = "Host", events = false })
+		expect(ok):toBe(true)
+		expect((request :: any).events):toBe(false)
+		ok, _, request = Schemas.request({ op = "Host" })
+		expect(ok):toBe(true)
+		expect((request :: any).events):toBe(nil)
+		for _, bad in { "no", 0, {} } do
+			local good, reason = Schemas.request({ op = "Host", events = bad })
+			expect(good):toBe(false)
+			expect(reason):toBe("BadShape")
+		end
+		-- Other ops ignore the field: the public queue always has events on.
+		_, _, request = Schemas.request({ op = "Queue", events = false })
+		expect((request :: any).events):toBe(nil)
+	end)
+
 	it("lets a full 40-action plan through", function()
 		local actions = {}
 		for k = 1, C.PLAN_MAX_ACTIONS do
@@ -135,6 +152,25 @@ describe("Lobby", function()
 		Lobby.host(lobby, "c", "QQQQQ")
 		Lobby.leave(lobby, "c")
 		expect(select(2, Lobby.join(lobby, "d", "QQQQQ"))):toBe("NoSuchCode")
+	end)
+
+	it("a host can turn events off for their private match only", function()
+		local lobby = Lobby.new(C)
+		Lobby.host(lobby, "a", "AB3CD", { events = false })
+		local match = Lobby.join(lobby, "b", "AB3CD")
+		expect(match and match.events):toBe(false)
+		expect(lobby.options.AB3CD):toBe(nil)
+		Lobby.host(lobby, "c", "QQQQQ")
+		match = Lobby.join(lobby, "d", "QQQQQ")
+		expect(match and match.events):toBe(nil)
+		Lobby.host(lobby, "e", "WWWWW", { events = false })
+		Lobby.leave(lobby, "e")
+		expect(lobby.options.WWWWW):toBe(nil)
+		local queued = (Lobby.queue(lobby, "f"))
+		queued = Lobby.queue(lobby, "g")
+		expect(queued and queued.events):toBe(nil)
+		local practice = Lobby.practice(lobby, "h")
+		expect(practice and practice.events):toBe(nil)
 	end)
 
 	it("hosting takes a player out of the queue", function()
