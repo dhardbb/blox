@@ -19,6 +19,7 @@ local FORBIDDEN = {
 	"pollError",
 	"pollErrorUndecided",
 	"pool",
+	"debateShift",
 	"rng",
 	"seed",
 	"s0",
@@ -132,6 +133,8 @@ describe("View: no leaks", function()
 			s.pollError[2] -= 1
 			s.pollErrorUndecided += 2
 			s.gotv[2] += 3
+			s.debateShift[1] += 0.5
+			s.debateShift[2] -= 0.5
 			s.backlash[2] += 2
 		end
 		local opponent = secret.players[2]

@@ -87,7 +87,7 @@ local margins: { number } = {}
 local blowouts, invalid = 0, 0
 local unspent, gotvSpend = 0, 0
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
-local gotvDecided, projectionWrong = 0, 0
+local gotvDecided, debateDecided, debateShiftEV, projectionWrong = 0, 0, 0, 0
 local tossupDraft, tossupElection, spread = 0, 0, 0
 local leaned, flipped = 0, 0
 local leanX, winY = {}, {}
@@ -129,6 +129,10 @@ for seed = 1, N do
 	if r.gotvDecided then
 		gotvDecided += 1
 	end
+	if r.debateDecided then
+		debateDecided += 1
+	end
+	debateShiftEV += r.debateShiftEV
 	if r.projectionWrong then
 		projectionWrong += 1
 	end
@@ -264,29 +268,12 @@ line("GOTV changes the winner", pct(gotvDecided / N), ">= 10%", gotvDecided / N 
 line("Average GOTV spend per player", string.format("$%.1f", gotvSpend / N))
 line("Week-12 projected leader loses", pct(projectionWrong / N))
 
--- Debates: replay a subset with debates switched off; same seeds and bot seeds.
-local debateN = math.max(50, math.floor(N / 4))
-local noDebates = Config.with(config, {
-	DEBATE_TOPIC_WIN = 0,
-	DEBATE_SWEEP = 0,
-	DEBATE_SWEEP_MOMENTUM = 0,
-	DEBATE_GAFFE = 0,
-})
-local debateDecided = 0
-for seed = 1, debateN do
-	local cands = pairFor(seed)
-	local with = Play.match(config, seed, cands)
-	local without = Play.match(noDebates, seed, cands)
-	if with.winner ~= without.winner then
-		debateDecided += 1
-	end
-end
-line(
-	`Debates change the winner ({debateN} paired replays)`,
-	pct(debateDecided / debateN),
-	">= 10%",
-	debateDecided / debateN >= 0.1
-)
+-- Debates: recount the final board with the debates' support shifts subtracted
+-- (same election noise), like the GOTV check. A paired replay with debates off
+-- was tried first and rejected: the bots react to a different board, so the two
+-- matches diverge and the number mostly measures chaos (D-017 finding 6).
+line("Debates change the winner (counterfactual)", pct(debateDecided / N), ">= 10%", debateDecided / N >= 0.1)
+line("Average EV the debates swing", string.format("%.1f EV", debateShiftEV / N))
 for _, id in ids do
 	local rate = topicWins[id] / math.max(1, topicGames[id])
 	line(`Debate topic win rate: {id}`, pct(rate))
