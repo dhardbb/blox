@@ -148,3 +148,14 @@ In Studio (**Local Server, 2 Players**):
 3. **Private match without events.** In Player1 type `host noevents`, and in Player2 `join <code>`. Play to week 2 with **Auto**: there is no `Event this week` line all match. A plain `host` match does have one.
 
 **Send back:** the board text (copy the client Output or a screenshot) from steps 1 and 2, and the rejection line from step 2.
+
+## Phase 3: Client MVP (v0.3.0)
+
+1. In Studio, open a Baseplate, connect Rojo (Plugins → Rojo → Connect) and press **Play**.
+   - The Lobby shows "270", your rating (once saved data loads) and Play vs Bot / Find Match / Host / Join.
+2. Press **Play vs Bot** and play a whole match by hand: pick a candidate, color and 3 issues; draft 8 rounds by tapping states or list rows; plan weeks by tapping a state, then Rally / Fundraise / Ad / Attack / Poll / GOTV, then **Lock in**; watch the results animation; answer Choice events; watch election night.
+   - Nothing overlaps; every button is easy to hit; the countdown runs; the Results screen shows the winner and "Back to lobby" works.
+3. Phone check: Studio's **Test → Device** emulator, pick a phone in portrait, repeat a few steps.
+4. Any screen without a server: in the command bar run `workspace:SetAttribute("DebugScreen", "Plan")` (or Select, Draft, Resolve, ChoiceWeek, Election, Over...) before **Play**.
+
+**Send back:** screenshots of each screen, anything confusing, and the Output lines starting with `[270] UI audit`.

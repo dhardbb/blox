@@ -15,6 +15,7 @@ local Shared = ReplicatedStorage.Shared
 local Candidates = require(Shared.Sim.Candidates)
 local Colors = require(Shared.UI.Colors)
 local ConfigModule = require(Shared.Sim.Config)
+local Events = require(Shared.Sim.Events)
 local Issues = require(Shared.Sim.Issues)
 local MapLayout = require(Shared.UI.MapLayout)
 local Plan = require(Shared.Sim.Plan)
@@ -143,6 +144,16 @@ local function eventCaption(config: Config, view: View, event: Event): string?
 		return `Your {plural(amount, "internal poll")} came back`
 	elseif kind == "Polls" then
 		return "New public polls are in"
+	elseif kind == "Choice" then
+		-- The event's Choice answers, revealed with the week (D-027).
+		local name = "Event"
+		for _, result in view.eventLog do
+			local definition = Events.byId[result.id]
+			if result.week == view.week - 1 and definition then
+				name = definition.name
+			end
+		end
+		return `{name}: {who} {PlanDraft.choiceVerb(event.issue or "Ignore")} ({PlanDraft.points(amount)} national points)`
 	end
 	return nil
 end
@@ -215,6 +226,15 @@ local function actionText(config: Config, action: Action, flight: boolean): stri
 		text ..= ` · flight {money(config.FLIGHT_COST)}`
 	end
 	return text
+end
+
+-- This week's event, unless the screen is replaying last week (the Resolve
+-- reveal carries the next week's view, and its event is not for show yet).
+local function shownEvent(p: Payload): ViewModule.EventView?
+	if p.reveal == "Resolve" then
+		return nil
+	end
+	return p.view.event
 end
 
 -- Is debate prep due in this plan (the week before a debate)?
@@ -477,6 +497,38 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	Kit.list("Vertical", GAP).Parent = side
 	Kit.new("UIPadding", { PaddingRight = UDim.new(0, 10), Parent = side })
 
+	-- ------------------------------------------------------------ build: event banner
+
+	local banner = panel(side, 0, "EventBanner")
+	local bannerKind = sentence(
+		banner,
+		1,
+		"EventKind",
+		{ TextSize = Kit.size.small, TextColor3 = Kit.colors.accent, Font = Kit.font.medium }
+	)
+	local bannerTitle =
+		scaled(banner, 2, "EventTitle", { Size = UDim2.new(1, 0, 0, 30), Font = Kit.font.bold })
+	local bannerText = sentence(banner, 3, "EventText", { TextColor3 = Kit.colors.muted })
+	local bannerEffect = sentence(banner, 4, "EventEffect", { Font = Kit.font.medium })
+	local bannerMapNote =
+		sentence(banner, 5, "EventMapNote", { TextSize = Kit.size.small, TextColor3 = Kit.colors.muted })
+	local answerRow = row(banner, 6, "ChoiceRow")
+	local choiceButtons: { [string]: TextButton } = {}
+	for k = 1, #Events.CHOICES do
+		local answer: SharedTypes.Choice = Events.CHOICES[k]
+		local button: TextButton
+		button = Kit.button(answer, function()
+			if button.Active == false then
+				return
+			end
+			draft.choice = answer
+			render()
+		end, { Name = `Choice{answer}`, LayoutOrder = k, Size = cell(3), Parent = answerRow })
+		choiceButtons[answer] = button
+	end
+	local choiceNote =
+		sentence(banner, 7, "ChoiceNote", { TextSize = Kit.size.small, TextColor3 = Kit.colors.muted })
+
 	-- ------------------------------------------------------------ build: reveal panel
 
 	local revealPanel = panel(side, 1, "RevealPanel")
@@ -686,11 +738,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local feed = panel(side, 5, "Feed")
 	scaled(feed, 1, "FeedTitle", { Size = UDim2.new(1, 0, 0, 30), Font = Kit.font.bold }).Text = "Week card"
 	local feedOpponent = sentence(feed, 2, "FeedOpponent")
-	local feedRaised = sentence(feed, 3, "FeedRaised", { TextColor3 = Kit.colors.good })
-	local feedPolls = sentence(feed, 4, "FeedPolls")
-	local feedDebate = sentence(feed, 5, "FeedDebate", { TextColor3 = Kit.colors.accent })
+	local feedEvent = sentence(feed, 3, "FeedEvent", { TextColor3 = Kit.colors.accent })
+	local feedRaised = sentence(feed, 4, "FeedRaised", { TextColor3 = Kit.colors.good })
+	local feedPolls = sentence(feed, 5, "FeedPolls")
+	local feedDebate = sentence(feed, 6, "FeedDebate", { TextColor3 = Kit.colors.accent })
 	local feedMessages =
-		sentence(feed, 6, "FeedMessages", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.small })
+		sentence(feed, 7, "FeedMessages", { TextColor3 = Kit.colors.muted, TextSize = Kit.size.small })
 
 	-- ------------------------------------------------------------ layout
 
@@ -777,7 +830,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- The problem the draft would have with `action` added.
 	local function trial(view: View, action: Action): string?
-		local test: PlanDraft.Draft = { actions = table.clone(draft.actions), prep = draft.prep }
+		local test: PlanDraft.Draft =
+			{ actions = table.clone(draft.actions), prep = draft.prep, choice = draft.choice }
 		table.insert(test.actions, action)
 		return PlanDraft.problem(config, view, test)
 	end
@@ -884,6 +938,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				draft.prep = Plan.defaultPrep(config, points)
 			end
 		end
+		-- Ignore is what the server assumes for a missing answer, so it starts selected.
+		draft.choice = if PlanDraft.isChoiceWeek(view) then "Ignore" else nil
 		if selected == nil then
 			selected = view.players[view.you].location
 		end
@@ -979,6 +1035,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			colors[p] = Colors.of(player.color)
 		end
 		map:setView(shown, colors)
+		local live = payload
+		local event = if live then shownEvent(live) else nil
+		local starred = if event then PlanDraft.eventStates(event) else {}
 		local marks: { [string]: MapInterface.Mark } = {}
 		for _, s in view.states do
 			local parts: { string } = {}
@@ -991,6 +1050,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local units = s.gotv + plannedUnits(s.id)
 			if units > 0 then
 				table.insert(parts, `G{units}`)
+			end
+			if starred[s.id] then
+				table.insert(parts, "*")
 			end
 			local ring = if s.owner then playerColor(view, s.owner) else nil
 			if ring or #parts > 0 then
@@ -1138,7 +1200,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					hint = `Greyed out: {ctx.net.reasonText(problem)}`
 				end
 			else
-				local test: PlanDraft.Draft = { actions = table.clone(draft.actions), prep = draft.prep }
+				local test: PlanDraft.Draft =
+					{ actions = table.clone(draft.actions), prep = draft.prep, choice = draft.choice }
 				table.insert(test.actions, action)
 				local extra = PlanDraft.cost(config, view, test).cash - base.cash
 				button.Text = if extra > 1e-9 then `{label} {money(extra)}` else label
@@ -1150,6 +1213,37 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		actionHint.Text = hint
 			or "Rally and Fundraise move your candidate (1 AP each). Ads, polls and GOTV cost money."
+	end
+
+	-- ------------------------------------------------------------ render: event banner
+
+	local function renderEvent(p: Payload)
+		local event = shownEvent(p)
+		setVisible(banner, event ~= nil)
+		if event == nil then
+			return
+		end
+		bannerKind.Text = `This week's event · {event.kind}`
+		bannerTitle.Text = event.name
+		bannerText.Text = event.text
+		bannerEffect.Text = PlanDraft.eventEffect(config, event)
+		local mapNote = PlanDraft.eventMapNote(event)
+		bannerMapNote.Text = mapNote or ""
+		setVisible(bannerMapNote, mapNote ~= nil)
+		local choosing = event.kind == "Choice" and planning(p)
+		setVisible(answerRow, choosing)
+		setVisible(choiceNote, choosing)
+		if not choosing then
+			return
+		end
+		choiceNote.Text = PlanDraft.choiceNote(config)
+		local canEdit = editable(p)
+		for answer, button in choiceButtons do
+			local picked = draft.choice == answer
+			button.BackgroundColor3 = if picked then Kit.colors.accent else Kit.colors.raised
+			button.TextColor3 = if picked then Kit.colors.background else Kit.colors.text
+			Kit.setEnabled(button, canEdit)
+		end
 	end
 
 	-- ------------------------------------------------------------ render: debate prep
@@ -1346,6 +1440,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local view = p.view
 		local you, them = view.you, opponentOf(view)
 		feedOpponent.Text = opponentCard(config, view)
+		local lastEvent = PlanDraft.lastEventLine(view)
+		feedEvent.Text = lastEvent or ""
+		setVisible(feedEvent, lastEvent ~= nil)
 		feedRaised.Text = `You raised {money(view.raised)} from fundraisers last week.`
 		setVisible(feedRaised, view.raised > 0)
 		local polls: { string } = {}
@@ -1612,6 +1709,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		paintRoute(p)
 		renderCard(p)
+		renderEvent(p)
 		renderPrep(p)
 		renderTray(p)
 		renderFeed(p)

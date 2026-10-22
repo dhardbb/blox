@@ -7,8 +7,10 @@
 local process = require("@lune/process")
 
 local Config = require("@sim/Config")
+local Events = require("@sim/Events")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
+local PlanDraft = require("@ui/PlanDraft")
 local Support = require("../e2e/Support")
 local Test = require("@testlib/Test")
 
@@ -16,7 +18,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
 local PHONE = { x = 390, y = 844 }
-local MOMENTS = { "Plan", "Resolve", "DebatePrep", "Debate" }
+local MOMENTS = { "Plan", "ChoiceWeek", "Resolve", "DebatePrep", "Debate" }
 
 -- Fails the spec with a readable message.
 local function check(condition: boolean, message: string)
@@ -139,7 +141,7 @@ describe("Campaign screen", function()
 			local _, peer = mountsCleanly(moment)
 			check(shown(find(peer, "TopBar")), "no top bar")
 			check(string.find(text(peer, "WeekLabel"), "of 12", 1, true) ~= nil, "no week label")
-			if moment == "Plan" or moment == "DebatePrep" then
+			if moment == "Plan" or moment == "DebatePrep" or moment == "ChoiceWeek" then
 				check(shown(find(peer, "LockIn")), "Lock in is hidden while planning")
 				check(shown(find(peer, "StateCard")), "the state card is hidden while planning")
 				check(
@@ -323,6 +325,201 @@ describe("Campaign screen", function()
 		)
 		check(not shown(find(peer, "SkipButton")), "debates cannot be skipped")
 		noErrors(world)
+	end)
+
+	it("shows the week's event above everything else, with its effect in plain words", function()
+		-- The Plan fixture is a Windfall week.
+		local _, peer = mountsCleanly("Plan")
+		local event = Fixtures.payload(C, "Plan").view.event
+		check(event ~= nil and event.kind == "Windfall", "the Plan fixture is no longer a Windfall week")
+		check(shown(find(peer, "EventBanner")), "no event banner")
+		check(text(peer, "EventTitle") == (event :: any).name, "title: " .. text(peer, "EventTitle"))
+		check(text(peer, "EventText") == (event :: any).text, "flavor: " .. text(peer, "EventText"))
+		expect(text(peer, "EventEffect")):toBe(
+			"Fundraisers in states where you trail in the public poll raise ×1.2 this week"
+		)
+		check(not shown(find(peer, "ChoiceRow")), "answer buttons show in a Windfall week")
+		check(not shown(find(peer, "ChoiceNote")), "the Choice note shows in a Windfall week")
+		check(not shown(find(peer, "EventMapNote")), "a Windfall marks no states")
+		local banner, card = find(peer, "EventBanner"), find(peer, "StateCard")
+		check(banner.LayoutOrder < card.LayoutOrder, "the banner is not first in the side panel")
+	end)
+
+	it("hides the banner during the resolve reveal, which carries next week's view", function()
+		local _, peer = mountsCleanly("Resolve")
+		local view = Fixtures.payload(C, "Resolve").view
+		check(view.event ~= nil, "the Resolve fixture has no next-week event to hide")
+		check(not shown(find(peer, "EventBanner")), "the banner shows next week's event early")
+	end)
+
+	for _, size in { { name = "16:9", screen = nil }, { name = "phone", screen = PHONE } } do
+		it(`offers Attack, Defend and Ignore in a Choice week ({size.name})`, function()
+			local world, peer = mountsCleanly("ChoiceWeek", size.screen)
+			local event = Fixtures.payload(C, "ChoiceWeek").view.event :: any
+			check(event.kind == "Choice", "not a Choice week")
+			check(text(peer, "EventTitle") == event.name, "title: " .. text(peer, "EventTitle"))
+			expect(text(peer, "EventEffect")):toBe("Choose how to respond: Attack / Defend / Ignore")
+			check(shown(find(peer, "ChoiceNote")), "no tradeoff note")
+			check(
+				string.find(text(peer, "ChoiceNote"), "Attack beats Ignore", 1, true) ~= nil,
+				"note: " .. text(peer, "ChoiceNote")
+			)
+			local attack, defend, ignore =
+				find(peer, "ChoiceAttack"), find(peer, "ChoiceDefend"), find(peer, "ChoiceIgnore")
+			for _, button in { attack, defend, ignore } do
+				check(shown(button), `{button.Name} is hidden`)
+				check(button.AbsoluteSize.Y >= 44 - 0.5, `{button.Name} is {button.AbsoluteSize.Y}px tall`)
+				check(button.Active ~= false, `{button.Name} is disabled`)
+			end
+			check(text(peer, "ChoiceAttack") == "Attack", "attack label")
+			-- Ignore starts selected: it alone looks different.
+			check(attack.BackgroundColor3 == defend.BackgroundColor3, "attack and defend differ")
+			check(ignore.BackgroundColor3 ~= defend.BackgroundColor3, "Ignore is not selected by default")
+
+			press(world, peer, "ChoiceAttack")
+			check(attack.BackgroundColor3 ~= defend.BackgroundColor3, "Attack did not become selected")
+			check(ignore.BackgroundColor3 == defend.BackgroundColor3, "Ignore stayed selected")
+			press(world, peer, "ChoiceDefend")
+			check(defend.BackgroundColor3 ~= attack.BackgroundColor3, "Defend did not become selected")
+			press(world, peer, "ChoiceAttack")
+
+			press(world, peer, "LockIn")
+			check(said(peer, "[270] DEBUG_UI submit"), "Lock in sent nothing")
+			for _, button in { attack, defend, ignore } do
+				check(button.Active == false, `{button.Name} is still enabled after locking`)
+			end
+			check(
+				attack.BackgroundColor3 ~= defend.BackgroundColor3,
+				"the locked answer is no longer shown selected"
+			)
+			check(#audit(peer) == 0, "audit after locking: " .. table.concat(audit(peer), "; "))
+			noErrors(world)
+		end)
+	end
+
+	-- Plays a practice match with the debug UI's Auto button until `done()` holds,
+	-- checking it before each automatic move so the stage asked for is still open.
+	local function walk(rig: Support.Rig, peer: FakeRoblox.Peer, done: () -> boolean, limit: number): boolean
+		local waited = 0
+		while waited < limit do
+			Support.run(rig, 0.5)
+			waited += 0.5
+			if done() then
+				return true
+			end
+			if string.find(Support.screen(peer).status, "your move", 1, true) then
+				Support.press(rig, peer, "Auto")
+				waited += 0.2
+			end
+		end
+		return false
+	end
+
+	local function startPractice(seed: number): (Support.Rig, FakeRoblox.Peer)
+		local rig = Support.new(process.cwd, seed)
+		local peer = Support.join(rig, "Player1")
+		Support.press(rig, peer, "Practice")
+		Support.run(rig, 1)
+		return rig, peer
+	end
+
+	local function definition(name: string): Events.Definition
+		for _, event in Events.deck do
+			if event.name == name then
+				return event
+			end
+		end
+		error(`no event named {name}`)
+	end
+
+	it("sends the Choice answer with Lock in and shows it in the reveal and the week card", function()
+		local rig, peer = startPractice(5)
+		local choosing = function()
+			local button = FakeRoblox.find(peer, "ChoiceAttack")
+			return button ~= nil and shown(button) and button.Active ~= false
+		end
+		check(walk(rig, peer, choosing, 900), "no Choice week came up in a whole match")
+		local event = definition(text(peer, "EventTitle"))
+		check(event.kind == "Choice", `{event.name} is not a Choice event`)
+		Support.press(rig, peer, "ChoiceAttack")
+		Support.press(rig, peer, "LockIn")
+		check(find(peer, "ChoiceAttack").Active == false, "the answers are still open after Lock in")
+		check(
+			Support.runUntil(rig, function()
+				return shown(find(peer, "RevealPanel"))
+			end, 120),
+			"the resolve reveal never started"
+		)
+		check(
+			Support.runUntil(rig, function()
+				return text(peer, "RevealSummary") ~= ""
+			end, 120),
+			"the resolve reveal never finished"
+		)
+		local lines = {}
+		for k = 1, 8 do
+			table.insert(lines, text(peer, `RevealLine{k}`))
+		end
+		local revealed = false
+		for _, line in lines do
+			if string.find(line, event.name .. ": You attacked (", 1, true) then
+				revealed = true
+			end
+		end
+		check(revealed, "the reveal never captioned your answer: " .. table.concat(lines, " | "))
+		local feedLine = text(peer, "FeedEvent")
+		check(shown(find(peer, "FeedEvent")), "the week card shows no event")
+		check(
+			string.find(feedLine, `Last week's event: {event.name}. You attacked, they `, 1, true) ~= nil,
+			"week card: " .. feedLine
+		)
+		check(string.find(feedLine, "national points", 1, true) ~= nil, "week card: " .. feedLine)
+		noErrors(rig.world)
+	end)
+
+	it("stars the states a Spotlight or Regional event singles out on the map", function()
+		local rig, peer = startPractice(5)
+		local singled = function()
+			local kind = FakeRoblox.find(peer, "EventKind")
+			local planning = FakeRoblox.find(peer, "LockIn")
+			return kind ~= nil
+				and shown(kind)
+				and planning ~= nil
+				and shown(planning)
+				and (
+					string.find(text(peer, "EventKind"), "Spotlight", 1, true) ~= nil
+					or string.find(text(peer, "EventKind"), "Regional", 1, true) ~= nil
+				)
+		end
+		check(walk(rig, peer, singled, 900), "no Spotlight or Regional week came up")
+		local event = definition(text(peer, "EventTitle"))
+		local view: any = { week = 0, id = event.id, kind = event.kind, name = event.name, text = event.text }
+		view.issue, view.region = event.issue, event.region
+		local expected = PlanDraft.eventStates(view)
+		expect(text(peer, "EventEffect")):toBe(PlanDraft.eventEffect(C, view))
+		check(
+			string.find(text(peer, "EventEffect"), "×1.", 1, true) ~= nil,
+			"no multiplier in the effect line"
+		)
+		check(shown(find(peer, "EventMapNote")), "no note on what the * means")
+		check(
+			text(peer, "EventMapNote") == PlanDraft.eventMapNote(view),
+			"map note: " .. text(peer, "EventMapNote")
+		)
+		local starred: { [string]: boolean } = {}
+		for _, inst in find(peer, "NodeMap"):GetDescendants() do
+			if inst.Name == "Badge" and inst.Visible ~= false and string.find(inst.Text, "*", 1, true) then
+				local label = inst.Parent:FindFirstChild("Label")
+				starred[tostring(label.Text)] = true
+			end
+		end
+		for id in expected do
+			check(starred[id] == true, `{id} should be starred under {event.name}`)
+		end
+		for id in starred do
+			check(expected[id] == true, `{id} is starred but {event.name} does not single it out`)
+		end
+		noErrors(rig.world)
 	end)
 
 	it("follows a whole autoplayed practice match", function()

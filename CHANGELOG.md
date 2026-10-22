@@ -2,6 +2,19 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## 0.3.0 — Phase 3: Client MVP (first test build, Oct 22, 2026)
+
+The real game screens replace the text UI (still available as a debug panel: F2, or the workspace attribute `DebugText`).
+
+- Six screens: Lobby (practice, find match, host / join by code, your rating), Select (candidate, color, three-issue platform with EV coverage), Draft (map reveal, ranked top-2 picks from the map or a state list, per-round reveals), Campaign (node map, state card, action buttons with cost and problem preview, plan tray, time bank, pivot, debate prep, this week's event with Attack / Defend / Ignore in Choice weeks, week card, animated resolve and debate reveals), Election night (states called safest first, EV counters, winner banner) and Results (winner, EV, closest states, rating change, play again).
+- Node map: circles sized by EV, colored by public polls, undecided rings, land-border lines, route preview; built from frames, behind a MapInterface so real shapes can replace it.
+- Plan preview: cost and problems before Lock in, using the server's own cost rules.
+- DEBUG_UI: set the workspace attribute `DebugScreen` (Lobby, Select, MapReveal, Draft, Plan, ChoiceWeek, Resolve, DebatePrep, Debate, Election, Over) to render any screen from a fixture without a server; every screen runs a layout audit (buttons under 44 px, truncated text).
+- Works in 16:9 and phone portrait; content stays clear of Roblox's own buttons.
+- Includes the balance pass, the event deck and ratings below.
+
+**Test:** `docs/TESTING.md` → Phase 3.
+
 ## Unreleased — ratings and saved stats (branch `phase5-data`)
 
 Elo ratings and persistent player stats (`docs/DESIGN.md` D-028). The debug UI shows them; the real screens come later.

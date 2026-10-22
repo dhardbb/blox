@@ -6,6 +6,8 @@
 
 local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
+local Events = require("../Sim/Events")
+local Issues = require("../Sim/Issues")
 local Plan = require("../Sim/Plan")
 local Resolve = require("../Sim/Resolve")
 local StateData = require("../Sim/StateData")
@@ -18,6 +20,7 @@ type View = ViewModule.View
 export type Draft = {
 	actions: { Plan.Action },
 	prep: { number }?,
+	choice: Types.Choice?, -- answer to this week's Choice event (nil in any other week)
 }
 
 -- One stop on the route (rallies and fundraisers), for drawing the path.
@@ -42,7 +45,12 @@ local ISSUES: { Types.Issue } = {
 }
 
 function PlanDraft.new(): Draft
-	return { actions = {}, prep = nil }
+	return { actions = {}, prep = nil, choice = nil }
+end
+
+-- Is this week's event one that asks for a Choice answer?
+function PlanDraft.isChoiceWeek(view: View): boolean
+	return view.event ~= nil and view.event.kind == "Choice"
 end
 
 function PlanDraft.profile(config: Config, view: View): Candidates.Profile
@@ -109,6 +117,9 @@ function PlanDraft.problem(config: Config, view: View, draft: Draft): string?
 				return Plan.Reason.PivotUsed
 			end
 		end
+	end
+	if draft.choice ~= nil and not PlanDraft.isChoiceWeek(view) then
+		return Plan.Reason.UnexpectedChoice
 	end
 	local ap, cash = PlanDraft.remaining(config, view, draft)
 	if ap < 0 then
@@ -194,7 +205,126 @@ function PlanDraft.payload(draft: Draft): any
 	for k, action in draft.actions do
 		actions[k] = table.clone(action)
 	end
-	return { actions = actions, prep = if draft.prep then table.clone(draft.prep) else nil }
+	return {
+		actions = actions,
+		prep = if draft.prep then table.clone(draft.prep) else nil,
+		choice = draft.choice,
+	}
+end
+
+-- ------------------------------------------------------------ weekly events (D-027)
+
+-- A multiplier as plain text: 1.3 -> "×1.3", 2 -> "×2".
+local function times(mult: number): string
+	local text = string.format("%.2f", mult)
+	text = string.gsub(text, "0+$", "")
+	text = string.gsub(text, "%.$", "")
+	return "×" .. text
+end
+
+-- National points with a sign, never "-0.0".
+local function points(value: number): string
+	if math.abs(value) < 0.05 then
+		return "+0.0"
+	end
+	return string.format("%+.1f", value)
+end
+
+-- What this week's event does, in plain words, with the numbers from Config.
+function PlanDraft.eventEffect(config: Config, event: ViewModule.EventView): string
+	if event.kind == "Spotlight" then
+		local issue = Issues.displayName[event.issue :: Types.Issue] or "?"
+		return `Rallies and ads about {issue} are worth {times(config.EVENT_SPOTLIGHT_MULT)} this week`
+	elseif event.kind == "Regional" then
+		local region = Issues.regionName[event.region :: Types.Region] or "?"
+		return `Rallies in the {region} states are worth {times(config.EVENT_REGIONAL_MULT)} this week`
+	elseif event.kind == "Windfall" then
+		return `Fundraisers in states where you trail in the public poll raise {times(
+			config.EVENT_WINDFALL_MULT
+		)} this week`
+	end
+	return "Choose how to respond: Attack / Defend / Ignore"
+end
+
+-- The states a Spotlight or Regional event singles out, as a set of state ids
+-- (Spotlight: the issue is one of the state's two top issues).
+function PlanDraft.eventStates(event: ViewModule.EventView): { [string]: boolean }
+	local out: { [string]: boolean } = {}
+	for _, record in StateData.list do
+		local hit = false
+		if event.kind == "Spotlight" then
+			hit = event.issue ~= nil and table.find(record.issues, event.issue) ~= nil
+		elseif event.kind == "Regional" then
+			hit = record.region == event.region
+		end
+		if hit then
+			out[record.id] = true
+		end
+	end
+	return out
+end
+
+-- Why the map marks some states for this event (nil for Windfall and Choice).
+function PlanDraft.eventMapNote(event: ViewModule.EventView): string?
+	if event.kind == "Spotlight" then
+		return `States marked * have {Issues.displayName[event.issue :: Types.Issue] or "?"} as a top issue.`
+	elseif event.kind == "Regional" then
+		return `States marked * are in the {Issues.regionName[event.region :: Types.Region] or "?"}.`
+	end
+	return nil
+end
+
+-- One sentence on the Choice tradeoff, from the payoff matrix in Config.
+function PlanDraft.choiceNote(config: Config): string
+	local worst = math.max(
+		math.abs(config.CHOICE_ATTACK_DEFEND),
+		math.abs(config.CHOICE_ATTACK_ATTACK),
+		math.abs(config.CHOICE_DEFEND_DEFEND),
+		math.abs(config.CHOICE_DEFEND_IGNORE),
+		math.abs(config.CHOICE_IGNORE_ATTACK)
+	)
+	return `Attack beats Ignore ({points(config.CHOICE_ATTACK_IGNORE)} national points), Defend beats Attack, Ignore beats Defend. A wrong guess costs up to {string.format(
+		"%.1f",
+		worst
+	)}; answers stay secret until the week resolves.`
+end
+
+local VERB: { [string]: string } = { Attack = "attacked", Defend = "defended", Ignore = "ignored" }
+
+PlanDraft.points = points
+
+-- "attacked", "defended" or "ignored" for a Choice answer.
+function PlanDraft.choiceVerb(choice: string): string
+	return VERB[choice] or choice
+end
+
+-- Last week's resolved event for the week card, or nil. A Choice event names
+-- both answers and the national points each side got.
+function PlanDraft.lastEventLine(view: View): string?
+	local entry = nil
+	for _, result in view.eventLog do
+		if result.week == view.week - 1 then
+			entry = result
+		end
+	end
+	if entry == nil then
+		return nil
+	end
+	local event = Events.byId[entry.id]
+	local name = if event then event.name else "an event"
+	local choices, national = entry.choices, entry.national
+	if choices == nil or national == nil then
+		return `Last week's event: {name}.`
+	end
+	local you = view.you
+	local them = if you == 1 then 2 else 1
+	local mine, theirs = choices[you], choices[them]
+	if mine == nil or theirs == nil then
+		return `Last week's event: {name}.`
+	end
+	return `Last week's event: {name}. You {PlanDraft.choiceVerb(mine)}, they {PlanDraft.choiceVerb(theirs)}: {points(
+		national[you] or 0
+	)} / {points(national[them] or 0)} national points.`
 end
 
 return table.freeze(PlanDraft)

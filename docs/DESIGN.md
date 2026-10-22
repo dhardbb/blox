@@ -363,3 +363,12 @@ A match deals 10 of them, so it sees about 4 Spotlights, 2.5 Regionals, 1.5 Wind
 **Known limits.** A player who leaves a rated match and joins another server before the match ends can't be charged the forfeit (their record is locked there; the update is retried 4 times, then dropped with a warning). The lock is not refreshed on a timer, only by saves, which is enough because a player can't be in two servers and the lock only guards the moments around a server hop. A server crash loses only what changed since the last match end. Request budgets (`GetRequestBudgetForRequestType`) aren't tracked: a player causes about three requests per match.
 
 **Roblox APIs used** (checked against the creator-docs reference): `DataStoreService:GetDataStore(name)`; `GlobalDataStore:UpdateAsync(key, transform)` and `:GetAsync(key)` (`DataStore` inherits both); `DataModel:BindToClose(fn)` (30 s limit, functions run in parallel); `DataModel.JobId` (empty in Studio, so the lock owner there is `"studio"`); `RunService:IsStudio()`; `Players.PlayerAdded`/`PlayerRemoving`.
+
+## Phase 3: client MVP
+
+### D-029 — Client structure and UI rules (Oct 22, 2026)
+
+- Screens are modules with one contract (`mount(parent, ctx) -> { update, tick?, destroy }`); a router picks one per state. They read only the Store (the server's payload: the player's own View) and send only through Net. Pure helpers (colors, map layout, plan preview, fixtures) live in `Shared/UI` so they are tested headlessly.
+- **Map nodes are exempt from the 44 px touch rule.** Small states are small circles by design (tap targets are at least 30 px); every screen that picks states also offers a list. The layout audit skips buttons inside `NodeMap`.
+- The game's ScreenGui uses `CoreUISafeInsets` so Roblox's own top-left buttons never cover it; a separate backdrop fills the screen.
+- The debug text panel stays in the build, hidden (F2 or `DebugText`), because agents and the e2e specs drive matches through it.

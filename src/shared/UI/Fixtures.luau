@@ -5,6 +5,7 @@
 
 local Bot = require("../Sim/Bot")
 local ConfigModule = require("../Sim/Config")
+local Events = require("../Sim/Events")
 local Rng = require("../Sim/Rng")
 local Session = require("../Net/Session")
 local View = require("../Sim/View")
@@ -16,6 +17,7 @@ export type Moment =
 	| "MapReveal" -- leans shown
 	| "Draft" -- a draft round in progress, some picks made
 	| "Plan" -- week 3 plan, with history behind it
+	| "ChoiceWeek" -- a plan whose week has a Choice event (Attack / Defend / Ignore)
 	| "Resolve" -- the resolve animation after week 3
 	| "DebatePrep" -- the week before a debate (prep due)
 	| "Debate" -- the debate sequence
@@ -29,6 +31,7 @@ Fixtures.MOMENTS = table.freeze({
 	"MapReveal",
 	"Draft",
 	"Plan",
+	"ChoiceWeek",
 	"Resolve",
 	"DebatePrep",
 	"Debate",
@@ -47,6 +50,8 @@ local function reached(session: Session.Session, moment: Moment): boolean
 		return phase == "Draft" and session.match.draftRound == 3 and stage == "Input"
 	elseif moment == "Plan" then
 		return phase == "Plan" and session.match.week == 3 and stage == "Input"
+	elseif moment == "ChoiceWeek" then
+		return phase == "Plan" and stage == "Input" and Events.isChoiceWeek(session.match)
 	elseif moment == "Resolve" then
 		return session.reveal == "Resolve" and session.match.week == 4
 	elseif moment == "DebatePrep" then
@@ -59,15 +64,9 @@ local function reached(session: Session.Session, moment: Moment): boolean
 	return stage == "Over"
 end
 
--- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
--- as candidate `candidate` (default Dana Okafor) against Rex Calloway.
-function Fixtures.payload(
-	config: Config,
-	moment: Moment,
-	seed: number?,
-	candidate: string?
-): Session.StatePayload
-	local s = seed or 7
+-- Plays one match with seed `s` up to `moment`. Nil if the match ends first (a
+-- seed whose deck never deals a Choice event into a plan week).
+local function play(config: Config, moment: Moment, s: number, candidate: string?): Session.StatePayload?
 	local session = Session.new(config, "fixture", s, {
 		{ id = "you", kind = "Human" },
 		{ id = "bot", kind = "Bot", candidate = "calloway" },
@@ -77,6 +76,9 @@ function Fixtures.payload(
 	for _ = 1, 500 do
 		if reached(session, moment) then
 			return Session.payload(session, 1)
+		end
+		if session.stage == "Over" then
+			return nil
 		end
 		if session.stage == "Input" and not session.seats[1].locked then
 			local view = View.build(config, session.match, 1)
@@ -88,6 +90,27 @@ function Fixtures.payload(
 			Session.update(session, t)
 		end
 		Session.drain(session)
+	end
+	return nil
+end
+
+-- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
+-- as candidate `candidate` (default Dana Okafor) against Rex Calloway. ChoiceWeek
+-- tries the next seeds in turn until one deals a Choice event into a plan week
+-- (weeks 2 to 11), so the result is still fixed by the seed given.
+function Fixtures.payload(
+	config: Config,
+	moment: Moment,
+	seed: number?,
+	candidate: string?
+): Session.StatePayload
+	local first = seed or 7
+	local tries = if moment == "ChoiceWeek" then 40 else 1
+	for k = 0, tries - 1 do
+		local payload = play(config, moment, first + k, candidate)
+		if payload then
+			return payload
+		end
 	end
 	error(`fixture never reached {moment}`)
 end

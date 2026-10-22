@@ -4,12 +4,14 @@
 local Test = require("@testlib/Test")
 local Colors = require("@ui/Colors")
 local Config = require("@sim/Config")
+local Events = require("@sim/Events")
 local Fixtures = require("@ui/Fixtures")
 local MapLayout = require("@ui/MapLayout")
 local Match = require("@sim/Match")
 local Plan = require("@sim/Plan")
 local PlanDraft = require("@ui/PlanDraft")
 local StateData = require("@sim/StateData")
+local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -143,7 +145,6 @@ describe("PlanDraft", function()
 		while match.phase ~= "Plan" do
 			match = Match.advance(C, match, {})
 		end
-		local View = require("@sim/View")
 		local view = View.build(C, match, 1)
 		local draft = PlanDraft.new()
 		local home = view.players[1].location :: string
@@ -157,6 +158,145 @@ describe("PlanDraft", function()
 	end)
 end)
 
+-- A fresh two-player match advanced (with empty plans) to the Plan phase of the
+-- first week at or after `week` whose event is a Choice (`choice` true) or isn't.
+local function planWeek(seed: number, choice: boolean): Match.MatchState
+	local match = Match.new(C, seed, { "a", "b" })
+	local pick = { candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } }
+	match = Match.advance(C, match, { pick, pick })
+	for _ = 1, 200 do
+		if match.phase == "Plan" and Events.isChoiceWeek(match) == choice and Events.at(match) ~= nil then
+			return match
+		end
+		match = Match.advance(C, match, {})
+	end
+	error("no such plan week")
+end
+
+describe("PlanDraft weekly events", function()
+	it("sends a Choice answer only when one is set, and the server accepts it", function()
+		local match = planWeek(1, true)
+		local view = View.build(C, match, 1)
+		local draft = PlanDraft.new()
+		expect(PlanDraft.isChoiceWeek(view)):toBe(true)
+		expect(PlanDraft.payload(draft).choice):toBe(nil)
+		draft.choice = "Attack"
+		expect(PlanDraft.payload(draft).choice):toBe("Attack")
+		expect(PlanDraft.problem(C, view, draft)):toBe(nil)
+		for _, answer in Events.CHOICES do
+			draft.choice = answer
+			local ok, reason = Match.validate(C, match, 1, PlanDraft.payload(draft))
+			expect(reason):toBe(nil)
+			expect(ok):toBe(true)
+		end
+	end)
+
+	it("rejects a Choice answer in any other week, like the server", function()
+		local match = planWeek(1, false)
+		local view = View.build(C, match, 1)
+		expect(PlanDraft.isChoiceWeek(view)):toBe(false)
+		local draft = PlanDraft.new()
+		expect(PlanDraft.problem(C, view, draft)):toBe(nil)
+		draft.choice = "Defend"
+		expect(PlanDraft.problem(C, view, draft)):toBe(Plan.Reason.UnexpectedChoice)
+		local ok, reason = Match.validate(C, match, 1, PlanDraft.payload(draft))
+		expect(ok):toBe(false)
+		expect(reason):toBe(Plan.Reason.UnexpectedChoice)
+		-- No event at all (week 1) is also not a Choice week.
+		local early = Match.new(C, 1, { "a", "b" })
+		early = Match.advance(C, early, {
+			{ candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } },
+			{ candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } },
+		})
+		while early.phase ~= "Plan" do
+			early = Match.advance(C, early, {})
+		end
+		local earlyView = View.build(C, early, 1)
+		expect(earlyView.event):toBe(nil)
+		expect(PlanDraft.problem(C, earlyView, draft)):toBe(Plan.Reason.UnexpectedChoice)
+	end)
+
+	it("describes each kind of event in plain words with the Config numbers", function()
+		local function event(kind: any, issue: any, region: any): View.EventView
+			return { week = 3, id = "x", kind = kind, name = "N", text = "T", issue = issue, region = region }
+		end
+		local spot = PlanDraft.eventEffect(C, event("Spotlight", "Transit", nil))
+		expect(spot):toBe("Rallies and ads about Roads & Transit are worth ×1.3 this week")
+		local region = PlanDraft.eventEffect(C, event("Regional", nil, "GreatLakes"))
+		expect(region):toBe("Rallies in the Great Lakes states are worth ×1.5 this week")
+		local windfall = PlanDraft.eventEffect(C, event("Windfall", nil, nil))
+		expect(windfall):toBe(
+			"Fundraisers in states where you trail in the public poll raise ×1.2 this week"
+		)
+		expect(PlanDraft.eventEffect(C, event("Choice", nil, nil))):toBe(
+			"Choose how to respond: Attack / Defend / Ignore"
+		)
+		local more = Config.with(C, { EVENT_SPOTLIGHT_MULT = 2 })
+		expect(PlanDraft.eventEffect(more, event("Spotlight", "Jobs", nil))):toBe(
+			"Rallies and ads about Jobs are worth ×2 this week"
+		)
+		expect(PlanDraft.choiceNote(C)):toBe(
+			"Attack beats Ignore (+0.2 national points), Defend beats Attack, Ignore beats Defend. A wrong guess costs up to 0.3; answers stay secret until the week resolves."
+		)
+	end)
+
+	it("marks the states a Spotlight or Regional event singles out", function()
+		local function event(kind: any, issue: any, region: any): View.EventView
+			return { week = 3, id = "x", kind = kind, name = "N", text = "T", issue = issue, region = region }
+		end
+		local pacific = PlanDraft.eventStates(event("Regional", nil, "Pacific"))
+		local health = PlanDraft.eventStates(event("Spotlight", "Health", nil))
+		local pacificCount, healthCount = 0, 0
+		for _, record in StateData.list do
+			expect(pacific[record.id] == true):toBe(record.region == "Pacific")
+			expect(health[record.id] == true):toBe(table.find(record.issues, "Health") ~= nil)
+			pacificCount += if pacific[record.id] then 1 else 0
+			healthCount += if health[record.id] then 1 else 0
+		end
+		expect(pacificCount > 0 and pacificCount < #StateData.list):toBe(true)
+		expect(healthCount > 0 and healthCount < #StateData.list):toBe(true)
+		expect(next(PlanDraft.eventStates(event("Windfall", nil, nil)))):toBe(nil)
+		expect(next(PlanDraft.eventStates(event("Choice", nil, nil)))):toBe(nil)
+		expect(PlanDraft.eventMapNote(event("Windfall", nil, nil))):toBe(nil)
+	end)
+
+	it("reports last week's event with both Choice answers and the national points", function()
+		local match = planWeek(1, true)
+		local week = match.week
+		local view = View.build(C, match, 1)
+		expect(PlanDraft.lastEventLine(view)):toBe(nil)
+		-- Player 1 defends against an attack: nothing for them, the backfire for the attacker.
+		local after = Match.advance(C, match, {
+			{ actions = {}, choice = "Defend" },
+			{ actions = {}, choice = "Attack" },
+		})
+		while after.phase ~= "Plan" and after.week == week do
+			after = Match.advance(C, after, {})
+		end
+		local name = (Events.at(match) :: Events.Definition).name
+		local mine = View.build(C, after, 1)
+		expect(mine.week):toBe(week + 1)
+		expect(PlanDraft.lastEventLine(mine)):toBe(
+			`Last week's event: {name}. You defended, they attacked: +0.0 / -0.3 national points.`
+		)
+		local theirs = View.build(C, after, 2)
+		expect(PlanDraft.lastEventLine(theirs)):toBe(
+			`Last week's event: {name}. You attacked, they defended: -0.3 / +0.0 national points.`
+		)
+	end)
+
+	it("names a resolved event that has no Choice", function()
+		local match = planWeek(1, false)
+		local week = match.week
+		local name = (Events.at(match) :: Events.Definition).name
+		local after = Match.advance(C, match, {})
+		while after.phase ~= "Plan" and after.week == week do
+			after = Match.advance(C, after, {})
+		end
+		expect(PlanDraft.lastEventLine(View.build(C, after, 1))):toBe(`Last week's event: {name}.`)
+	end)
+end)
+
 describe("Fixtures", function()
 	it("reaches every moment with a payload for that screen", function()
 		for _, moment in Fixtures.MOMENTS do
@@ -167,9 +307,14 @@ describe("Fixtures", function()
 			elseif moment == "Draft" then
 				expect(payload.view.phase):toBe("Draft")
 				expect(#payload.view.draftLog > 0):toBe(true)
-			elseif moment == "Plan" or moment == "DebatePrep" then
+			elseif moment == "Plan" or moment == "DebatePrep" or moment == "ChoiceWeek" then
 				expect(payload.stage):toBe("Input")
 				expect(payload.view.phase):toBe("Plan")
+				if moment == "ChoiceWeek" then
+					local event = payload.view.event
+					expect(event ~= nil and event.kind == "Choice"):toBe(true)
+					expect(payload.view.week >= 2 and payload.view.week <= 11):toBe(true)
+				end
 			elseif moment == "Resolve" then
 				expect(payload.reveal):toBe("Resolve")
 				expect(#payload.events > 0):toBe(true)
