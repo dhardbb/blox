@@ -163,6 +163,9 @@ gui.Parent = player:WaitForChild("PlayerGui")
 -- Fail loudly on layouts that break the PLAN.md rules (DEBUG_UI checks).
 task.defer(function()
 	task.wait(1)
+	if not gui.Enabled then
+		return -- hidden panels are not checked; it is a debug tool, not a game screen
+	end
 	for text, b in buttons do
 		if b.AbsoluteSize.Y < MIN_TOUCH then
 			warn(`[270] debug UI: button {text} is {b.AbsoluteSize.Y}px tall, under {MIN_TOUCH}px`)

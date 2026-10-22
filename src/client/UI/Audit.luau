@@ -20,7 +20,10 @@ function Audit.run(root: Instance, label: string): number
 		return true
 	end
 	for _, inst in root:GetDescendants() do
-		if inst:IsA("GuiButton") and visible(inst) then
+		-- Map nodes are exempt from the 44 px rule: small states are tiny circles by
+		-- design, and every screen that picks states also offers a list (D-029).
+		local onMap = inst:FindFirstAncestor("NodeMap") ~= nil
+		if inst:IsA("GuiButton") and visible(inst) and not onMap then
 			local size = (inst :: GuiButton).AbsoluteSize
 			if size.Y < 44 - 0.5 then
 				problems += 1

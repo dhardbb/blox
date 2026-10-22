@@ -300,6 +300,17 @@ function methods.FindFirstChild(self: any, name: string): any
 	return nil
 end
 
+function methods.FindFirstAncestor(self: any, name: string): any
+	local node = rawget(self, "_parent")
+	while node do
+		if rawget(node, "_props").Name == name then
+			return node
+		end
+		node = rawget(node, "_parent")
+	end
+	return nil
+end
+
 function methods.FindFirstChildOfClass(self: any, className: string): any
 	for _, child in rawget(self, "_children") do
 		if child.ClassName == className then
@@ -514,6 +525,11 @@ newInstance = function(world: World, className: string, name: string?): any
 	}, instanceMeta)
 	if TEXT_CLASSES[className] then
 		rawget(inst, "_props").Text = if className == "TextBox" then "" else "Label"
+	end
+	if GUI_OBJECTS[className] or className == "ScreenGui" then
+		-- Like Roblox: GUI objects are visible and enabled unless told otherwise.
+		rawget(inst, "_props").Visible = true
+		rawget(inst, "_props").Enabled = true
 	end
 	if className == "RemoteEvent" then
 		-- One signal for the server, one per client peer.
