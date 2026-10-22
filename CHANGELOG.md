@@ -2,6 +2,19 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased — balance pass 2
+
+Numbers from the first agent playtest (three duel matches, six playtesters' notes), one approved perk reshape, and nothing new on the client except the data for it. Design log: `docs/DESIGN.md` "Balance pass 2" (D-033 to D-038), with the before/after harness table in D-038.
+
+- **Debates decide things (D-033).** The topic roll is 0..3 (was 0..6), so a 2-point prep edge wins its topic about 8 times in 10 and 4-vs-0 always; each topic is worth 0.3 national points (was 0.2), a sweep 1.2 in all, a gaffe 0.3. Debates now change the winner in about one match in five and swing about 21 EV. `docs/PLAN.md` "Debates" quotes the current formula.
+- **Fundraising is flat (D-034).** Pools start half full (new `POOL_START`), refill 50% a week (was 25%) and the home-state bonus is ×1.25 (was ×1.5). A home fundraiser pays about the same every week instead of $7 for four weeks and $4.5 after; three week-1 home fundraisers raise under $10, not $18–20.
+- **Helen Strand previews next week's event (D-035).** New perk text: "Sees next week's event a week early; two free internal polls a week". Her View (and only hers) carries `nextEvent`; the debug board prints it. The campaign screen shows it once the client branch picks the field up. The bot uses the preview to end its route where a Regional event is coming.
+- **Choice weeks pay the winner (D-036).** Attack over Ignore +0.3 / −0.2, Defend over Attack +0.2 / −0.3, Ignore over Defend +0.2 / −0.2; both attack −0.2 each; both defend or both ignore 0. The old matrix paid 0 to a successful Defend or Ignore, which is why it read as a trap.
+- **Candidates retuned for the flat economy (D-037).** Money matters more now, so the money-shaped perks were measured again: Okafor fundraisers +50% → +25%; Venkat income $3 → $2 and repeat ads keep 65% (was 70%); Hale 8 → 7 prep points (two spare points were worth +8 once debates counted); Strand's media drawback −15% → −10%. The bot values ground game a little higher (`gotvPremium` 1.3) so GOTV still decides one match in ten.
+- **Harness.** New lines: average money raised per player, and the ratio of money raised in weeks 1–3 to weeks 10–12 (target ≤ 1.5). Specs: 608 (was 600).
+
+**To test:** `docs/TESTING.md`, "Balance pass 2". Nothing needed from the humans except a look at the proposals listed under D-038.
+
 ## Unreleased — playtest 1 fixes (0.4.1)
 
 Fixes from the first agent-vs-agent playtest (three matches through `tests/duel.luau`). No rules or `Sim/Config.luau` numbers changed. Every game fix has a spec that failed before it. Specs: 600.

@@ -442,3 +442,92 @@ The client gets one visual language before the screens are redone (plan: the UI 
 - **Nominated strongholds are shown as battlegrounds.** A nominated state stays in its drafter's `strongholds` list (and keeps `owner`) but has no bonus (PLAN.md "Battlegrounds"); `UI/Drafted.strongholds` splits the list for every screen. Sim unchanged.
 - **Debate scoring checked against the docs** (playtesters felt prep did not matter): `Debate.resolve` matches D-019 (roll 0..6, 0.2 per topic, sweep 0.2, gaffe 0.2) and the PLAN.md formula otherwise. PLAN.md "Debates" still quotes the pre-D-019 numbers (roll 0..2, +0.8 per topic, +0.5 sweep, -0.5 gaffe). With a 0..6 roll a 2-point prep edge (the most a 4/2 split moves one topic) still ties or loses about 3 times in 10, and platform (+2) and debate stat count as much as prep, which is what the testers saw. Left for the humans with the other balance notes.
 
+
+## Balance pass 2 (Oct 22, 2026, branch `balance-pass-2`)
+
+Evidence: six agent playtesters, three full matches through `tests/duel.luau` (277–261, 273–265, 289–249; fun 6–8/10), learning only from the screens. Their consistent balance notes: debates barely matter and prep does not visibly win topics, so Hale (8 prep, $0) is the weakest pick; fundraising is a week-1 bonanza at home and dries up after; Strand's free polls look worthless because public polls cover every state every week; Choice events feel like a trap (Attack lost both times, Defend paid nothing). The humans approved a pass on those four areas (debates, fundraising, Strand's perk, Choice payoffs); everything else here is tuning or a proposal.
+
+**Targets, stated first** (harness, 2,000 matches, defaults; pass 1's targets still apply):
+- Debates: a 2-point prep edge wins its topic ≥ 75% and loses ≤ 12% (arithmetic on the roll, `Config.spec`); a 4-point edge always wins; debates change the winner in 15–30% of matches (was 16.4%) and swing 20–40 EV on average (was 15.3), i.e. a sweep is worth about one big close state, "a week of good campaigning".
+- Fundraising: a home state worked once a week pays within 10% of the same amount every week (`Resolve.spec`); three week-1 home fundraisers raise under $10 (was $18–20); the harness's new "raised in weeks 1–3 / weeks 10–12" ratio ≤ 1.5; average money raised stays within 25% of pass 1's $50 so money is not irrelevant.
+- Candidates: all eight in 45–55%, Hale and Strand included; Hale's topic win rate ≤ 60%.
+- Choice: every exchange pays the winner a positive and the loser a negative number; each answer is the unique best reply to some answer; the bot's equilibrium mix plays every answer ≥ 15%; every payoff under a debate sweep and inside `EVENT_CAP`.
+- Unchanged: D-005 (match ≤ 15 min; no timer changed), priority-A 47–53%, comeback 20–40%, blowout targets of D-024.
+
+### D-033 — Debates: roll 0..3, 0.3 per topic, sweep 0.3, gaffe 0.3 (tuning)
+
+`DEBATE_ROLL_MAX` 6 → 3, `DEBATE_TOPIC_WIN` 0.2 → 0.3, `DEBATE_SWEEP` 0.2 → 0.3, `DEBATE_GAFFE` 0.2 → 0.3. A sweep is now worth 1.2 national points (was 0.8); `Config.spec` pins 1–2.
+
+*Why:* D-019 widened the roll to 0..6 to stop Hale's then flat +1 stat from being a lock. Hale's edge is prep now (D-023), which a player chooses where to stack, so the roll can shrink: against 0..6 a 2-point prep edge (the most a 4/2/0 split moves one topic against 2/2/2) won 69% and lost 20%; against 0..3 it wins 81%, ties 12%, loses 6%, and a 1-point edge wins 62% (0..2 made it 89%: a lock again). The payoff rose because 0.2 per topic moved a state by 0.2–0.4 points and nobody could see it; 0.3 is the most the blowout targets allow (grid, 2,000 matches each, roll 0..3: 0.3 per topic → debates decide 22%, 40+ EV 63.8%, 100+ EV 24.2%; 0.4 → 25%, 66.6%, 29.3%; 0.5 → 29%, 70%, 33%). The national shift still lands hardest on the tied block of undrafted states (D-019), which is why it cannot go higher without a map or bot change (listed under proposals).
+
+*Result:* debates change the winner in 19–21% of matches and swing about 21 EV; topic win rates 38% (ties are the rest), Hale 54%. `Election.spec` plays 150 debates with a 4/2/0 vs 2/2/4 split and checks the 2-point edge wins ≥ 72% and the 4-vs-0 topic always. `docs/PLAN.md` "Debates" now quotes these numbers (it still had revision 1's).
+
+### D-034 — Fundraising: pools start half full, refill 50%, home ×1.25 (tuning)
+
+New `POOL_START` 0.5 (a new match's pools hold half their capacity), `POOL_REFILL` 0.25 → 0.5, `HOME_FUNDRAISE_MULT` 1.5 → 1.25. Capacities (`POOL_BASE`, `POOL_PER_MILLION`, `POOL_MAX`) and the yield formula are unchanged, so D-012's "no pool funds three fundraisers" still holds.
+
+*Why:* with full pools and a 25% refill, two home fundraisers in week 1 raised $14–20 and the same state paid $4.5 a week from week 5 on (playtest: "$13–16 early, $4–5 once pools drain; funds worthless in week 12"). A pool that refills half its capacity a week covers one plain fundraiser (the biggest states' 12 × 0.5 = 6 ≥ a 47%-support yield of 4.8), so a state worked weekly pays the same every week: a home state $5.6–6.0 for a plain candidate, every week (model and `Resolve.spec`), and three week-1 home fundraisers $7.5 instead of $18. The home multiplier came down because home funding was the whole economy ("fund PA ×2 = $16 beats any other fund").
+
+*Harness:* money raised per player $50.1 → $41.5 (the bot fundraises when rallies are not worth it, and it still can), weeks 1–3 / 10–12 ratio 1.02 → 0.58 (the bot now fundraises more late, when pools are full and rallies saturate), GOTV decides 10.0%, FundraiseOnly 18% (was 2%: a steady economy makes fundraising a real strategy; still far under 55%). Refill 0.35 and 0.4 were tried: $38–40 raised, ratio 0.6, no better on any flag. The flat economy moved the money-shaped candidates hard (Okafor 54 → 65%, Venkat 54 → 67%, Strand 45 → 37%, Reyes 46 → 40%), which pass 1 predicted ("money-shaped perks register weakly" while money dried up); D-037 retunes them. Week 12 fundraisers still arrive too late to spend: a UI warning is proposed, not a rule change.
+
+### D-035 — Helen Strand previews next week's event (approved reshape)
+
+Perk: "Sees next week's event a week early; two free internal polls a week" (was the polls alone). Drawback unchanged. Data: `Profile.eventPreview` (weeks ahead; 1 for Strand, 0 for everyone else). `View.nextEvent` carries week w+1's event, during week w's Plan and Debate phases, for a viewer whose candidate has `eventPreview ≥ 1`; nothing for week 11 (week 12 has no event), after the campaign, or with events off. The debug board prints it as `Next week's event (your pollster's briefing): …`; the campaign screen is the client agent's. The bot uses it: with a Regional due next week it ends the route in that region (saving the flight and starting the ×1.5 rallies in place).
+
+*Why:* the playtesters were right that two ±1 polls add little when the public table shows every state weekly (D-002's persistent error is real but invisible to them). D-027 refused to preview events for everyone because a preview rewards flying into a Regional a week early for free; as one candidate's perk that is exactly the information edge the Pollster is meant to have, and it is a decision every week (position for the Regional, hold cash for a Windfall where you trail, hold media for a Spotlight issue, expect a Choice). It respects the leak rules: only `View.build` adds it, only for her seat, only one week ahead; `View.spec` checks her opponent's view has nothing, that changing any deck entry beyond week w+1 leaves her view byte-identical, and that the forbidden `eventDeck` key never appears.
+
+*Harness:* 45.4% → 45.7% with the preview alone (the bot uses only the Regional case). Alternatives considered: sharper public polls for her view (would leak true support by subtracting the two polls), exact internal polls (more of what the testers found useless), the opponent's exact cash (not a pollster).
+
+### D-036 — Choice payoffs: winners gain, losers lose (tuning)
+
+| | vs Attack | vs Defend | vs Ignore |
+|---|---|---|---|
+| **Attack** | −0.2 (mudslinging) | −0.3 (backfire) | **+0.3** (it lands) |
+| **Defend** | **+0.2** (turned around) | 0 (quiet week) | −0.2 (looks weak) |
+| **Ignore** | −0.2 (it lands) | **+0.2** (above it) | 0 |
+
+Still a cycle (Attack beats Ignore, Defend beats Attack, Ignore beats Defend), so no answer is dominant; in margin terms the edges are 0.59 / 0.56 / 0.46 and the bot's equilibrium mix is Attack : Defend : Ignore = 29 / 37 / 35% (was 21 / 48 / 31). Every payoff is inside `EVENT_CAP` and under a debate sweep (`Config.spec`).
+
+*Why:* the D-027 matrix paid 0 to a successful Defend or Ignore and −0.2 to both players in two of the three mirror cells, so the only outcomes a player ever saw were "Attack −0.3" and "nothing": a trap with a hidden rulebook. With the UI about to show the matrix (another branch reads these Config keys), each cell has to read as a reason to pick that row. A landed attack (+0.3) is worth one debate topic. A first draft at +0.4 / +0.3 / +0.2 pushed 100+ EV blowouts to 26–27% (the national shift hits the tied block, D-019), so the numbers were scaled to ±0.3 with the mix kept even. `Helpers.spec` and `DebugUI.spec` lines that quoted the old cells were updated.
+
+### D-037 — Candidates retuned for the flat economy (tuning + one bot heuristic)
+
+Measured with D-033 to D-036 in place, one change at a time in copies of the tree at 3,000 matches (±3.6 points per candidate), then the package at 6,000 (±2.5).
+
+| Candidate | Change | Before → after | Why |
+|---|---|---|---|
+| Dana Okafor | fundraisers +50% → +25% | 65% → 54% | Pass 1 raised the perk because money barely registered; with pools that refill, it does. +25% alone brought Reyes (40 → 46%) and Alvarado (44 → 46%) back too, because Okafor had been beating them 2:1. |
+| Priya Venkat | income $3 → $2; repeat buys keep 70% → 65% | 67% → 55% | Cheap ads convert a steady economy best. Income $2.5 measured 57%, $2 alone 54–55%, saturation 0.6 alone 61%. Still at the line (55.5 ± 2.5 at 6,000); a third notch is listed under proposals rather than taken, because her perk is the point of the candidate. |
+| Marcus Hale | prep 8 → 7 | 57% → 49% | With debates that decide topics, two spare prep points were worth about +8; one is worth about +1 over the field (topic win rate 48%, others 38–40%, the rest ties). "Income $3.5" with 8 prep measured the same (50%) but doubled a money drawback humans already feel. |
+| Helen Strand | media −15% → −10% | 37% → 44% | See below. |
+| Bot | `gotvPremium` 1.2 → 1.3 (heuristic, not a rule) | GOTV decides 9.4% → 10.0% | The flat economy pulled the bot's late money into closing-week ads; the premium restores the D-021 spend (about $8 a player). |
+
+*Strand.* Her number is the harness's known blind spot, not a drawback problem: with no drawback at all she measured 47.4% (3,000 matches), because the bot cannot use information (NeverPoll sits at 54–56% in every pass, D-022, D-027) and uses the preview only for Regional weeks. Every drawback shape then costs its usual 3–5 points: media −5% 44.9%, start $4 44.3%, media −10% 43–44%, −15% 37–41%. −10% was kept (the D-022 number) so humans feel it. A bot that reads the preview more widely (hold cash for a Windfall, hold ads for a Spotlight) is the fix, under proposals. Alvarado (44–47%) is the same story for start cash (D-022: the bot cannot spend it early) and Begay (48–49%) is within noise.
+
+### D-038 — Balance pass 2: final harness report (Oct 22, 2026)
+
+`lune run tests/harness/balance.luau`, 2,000 matches (the standard run) with the 6,000-match run in brackets where they differ by more than noise. "Before" is the pass-1/events report (D-027, the start of this branch).
+
+| Check | After | Before (D-027) | Target |
+|---|---|---|---|
+| Candidates | Okafor 54 [55], Calloway 53, **Venkat 59 [55.5]**, Hale 49, **Alvarado 44 [47]**, Reyes 47 [49], **Strand 44**, Begay 49 [48] | 47–55 (Hale 48, Strand 47) | 45–55% |
+| Worst matchup | Venkat vs Strand 70% [65%] | Strand vs Begay 33% | 40–60% (noise ±12 at 71 games) |
+| Priority A win rate | 50.3% | 51.7% | 47–53% ✓ |
+| Comeback rate | 36.6% | 38.3% | 20–40% ✓ |
+| Median margin / 40+ EV / 100+ EV | 58 / **65.0%** / **25.6%** [24.7%] | 54 / 62.4% / 20.1% | ≤ 60 / ≤ 65% / ≤ 25% |
+| Money raised per player / weeks 1–3 ÷ 10–12 | $38.1 / 0.57 | $50.1 / 1.02 (measured on this branch) | within 25% / ≤ 1.5 ✓ |
+| GOTV changes the winner (spend) | 10.1% ($8.3) | 11.8% ($7.6) | ≥ 10% ✓ |
+| Debates change the winner (EV swung) | 17.7% (19.3) [19.2% (20.1)] | 16.4% (15.3) | 15–30% (20–40) ✓ |
+| Debate topic win rates | 38–40%, Hale 48% | 41–44%, Hale 53% | Hale ≤ 60% ✓ |
+| 2-point prep edge wins / loses a topic | 81% / 6% | 69% / 20% | ≥ 75% / ≤ 12% ✓ |
+| Underdog wrong-leader weeks / tier changes | 18.9% / 3.19 | 21.8% / 3.10 | < 10% / ≤ 3 (D-020: structural) |
+| Random / fundraise / rally / attack / never-poll / sandbag | 0 / 15.5 / 42.5 / 41 / 51 [55.2] / 39% | 0 / 0.8 / 43 / 40 / 54.5 / 40% | ≤ 5, < 55, ≤ 50 |
+
+Red after this pass: Venkat and the 40+/100+ EV shares sit on their lines (noise-level at 2,000, inside at 6,000 for 100+ EV), Strand and Alvarado are the information/start-cash blind spots (D-037), the two rubber-band flags are D-020's, and NeverPoll is the pass-1 poll-value question. Everything that passed in D-027 still passes except the one matchup cell, which moves with the seed set.
+
+*Proposals for the humans (not done here; each changes a mechanic's intent or a part another branch owns):*
+1. **The tied block** (D-019, D-024) is what caps the debate and Choice payoffs: about 13 undrafted, unleaned states finish at exactly 35/35 in bot games and any national shift decides all of them at once. Humans rally those states (the playtesters did), bots do not. A bot that values tipping-point states, or leans on more states, would let debates be worth more than 0.3 a topic.
+2. **A bot that reads Strand's preview** beyond Regional weeks (hold cash for a Windfall, hold ads for a Spotlight issue), and values polls at all, so the harness can measure information perks. Until then Strand and Alvarado will read 44–47%.
+3. **Week-12 fundraisers** still pay money nobody can spend. The screen should warn (client branch); a rule change (e.g. week-12 fundraisers add to the popular vote tiebreak) was not approved.
+4. **Calloway's 4th AP vs Okafor** and **nominations stripping big strongholds**: the playtesters flagged both; the harness has Calloway at 53% and the lean/draft checks green, so nothing was changed. If the humans want nominations softer, "a nominated stronghold keeps half its bonus" is the smallest rule change to test.
+5. **Venkat** at the 55% line: "media $2.5" or "income $2 and repeat buys keep 60%" are the next notches if human play confirms her edge.

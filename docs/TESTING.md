@@ -308,3 +308,21 @@ Send back: one screenshot of each step marked with a phone or 16:9 at the top (M
    - The log names the picks ("P1 picked OH (home)") and last week's events in words; money has one decimal and no long decimals anywhere; debate lines read "national -0.2 you, +0.4 them".
 
 **Send back:** a screenshot of anything that looks off (especially a money amount that seems wrong, or a toast that is cut off on a phone), with the Output lines starting with `[270]`.
+
+## Balance pass 2 (unreleased)
+
+Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on screen is Helen Strand's event preview. Two-player test (**Test → Clients and Servers, 2 players**), or **Play vs Bot** where a step says so. Press **F2** for the debug text panel when a step asks for the board.
+
+1. **Debates feel like prep matters.** Pick any two candidates. In week 3 put **4/2/0** on one side and leave the other at 2/2/2 (or play vs bot, which spreads its points). Watch the week-4 debate reveal.
+   - The 4-vs-2 topic goes to the 4 most of the time (about 8 in 10 across matches), and the 0-vs-2 topic goes to the 2 almost always, with "gaffe" on the zero. Each topic won reads **+0.3** national, a 3-0 sweep **+1.2**.
+   - On the board after the debate, the projected EV should visibly move (one or two close states) when one side wins 2-1 or better.
+2. **Fundraising is flat.** Play vs Bot as Dana Okafor or anyone else. Fundraise **once in your home state** in weeks 1, 2, 3 and 4 (plus whatever else you like).
+   - "You raised" is about the same every week (about $5.5-7 at home for a plain candidate, 50% more for Okafor), not $7 then $4.5. Three home fundraisers in week 1 raise under $10 in total, not $18-20.
+   - A fundraiser in a state the opponent also funded still splits the pool (lower yield that week).
+3. **Helen Strand's briefing.** Pick Helen Strand on one client. From week 1 on, her event card (and the F2 board line `Next week's event (your pollster's briefing): ...`) names **next week's** event as well as this week's; the other client sees only this week's. In week 11 she sees no preview (week 12 has no event). Her two free polls still work (Poll on two states costs $0).
+   - If the campaign screen does not yet show the preview (the client is being updated separately), the F2 board line is what to check.
+4. **Choice weeks have a payoff.** In a Choice week pick different answers on the two clients, e.g. Defend vs Attack, then Ignore vs Defend the next time.
+   - The reveal line shows the winner with a **positive** number and the loser with a negative one: Attack over Ignore +0.3 / -0.2, Defend over Attack +0.2 / -0.3, Ignore over Defend +0.2 / -0.2. Same answers: Attack/Attack -0.2 each, Defend/Defend and Ignore/Ignore 0.
+5. **Candidates.** Over several bot matches, Marcus Hale (7 prep) and Helen Strand should win about as often as anyone else; the roster numbers on the Select screen match `Candidates.luau` (Strand: "Sees next week's event a week early; two free internal polls a week").
+
+**Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
