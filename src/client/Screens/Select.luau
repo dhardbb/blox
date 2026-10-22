@@ -133,7 +133,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ header and bar
 
-	local header = Header.new(page.header :: Frame, { title = "Choose your campaign" })
+	local header = Header.new(page.header :: Frame, { title = "Choose your campaign", onHelp = ctx.help })
 	local refresh: () -> ()
 	local lockPick: () -> ()
 	local bar = ActionBar.new(page.footer :: Frame, {

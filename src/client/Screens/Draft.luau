@@ -97,7 +97,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- ------------------------------------------------------------ layout
 
 	local root = Kit.box({ Name = "DraftRoot", Parent = parent })
-	local header = Header.new(root, { title = "" })
+	local header = Header.new(root, { title = "", onHelp = ctx.help })
 	header.subtitle.Name = "Explain"
 
 	local mapArea = Kit.box({ Name = "MapArea", Parent = root })

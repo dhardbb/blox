@@ -48,6 +48,7 @@ export type Ctx = {
 	net: Net,
 	now: () -> number, -- server time (workspace:GetServerTimeNow())
 	portrait: () -> boolean, -- true when the screen is taller than wide (phones)
+	help: (() -> ())?, -- opens the "How it works" overlay (UI/Help), when App mounted one
 }
 
 export type Screen = {

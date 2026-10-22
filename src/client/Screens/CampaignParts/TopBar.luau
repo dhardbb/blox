@@ -52,13 +52,14 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	local config = model.config
 	local root = Kit.box({ Name = "TopBar", Size = UDim2.new(1, 0, 0, Kit.HEADER_H) })
 
-	local header = Header.new(root, { title = "Week", subtitle = "", name = "Header" })
+	local header =
+		Header.new(root, { title = "Week", subtitle = "", name = "Header", onHelp = model.ctx.help })
 	header.title.Name = "WeekLabel"
 	header.subtitle.Name = "StageLabel"
 	header.timer.Name = "Countdown"
 	local left = header.root:FindFirstChild("Left") :: Frame
 	local leftFull = left.Size
-	local timerW = header.timer.Size.X.Offset
+	local timerW = header.rightWidth -- the timer and the help button
 
 	-- The score strip: names and EV over a two-segment bar, then money and AP.
 	local score = Kit.box({ Name = "Score", Parent = root })
