@@ -95,3 +95,30 @@ Numbers only; nothing new to click. Confirms the retuned roster loads in Roblox.
 2. Press **Play** a few more times. Over several runs you should see different candidates named; any of the eight may appear and win.
 
 **Send back:** the self-test lines from three runs.
+
+## Ratings and saved stats (unreleased)
+
+Saving needs a real DataStore, and Studio only gets one when the place is **published to Roblox** and **Home → Game Settings → Security → Enable Studio Access to API Services** is on. Without both, the game still works: it warns once and keeps ratings in memory only. (The headless tests cover everything except the real DataStore.)
+
+Use **Test → Clients and Servers → Local Server, 2 Players → Start** as before. Studio test players have negative user ids, so their records are keys like `Player_-1` in the game's real `PlayerData_v1` store. They are harmless test data; reset a player by removing the key in Creator Hub → your experience → Data Stores.
+
+**A. Unpublished, or API access off (the fallback).**
+1. Start the 2-player server on a place that isn't published, or with API access off.
+   - Server Output has exactly one warning: `[270] DataStore unavailable (publish the place and enable Studio API access to save); using memory`.
+   - Both clients show `Lobby: Idle · Rating 1000 (0-0) · 0 in queue`.
+2. Queue both players and play a match with Autoplay.
+   - Both see `Rating 1000 → 1016` or `Rating 1000 → 984` (one each way) in the log and under the result, and the lobby line shows the new rating and record, e.g. `Rating 1016 (1-0)`.
+   - Stop the test and start it again: ratings are back at 1000. That is expected in this mode.
+
+**B. Published, API access on (real saving).**
+1. Start the 2-player server.
+   - Server Output: `[270] loaded Player1: rating 1000 (0-0)` for each player, and **no** `DataStore unavailable` warning.
+2. Queue both and play a match to the end. Ratings move by equal and opposite amounts (16 on a first match). Stop the test. The server Output shows no `could not save` warnings.
+3. Start the test again.
+   - Each client's lobby line shows the rating and record from before, e.g. `Rating 1016 (1-0)` and `Rating 984 (0-1)`.
+4. Practice: press **Practice** and play with Autoplay.
+   - The lobby rating does not change (no `Rating a → b` line). Stop and restart: still the same rating.
+5. Forfeit: in a two-player match, close Player2's window. After the forfeit, Player1's log shows `Rating ... → ...` (a gain). Restart the test: Player2's lobby line shows the loss (the rating dropped), even though they were gone when the match ended.
+6. In Creator Hub → Data Stores → `PlayerData_v1`, open a `Player_-1` key (optional): `data.rating`, `wins`, `losses`, `perCandidate` and `recent` are there, and `lock` is gone after the test stopped (a `lock` with a `jobId` while it runs is correct).
+
+**Send back:** the server Output from A step 1 and B steps 1–3, the lobby lines before and after the restart in B step 3, and any `[270] ... DataStore` warning lines you didn't expect.
