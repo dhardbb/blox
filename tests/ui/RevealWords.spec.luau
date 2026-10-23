@@ -246,3 +246,43 @@ describe("Words: plain votes and actions", function()
 		expect(Words.plain("APPLE and EVENTS stay")):toBe("APPLE and EVENTS stay")
 	end)
 end)
+
+describe("Words: reveal order and next time (polish WP-2)", function()
+	it("puts the player behind on the polls first, yours on a tie", function()
+		local view = deepCopy(Fixtures.payload(C, "Plan").view)
+		local first, trails = Words.revealFirst(view)
+		check(first == 1 or first == 2, "no first player")
+		-- The same polls from the other seat: the same player goes first.
+		local other = deepCopy(view)
+		other.you = if view.you == 1 then 2 else 1
+		local otherFirst, otherTrails = Words.revealFirst(other)
+		if trails then
+			expect(otherFirst):toBe(first)
+			expect(otherTrails):toBe(true)
+		end
+		-- No polls at all: a tie, so each seat sees its own first.
+		local blank = deepCopy(view)
+		for _, s in blank.states do
+			s.poll = nil
+		end
+		local tieFirst, tieTrails = Words.revealFirst(blank)
+		expect(tieFirst):toBe(blank.you)
+		expect(tieTrails):toBe(false)
+		expect(Words.orderLine(blank, blank.you, false, "Rex")):toBe("Your actions land first")
+		expect(Words.orderLine(blank, blank.you, true, "Rex")):toBe("You trail, so your actions land first")
+		local rival = if blank.you == 1 then 2 else 1
+		expect(Words.orderLine(blank, rival, true, "Rex")):toBe("Rex trails, so Rex's actions land first")
+	end)
+
+	it("gives the loser one short tip and the winner none", function()
+		local view = Fixtures.payload(C, "Over").view
+		local rival = if view.you == 1 then 2 else 1
+		local tip = Words.nextTime(C, view, rival, { "Dana", "Rex" })
+		check(tip ~= nil, "no tip after a loss")
+		check(string.sub(tip :: string, 1, 15) == "Try next time: ", `tip "{tip}"`)
+		check(words(tip :: string) <= Words.REASON_WORDS + 2, `"{tip}" is long`)
+		check(not string.find(tip :: string, "EV", 1, true), "the tip says EV")
+		expect(Words.nextTime(C, view, view.you, { "Dana", "Rex" })):toBe(nil)
+		expect(Words.nextTime(C, view, 0, { "Dana", "Rex" })):toBe(nil)
+	end)
+end)

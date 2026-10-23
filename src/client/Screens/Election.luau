@@ -4,10 +4,21 @@
 -- from a tick count: tick(now) works out how many calls should have happened by
 -- `now` and draws exactly that many, so it is safe to call as often as you like.
 --
+-- The show (docs/UI-STYLE.md §2.7, D-053): the safe states go quickly (all of
+-- them in FAST_SHARE of the stage), then the last SLOW_CALLS and the call that
+-- takes someone to 270 get a SLOW_BEAT each: the call holds for half the beat,
+-- then "Too close to call" (or "Still counting") names the next one. Each call
+-- wipes its state on the map, pops the spotlight, slides its row into the feed,
+-- tweens the bar, counts the votes up and plays "call", higher as the leader
+-- nears 270. Crossing 270 flashes the tick and plays "flip". The spotlight's
+-- call is not in the feed until the next one replaces it (never shown twice);
+-- once everything is called the spotlight steps aside and the feed has it all.
+--
 -- Stable names for tests and agents: SkipButton (the pinned primary), EvYou,
 -- EvThem, Feed, Banner (plus CallStatus, Tiebreak, MapBox, Counters, Marker270,
--- Spotlight, SpotLabel, SpotState, SpotCall, BarStatus, BarOpponent, and the
--- header's Timer).
+-- Spotlight, SpotLabel, SpotState, SpotCall, BarStatus, BarOpponent, Goal, and
+-- the header's Timer). Screen.schedule and Screen.tippingCall are the pacing, for
+-- the specs.
 --
 -- Layout (docs/UI-STYLE.md §4.8), every big box explicitly positioned:
 --   Header        "Election night" · CallStatus subtitle (wide screens only: on a
@@ -26,6 +37,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local Audio = require(script.Parent.Parent.UI.Audio)
 local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
@@ -33,6 +45,7 @@ local Header = require(script.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local MapLayout = require(ReplicatedStorage.Shared.UI.MapLayout)
+local Motion = require(script.Parent.Parent.UI.Motion)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local State = require(ReplicatedStorage.Shared.Sim.State)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
@@ -44,7 +57,14 @@ local Screen = {}
 
 local END_BUFFER = 5 -- s, every state is called this long before the stage ends
 local CLOSE_MARGIN = 2 -- points; a state decided by less is "too close to call"
-local CLOSE_WEIGHT = 2.5 -- a close call takes this many times as long as a safe one
+local FAST_SHARE = 0.6 -- of the stage: the quick calls are all in by then
+local SLOW_CALLS = 8 -- the last (closest) calls that each get a slow beat
+local SLOW_BEAT = 1.2 -- s, one slow call: the call holds, then the suspense for the next
+local SUSPENSE_AT = 0.5 -- share of a slow beat after which the next state is "too close"
+local CATCH_UP = 3 -- more new calls than this in one frame (a rejoin): no per-call effects
+local FLASH_270 = 0.3 -- s, each half of the 270 tick's flash (it flashes twice)
+local CALL_PITCH = 0.9 -- the "call" cue's pitch at 0 votes; +CALL_RISE at 270
+local CALL_RISE = 0.3
 local GAP = Kit.space.sm -- px, between the big blocks
 local STRIP_H = 72 -- px, the counters strip and a banner without a tiebreak note
 local TIEBREAK_H = 96 -- px, banner plus the tiebreak note on a wide screen
@@ -55,6 +75,7 @@ local BAR_H = 14 -- px, the EV bar
 local EV_W = 60 -- px, the EV number
 local GOAL_W = 76 -- px, "270 to win" between the two sides
 local SPOT_H = 92 -- px, the spotlight card: a caption, the state, the call
+local CALL_POP = 0.94 -- the spotlight's scale as a call lands (it springs to 1)
 local LINE_H = Kit.MIN_TOUCH -- px, smallest feed row
 local MAP_SHARE = 0.66 -- of the width, wide screens
 local MAP_SHARE_PORTRAIT = 0.38 -- of the height at most, phones
@@ -67,25 +88,62 @@ end
 
 -- ---------------------------------------------------------------- pacing
 
--- The end of each call's time slot, in slot units, and the total. Call k happens
--- when the clock reaches ends[k]; a close state's slot is the "too close" beat.
-local function schedule(results: { State.StateResult }): ({ number }, number)
-	local ends: { number } = {}
-	local total = 0
+-- The call that takes a candidate to `need` votes (counted in call order), or nil.
+local function tippingCall(results: { State.StateResult }, need: number): number?
+	local ev: { [number]: number } = {}
 	for k, result in results do
-		total += if result.margin < CLOSE_MARGIN then CLOSE_WEIGHT else 1
-		ends[k] = total
+		if result.winner > 0 then
+			ev[result.winner] = (ev[result.winner] or 0) + StateData.byId[result.state].ev
+			if ev[result.winner] >= need then
+				return k
+			end
+		end
 	end
-	return ends, total
+	return nil
 end
 
--- Slot units elapsed at `now` (0 to total).
-local function elapsed(stageStart: number, deadline: number, now: number, total: number): number
-	local span = math.max(1, deadline - stageStart - END_BUFFER)
-	return math.clamp((now - stageStart) / span, 0, 1) * total
+-- When each call happens, in seconds after the stage starts, and which calls
+-- are slow. The quick calls share FAST_SHARE of the stage; the last SLOW_CALLS
+-- and the tipping call take SLOW_BEAT each; everything ends END_BUFFER before
+-- the deadline (squeezed evenly when the stage is too short for that).
+local function schedule(
+	results: { State.StateResult },
+	need: number,
+	stageSeconds: number
+): ({ number }, { [number]: boolean })
+	local n = #results
+	local slow: { [number]: boolean } = {}
+	for k = math.max(1, n - SLOW_CALLS + 1), n do
+		slow[k] = true
+	end
+	local tipping = tippingCall(results, need)
+	if tipping then
+		slow[tipping] = true
+	end
+	local slowCount = 0
+	for _ in slow do
+		slowCount += 1
+	end
+	local fastCount = n - slowCount
+	local fastTotal = if fastCount > 0 then FAST_SHARE * stageSeconds else 0
+	local slowTotal = slowCount * SLOW_BEAT
+	local span = math.max(1, stageSeconds - END_BUFFER)
+	local squeeze = math.min(1, span / math.max(1e-6, fastTotal + slowTotal))
+	local fastBeat = if fastCount > 0 then fastTotal * squeeze / fastCount else 0
+	local slowBeat = SLOW_BEAT * squeeze
+	local ends: { number } = {}
+	local t = 0
+	for k = 1, n do
+		t += if slow[k] then slowBeat else fastBeat
+		ends[k] = t
+	end
+	return ends, slow
 end
 
--- How many calls have happened once `position` slot units have passed.
+Screen.schedule = schedule
+Screen.tippingCall = tippingCall
+
+-- How many calls have happened `position` seconds into the stage.
 local function called(ends: { number }, position: number): number
 	local count = 0
 	for k, finish in ends do
@@ -180,9 +238,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local payload: any = ctx.store.get().payload
 	local results: { State.StateResult } = {}
 	local ends: { number } = {}
-	local totalSlots = 0
+	local slowCalls: { [number]: boolean } = {}
+	local scheduledFor = -1 -- the stage length `ends` was worked out for
+	local tipping: number? = nil -- the call that takes someone to 270
 	local built = false
 	local shown = 0 -- calls drawn so far
+	local feedShown = 0 -- calls in the feed (all but the one in the spotlight)
+	local suspenseShown = false -- the spotlight is naming the next close state
+	local evShown: { number } = {} -- the votes each counter shows (or counts toward)
 	local pressed = false -- this player tapped Skip
 	local colors: { Colors.RGB } = {}
 	local youIndex = 1
@@ -213,7 +276,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	Kit.corner(Kit.radius.panel).Parent = counters
 	Kit.pad(Kit.space.sm).Parent = counters
 	local need = ctx.config.EV_TO_WIN
-	Kit.text(`{need} to win`, {
+	local goal = Kit.text(`{need} to win`, {
 		Name = "Goal",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0),
@@ -239,7 +302,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = barBox,
 	})
 	Kit.corner(Kit.radius.pill).Parent = bar
-	Kit.box({
+	local marker = Kit.box({
 		Name = "Marker270",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(math.clamp(need / TOTAL_EV, 0, 1), 0),
@@ -373,8 +436,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local stripH = if hasTiebreak then (if portrait then TIEBREAK_H_PORTRAIT else TIEBREAK_H) else STRIP_H
 		counters.Visible = not bannerShown
 		bannerPanel.Visible = bannerShown
+		-- Once everything is called the spotlight steps aside: the feed has it all.
+		spotlight.Visible = not bannerShown
+		local top = if bannerShown then 0 else feedTop
+		feed.Position = UDim2.fromOffset(0, top)
+		feed.Size = UDim2.new(1, 0, 1, -(top + Kit.BAR_H + GAP))
 		bannerPanel.Size = UDim2.new(1, 0, 0, stripH)
-		local top = Kit.HEADER_H + GAP + stripH + GAP
+		top = Kit.HEADER_H + GAP + stripH + GAP
 		body.Position = UDim2.fromOffset(0, top)
 		body.Size = UDim2.new(1, 0, 1, -top)
 		if portrait then
@@ -413,7 +481,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local view: View.View = payload.view
 		local election = view.election :: State.ElectionResult
 		results = election.results
-		ends, totalSlots = schedule(results)
+		tipping = tippingCall(results, need)
 		youIndex = payload.you
 		themIndex = (youIndex % #view.players) + 1
 		for p, player in view.players do
@@ -430,11 +498,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		themSide.fill.BackgroundColor3 = Kit.color(colors[themIndex])
 	end
 
-	-- Fill and rings for the first `count` calls.
-	local function paintMap(count: number)
+	-- Fill and rings for the first `count` calls. Calls from `wipeFrom` on are
+	-- new this frame: they start uncalled and wipe to the winner's color.
+	local function paintMap(count: number, wipeFrom: number)
 		local view: View.View = payload.view
 		local winners: { [string]: number } = {}
-		for k = 1, count do
+		for k = 1, math.min(count, wipeFrom - 1) do
 			winners[results[k].state] = results[k].winner
 		end
 		local states: { View.StateView } = {}
@@ -455,20 +524,28 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local shownView = table.clone(view)
 		shownView.states = states
 		map:setView(shownView, colors)
+		for k = wipeFrom, count do
+			local result = results[k]
+			if result.winner > 0 then
+				map:wipe(result.state, Kit.color(colors[result.winner]))
+			else
+				map:ring(result.state, Kit.colors.muted)
+			end
+		end
 
 		local marks: { [string]: MapInterface.Mark } = {}
 		if count > 0 then
 			marks[results[count].state] = { ring = Kit.colors.accent }
 		end
 		local nextResult = results[count + 1]
-		if nextResult and nextResult.margin < CLOSE_MARGIN then
+		if nextResult and slowCalls[count + 1] then
 			marks[nextResult.state] = { ring = Kit.colors.accent, badge = "?" }
 		end
 		map:setMarks(marks)
 	end
 
 	-- One feed row: "Ohio · 17 votes" over "Dana by 2.9 points", tinted by the winner.
-	local function addLine(k: number)
+	local function addLine(k: number, live: boolean)
 		local result = results[k]
 		local color = Kit.colors.raised
 		if result.winner > 0 then
@@ -492,7 +569,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Parent = line,
 		})
 		Kit.list("Vertical", 0).Parent = line
-		Kit.text(Words.stateLine(result.state), {
+		local stateText = Kit.text(Words.stateLine(result.state), {
 			Name = "State",
 			LayoutOrder = 1,
 			Size = UDim2.new(1, 0, 0, Kit.size.body + 4),
@@ -500,7 +577,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextScaled = true,
 			Parent = line,
 		})
-		Kit.text(Words.callLine(result, shortNames), {
+		local callText = Kit.text(Words.callLine(result, shortNames), {
 			Name = "Text",
 			LayoutOrder = 2,
 			Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
@@ -508,15 +585,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextScaled = true,
 			Parent = line,
 		})
+		if live then
+			Motion.enter(line, 0)
+			Motion.enter(stateText, 0)
+			Motion.enter(callText, 0)
+		end
 	end
 
-	-- The spotlight after `count` calls: the suspense before a close call, else
+	-- The spotlight after `count` calls: the suspense before a slow call, else
 	-- the latest call in the winner's color.
-	local function paintSpotlight(count: number)
+	local function paintSpotlight(count: number, suspense: boolean)
 		local nextResult = results[count + 1]
-		if nextResult and nextResult.margin < CLOSE_MARGIN and count < #results then
-			spotLabel.Text = "Too close to call"
-			spotLabel.TextColor3 = Kit.colors.warn
+		if nextResult and suspense then
+			local close = nextResult.margin < CLOSE_MARGIN
+			spotLabel.Text = if close then "Too close to call" else "Still counting"
+			spotLabel.TextColor3 = if close then Kit.colors.warn else Kit.colors.muted
 			spotState.Text = `{Words.stateLine(nextResult.state)}…`
 			spotCall.Text = "Counting the last votes"
 			spotCall.TextColor3 = Kit.colors.muted
@@ -534,6 +617,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		spotLabel.Text = if count == #results then "Last call" else "Just called"
 		spotLabel.TextColor3 = Kit.colors.muted
+		if count == tipping and latest.winner > 0 then
+			spotLabel.Text = `{shortNames[latest.winner]} reaches {need}!`
+			spotLabel.TextColor3 = Kit.colors.accent
+		end
 		spotState.Text = Words.stateLine(latest.state)
 		if latest.winner > 0 then
 			spotCall.Text = `Called for {Words.callLine(latest, shortNames)}`
@@ -571,9 +658,31 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		applyLayout()
 	end
 
-	-- Draws everything up to `count` calls.
-	local function render(count: number)
+	-- Someone just reached 270: the tick and "270 to win" flash twice.
+	local function flash270()
+		Audio.play("flip")
+		Motion.flash(goal, Kit.colors.accent, FLASH_270)
+		task.delay(FLASH_270, function()
+			Motion.flash(goal, Kit.colors.accent, FLASH_270)
+		end)
+		for k = 0, 3 do
+			task.delay(k * FLASH_270, function()
+				marker.BackgroundColor3 = if k % 2 == 0 then Kit.colors.accent else Kit.colors.text
+			end)
+		end
+	end
+
+	local function wholeVotes(n: number): string
+		return tostring(math.floor(n + 0.5))
+	end
+
+	-- Draws everything up to `count` calls; `suspense`: the spotlight names the
+	-- next (slow) call instead of the last one.
+	local function render(count: number, suspense: boolean)
 		local election = payload.view.election :: State.ElectionResult
+		local before = shown
+		-- A call or three since the last frame plays out; a rejoin's catch-up does not.
+		local live = drawn and count > before and count - before <= CATCH_UP
 		local ev = table.create(#colors, 0)
 		local won = table.create(#colors, 0)
 		for k = 1, count do
@@ -587,22 +696,44 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			-- The server's totals are the truth, however the tally came out.
 			ev, won = election.ev, election.statesWon
 		end
-		for k = shown + 1, count do
-			addLine(k)
+		-- The feed has every call but the one the spotlight shows.
+		local spotlit = count > 0 and count < #results and not suspense
+		local feedTarget = if spotlit then count - 1 else count
+		local rowsLive = drawn and feedTarget - feedShown <= CATCH_UP
+		for k = feedShown + 1, feedTarget do
+			addLine(k, rowsLive)
 		end
+		feedShown = math.max(feedShown, feedTarget)
 		shown = count
+		suspenseShown = suspense
 		drawn = true
 		local function setSide(counter: Side, index: number, who: string?)
-			counter.ev.Text = tostring(ev[index])
+			local from = evShown[index] or 0
+			evShown[index] = ev[index]
+			local seconds = if live then Motion.t.call else 0
+			Motion.countTo(counter.ev, from, ev[index], wholeVotes, seconds)
 			local states = plural(won[index], "state", "states")
 			counter.states.Text = if who then `{who} · {states}` else states
-			counter.fill.Size = UDim2.fromScale(math.clamp(ev[index] / TOTAL_EV, 0, 1), 1)
+			Motion.tween(
+				counter.fill,
+				{ Size = UDim2.fromScale(math.clamp(ev[index] / TOTAL_EV, 0, 1), 1) },
+				seconds,
+				Motion.ease.soft
+			)
 		end
 		-- "You · 9 states" wraps on a phone; there the name's color says who you are.
 		setSide(youSide, youIndex, if ctx.portrait() then nil else "You")
 		setSide(themSide, themIndex, nil)
-		paintMap(count)
-		paintSpotlight(count)
+		paintMap(count, if live then before + 1 else count + 1)
+		paintSpotlight(count, suspense)
+		if live then
+			Motion.pop(spotlight, CALL_POP)
+			local lead = math.max(ev[youIndex] or 0, ev[themIndex] or 0)
+			Audio.play("call", { pitch = CALL_PITCH + CALL_RISE * math.min(lead / need, 1) })
+			if tipping and before < tipping and count >= tipping then
+				flash270()
+			end
+		end
 		if count == #results then
 			showBanner(election)
 		elseif ctx.portrait() then
@@ -612,8 +743,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			header:setSubtitle("Polls have closed")
 		else
 			local nextResult = results[count + 1]
-			if nextResult and nextResult.margin < CLOSE_MARGIN then
-				header:setSubtitle(`Too close to call: {StateData.byId[nextResult.state].name}…`)
+			if nextResult and suspense then
+				local lead = if nextResult.margin < CLOSE_MARGIN
+					then "Too close to call"
+					else "Still counting"
+				header:setSubtitle(`{lead}: {StateData.byId[nextResult.state].name}…`)
 			else
 				header:setSubtitle(`{count} of {#results} states called`)
 			end
@@ -659,16 +793,28 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			header:setTimer(nil)
 			return
 		end
-		header:setTimer(payload.deadline - now)
+		-- "Results in" is not a deadline to beat: no warning colors, no ticks.
+		header:setTimer(payload.deadline - now, 0)
 		build()
 		if not built then
 			return
 		end
 		applyLayout()
-		local position = elapsed(payload.stageStart, payload.deadline, now, totalSlots)
+		local stage = payload.deadline - payload.stageStart
+		if stage ~= scheduledFor then
+			scheduledFor = stage
+			ends, slowCalls = schedule(results, need, stage)
+		end
+		local position = math.max(0, now - payload.stageStart)
 		local count = math.max(shown, called(ends, position))
-		if not drawn or count ~= shown then
-			render(count)
+		-- Half way through a slow call's beat, the spotlight turns to it.
+		local suspense = false
+		if count < #results and slowCalls[count + 1] then
+			local start = if count > 0 then ends[count] else 0
+			suspense = position >= start + SUSPENSE_AT * (ends[count + 1] - start)
+		end
+		if not drawn or count ~= shown or suspense ~= suspenseShown then
+			render(count, suspense)
 		end
 	end
 

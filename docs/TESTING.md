@@ -642,3 +642,24 @@ In Studio, a Practice match on the Mac, then the same on the iPad, sound on.
 11. **Reduce Motion on** (Esc → Settings), repeat 2, 4, 6 and 8. **Expect:** no pops, rings drawing or sliding, no rising chips, the dots stay "thinking..."; badges, numbers and sounds still appear at once.
 
 **Send back:** the screenshots from 1, whether the map's four steps read at a glance on the iPad, and anything that felt slow or got in the way of a tap.
+
+## Polish WP-2: reveals, election night, results (unreleased, D-053)
+
+Agents: `lune run tests Reveal`, `lune run tests Election`, `lune run tests Results`, then `lune run tests/ui/snap.luau -- resolve` (and `-- debate`, `-- election`, `-- results`) at `--size phone`, `ipad` and `desktop`: 0 audit findings; look at `16a-resolve-beat`, `22a-election-tipping` and `23a-results-loss`.
+
+In Studio, a Practice match (Autoplay off) on the Mac, then the same on the iPad. Sound on.
+
+1. **Both plans are in.** Lock in a plan in week 1. **Expect:** a whoosh, then "Both plans are in" in pink at the top of the side panel for half a second, with one line under it: who goes first and why ("Rex trails, so Rex's actions land first", or "Your actions land first" when it's even).
+2. **Actions land.** **Expect:** the actions come in one or two at a time, the trailing player's first. Each time, the state on the map bumps and sends out a ring in that player's color, with a soft pop (yours a little higher than theirs).
+3. **New polls.** At the end of the week's reveal, **expect** every state that changed leader to ring in its new leader's color with one stinger, and the "What changed" rows to slide in one after another. The vote counts in the top bar count up to their new values.
+4. **Skip** still works at any point and jumps straight to the end of the reveal.
+5. **Debate.** In a debate week, **expect** each topic row to fade in with its verdict pill popping; a topic you win plays a bright hit, a tie or a loss a soft click. The headline pops in after the last topic.
+6. **Election night pacing.** Watch without skipping. **Expect:** safe states go quickly (about one every 0.6 s, done by about 0:18 on the "Results in" clock), then the last 8 and the state that takes someone to 270 slow down: the call holds for a moment, then the spotlight says "Too close to call" (or "Still counting") and names the next state before it is called.
+7. **Each call.** **Expect:** the state's circle fills with the winner's color and rings, the spotlight bumps, the vote numbers count up and the bar grows, and a ding plays that gets higher as the leader nears 270. The state in the spotlight is not also at the top of the list underneath; it joins the list when the next call (or the suspense) replaces it.
+8. **270.** On the call that takes someone to 270, **expect** the spotlight to say "Dana reaches 270!", the 270 tick and "270 to win" to flash pink twice, and a stinger. "Results in" no longer turns red or ticks in its last 5 seconds.
+9. **The end.** When every state is called, **expect** the banner in place of the counters, the spotlight gone and the list (all 51 calls) filling the side.
+10. **Results, win.** **Expect:** "You won" pops in, both vote totals count up from 0, confetti in both players' colors falls once, and the victory stinger plays once. On the other player's screen (the loss): "You lost" fades in, no confetti, the defeat sound, and one pink line under the reasons: "Try next time: …".
+11. **Reduce motion** on (Esc → Settings), replay a week and an election night. **Expect:** no bumps, rings, pops or confetti; every line, number and color still arrives, and the sounds still play.
+12. **Sounds on a non-owner account** in the published game: whoosh, the landing pop, the flip stinger, the debate hit, the call ding, victory and defeat. Tell us any that are silent, harsh or too loud.
+
+**Send back:** a screenshot of step 1 and of step 8 on the iPad, whether the election felt too fast or too slow (and where), and which sounds in 12 you heard.

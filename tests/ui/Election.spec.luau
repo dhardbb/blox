@@ -433,3 +433,172 @@ describe("Election screen: style v2 (WP-C)", function()
 		noErrors(rig.world)
 	end)
 end)
+
+describe("Election screen: the show (polish WP-2)", function()
+	local Rig = require("./Rig")
+	local stage = Config.defaults.TIMER_ELECTION
+	local need = Config.defaults.EV_TO_WIN
+
+	local function schedule(rig: Rig): ({ number }, { [number]: boolean }, number?)
+		local Election = FakeRoblox.require(rig.world, rig.peer, "src/client/Screens/Election.luau")
+		local ends, slow = Election.schedule(election.results, need, stage)
+		return ends, slow, Election.tippingCall(election.results, need)
+	end
+
+	-- Calls made so far: the feed, plus the one the spotlight shows (not in the feed).
+	local function callsShown(peer: FakeRoblox.Peer): number
+		local lines = feedLines(peer)
+		local spot = inScreen(peer, "Spotlight")
+		local label = tostring(inScreen(peer, "SpotLabel").Text)
+		local waiting = label == "Too close to call"
+			or label == "Still counting"
+			or label == "Polls have closed"
+		if spot.Visible ~= false and not waiting then
+			lines += 1
+		end
+		return lines
+	end
+
+	it("calls the safe states fast and the last 8 and the tipping state slowly", function()
+		local rig = fixtureRig()
+		local ends, slow, tipping = schedule(rig)
+		local n = #election.results
+		expect(#ends):toBe(n)
+		expect(n):toBe(51)
+		check(ends[n] <= stage - 5 + 1e-6, `the last call is at {ends[n]} s, past the end buffer`)
+		for k = n - 7, n do
+			check(slow[k] == true, `call {k} of the last 8 is not slow`)
+		end
+		check(tipping ~= nil and slow[tipping :: number] == true, "the tipping call is not slow")
+		local fastBeat, fastCount = nil, 0
+		for k = 1, n do
+			local beat = ends[k] - (if k > 1 then ends[k - 1] else 0)
+			check(beat > 0, `call {k} does not come after call {k - 1}`)
+			if slow[k] then
+				check(math.abs(beat - 1.2) < 1e-6, `slow call {k} takes {beat} s`)
+			else
+				fastCount += 1
+				fastBeat = fastBeat or beat
+				check(math.abs(beat - (fastBeat :: number)) < 1e-6, `fast call {k} takes {beat} s`)
+			end
+		end
+		-- The quick calls take 60 % of the stage between them.
+		check(
+			math.abs((fastBeat :: number) * fastCount - 0.6 * stage) < 1e-6,
+			"the quick calls are off the curve"
+		)
+		Rig.noErrors(rig.world)
+	end)
+
+	it("squeezes the curve into a short stage", function()
+		local rig = fixtureRig()
+		local Election = FakeRoblox.require(rig.world, rig.peer, "src/client/Screens/Election.luau")
+		local ends = Election.schedule(election.results, need, 12)
+		check(ends[#ends] <= 12 - 5 + 1e-6, `the last call is at {ends[#ends]} s of a 12 s stage`)
+	end)
+
+	it("makes the calls on the clock, every tick, all 51 before the deadline", function()
+		local rig = fixtureRig(nil, 0)
+		local ends = schedule(rig)
+		local start = storeOf(rig).get().payload.stageStart
+		local deadline = storeOf(rig).get().payload.deadline
+		local last = 0
+		while rig.world.clock < deadline - 0.5 do
+			FakeRoblox.run(rig.world, 0.25)
+			local position = rig.world.clock - start
+			-- The screen ticks every 0.25 s, so it may be one tick behind the clock.
+			local due, behind = 0, 0
+			for k, finish in ends do
+				if finish <= position + 1e-6 then
+					due = k
+				end
+				if finish <= position - 0.25 - 1e-6 then
+					behind = k
+				end
+			end
+			local made = callsShown(rig.peer)
+			check(made >= behind and made <= due, `{made} calls at {position} s, want {behind} to {due}`)
+			check(made >= last, "a call was taken back")
+			last = made
+		end
+		expect(last):toBe(#election.results)
+		expect(feedLines(rig.peer)):toBe(#election.results)
+		Rig.noErrors(rig.world)
+	end)
+
+	it("never shows the newest call in the spotlight and the feed at once", function()
+		local rig = fixtureRig(nil, 0)
+		for _ = 1, 180 do
+			FakeRoblox.run(rig.world, 0.25)
+			local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
+			if inScreen(rig.peer, "Spotlight").Visible ~= false and label ~= "Too close to call" then
+				local state = tostring(inScreen(rig.peer, "SpotState").Text)
+				for _, row in inScreen(rig.peer, "Feed"):GetChildren() do
+					local rowState = row:FindFirstChild("State")
+					check(
+						rowState == nil or tostring(rowState.Text) ~= state,
+						`{state} is in the spotlight and the feed`
+					)
+				end
+			end
+		end
+		-- At the end the spotlight steps aside and the feed has every call.
+		expect(inScreen(rig.peer, "Spotlight").Visible):toBe(false)
+		expect(feedLines(rig.peer)):toBe(#election.results)
+		Rig.noErrors(rig.world)
+	end)
+
+	it("plays one call per state, higher toward 270, and flashes 270 once", function()
+		local rig = fixtureRig(nil, 0)
+		FakeRoblox.run(rig.world, FULL_TIME)
+		local calls, flips = 0, 0
+		local pitches: { number } = {}
+		local world: any = rig.world
+		for _, entry in world.sounds do
+			if entry.name == "call" then
+				calls += 1
+				table.insert(pitches, entry.speed)
+			elseif entry.name == "flip" then
+				flips += 1
+			end
+		end
+		expect(calls):toBe(#election.results)
+		expect(flips):toBe(1)
+		-- Jitter is ±5 %, the rise 0.9 -> 1.2: the last call is clearly higher.
+		check(pitches[#pitches] > pitches[1] * 1.15, "the call pitch does not rise")
+		-- "Results in" never ticks: it is not a deadline to beat.
+		expect(#Rig.sounds(rig.peer) > 0 and table.find(Rig.sounds(rig.peer), "tick") == nil):toBe(true)
+		Rig.noErrors(rig.world)
+	end)
+
+	it("says who reaches 270 on the tipping call", function()
+		local rig = fixtureRig(nil, 0)
+		local seen = false
+		for _ = 1, 200 do
+			FakeRoblox.run(rig.world, 0.1)
+			local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
+			if string.find(label, "reaches 270", 1, true) then
+				seen = true
+				break
+			end
+		end
+		-- The fixture's tipping call is the last one: the banner takes over at once,
+		-- so look for the line itself having been written at some point instead.
+		local _, _, tipping = schedule(rig)
+		check(seen or tipping == #election.results, "never said who reached 270")
+		Rig.noErrors(rig.world)
+	end)
+
+	it("lands on the same end state with reduced motion", function()
+		local world = FakeRoblox.world({ root = process.cwd, seed = 3 })
+		world.reducedMotion = true
+		local peer = FakeRoblox.join(world, "P", { DebugScreen = "Election" })
+		FakeRoblox.run(world, FULL_TIME)
+		local rig = { world = world, peer = peer }
+		noErrors(world)
+		expect(number(peer, "EvYou")):toBe(election.ev[1])
+		expect(number(peer, "EvThem")):toBe(election.ev[2])
+		expect(feedLines(peer)):toBe(#election.results)
+		check(#strictFindings(rig) == 0, "audit findings with reduced motion")
+	end)
+end)

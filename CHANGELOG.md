@@ -18,6 +18,17 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - **The opponent by name:** "Rex: thinking..." (the dots step along) and "Rex: locked in ✓", which rises and pops in. Same on the Decision screen, whose options now pop in one after another.
 - Reduce Motion: no pops, rings, slides or rising chips, and the dots hold still; every value, badge and sound still lands.
 
+### Polish: reveals, election night, results (WP-2, D-053)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish WP-2".
+
+- **The week's reveal in three beats.** "Both plans are in" with a whoosh and one line on who goes first; then the actions land one beat at a time, the trailing player's first (from the polls before the week, so the leader answers last), each one bumping its state on the map with a ring in the player's color and a pop; then the new polls: every state that changed leader rings in its new leader's color with a stinger, and the "What changed" rows slide in one after another.
+- **Debate rows** fade in one per topic with the verdict pill popping; a topic you win plays a bright hit. The headline pops in.
+- **Election night as a show.** The safe states are called quickly (all in the first 60% of the night), then the last 8 and the state that takes someone to 270 get 1.2 s each: the call holds, then "Too close to call" (or "Still counting") names the next one. Each call fills its state with a ring, bumps the spotlight, counts the votes up, grows the bar and dings higher as the leader nears 270. Reaching 270 says "Dana reaches 270!", flashes the 270 tick twice and plays a stinger.
+- **Fixed:** election night showed the newest call twice (spotlight and list). The list now holds every call except the one in the spotlight; once all are called the spotlight steps aside and the list has all 51. "Results in" no longer turns red and ticks in its last 5 seconds.
+- **Results.** A win pops "You won", counts both totals up, drops confetti in both colors and plays the victory stinger once; a loss fades in quietly with the defeat sound and adds one line under the reasons: "Try next time: …" (from the biggest reason the other player won). Once per match, never both.
+- Reduce motion: no bumps, rings, pops or confetti; every line and number still arrives.
+
 ### Polish foundation: motion, sound, type and depth (D-053)
 
 The base the polish packages build on. Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish foundation".

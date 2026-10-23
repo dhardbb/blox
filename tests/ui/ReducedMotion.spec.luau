@@ -15,12 +15,25 @@ local function load(world: FakeRoblox.World, peer: FakeRoblox.Peer, path: string
 	return FakeRoblox.require(world, peer, path)
 end
 
+-- Under a decorative frame (Motion's Ring, Confetti: Decor = true), which
+-- full motion draws for a moment and reduced motion never does.
+local function decor(inst: any, root: any): boolean
+	local node = inst
+	while node ~= nil and node ~= root do
+		if node:GetAttribute("Decor") == true then
+			return true
+		end
+		node = node.Parent
+	end
+	return false
+end
+
 -- What a screen shows, one line per visible element, in tree order.
 local function picture(peer: FakeRoblox.Peer, screen: string): { string }
 	local root = Rig.need(peer, "Screens", screen)
 	local lines = {}
 	for _, inst in root:GetDescendants() do
-		if inst:IsA("GuiObject") then
+		if inst:IsA("GuiObject") and not decor(inst, root) then
 			local text = if inst.ClassName == "TextLabel" or inst.ClassName == "TextButton"
 				then tostring(inst.Text)
 				else ""

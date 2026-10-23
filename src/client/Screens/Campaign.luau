@@ -270,6 +270,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		swing = function(swing: Model.RevealSwing?)
 			model.revealSwing = swing
 		end,
+		map = map,
 	})
 	local eventCard = EventCard.new(side, model)
 	local card = StateCard.new(side, model, ORDER.card, ORDER.list)
