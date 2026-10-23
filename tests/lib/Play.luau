@@ -4,6 +4,7 @@
 
 local Bot = require("@sim/Bot")
 local ConfigModule = require("@sim/Config")
+local IssueMap = require("@sim/IssueMap")
 local Election = require("@sim/Election")
 local Match = require("@sim/Match")
 local Polls = require("@sim/Polls")
@@ -18,8 +19,11 @@ local Play = {}
 
 export type Record = {
 	seed: number,
-	candidates: { string },
+	candidates: { string }, -- as played (Select keeps candidates unique, D-045)
 	styles: { Bot.Style },
+	platforms: { { string } }, -- each player's platform as picked
+	issueEV: { [string]: number }, -- EV each issue covered on this match's map (D-044)
+	platformTop3: { boolean }, -- each player's platform was the three highest-EV issues
 	winner: number,
 	ev: { number },
 	priorityA: number,
@@ -101,6 +105,7 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	local gotvSpend = { 0, 0 }
 	local raised = { 0, 0 }
 	local raisedByWeek = table.create(config.WEEKS, 0)
+	local platforms: { { string } } = { {}, {} }
 
 	while match.phase ~= "Done" do
 		local inputs = {}
@@ -124,6 +129,11 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		end
 		local before = match.phase
 		match = Match.advance(config, match, inputs)
+		if before == "Select" then
+			for p = 1, 2 do
+				platforms[p] = table.clone(match.players[p].platform)
+			end
+		end
 
 		if before == "Draft" and match.phase ~= "Draft" then
 			tossupDraft = tossupEV(config, match, false)
@@ -204,10 +214,30 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		end
 	end
 
+	local issueEV = IssueMap.evByIssue(match.issueMap)
+	local sorted: { number } = {}
+	for _, ev in issueEV do
+		table.insert(sorted, ev)
+	end
+	table.sort(sorted, function(a, b)
+		return a > b
+	end)
+	local platformTop3 = {}
+	for p = 1, 2 do
+		local lowest = math.huge
+		for _, issue in platforms[p] do
+			lowest = math.min(lowest, issueEV[issue])
+		end
+		platformTop3[p] = lowest >= sorted[config.PLATFORM_SIZE]
+	end
+
 	return {
 		seed = seed,
-		candidates = candidates,
+		candidates = { match.players[1].candidate, match.players[2].candidate },
 		styles = styleOf,
+		platforms = platforms,
+		issueEV = issueEV,
+		platformTop3 = platformTop3,
 		winner = result.winner,
 		ev = result.ev,
 		priorityA = match.priorityA,
