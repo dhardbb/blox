@@ -38,6 +38,7 @@ local FakeRoblox = require("@testlib/FakeRoblox")
 local Support = require("./e2e/Support")
 local Candidates = require("@shared/Sim/Candidates")
 local Config = require("@shared/Sim/Config")
+local IssueMap = require("@shared/Sim/IssueMap")
 local Issues = require("@shared/Sim/Issues")
 local Drafted = require("@shared/UI/Drafted")
 local Events = require("@shared/Sim/Events")
@@ -284,11 +285,11 @@ local function stageLabel(view: any): string
 	return `Week {view.week} {view.phase}`
 end
 
-local function matchesPlatform(record: any, platform: { string }?): boolean
+local function matchesPlatform(view: any, record: any, platform: { string }?): boolean
 	if platform == nil then
 		return false
 	end
-	for _, issue in record.issues do
+	for _, issue in IssueMap.of(view.issueMap, record.id) do
 		if table.find(platform, issue) then
 			return true
 		end
@@ -350,7 +351,7 @@ local function statesTable(payload: any): { string }
 				)})`
 			)
 		end
-		if matchesPlatform(r, me.platform) then
+		if matchesPlatform(view, r, me.platform) then
 			table.insert(tags, "platform match")
 		end
 		table.insert(
@@ -359,7 +360,7 @@ local function statesTable(payload: any): { string }
 				"%s %3d  %-22s  %-12s  %.1f/%.1f  %s",
 				r.id,
 				r.ev,
-				table.concat(r.issues, "/"),
+				table.concat(IssueMap.of(view.issueMap, r.id), "/"),
 				margin(s.poll, you),
 				s.momentum[you],
 				s.momentum[if you == 1 then 2 else 1],
@@ -380,6 +381,7 @@ local function mapText(): string
 			Config.defaults.POOL_REFILL * 100 + 0.5
 		)}% per week, shared by both players).`,
 		"The 'rules' command prints how every action, poll, debate, event and election night works, with the numbers.",
+		"Top issues (the two after the region) are drawn new for this match (D-044).",
 		"",
 	}
 	for i, r in StateData.list do
@@ -394,7 +396,7 @@ local function mapText(): string
 				r.pop,
 				Numbers.money(cap),
 				r.region,
-				table.concat(r.issues, "/"),
+				if payload then table.concat(payload.view.issueMap[i], "/") else "?",
 				if #r.adjacent > 0 then table.concat(r.adjacent, " ") else "none (fly)"
 			)
 		)
@@ -404,19 +406,25 @@ end
 
 -- ---------------------------------------------------------------- stage guides
 
-local function selectGuide(): { string }
+local function selectGuide(payload: any): { string }
+	local view = payload.view
 	local out = {
-		"STAGE: Select (candidate, color, platform). Your opponent picks at the same time; both are revealed when both lock.",
-		"Command:  select CANDIDATE COLOR ISSUE ISSUE ISSUE      (three different issues = your platform)",
-		"Candidates:",
+		"STAGE: Select, in two steps (D-045). Two players never share a candidate: the first to claim one holds it.",
+		"  1. claim CANDIDATE                     holds a free candidate while you choose issues (optional)",
+		"  2. select CANDIDATE ISSUE ISSUE ISSUE  locks in your candidate and platform (claims it too, if still free)",
+		`Your color is drawn: {view.players[view.you].color or "?"}. Your platform stays hidden until both lock.`,
+		"Candidates (TAKEN = your opponent holds it; pick another):",
 	}
 	for _, id in Candidates.ids do
 		local p = Candidates.profile(Config.defaults, id)
+		local owner = view.claims[id]
+		local tag = if owner == nil then "" elseif owner == view.you then "YOURS " else "TAKEN "
 		table.insert(
 			out,
 			string.format(
-				"  %-9s %s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, ad $%g, debate prep %d]",
+				"  %-9s %s%s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, ad $%g, debate prep %d]",
 				id,
+				tag,
 				p.name,
 				p.archetype,
 				p.perk,
@@ -430,10 +438,26 @@ local function selectGuide(): { string }
 			)
 		)
 	end
-	table.insert(out, `Colors: {string.lower(table.concat(Candidates.colors, " "))}   (cosmetic)`)
-	table.insert(out, `Issues: {string.lower(issueIds())}`)
-	table.insert(out, "Example:   select okafor crimson jobs health schools")
-	table.insert(out, "Example:   select hale teal jobs farms safety")
+	-- This match's issues (D-044): EV covered and the platform multiplier.
+	table.insert(
+		out,
+		"Issues this match (EV = votes of the states where it is a top issue; x = rally/ad multiplier there once it is on your platform; niche issues hit harder):"
+	)
+	local ev = IssueMap.evByIssue(view.issueMap)
+	for _, issue in IssueMap.ranked(view.issueMap) do
+		table.insert(
+			out,
+			string.format(
+				"  %-11s %3d EV  x%.2f",
+				string.lower(issue),
+				ev[issue],
+				view.platformMults[issue] or 0
+			)
+		)
+	end
+	table.insert(out, `Issue ids: {string.lower(issueIds())}`)
+	table.insert(out, "Example:   claim okafor")
+	table.insert(out, "Example:   select okafor jobs health schools")
 	return out
 end
 
@@ -493,9 +517,9 @@ local function draftGuide(payload: any): { string }
 			string.format(
 				"  %s%s %2d EV  %-21s %-13s %s%s",
 				row.r.id,
-				if matchesPlatform(row.r, me.platform) then "*" else " ",
+				if matchesPlatform(view, row.r, me.platform) then "*" else " ",
 				row.r.ev,
-				table.concat(row.r.issues, "/"),
+				table.concat(IssueMap.of(view.issueMap, row.r.id), "/"),
 				row.r.region,
 				Explain.leanText(view, row.s),
 				owner
@@ -758,7 +782,7 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 	add("=== WHAT TO DO ===")
 	local guide
 	if view.phase == "Select" then
-		guide = selectGuide()
+		guide = selectGuide(payload)
 	elseif view.phase == "Draft" then
 		guide = draftGuide(payload)
 	else
@@ -835,7 +859,8 @@ local GLOSS: { [string]: string } = {
 	UnknownIssue = "no such issue",
 	UnknownRegion = "no such region",
 	UnknownCandidate = "no such candidate",
-	UnknownColor = "no such color",
+	CandidateTaken = "your opponent holds that candidate; pick another",
+	AlreadyClaimed = "you already hold a candidate",
 	BadPlatform = "pick exactly three different issues",
 	BadChoiceCount = "draft takes one or two states",
 	DuplicateChoice = "the same state twice in a draft",

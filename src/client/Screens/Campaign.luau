@@ -260,7 +260,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		map:setView(shown, colors)
 		local live = model.payload
 		local event = if live then Model.shownEvent(live) else nil
-		local starred = if event then PlanDraft.eventStates(event) else {}
+		local starred = if event then PlanDraft.eventStates(event, view.issueMap) else {}
 		local me, rival = view.you, Model.opponentOf(view)
 		-- Marks carry `arrow` for the momentum leader; a map that does not draw
 		-- arrows yet ignores the field.

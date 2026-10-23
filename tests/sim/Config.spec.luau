@@ -139,7 +139,7 @@ describe("Config", function()
 			+ #C.DEBATE_WEEKS * C.TIMER_DEBATE
 			+ C.TIMER_ELECTION
 			+ C.TRANSITION_ALLOWANCE
-		expect(worst):toBe(1042)
+		expect(worst):toBe(1050) -- TIMER_SELECT 30 -> 38 for the two-step Select (D-045)
 		expect(worst):toBeLessThan(17.5 * 60 + 1)
 	end)
 

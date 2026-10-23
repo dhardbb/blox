@@ -243,7 +243,7 @@ function Swing.stance(config: Config, view: View, id: Types.Choice): Preview
 	local platform = view.players[view.you].platform or {}
 	local base = Events.baseOf(view.players[view.you])
 	local effects: { [string]: number } = if definition
-		then Events.stanceEffects(config, definition, id, platform, base)
+		then Events.stanceEffects(config, view.issueMap, definition, id, platform, base)
 		else {}
 	local preview: Preview = {
 		id = id,
@@ -357,7 +357,10 @@ end
 
 -- Flips credited to topics: each flipped state goes to the first topic (in
 -- order) whose states include it. Returns the per-topic lists and the rest.
-local function creditFlips(result: SimState.DebateResult): ({ { SimState.PollFlip } }, { SimState.PollFlip })
+local function creditFlips(
+	view: View,
+	result: SimState.DebateResult
+): ({ { SimState.PollFlip } }, { SimState.PollFlip })
 	local byTopic: { { SimState.PollFlip } } = {}
 	for t in result.topics do
 		byTopic[t] = {}
@@ -367,7 +370,7 @@ local function creditFlips(result: SimState.DebateResult): ({ { SimState.PollFli
 	for t = 1, #result.topics do
 		local topic: Types.Issue = result.topics[t]
 		local set: { [string]: boolean } = {}
-		for _, id in Debate.topicStates(topic) do
+		for _, id in Debate.topicStates(view.issueMap, topic) do
 			set[id] = true
 		end
 		topicSets[t] = set
@@ -397,8 +400,8 @@ end
 function Swing.debateTopic(config: Config, view: View, result: SimState.DebateResult, t: number): Topic
 	local topic: Types.Issue = result.topics[t]
 	local winner = result.winners[t] or 0
-	local states = byEv(Debate.topicStates(topic))
-	local byTopic = creditFlips(result)
+	local states = byEv(Debate.topicStates(view.issueMap, topic))
+	local byTopic = creditFlips(view, result)
 	local flips = withEv(byTopic[t])
 	local name = issueName(topic)
 	local line: string
@@ -441,8 +444,8 @@ function Swing.debateTopic(config: Config, view: View, result: SimState.DebateRe
 	}
 end
 
-function Swing.debateOther(_view: View, result: SimState.DebateResult): { Flip }
-	local _, rest = creditFlips(result)
+function Swing.debateOther(view: View, result: SimState.DebateResult): { Flip }
+	local _, rest = creditFlips(view, result)
 	return withEv(rest)
 end
 
@@ -490,7 +493,7 @@ function Swing.debateNet(
 		end
 		gaffes[p] = row
 	end
-	return Swing.net(Debate.moves(config, #view.players, topics, winners, gaffes), view)
+	return Swing.net(Debate.moves(config, view.issueMap, #view.players, topics, winners, gaffes), view)
 end
 
 -- ---------------------------------------------------------------- Choice results

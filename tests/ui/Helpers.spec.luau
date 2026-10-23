@@ -12,6 +12,7 @@ local Numbers = require("@ui/Numbers")
 local Plan = require("@sim/Plan")
 local PlanDraft = require("@ui/PlanDraft")
 local State = require("@sim/State")
+local IssueMap = require("@sim/IssueMap")
 local StateData = require("@sim/StateData")
 local Swing = require("@ui/Swing")
 local View = require("@sim/View")
@@ -165,25 +166,27 @@ describe("PlanDraft", function()
 	it("suggests the best issue for a rally and an attack", function()
 		local view = planView()
 		local platform = view.players[view.you].platform :: { string }
-		for _, record in StateData.list do
+		for i, record in StateData.list do
+			local issues = view.issueMap[i]
 			local issue, mult = PlanDraft.bestIssue(C, view, record.id)
 			expect(mult >= C.ISSUE_MULT_STATE):toBe(true)
-			expect(table.find(record.issues, issue) ~= nil):toBe(true)
-			local inBoth = false
-			for _, i in record.issues do
-				if table.find(platform, i) then
-					inBoth = true
+			expect(table.find(issues, issue) ~= nil):toBe(true)
+			-- The best platform issue here, at this match's multiplier (D-044).
+			local best = C.ISSUE_MULT_STATE
+			for _, top in issues do
+				if table.find(platform, top) then
+					best = math.max(best, view.platformMults[top])
 				end
 			end
-			expect(mult):toBe(if inBoth then C.ISSUE_MULT_BOTH else C.ISSUE_MULT_STATE)
+			expect(mult):toBe(best)
 			local attackIssue = PlanDraft.bestAttackIssue(C, view, record.id)
-			expect(table.find(record.issues, attackIssue) ~= nil):toBe(true)
+			expect(table.find(issues, attackIssue) ~= nil):toBe(true)
 		end
 	end)
 
 	it("a previewed plan with no problem passes the real validator", function()
 		local match = Match.new(C, 5, { "a", "b" })
-		local pick = { candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } }
+		local pick = { candidate = "okafor", platform = { "Jobs", "Health", "Schools" } }
 		match = Match.advance(C, match, { pick, pick })
 		while match.phase ~= "Plan" do
 			match = Match.advance(C, match, {})
@@ -205,7 +208,7 @@ end)
 -- first week at or after `week` whose event is a Choice (`choice` true) or isn't.
 local function planWeek(seed: number, choice: boolean): Match.MatchState
 	local match = Match.new(C, seed, { "a", "b" })
-	local pick = { candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } }
+	local pick = { candidate = "okafor", platform = { "Jobs", "Health", "Schools" } }
 	match = Match.advance(C, match, { pick, pick })
 	for _ = 1, 200 do
 		if match.phase == "Plan" and Events.isChoiceWeek(match) == choice and Events.at(match) ~= nil then
@@ -248,8 +251,8 @@ describe("PlanDraft weekly events", function()
 		-- No event at all (week 1) is also not a Choice week.
 		local early = Match.new(C, 1, { "a", "b" })
 		early = Match.advance(C, early, {
-			{ candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } },
-			{ candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } },
+			{ candidate = "okafor", platform = { "Jobs", "Health", "Schools" } },
+			{ candidate = "okafor", platform = { "Jobs", "Health", "Schools" } },
 		})
 		while early.phase ~= "Plan" do
 			early = Match.advance(C, early, {})
@@ -292,19 +295,19 @@ describe("PlanDraft weekly events", function()
 		local function event(kind: any, issue: any, region: any): View.EventView
 			return { week = 3, id = "x", kind = kind, name = "N", text = "T", issue = issue, region = region }
 		end
-		local pacific = PlanDraft.eventStates(event("Regional", nil, "Pacific"))
-		local health = PlanDraft.eventStates(event("Spotlight", "Health", nil))
+		local pacific = PlanDraft.eventStates(event("Regional", nil, "Pacific"), IssueMap.flavor)
+		local health = PlanDraft.eventStates(event("Spotlight", "Health", nil), IssueMap.flavor)
 		local pacificCount, healthCount = 0, 0
 		for _, record in StateData.list do
 			expect(pacific[record.id] == true):toBe(record.region == "Pacific")
-			expect(health[record.id] == true):toBe(table.find(record.issues, "Health") ~= nil)
+			expect(health[record.id] == true):toBe(table.find(record.flavor, "Health") ~= nil)
 			pacificCount += if pacific[record.id] then 1 else 0
 			healthCount += if health[record.id] then 1 else 0
 		end
 		expect(pacificCount > 0 and pacificCount < #StateData.list):toBe(true)
 		expect(healthCount > 0 and healthCount < #StateData.list):toBe(true)
-		expect(next(PlanDraft.eventStates(event("Windfall", nil, nil)))):toBe(nil)
-		expect(next(PlanDraft.eventStates(event("Choice", nil, nil)))):toBe(nil)
+		expect(next(PlanDraft.eventStates(event("Windfall", nil, nil), IssueMap.flavor))):toBe(nil)
+		expect(next(PlanDraft.eventStates(event("Choice", nil, nil), IssueMap.flavor))):toBe(nil)
 		expect(PlanDraft.eventMapNote(event("Windfall", nil, nil))):toBe(nil)
 	end)
 

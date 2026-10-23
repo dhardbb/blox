@@ -14,6 +14,7 @@ local ConfigModule = require("./Config")
 local Debate = require("./Debate")
 local Draft = require("./Draft")
 local Events = require("./Events")
+local IssueMap = require("./IssueMap")
 local Polls = require("./Polls")
 local State = require("./State")
 local Types = require("../Types")
@@ -40,8 +41,7 @@ export type StateView = {
 export type PlayerView = {
 	id: string,
 	candidate: string?, -- nil until Select ends
-	color: string?,
-	pickedColor: string?, -- yours only: the color you asked for (another if it clashed)
+	color: string, -- drawn from the seed (D-044), shown from Select on
 	platform: { Types.Issue }?,
 	home: string?,
 	strongholds: { string },
@@ -56,7 +56,7 @@ export type PlayerView = {
 }
 
 -- One stance of a Choice event, as shown on its button (D-039). The per-state
--- effect is Events.stanceEffects(config, Events.byId[event.id], stance.id).
+-- effect is Events.stanceEffects(config, view.issueMap, Events.byId[event.id], stance.id, ...).
 export type StanceView = {
 	id: Types.Choice,
 	name: string,
@@ -85,6 +85,9 @@ export type View = {
 	priorityA: number?, -- who holds priority in "A" rounds; public from the map reveal, absent during Select
 	players: { PlayerView },
 	states: { StateView },
+	claims: { [string]: number }, -- Select: candidate id -> the player who claimed it (D-045)
+	issueMap: IssueMap.IssueMap, -- each state's two top issues this match (D-044), public from Select on
+	platformMults: { [string]: number }, -- by issue: rally/ad multiplier on a platform issue where it is a top issue (D-044)
 	projectedEV: { number },
 	draftLog: { State.DraftPick },
 	nextDebate: { week: number, topics: { Types.Issue } }?,
@@ -123,8 +126,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 		players[p] = {
 			id = player.id,
 			candidate = if selected then player.candidate else nil,
-			color = if selected then player.color else nil,
-			pickedColor = if mine and selected then player.pickedColor else nil,
+			color = player.color,
 			platform = if selected then table.clone(player.platform) else nil,
 			home = player.home,
 			strongholds = table.clone(player.strongholds),
@@ -221,6 +223,9 @@ function View.build(config: Config, match: MatchState, you: number): View
 		priorityA = if match.phase == "Select" then nil else match.priorityA,
 		players = players,
 		states = states,
+		claims = table.clone(match.claims),
+		issueMap = copy(match.issueMap),
+		platformMults = copy(match.platformMults),
 		projectedEV = Polls.projectedEV(match),
 		draftLog = copy(match.draftLog),
 		nextDebate = nextDebate,

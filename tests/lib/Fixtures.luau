@@ -2,7 +2,10 @@
 -- Shared builders for simulation specs: matches advanced to a given phase with
 -- chosen candidates and platforms, and invariant checks.
 
+local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
+local IssueMap = require("@sim/IssueMap")
+local Issues = require("@sim/Issues")
 local Match = require("@sim/Match")
 local State = require("@sim/State")
 
@@ -12,7 +15,21 @@ export type Options = {
 	seed: number?,
 	candidates: { string }?,
 	platforms: { { string } }?,
+	drawnIssues: boolean?, -- keep the seed's drawn issue map instead of the fixed one
 }
+
+-- Puts a match on the fixed flavor issue map (StateData's flavor: OH has Jobs,
+-- IA Farms...) with the plain ISSUE_MULT_BOTH on every issue, for specs that need
+-- known top issues and round numbers. Real matches draw both (D-044).
+function Fixtures.fixedIssues(match: State.MatchState): State.MatchState
+	match.issueMap = IssueMap.flavor
+	local mults: { [string]: number } = {}
+	for _, issue in Issues.list do
+		mults[issue] = Config.defaults.ISSUE_MULT_BOTH
+	end
+	match.platformMults = table.freeze(mults)
+	return match
+end
 
 local DEFAULT_PLATFORMS = {
 	{ "Jobs", "Health", "Schools" },
@@ -24,17 +41,28 @@ function Fixtures.selected(options: Options?): State.MatchState
 	local o: Options = options or {}
 	local config = Config.defaults
 	local match = Match.new(config, o.seed or 1, { "p1", "p2" })
+	if not o.drawnIssues then
+		Fixtures.fixedIssues(match)
+	end
 	local candidates = o.candidates or { "okafor", "okafor" }
 	local platforms = o.platforms or DEFAULT_PLATFORMS
 	local inputs = {}
 	for p = 1, 2 do
-		inputs[p] = {
-			candidate = candidates[p],
-			color = if p == 1 then "Crimson" else "Cobalt",
-			platform = platforms[p],
-		}
+		inputs[p] = { candidate = candidates[p], platform = platforms[p] }
 	end
-	return (Match.advance(config, match, inputs))
+	local selected = Match.advance(config, match, inputs)
+	-- Real matches never share a candidate (D-045), but the rule specs check the
+	-- simultaneous-resolution symmetry (D-001) with mirrored candidates: put the
+	-- asked-for candidate back on any seat the uniqueness rule moved.
+	for p = 1, 2 do
+		local player = selected.players[p]
+		if player.candidate ~= candidates[p] then
+			player.candidate = candidates[p]
+			player.profile = Candidates.profile(config, candidates[p])
+			player.cash = player.profile.startCash
+		end
+	end
+	return selected
 end
 
 -- A two-player match at week 1 Plan, drafted with default (auto-filled) picks.

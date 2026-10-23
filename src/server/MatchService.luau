@@ -287,6 +287,8 @@ local function matchRequest(player: Player, request: Remotes.Request)
 	local ran = guard(session, function()
 		if request.op == "Submit" then
 			accepted, reason = Session.submit(session, seat, request.step, request.input, now())
+		elseif request.op == "Claim" then
+			accepted, reason = Session.claim(session, seat, request.step, request.input, now())
 		elseif request.op == "Bank" then
 			accepted, reason = Session.bank(session, seat, request.step, now())
 		else
@@ -304,7 +306,7 @@ end
 -- Handles one schema-checked request.
 function MatchService.handle(player: Player, request: Remotes.Request)
 	local op = request.op
-	if op == "Submit" or op == "Bank" or op == "Skip" then
+	if op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
 		matchRequest(player, request)
 	elseif op == "Resync" then
 		local id = idOf(player)

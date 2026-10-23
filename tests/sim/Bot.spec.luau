@@ -8,6 +8,7 @@ local Play = require("@testlib/Play")
 local Bot = require("@sim/Bot")
 local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
+local IssueMap = require("@sim/IssueMap")
 local Election = require("@sim/Election")
 local Events = require("@sim/Events")
 local Rng = require("@sim/Rng")
@@ -19,6 +20,7 @@ local View = require("@sim/View")
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
+local FLAVOR = IssueMap.flavor -- Fixtures put matches on this fixed map (D-044)
 
 describe("Bot", function()
 	it("plays a full bot-vs-bot match with only valid inputs", function()
@@ -195,7 +197,7 @@ describe("Bot", function()
 		function()
 			local event = Events.byId.plant -- Jobs: A likes Transit and Farms, B likes Health and Safety
 			local likedByA: { [string]: boolean }, likedByB: { [string]: boolean } = {}, {}
-			for id, points in Events.stanceEffects(C, event, "A", {}) do
+			for id, points in Events.stanceEffects(C, FLAVOR, event, "A", {}) do
 				if points > 0.5 then
 					likedByA[id] = true
 				elseif points < 0 then
@@ -218,18 +220,20 @@ describe("Bot", function()
 			local platform = view.players[1].platform :: { Types.Issue }
 			local base = Events.baseOf(view.players[1])
 			local function value(id: Types.Choice): number
-				return Bot.stanceValue(C, estimates, view.event :: any, id, platform, base)
+				return Bot.stanceValue(C, FLAVOR, estimates, view.event :: any, id, platform, base)
 			end
 			expect(value("A") > 0 and value("B") > 0):toBe(true)
 			expect(value("C") <= 0):toBe(true)
 			expect(Bot.plan(C, view, Rng.new(1)).choice ~= "C"):toBe(true)
 			-- With no base the hedge is worth nothing; with every state your base it costs.
-			expect(Bot.stanceValue(C, estimates, view.event :: any, "C", platform, {})):toBe(0)
+			expect(Bot.stanceValue(C, FLAVOR, estimates, view.event :: any, "C", platform, {})):toBe(0)
 			local everyone: { string } = {}
 			for _, record in StateData.list do
 				table.insert(everyone, record.id)
 			end
-			expect(Bot.stanceValue(C, estimates, view.event :: any, "C", platform, everyone) < 0):toBe(true)
+			expect(Bot.stanceValue(C, FLAVOR, estimates, view.event :: any, "C", platform, everyone) < 0):toBe(
+				true
+			)
 		end
 	)
 
@@ -241,9 +245,9 @@ describe("Bot", function()
 		local jeered: Types.StateRecord? = nil
 		for _, one in StateData.list do
 			for _, two in StateData.list do
-				if one.ev == two.ev and table.find(one.issues, "Jobs") and table.find(two.issues, "Jobs") then
-					local a = Events.stanceEffect(C, event, "A", State.indexOf[one.id], {})
-					local b = Events.stanceEffect(C, event, "A", State.indexOf[two.id], {})
+				if one.ev == two.ev and table.find(one.flavor, "Jobs") and table.find(two.flavor, "Jobs") then
+					local a = Events.stanceEffect(C, FLAVOR, event, "A", State.indexOf[one.id], {})
+					local b = Events.stanceEffect(C, FLAVOR, event, "A", State.indexOf[two.id], {})
 					if a == C.STANCE_POINTS and b == -C.STANCE_POINTS then
 						cheered, jeered = one, two
 					end
@@ -273,7 +277,7 @@ describe("Bot", function()
 		local view = View.build(C, match, 1)
 		local estimates = Bot.estimates(C, view)
 		local function value(id: Types.Choice, base: { string }): number
-			return Bot.stanceValue(C, estimates, view.event :: any, id, {}, base)
+			return Bot.stanceValue(C, FLAVOR, estimates, view.event :: any, id, {}, base)
 		end
 		expect(value("A", { c.id }) > value("B", { c.id })):toBe(true)
 		expect(value("B", { j.id }) > value("A", { j.id })):toBe(true)
@@ -306,7 +310,7 @@ describe("Bot", function()
 		for t = 1, #topics do
 			local camp: { [string]: boolean } = {}
 			for _, id in StateData.list do
-				camp[id.id] = table.find(id.issues, topics[t]) ~= nil
+				camp[id.id] = table.find(id.flavor, topics[t]) ~= nil
 			end
 			-- Only this topic's states are close; the rest are decided.
 			for _, s in match.states do

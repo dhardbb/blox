@@ -36,6 +36,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SharedFolder = ReplicatedStorage.Shared
 local Explain = require(SharedFolder.UI.Explain)
+local IssueMap = require(SharedFolder.Sim.IssueMap)
 local Issues = require(SharedFolder.Sim.Issues)
 local Plan = require(SharedFolder.Sim.Plan)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
@@ -522,7 +523,6 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	end
 
 	local function renderMessages(view: View, id: string, canEdit: boolean)
-		local record = StateData.byId[id]
 		local platform: { Issue } = view.players[view.you].platform or {}
 		local message = Model.messageIssue(model, view, id)
 		local choices = PlanDraft.messageChoices(config, view, id)
@@ -534,7 +534,8 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		for k = 1, #Issues.list do
 			local issue: Issue = Issues.list[k]
 			local button = issueChips[issue]
-			local m = Resolve.issueMult(config, platform, record.issues, issue)
+			local m =
+				Resolve.issueMult(config, platform, IssueMap.of(view.issueMap, id), issue, view.platformMults)
 			button.Text = `{Model.issueName(issue)} {Model.mult(m)}`
 			local at = offered[issue]
 			if at then
@@ -740,7 +741,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 			end
 			internalCell.Visible = internal ~= nil
 			local issueNames: { string } = {}
-			for _, issue in record.issues do
+			for _, issue in IssueMap.of(view.issueMap, record.id) do
 				table.insert(issueNames, Model.issueName(issue))
 			end
 			issuesLine.Text = `Top issues: {table.concat(issueNames, ", ")}`

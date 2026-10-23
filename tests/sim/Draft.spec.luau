@@ -118,7 +118,7 @@ describe("Draft", function()
 		-- Player 1's platform is Jobs/Health/Schools: the backup must share an issue.
 		local record = StateData.byId[filled[2]]
 		local matches = false
-		for _, issue in record.issues do
+		for _, issue in record.flavor do
 			if table.find(match.players[1].platform, issue) then
 				matches = true
 			end

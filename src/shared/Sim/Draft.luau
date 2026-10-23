@@ -6,6 +6,7 @@
 -- Bonuses are applied once, after the last round (Draft.applyBonuses).
 
 local ConfigModule = require("./Config")
+local IssueMap = require("./IssueMap")
 local State = require("./State")
 local StateData = require("./StateData")
 local Support = require("./Support")
@@ -112,7 +113,7 @@ local function fillOrder(config: Config, match: MatchState, p: number, round: nu
 		end
 	end
 	local function matches(record): boolean
-		for _, issue in record.issues do
+		for _, issue in IssueMap.of(match.issueMap, record.id) do
 			if table.find(platform, issue) then
 				return true
 			end

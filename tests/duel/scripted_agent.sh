@@ -8,7 +8,9 @@
 here="$(cd "$(dirname "$0")" && pwd)"
 dir="${1:?usage: scripted_agent.sh DIR N [candidate]}"
 n="${2:?usage: scripted_agent.sh DIR N [candidate]}"
-candidate="${3:-okafor}"
+# Candidates are unique (D-045): by default player 1 is Okafor, player 2 Hale.
+if [ "$n" = 1 ]; then default=okafor; else default=hale; fi
+candidate="${3:-$default}"
 mode="${4:-pass}"
 while true; do
 	screen="$("$here/wait.sh" "$dir" "$n")"
@@ -18,7 +20,7 @@ while true; do
 	fi
 	action="$(printf '%s\n' "$screen" | sed -n 's/^ACTION NEEDED: \([^.]*\)\..*/\1/p' | head -1)"
 	case "$action" in
-	Select*) cmd="select $candidate crimson jobs health schools" ;;
+	Select*) cmd="select $candidate jobs health schools" ;;
 	Draft*)
 		states="$(printf '%s\n' "$screen" | awk '/^Your platform:/{f=1;next} f&&/^  [A-Z][A-Z]/{gsub(/\*/,"",$1);print $1} /^$/{f=0}' | head -2 | tr '\n' ' ')"
 		cmd="draft $states"

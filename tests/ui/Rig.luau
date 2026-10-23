@@ -169,12 +169,39 @@ local function waitFor(world: FakeRoblox.World, predicate: () -> boolean, limit:
 end
 
 -- Select through the real screen, up to (not including) Lock In.
-local function pickAll(world: FakeRoblox.World, peer: FakeRoblox.Peer)
-	tap(world, peer, "Select", "Candidate_hale")
-	tap(world, peer, "Select", "Color_Teal")
+-- A candidate nobody has claimed yet, preferring `want` (default Hale).
+local function freeCandidate(world: FakeRoblox.World, peer: FakeRoblox.Peer, want: string?): string
+	local p = payloadOf(world, peer)
+	local claims = if p then p.view.claims else {}
+	local order = { want or "hale", "okafor", "venkat", "reyes", "begay", "strand" }
+	for _, id in order do
+		if claims[id] == nil or claims[id] == p.you then
+			return id
+		end
+	end
+	return "calloway"
+end
+
+-- Step 1 of Select (D-045): tap a free candidate and claim it with "Next".
+local function claim(world: FakeRoblox.World, peer: FakeRoblox.Peer, want: string?): string
+	local id = freeCandidate(world, peer, want)
+	tap(world, peer, "Select", `Candidate_{id}`)
+	tap(world, peer, "Select", "LockIn")
+	waitFor(world, function()
+		local p = payloadOf(world, peer)
+		return p ~= nil and p.view.claims[id] == p.you
+	end, 5, "the claim")
+	FakeRoblox.run(world, 0.3)
+	return id
+end
+
+-- Both steps of Select, up to (not including) Lock in. Returns the candidate.
+local function pickAll(world: FakeRoblox.World, peer: FakeRoblox.Peer): string
+	local id = claim(world, peer)
 	for _, issue in { "Jobs", "Health", "Farms" } do
 		tap(world, peer, "Select", `Issue_{issue}`)
 	end
+	return id
 end
 
 -- A practice match, picked and locked, run to the first draft round.
@@ -276,6 +303,8 @@ return {
 	deepCopy = deepCopy,
 	waitFor = waitFor,
 	pickAll = pickAll,
+	claim = claim,
+	freeCandidate = freeCandidate,
 	toDraftInput = toDraftInput,
 	toPlanInput = toPlanInput,
 	safeState = safeState,

@@ -36,7 +36,7 @@ export type StateRecord = {
 	ev: number, -- electoral votes
 	pop: number, -- population in millions
 	region: Region,
-	issues: { Issue }, -- exactly two top issues
+	flavor: { Issue }, -- two regional-flavor issues: weighted up when a match draws its top issues (Sim/IssueMap)
 	adjacent: { string }, -- ids of states sharing a land border
 	lat: number, -- geographic center
 	lon: number,

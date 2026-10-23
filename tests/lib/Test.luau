@@ -67,6 +67,8 @@ local function deepEqual(a: any, b: any): boolean
 	return true
 end
 
+Test.deepEqual = deepEqual
+
 local function fail(message: string)
 	error(message, 3)
 end

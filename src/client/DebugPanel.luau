@@ -16,7 +16,6 @@ local Bot = require(Shared.Sim.Bot)
 local Candidates = require(Shared.Sim.Candidates)
 local Config = require(Shared.Sim.Config)
 local Rng = require(Shared.Sim.Rng)
-local Colors = require(Shared.UI.Colors)
 local Commands = require(Shared.DebugUI.Commands)
 local Format = require(Shared.DebugUI.Format)
 local Remotes = require(Shared.Net.Remotes)
@@ -200,7 +199,6 @@ local lobby: Remotes.LobbyStatus? = nil
 local ratingChange: Remotes.RatingChange? = nil -- after the last rated match
 local autoplay = false
 local autoKey = "" -- "matchId:step" of the last state autoplay acted on (steps restart each match)
-local clashNoticeFor: string? = nil -- match whose color-clash line was logged
 local lastSubmit: any? = nil -- the last Submit input sent, to explain a NotEnoughMoney rejection
 local logLines: { string } = {}
 local rng = Rng.new(player.UserId % 2147483647 + 1)
@@ -281,7 +279,7 @@ local function command(text: string)
 		end
 	else
 		local op = parsed.op :: string
-		if op == "Submit" or op == "Bank" or op == "Skip" then
+		if op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
 			if op == "Submit" then
 				lastSubmit = parsed.input
 			end
@@ -295,6 +293,7 @@ end
 local NOTICES = {
 	OpponentDisconnected = "Opponent disconnected: their moves auto-submit after the grace period.",
 	OpponentReconnected = "Opponent reconnected.",
+	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
 }
 
 toClient.OnClientEvent:Connect(function(message: Remotes.Message)
@@ -307,11 +306,6 @@ toClient.OnClientEvent:Connect(function(message: Remotes.Message)
 			if #lines > 0 then
 				say(`events: {table.concat(lines, "; ")}`)
 			end
-		end
-		local clash = Colors.clashNotice(payload.view)
-		if clash and clashNoticeFor ~= payload.matchId then
-			clashNoticeFor = payload.matchId
-			say(clash)
 		end
 		if payload.stage == "Over" and payload.result then
 			say(`match over: {payload.result.reason}`)

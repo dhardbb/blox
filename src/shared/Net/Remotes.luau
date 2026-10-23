@@ -21,7 +21,8 @@ export type Op =
 	| "Join" -- join a private match: { code }
 	| "Practice" -- play the bot now
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
-	| "PrePick" -- remember a candidate/color/platform for Select: { pick }
+	| "PrePick" -- remember a candidate and platform for Select: { pick }
+	| "Claim" -- Select step 1: claim a candidate (D-045): { matchId, step, input = candidate id }
 	| "Submit" -- lock in this stage's input: { matchId, step, input }
 	| "Bank" -- take 15 s of time bank: { matchId, step }
 	| "Skip" -- skip the resolve animation or election night: { matchId, step }

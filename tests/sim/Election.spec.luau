@@ -4,6 +4,7 @@
 local Test = require("@testlib/Test")
 local Fixtures = require("@testlib/Fixtures")
 local Config = require("@sim/Config")
+local IssueMap = require("@sim/IssueMap")
 local Debate = require("@sim/Debate")
 local Election = require("@sim/Election")
 local Issues = require("@sim/Issues")
@@ -17,6 +18,7 @@ local View = require("@sim/View")
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
+local FLAVOR = IssueMap.flavor -- Fixtures put matches on this fixed map (D-044)
 
 -- A finished campaign with every state's truth overwritten.
 local function board(fill: (s: State.StateSim, i: number) -> ()): State.MatchState
@@ -183,7 +185,7 @@ describe("Debates", function()
 				for _, record in StateData.list do
 					local points = { 0, 0 }
 					for t, topic in topics do
-						if table.find(record.issues, topic) then
+						if table.find(record.flavor, topic) then
 							if result.winners[t] > 0 then
 								points[result.winners[t]] += C.DEBATE_TOPIC_WIN
 							end
@@ -199,7 +201,7 @@ describe("Debates", function()
 					end
 				end
 				expect(result.moves):toEqual(moves)
-				expect(Debate.moves(C, 2, topics, result.winners, gaffes)):toEqual(moves)
+				expect(Debate.moves(C, FLAVOR, 2, topics, result.winners, gaffes)):toEqual(moves)
 				-- Support moved by the flat part plus the targeted part, from one snapshot.
 				local byState = {}
 				for _, move in moves do
@@ -265,10 +267,10 @@ describe("Debates", function()
 
 	it("topic states are fixed data and the odds follow the roll", function()
 		for _, topic in Issues.list do
-			local states = Debate.topicStates(topic)
+			local states = Debate.topicStates(FLAVOR, topic)
 			expect(#states >= 8):toBe(true)
 			for _, id in states do
-				expect(table.find(StateData.byId[id].issues, topic) ~= nil):toBe(true)
+				expect(table.find(StateData.byId[id].flavor, topic) ~= nil):toBe(true)
 			end
 		end
 		local win, tie, lose = Debate.odds(C, 0)

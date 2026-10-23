@@ -27,7 +27,7 @@ describe("PlanDraft.messageChoices", function()
 	local platform = view.players[view.you].platform :: { string }
 
 	it("offers at most five chips, best first, with no repeats", function()
-		for _, record in StateData.list do
+		for i, record in StateData.list do
 			local choices = PlanDraft.messageChoices(C, view, record.id)
 			check(#choices >= 1 and #choices <= PlanDraft.MESSAGE_CHOICES, `{record.id}: {#choices} chips`)
 			local best, bestMult = PlanDraft.bestIssue(C, view, record.id)
@@ -40,14 +40,15 @@ describe("PlanDraft.messageChoices", function()
 				if k > 1 then
 					check(choice.mult <= choices[k - 1].mult + 1e-9, `{record.id}: not sorted by multiplier`)
 				end
-				local mult = Resolve.issueMult(C, platform :: any, record.issues, choice.issue)
+				local mult =
+					Resolve.issueMult(C, platform :: any, view.issueMap[i], choice.issue, view.platformMults)
 				expect(choice.mult):toBe(mult)
 			end
 		end
 	end)
 
 	it("covers the state's top issues and the platform", function()
-		for _, record in StateData.list do
+		for i, record in StateData.list do
 			local choices = PlanDraft.messageChoices(C, view, record.id)
 			local offered: { [string]: boolean } = {}
 			for _, choice in choices do
@@ -55,7 +56,7 @@ describe("PlanDraft.messageChoices", function()
 			end
 			local wanted = 0
 			local pool: { [string]: boolean } = {}
-			for _, issue in record.issues do
+			for _, issue in view.issueMap[i] do
 				pool[issue] = true
 			end
 			for _, issue in platform do

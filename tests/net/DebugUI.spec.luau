@@ -29,7 +29,7 @@ describe("Commands.parse", function()
 	end)
 
 	it("parses selections and pre-picks, case-insensitively", function()
-		local pick = { candidate = "hale", color = "Teal", platform = { "Jobs", "Transit", "Farms" } }
+		local pick = { candidate = "hale", platform = { "Jobs", "Transit", "Farms" } }
 		expect(Commands.parse("select Hale teal jobs TRANSIT farms")):toEqual({
 			kind = "Request",
 			op = "Submit",
@@ -40,8 +40,16 @@ describe("Commands.parse", function()
 			op = "PrePick",
 			pick = pick,
 		})
+		-- Colors are drawn (D-044): the command takes none, and skips an old script's.
+		expect(Commands.parse("select hale jobs transit farms")):toEqual({
+			kind = "Request",
+			op = "Submit",
+			input = pick,
+		})
 		expect(Commands.parse("select nobody teal jobs transit farms").kind):toBe("Error")
 		expect(Commands.parse("select hale teal jobs").kind):toBe("Error")
+		expect(Commands.parse("claim Venkat")):toEqual({ kind = "Request", op = "Claim", input = "venkat" })
+		expect(Commands.parse("claim nobody").kind):toBe("Error")
 	end)
 
 	it("parses draft picks", function()
@@ -283,18 +291,13 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 	end)
 end)
 
-describe("Format color clash (playtest 1, bug 6)", function()
-	it("puts the actual color on the board and explains the clash", function()
+describe("Format colors (D-044)", function()
+	it("puts each player's drawn color on the board", function()
 		local payload = Fixtures.payload(C, "Plan")
 		local me = payload.view.players[payload.you]
-		local other = payload.view.players[3 - payload.you]
-		me.pickedColor = other.color
-		me.color = if other.color == "Crimson" then "Cobalt" else "Crimson"
 		local board = Format.board(payload, 0)
 		expect(string.find(board, `({me.color})`, 1, true) ~= nil):toBe(true)
-		expect(string.find(board, "coin flip gave it to them", 1, true) ~= nil):toBe(true)
-		me.pickedColor = me.color
-		expect(string.find(Format.board(payload, 0), "coin flip", 1, true)):toBe(nil)
+		expect(string.find(board, "coin flip", 1, true)):toBe(nil)
 	end)
 end)
 

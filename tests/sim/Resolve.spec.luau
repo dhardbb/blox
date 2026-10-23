@@ -94,7 +94,7 @@ describe("Resolve: rallies, momentum and drift", function()
 	it("a matched rally is worth 4.5, then drifts on 2 momentum", function()
 		local match = run(clean(), { { kind = "Rally", state = "OH", issue = "Jobs" } }, {})
 		local s = at(match, "OH") -- OH top issues include Jobs; Jobs is in the platform
-		expect(table.find(StateData.byId.OH.issues, "Jobs") ~= nil):toBe(true)
+		expect(table.find(StateData.byId.OH.flavor, "Jobs") ~= nil):toBe(true)
 		expect(s.momentum[1]):toBe(C.RALLY_MOMENTUM)
 		-- Rally +4.5: 39.5 / 33.65 / 26.85. Drift 0.6 x 2 = 1.2: 40.7 / 33.29 / 26.01.
 		expect(s.support[1]):toBeCloseTo(40.7)
@@ -253,7 +253,7 @@ describe("Resolve: media and attacks", function()
 	it("an attack on a top issue the target lacks costs 2.4 and earns no momentum", function()
 		local match = clean()
 		local issue = "Farms"
-		expect(table.find(StateData.byId.IA.issues, issue) ~= nil):toBe(true)
+		expect(table.find(StateData.byId.IA.flavor, issue) ~= nil):toBe(true)
 		match = run(match, { { kind = "Attack", state = "IA", issue = issue } }, {})
 		local s = at(match, "IA")
 		-- Loss 1.6 x 1.5 = 2.4: target 32.6, attacker +0.96, undecided +1.44.

@@ -547,7 +547,7 @@ describe("Campaign screen", function()
 		check(shown(find(peer, "EventText")), "the Spotlight/Regional card is not expanded")
 		local view: any = { week = 0, id = event.id, kind = event.kind, name = event.name, text = event.text }
 		view.issue, view.region = event.issue, event.region
-		local expected = PlanDraft.eventStates(view)
+		local expected = PlanDraft.eventStates(view, Rig.payloadOf(rig.world, peer).view.issueMap)
 		expect(text(peer, "EventEffect")):toBe(PlanDraft.eventEffect(C, view))
 		check(
 			string.find(text(peer, "EventEffect"), "×1.", 1, true) ~= nil,
@@ -898,7 +898,8 @@ describe("Rejection codes", function()
 		-- Match and Draft
 		"WrongPhase",
 		"UnknownCandidate",
-		"UnknownColor",
+		"CandidateTaken",
+		"AlreadyClaimed",
 		"BadPlatform",
 		"UnknownPlayer",
 		"UnknownState",

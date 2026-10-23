@@ -14,6 +14,7 @@ local Debate = require("./Debate")
 local Draft = require("./Draft")
 local Election = require("./Election")
 local Events = require("./Events")
+local IssueMap = require("./IssueMap")
 local Issues = require("./Issues")
 local Leans = require("./Leans")
 local Plan = require("./Plan")
@@ -30,27 +31,32 @@ type Event = State.Event
 
 export type Selection = {
 	candidate: string,
-	color: string,
 	platform: { Types.Issue },
 }
 
 local Match = {}
 
--- A new match in the Select phase. Leans, debate topics and the event deck are
--- seeded now (leans are shown from MapReveal on; each event only in its own week).
+-- A new match in the Select phase. Leans, the issue map, colors, debate topics and
+-- the event deck are seeded now (the issue map and colors are public from Select,
+-- so players pick a platform against this match's map, D-044; leans are shown from
+-- MapReveal on; each event only in its own week).
 -- A private lobby with events off passes Config.with(config, { EVENTS_ENABLED = false }).
 function Match.new(config: Config, seed: number, playerIds: { string }): MatchState
 	local n = #playerIds
 	assert(n >= 2, "a match needs at least two players")
 	local rng = Rng.new(seed)
 	local placeholder = Candidates.ids[1]
+	-- Colors are drawn, not picked (D-044): a seeded shuffle, so they are distinct
+	-- and no seat is favored (D-001).
+	local colors = table.clone(Candidates.colors)
+	Rng.shuffle(Rng.fork(rng, "colors"), colors)
+	assert(n <= #colors, "more players than colors")
 	local players: { State.PlayerState } = {}
 	for p, id in playerIds do
 		players[p] = {
 			id = id,
 			candidate = placeholder,
-			color = "",
-			pickedColor = "",
+			color = colors[p],
 			platform = {},
 			profile = Candidates.profile(config, placeholder),
 			cash = 0,
@@ -69,6 +75,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 		}
 	end
 
+	local issueMap = IssueMap.draw(config, Rng.fork(rng, "issues"))
 	local leans = Leans.generate(config, Rng.fork(rng, "leans"), n)
 	local states: { State.StateSim } = {}
 	for i, record in StateData.list do
@@ -105,6 +112,10 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 		priorityA = Rng.nextInt(Rng.fork(rng, "priority"), 1, n),
 		players = players,
 		states = states,
+		claims = {},
+		claimRounds = 0,
+		issueMap = issueMap,
+		platformMults = IssueMap.platformMults(config, issueMap),
 		draftLog = {},
 		debateTopics = Debate.drawTopics(config, rng),
 		debates = {},
@@ -119,9 +130,91 @@ function Match.wantsInput(match: MatchState): boolean
 	return match.phase == "Select" or match.phase == "Draft" or match.phase == "Plan"
 end
 
+-- The candidate player p has claimed this Select, or nil.
+function Match.claimOf(match: MatchState, p: number): string?
+	for candidate, owner in match.claims do
+		if owner == p then
+			return candidate
+		end
+	end
+	return nil
+end
+
+-- Candidates nobody has claimed yet, in Candidates.ids order.
+function Match.freeCandidates(match: MatchState): { string }
+	local out = {}
+	for _, id in Candidates.ids do
+		if match.claims[id] == nil then
+			table.insert(out, id)
+		end
+	end
+	return out
+end
+
+-- Can player p claim `candidate` now? (true, nil) or (false, reasonCode).
+function Match.canClaim(match: MatchState, p: number, candidate: any): (boolean, string?)
+	if match.phase ~= "Select" then
+		return false, "WrongPhase"
+	end
+	if match.players[p] == nil then
+		return false, "UnknownPlayer"
+	end
+	if type(candidate) ~= "string" or not Candidates.exists(candidate) then
+		return false, "UnknownCandidate"
+	end
+	local owner = match.claims[candidate]
+	if owner == p then
+		return true, nil
+	elseif owner ~= nil then
+		return false, "CandidateTaken"
+	end
+	if Match.claimOf(match, p) ~= nil then
+		return false, "AlreadyClaimed"
+	end
+	return true, nil
+end
+
+-- Claims candidates during Select (D-045: two players never share a candidate).
+-- `requests` maps player -> candidate for one batch of claims that arrived
+-- together (the same server step). They are settled in a seeded order, a coin
+-- flip that never favors a seat (D-001): the first claim on a free candidate
+-- gets it, a later one on the same candidate is turned down with
+-- "CandidateTaken". Pure: returns the new state and each request's outcome
+-- (nil = claimed, or a reason code); the argument is not modified.
+function Match.claim(
+	_config: Config,
+	current: MatchState,
+	requests: { [number]: any }
+): (MatchState, { [number]: string })
+	local match = State.clone(current)
+	local outcomes: { [number]: string } = {}
+	local order = {}
+	for p in match.players do
+		if requests[p] ~= nil then
+			table.insert(order, p)
+		end
+	end
+	if #order == 0 then
+		return match, outcomes
+	end
+	Rng.shuffle(Rng.fork(match.rng, `claims:{match.claimRounds}`), order)
+	match.claimRounds += 1
+	for _, p in order do
+		local candidate = requests[p]
+		local ok, reason = Match.canClaim(match, p, candidate)
+		if ok then
+			match.claims[candidate] = p
+		else
+			outcomes[p] = reason or "Rejected"
+		end
+	end
+	return match, outcomes
+end
+
 local function validateSelection(
 	config: Config,
 	match: MatchState,
+	p: number,
 	input: any
 ): (boolean, string?, Selection?)
 	if match.phase ~= "Select" then
@@ -130,12 +223,17 @@ local function validateSelection(
 	if type(input) ~= "table" then
 		return false, "BadShape", nil
 	end
-	local candidate, color, platform = input.candidate, input.color, input.platform
+	-- Any other field (an old client's `color`) is ignored: colors are drawn (D-044).
+	local candidate, platform = input.candidate, input.platform
 	if type(candidate) ~= "string" or not Candidates.exists(candidate) then
 		return false, "UnknownCandidate", nil
 	end
-	if type(color) ~= "string" or not table.find(Candidates.colors, color) then
-		return false, "UnknownColor", nil
+	-- A claimed candidate is yours alone (D-045); with a claim, it is the only one
+	-- you may lock in.
+	local claimed = Match.claimOf(match, p)
+	local owner = match.claims[candidate]
+	if (owner ~= nil and owner ~= p) or (claimed ~= nil and claimed ~= candidate) then
+		return false, "CandidateTaken", nil
 	end
 	if type(platform) ~= "table" then
 		return false, "BadShape", nil
@@ -160,7 +258,7 @@ local function validateSelection(
 		end
 		table.insert(issues, issue :: Types.Issue)
 	end
-	return true, nil, { candidate = candidate, color = color, platform = issues }
+	return true, nil, { candidate = candidate, platform = issues }
 end
 
 -- Validates player p's input for the current phase. Never throws: returns
@@ -171,7 +269,7 @@ function Match.validate(config: Config, match: MatchState, p: number, input: any
 	end
 	local ok, valid, reason, normalized = pcall(function(): (boolean, string?, any)
 		if match.phase == "Select" then
-			return validateSelection(config, match, input)
+			return validateSelection(config, match, p, input)
 		elseif match.phase == "Draft" then
 			local draftOk, draftReason, choices = Draft.validate(config, match, p, input)
 			return draftOk, draftReason, if choices then { choices = choices } else nil
@@ -189,12 +287,14 @@ end
 -- What player p gets if they submit nothing this phase.
 function Match.default(config: Config, match: MatchState, p: number): any
 	if match.phase == "Select" then
+		-- Your claim if you made one, else a free candidate drawn from the seed (D-045).
 		local rng = Rng.fork(match.rng, `select-default:{p}`)
 		local issues = table.clone(Issues.list) :: { Types.Issue }
 		Rng.shuffle(rng, issues)
+		local free = Match.freeCandidates(match)
+		local pick = Rng.nextInt(rng, 1, math.max(1, #free))
 		return {
-			candidate = Candidates.ids[Rng.nextInt(rng, 1, #Candidates.ids)],
-			color = Candidates.colors[1],
+			candidate = Match.claimOf(match, p) or free[pick] or Candidates.ids[1],
 			platform = table.move(issues, 1, config.PLATFORM_SIZE, 1, {}),
 		} :: Selection
 	elseif match.phase == "Draft" then
@@ -219,35 +319,32 @@ local function collect(config: Config, match: MatchState, inputs: { [number]: an
 	return out
 end
 
--- Colors are unique: on a clash a seeded order decides (no seat is favored,
--- D-001), and anyone left out gets the first free color. The color asked for is
--- kept as pickedColor so the client can say why it changed.
+-- Reveals every player's candidate and platform (colors were drawn at Match.new).
+-- Candidates are unique (D-045): claims stand; every other selection is settled
+-- in a seeded order (no seat is favored, D-001), and one whose candidate is
+-- already taken gets a free candidate drawn from the seed.
 local function resolveSelect(config: Config, match: MatchState, selections: { Selection }): { Event }
 	local events: { Event } = {}
 	local order = {}
 	for p in match.players do
-		order[p] = p
-	end
-	Rng.shuffle(Rng.fork(match.rng, "colors"), order)
-	local used: { [string]: boolean } = {}
-	for _, p in order do
-		local choice = selections[p]
-		local color = choice.color
-		if used[color] then
-			for _, c in Candidates.colors do
-				if not used[c] then
-					color = c
-					break
-				end
-			end
+		if Match.claimOf(match, p) == nil then
+			table.insert(order, p)
 		end
-		used[color] = true
-		local player = match.players[p]
-		player.candidate = choice.candidate
-		player.color = color
-		player.pickedColor = choice.color
+	end
+	Rng.shuffle(Rng.fork(match.rng, "select-order"), order)
+	for _, p in order do
+		local wanted = selections[p].candidate
+		if match.claims[wanted] ~= nil then
+			local free = Match.freeCandidates(match)
+			wanted = free[Rng.nextInt(Rng.fork(match.rng, `select-free:{p}`), 1, #free)]
+		end
+		match.claims[wanted] = p
+	end
+	for p, player in match.players do
+		local choice = selections[p]
+		player.candidate = Match.claimOf(match, p) or choice.candidate
 		player.platform = table.clone(choice.platform)
-		player.profile = Candidates.profile(config, choice.candidate)
+		player.profile = Candidates.profile(config, player.candidate)
 		player.cash = player.profile.startCash
 		table.insert(events, { kind = "Selected", player = p })
 	end

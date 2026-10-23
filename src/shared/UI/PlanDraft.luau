@@ -7,6 +7,7 @@
 local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
 local Events = require("../Sim/Events")
+local IssueMap = require("../Sim/IssueMap")
 local Issues = require("../Sim/Issues")
 local Numbers = require("./Numbers")
 local Plan = require("../Sim/Plan")
@@ -221,9 +222,9 @@ function PlanDraft.location(view: View, draft: Draft): string?
 	return if #stops > 0 then stops[#stops].state else view.players[view.you].location
 end
 
-local function stateIssues(id: string): { Types.Issue }
-	local record = StateData.byId[id]
-	return if record then record.issues else {}
+-- The state's top issues this match (D-044).
+local function stateIssues(view: View, id: string): { Types.Issue }
+	return IssueMap.of(view.issueMap, id)
 end
 
 -- The issue that gives a rally or positive ad its biggest multiplier here.
@@ -232,7 +233,7 @@ function PlanDraft.bestIssue(config: Config, view: View, id: string): (Types.Iss
 	local best: Types.Issue, bestMult = ISSUES[1], -math.huge
 	for k = 1, #ISSUES do
 		local issue: Types.Issue = ISSUES[k]
-		local mult = Resolve.issueMult(config, platform, stateIssues(id), issue)
+		local mult = Resolve.issueMult(config, platform, stateIssues(view, id), issue, view.platformMults)
 		if mult > bestMult then
 			best, bestMult = issue, mult
 		end
@@ -244,7 +245,7 @@ end
 function PlanDraft.bestAttackIssue(config: Config, view: View, id: string): (Types.Issue, number)
 	local them = if view.you == 1 then 2 else 1
 	local platform: { Types.Issue } = view.players[them].platform or {}
-	local issues = stateIssues(id)
+	local issues = stateIssues(view, id)
 	local best: Types.Issue, bestMult = issues[1] or ISSUES[1], -math.huge
 	for k = 1, #issues do
 		local issue: Types.Issue = issues[k]
@@ -266,7 +267,7 @@ PlanDraft.MESSAGE_CHOICES = 5 -- most message chips the state card shows before 
 -- order), at most MESSAGE_CHOICES of them.
 function PlanDraft.messageChoices(config: Config, view: View, id: string): { MessageChoice }
 	local platform: { Types.Issue } = view.players[view.you].platform or {}
-	local issues = stateIssues(id)
+	local issues = stateIssues(view, id)
 	local pool: { Types.Issue } = {}
 	local function offer(issue: Types.Issue)
 		if not table.find(pool, issue) then
@@ -283,10 +284,11 @@ function PlanDraft.messageChoices(config: Config, view: View, id: string): { Mes
 	local ranked: { { issue: Types.Issue, mult: number, at: number } } = {}
 	for k = 1, #pool do
 		local issue: Types.Issue = pool[k]
-		table.insert(
-			ranked,
-			{ issue = issue, mult = Resolve.issueMult(config, platform, issues, issue), at = k }
-		)
+		table.insert(ranked, {
+			issue = issue,
+			mult = Resolve.issueMult(config, platform, issues, issue, view.platformMults),
+			at = k,
+		})
 	end
 	table.sort(ranked, function(a, b)
 		if math.abs(a.mult - b.mult) > 1e-9 then
@@ -373,13 +375,16 @@ function PlanDraft.eventEffect(config: Config, event: ViewModule.EventView): str
 end
 
 -- The states a Spotlight or Regional event singles out, as a set of state ids
--- (Spotlight: the issue is one of the state's two top issues).
-function PlanDraft.eventStates(event: ViewModule.EventView): { [string]: boolean }
+-- (Spotlight: the issue is one of the state's two top issues on `issueMap`).
+function PlanDraft.eventStates(
+	event: ViewModule.EventView,
+	issueMap: IssueMap.IssueMap
+): { [string]: boolean }
 	local out: { [string]: boolean } = {}
-	for _, record in StateData.list do
+	for i, record in StateData.list do
 		local hit = false
 		if event.kind == "Spotlight" then
-			hit = event.issue ~= nil and table.find(record.issues, event.issue) ~= nil
+			hit = event.issue ~= nil and table.find(issueMap[i], event.issue) ~= nil
 		elseif event.kind == "Regional" then
 			hit = record.region == event.region
 		end

@@ -52,7 +52,14 @@ end
 
 local function effects(view: any, id: string): { [string]: number }
 	local me = view.players[view.you]
-	return Events.stanceEffects(C, Events.byId[view.event.id], id :: any, me.platform, Events.baseOf(me))
+	return Events.stanceEffects(
+		C,
+		view.issueMap,
+		Events.byId[view.event.id],
+		id :: any,
+		me.platform,
+		Events.baseOf(me)
+	)
 end
 
 -- A stance with at least one gain and one loss state, and those states. Each is
@@ -179,7 +186,7 @@ describe("Swing: debates", function()
 		local credited: { [string]: number } = {}
 		for t, topic in result.topics do
 			local entry = Swing.debateTopic(C, view, result, t)
-			expect(#entry.states):toBe(#Debate.topicStates(topic))
+			expect(#entry.states):toBe(#Debate.topicStates(view.issueMap, topic))
 			if entry.winner == view.you then
 				check(has(entry.line, "Your "), entry.line)
 				check(has(entry.line, `win swung {entry.states[1]}`), entry.line)

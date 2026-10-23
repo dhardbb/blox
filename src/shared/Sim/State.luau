@@ -6,6 +6,7 @@
 -- p1/p2 fields, so nothing assumes exactly two players.
 
 local Candidates = require("./Candidates")
+local IssueMap = require("./IssueMap")
 local Rng = require("./Rng")
 local StateData = require("./StateData")
 local Types = require("../Types")
@@ -75,8 +76,7 @@ export type PollFlip = {
 export type PlayerState = {
 	id: string, -- opaque id from the server (e.g. a UserId as a string)
 	candidate: string,
-	color: string,
-	pickedColor: string, -- the color asked for at Select; differs from color after a clash
+	color: string, -- drawn from the seed when the match is made (D-044), distinct per player
 	platform: { Types.Issue },
 	profile: Candidates.Profile,
 	cash: number, -- exact cash (opponents see only a bracket)
@@ -146,6 +146,10 @@ export type MatchState = {
 	priorityA: number, -- player index with clash priority in "A" rounds
 	players: { PlayerState },
 	states: { StateSim }, -- in StateData.list order
+	claims: { [string]: number }, -- Select: candidate id -> the player who claimed it (public; unique candidates, D-045)
+	claimRounds: number, -- claim batches resolved so far (labels each batch's seeded coin flip)
+	issueMap: IssueMap.IssueMap, -- each state's two top issues this match, drawn from the seed (public, D-044)
+	platformMults: { [string]: number }, -- rally/ad multiplier on a platform issue where it is a top issue, by issue (public, D-044)
 	draftLog: { DraftPick },
 	debateTopics: { [number]: { Types.Issue } }, -- by debate week
 	debates: { DebateResult },

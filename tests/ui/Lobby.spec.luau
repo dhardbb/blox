@@ -174,16 +174,17 @@ describe("Lobby", function()
 	end)
 end)
 
--- Pick everything but the last issue on the Select fixture.
+-- Pick everything but the last issue on the Select fixture: claim a candidate
+-- (step 1, D-045), then two issues.
 local function pickMost(world: FakeRoblox.World, peer: FakeRoblox.Peer)
 	tap(world, peer, "Select", "Candidate_okafor")
-	tap(world, peer, "Select", "Color_Teal")
+	tap(world, peer, "Select", "LockIn")
 	tap(world, peer, "Select", "Issue_Jobs")
 	tap(world, peer, "Select", "Issue_Health")
 end
 
 describe("Select", function()
-	it("locks in only with a candidate, a color and three issues", function()
+	it("locks in only with a candidate and three issues", function()
 		local world, peer = mountFixture("Select", nil)
 		tap(world, peer, "Select", "LockIn")
 		expect(logged(peer, "DEBUG_UI submit")):toBe(false)
@@ -191,7 +192,7 @@ describe("Select", function()
 		pickMost(world, peer)
 		tap(world, peer, "Select", "LockIn")
 		expect(logged(peer, "DEBUG_UI submit")):toBe(false)
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("3. Platform (2/3)")
+		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (2/3)")
 
 		tap(world, peer, "Select", "Issue_Schools")
 		tap(world, peer, "Select", "LockIn")
@@ -210,14 +211,14 @@ describe("Select", function()
 		pickMost(world, peer)
 		tap(world, peer, "Select", "Issue_Schools")
 		tap(world, peer, "Select", "Issue_Safety")
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("3. Platform (3/3)")
+		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (3/3)")
 		local picked = tostring(need(peer, "Select", "Issue_Jobs").BackgroundColor3)
 		expect(tostring(need(peer, "Select", "Issue_Safety").BackgroundColor3) ~= picked):toBe(true)
 
 		tap(world, peer, "Select", "Issue_Jobs")
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("3. Platform (2/3)")
+		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (2/3)")
 		tap(world, peer, "Select", "Issue_Safety")
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("3. Platform (3/3)")
+		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (3/3)")
 		noErrors(world)
 	end)
 
@@ -236,9 +237,7 @@ describe("Select", function()
 		for _, id in Candidates.ids do
 			need(peer, "Select", `Candidate_{id}`)
 		end
-		for _, name in Candidates.colors do
-			need(peer, "Select", `Color_{name}`)
-		end
+		need(peer, "Select", "ColorLine")
 		expect(string.sub(textOf(peer, "Select", "Perk"), 1, 1)):toBe("+")
 		expect(string.sub(textOf(peer, "Select", "Drawback"), 1, 3)):toBe("−")
 		noErrors(world)
@@ -326,8 +325,7 @@ describe("live: Lobby to Results and back", function()
 		FakeRoblox.run(world, 1)
 		tap(world, peer, "Lobby", "Practice")
 		check(FakeRoblox.find(peer, "Select") ~= nil, "no Select screen after Practice")
-		tap(world, peer, "Select", "Candidate_hale")
-		tap(world, peer, "Select", "Color_Cobalt")
+		Rig.claim(world, peer)
 		tap(world, peer, "Select", "Issue_Jobs")
 		tap(world, peer, "Select", "Issue_Health")
 		tap(world, peer, "Select", "Issue_Schools")
