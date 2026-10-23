@@ -4,6 +4,20 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### Polish WP-1: the board and the map (D-053)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish WP-1: board and map".
+
+- **Map colors in four steps.** A state is grey when it's a toss-up (closer than 3 points), then leans, likely or safe (3, 8, 15 points) in the leader's color, instead of a smooth blend. **Map key** shows the four steps with both players' dots. Circles are lit a little from the top; border lines are fainter so the states stand out.
+- **Tapping a state** clicks, draws its pink ring in, and fades its card in; the action buttons pop in one after another and each starts with its icon (a glyph until the icon images are uploaded).
+- **Planning shows on the map.** Holding an action button shows what it would do over the state ("+4.1"); each planned state wears its action's icon badge; removing the action fades the badge.
+- **Adding and removing** an action pops its button, slides the plan row in (or fades it out) and plays a pop (or delete) sound, once per change.
+- **Numbers count.** The projected votes and the money left count to their new values; the vote bars slide; a small "+12" / "-$2.0" chip rises and fades.
+- **Lens switch** fades the numbers in the circles in; the circles never move.
+- **Saying no.** A plan the server turns down, or a tap on a greyed-out Lock in, shakes the action bar with a short "bonk".
+- **The opponent by name:** "Rex: thinking..." (the dots step along) and "Rex: locked in ✓", which rises and pops in. Same on the Decision screen, whose options now pop in one after another.
+- Reduce Motion: no pops, rings, slides or rising chips, and the dots hold still; every value, badge and sound still lands.
+
 ### Polish foundation: motion, sound, type and depth (D-053)
 
 The base the polish packages build on. Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish foundation".

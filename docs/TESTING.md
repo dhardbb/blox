@@ -622,3 +622,23 @@ In Studio, a Practice match on the Mac, then the same on the iPad. Turn the volu
 **Send back:** screenshots from 1 and 9, which sounds you heard in 10, and anything that felt slow or got in the way of a tap.
 
 **Icon images (needed later, WP-3).** Twelve Lucide icons, exported 256x256, white on transparent: `megaphone`, `coins`, `tv`, `zap`, `search`, `footprints`, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles`, `plane`. Upload in Creator Hub (Create → Development items → Images), name each after its Lucide name, and send back the 12 image ids by name. Until then every icon shows a glyph.
+
+## Polish WP-1: board and map (unreleased, D-053)
+
+Agents: `lune run tests "board motion"`, `lune run tests "Lens motion"`, `lune run tests "Decision motion"`, then `lune run tests/ui/snap.luau -- campaign` and `-- decision` at all three sizes (0 audit findings; `10a-campaign-planned` shows the badges, `10b-campaign-map-key` the color steps).
+
+In Studio, a Practice match on the Mac, then the same on the iPad, sound on.
+
+1. **Map colors.** **Expect:** states are grey (toss-up) or one of three strengths of a player's color, not a smooth blend; each circle is a touch lighter at the top, and the border lines between states are fainter than before. Tap **Map key**: four rows (Toss-up, Leans, Likely, Safe) with your dot and your opponent's dot. Send a screenshot of the map and of the key.
+2. **Tap Ohio.** **Expect:** a soft click, Ohio's pink ring draws in quickly, the Ohio card fades in and its action buttons pop in one after another. Each action button starts with a small icon (a glyph like ! or $ until the icon images are uploaded) before its word.
+3. **Hold Rally** (press and keep your finger down). **Expect:** a see-through tag over Ohio on the map saying what the rally would do ("+4.1"); it goes when you let go.
+4. **Add Rally.** **Expect:** the button pops, a pop sound, a small icon badge appears at Ohio's top-right on the map, the plan row slides in, and the money at the top right counts down with a small "-$2.0" that rises and fades.
+5. **Remove it** (× on the plan row). **Expect:** the row fades out, a soft "delete" sound, and Ohio's badge fades away.
+6. **Switch lenses** (Votes → Polls → Money). **Expect:** the little numbers inside the circles fade in; the circles themselves never move.
+7. **Over budget.** Add actions until **Lock in** turns grey and says what is wrong ("Not enough money"), then tap it. **Expect:** the action bar shakes and you hear a short "bonk"; nothing is sent.
+8. **Opponent line.** **Expect:** at the bottom right "Rex: thinking" with dots that step along; when the bot locks in it rises and pops into "Rex: locked in ✓".
+9. **Score.** Lock in and watch the week's results. **Expect:** when the projected votes change, the numbers at the top count to their new value and the bars slide, with a small "+12" chip rising from each name that changed.
+10. **Decisions.** On a stance week (or debate prep) **expect** the three stances (or the topics) to pop in one after another.
+11. **Reduce Motion on** (Esc → Settings), repeat 2, 4, 6 and 8. **Expect:** no pops, rings drawing or sliding, no rising chips, the dots stay "thinking..."; badges, numbers and sounds still appear at once.
+
+**Send back:** the screenshots from 1, whether the map's four steps read at a glance on the iPad, and anything that felt slow or got in the way of a tap.
