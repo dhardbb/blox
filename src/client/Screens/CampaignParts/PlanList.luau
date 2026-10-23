@@ -149,6 +149,8 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 				Kit.setEnabled(remove, canEdit)
 			end
 			empty.Visible = #model.draft.actions == 0 and canEdit
+			-- An empty list takes no gap of its own under the title.
+			items.Visible = #model.draft.actions > 0
 			renderClear(canEdit, model.ctx.now())
 		end,
 		tick = function(_self: PlanList, now: number)

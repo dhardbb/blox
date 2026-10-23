@@ -95,7 +95,7 @@ describe("Words.Campaign", function()
 
 	it("prices an action in plain words", function()
 		expect(Words.cost(3, false)):toBe("$3.0")
-		expect(Words.cost(2, true)):toBe("fly $2.0")
+		expect(Words.cost(2, true)):toBe("Flight $2.0")
 		expect(Words.cost(0, false, true)):toBe("free")
 		expect(Words.cost(0, false)):toBe(nil)
 		expect(Words.reason("NotEnoughMoney")):toBe("Not enough money")
@@ -142,5 +142,16 @@ describe("Words.Campaign", function()
 				check(words(line) <= 14, `{id}: "{line}" is long`)
 			end
 		end
+	end)
+
+	it("says an event's multiplier as a percent", function()
+		expect(Words.percent("Fundraisers raise ×1.2 this week")):toBe(
+			"Fundraisers raise 20% more this week"
+		)
+		expect(Words.percent("Rallies are worth ×1.5 this week")):toBe(
+			"Rallies are worth 50% more this week"
+		)
+		expect(Words.percent("worth ×0.75")):toBe("worth 25% less")
+		expect(Words.percent("no multiplier")):toBe("no multiplier")
 	end)
 end)

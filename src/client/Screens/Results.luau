@@ -9,9 +9,9 @@
 --   Reason        "280 votes to 258" (or the tiebreak, a forfeit)
 --   RatingSlot    the rating change, once the server sends it (rated matches)
 --   EVBar         both players' votes in their colors, the 270 tick (data colors)
---   Versus        two cards: color dot + name, "280 votes · 20 states", debate
+--   Versus        two cards: color dot + name, "280 votes", "20 states", debate
 --                 topics won. Player colors stay on the dot and the bar, never
---                 on big numbers next to the accent primary (Amber, D-047).
+--                 on big numbers next to the primary button (D-047, D-051).
 --   WhyHead       "Why you won" / "Why Rex won" and three bullets Reason_<k>
 --                 (Shared/UI/Words/Reveal.keyReasons)
 --   FullBreakdown ghost button: the BreakdownSheet with "What decided it"
@@ -173,20 +173,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextColor3 = Kit.colors.muted,
 		})
 		if election then
-			label(
-				card,
-				`{plural(election.ev[player], "vote")} · {plural(election.statesWon[player], "state")}`,
-				{
-					Name = "EV",
-					LayoutOrder = 3,
-					Font = Kit.font.bold,
-				}
-			)
+			label(card, plural(election.ev[player], "vote"), {
+				Name = "EV",
+				LayoutOrder = 3,
+				Font = Kit.font.bold,
+			})
+			-- Its own line, so a phone never breaks "20 states" in two.
+			label(card, plural(election.statesWon[player], "state"), {
+				Name = "States",
+				LayoutOrder = 4,
+				TextSize = Kit.size.caption,
+				TextColor3 = Kit.colors.muted,
+			})
 		end
 		if #view.debates > 0 then
 			label(card, `{plural(topicsWon(view, player), "debate topic")} won`, {
 				Name = "Topics",
-				LayoutOrder = 4,
+				LayoutOrder = 5,
 				TextSize = Kit.size.caption,
 				TextColor3 = Kit.colors.muted,
 			})
@@ -216,7 +219,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			for index, line in Swing.decided(ctx.config, view) do
 				label(
 					box,
-					line,
+					Words.inVotes(line),
 					{ Name = `Decided_{index}`, LayoutOrder = index, TextSize = Kit.size.caption }
 				)
 			end

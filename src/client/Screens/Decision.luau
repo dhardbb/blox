@@ -317,10 +317,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setStatus(turnedDown.text, "bad")
 		elseif kind == "Focus" then
 			bar:setPrimary("Lock in", true)
-			bar:setStatus(`Focus: {Model.issueName(model.focus)} · secret until the debate`, "muted")
+			bar:setStatus(`Focus: {Model.issueName(model.focus)} · kept secret`, "muted")
 		else
 			bar:setPrimary("Lock in", true)
-			bar:setStatus(`Stance {model.choice or "C"} · secret until the week resolves`, "muted")
+			bar:setStatus(`Stance {model.choice or "C"} · kept secret`, "muted")
 		end
 	end
 

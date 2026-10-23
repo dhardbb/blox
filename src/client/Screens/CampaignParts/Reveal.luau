@@ -502,7 +502,10 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				else themName(view)
 			local one = Words.group(view, { last.event })
 			local text = one.mine[1] or one.theirs[1]
-			hooks.caption(if text then `{who}: {text}` else "")
+			-- One line in the header: the action and the state, not the issue
+			-- ("You: Rally in Texas"; the panel has the rest).
+			local short = if text then string.match(text, "^(.-) · ") or text else nil
+			hooks.caption(if short then `{who}: {short}` else "")
 		else
 			hooks.caption("New polls are in")
 		end

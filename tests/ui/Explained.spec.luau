@@ -14,6 +14,7 @@ local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
 local State = require("@sim/State")
 local Test = require("@testlib/Test")
+local Words = require("@ui/Words/Reveal")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -122,7 +123,9 @@ describe("Explained: the help overlay", function()
 			local title = Rig.need(peer, "HelpOverlay", `HelpTitle_{section.id}`)
 			expect(title.Text):toBe(section.title)
 			local body = Rig.need(peer, "HelpOverlay", `HelpText_{section.id}`)
-			expect(body.Text):toBe(table.concat(section.lines, "\n"))
+			-- Every exact rule, said in plain words (no "AP", no "EV").
+			expect(body.Text):toBe(Words.plain(table.concat(section.lines, "\n")))
+			check(not string.find(body.Text, "%f[%w]AP%f[%W]"), `"AP" in {section.id}`)
 		end
 		-- Every tab's numbers are still there, behind "All the numbers" (UI-STYLE §4.10).
 		local close = Rig.need(peer, "HelpOverlay", "HelpClose")

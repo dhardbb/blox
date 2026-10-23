@@ -9,13 +9,14 @@
 --   Words.planNow(input) -> string            the plan screen's now line
 --   Words.budget(actionsLeft, cash) -> string "2 actions left · $4.0"
 --   Words.effect(config, view, draft, id, name, issue?, opponent) -> string
---   Words.cost(extra, flight, poll?) -> string?   "$3.0", "fly $2.0", "free"
+--   Words.cost(extra, flight, poll?) -> string?   "$3.0", "Flight $2.0", "free"
 --   Words.reason(code) -> string              a greyed-out button's reason
 --   Words.planLine(actions) -> string         "Rally OH · Ad PA · Poll TX"
 --   Words.stanceEffect(preview) -> string     "+4 states · −2 states"
 --   Words.focusHead(config, view, info) -> string   "Schools · 14 states"
 --   Words.focusOdds(info) -> string           "You win 81%"
 --   Words.key(id) -> { string }               the map key's lines for a lens
+--   Words.percent(text) -> string             "×1.2" said as "20% more" (an event's effect)
 
 local ConfigModule = require("../../Sim/Config")
 local Explain = require("../Explain")
@@ -146,11 +147,11 @@ function Words.effect(
 	return `{Numbers.signed(preview.you or 0)} support`
 end
 
--- What an action adds to the bill: "$3.0", "fly $2.0" (a flight to get there),
+-- What an action adds to the bill: "$3.0", "Flight $2.0" (a flight to get there),
 -- or "free" for a free poll; nil when it costs nothing extra.
 function Words.cost(extra: number, flight: boolean, poll: boolean?): string?
 	if flight then
-		return `fly {Numbers.cost(extra)}`
+		return `Flight {Numbers.cost(extra)}`
 	elseif extra > 1e-9 then
 		return Numbers.cost(extra)
 	elseif poll then
@@ -222,6 +223,18 @@ end
 -- Your chance to win a topic if you focus on it: "You win 81%".
 function Words.focusOdds(info: { win: number }): string
 	return `You win {math.floor(info.win * 100 + 0.5)}%`
+end
+
+-- An event's effect without the multiplier sign: "raise ×1.2 this week" ->
+-- "raise 20% more this week"; "×0.8" -> "20% less".
+function Words.percent(text: string): string
+	return (
+		string.gsub(text, "×(%d+%.?%d*)", function(m: string): string
+			local value = tonumber(m) or 1
+			local pct = math.floor(math.abs(value - 1) * 100 + 0.5)
+			return if value >= 1 then `{pct}% more` else `{pct}% less`
+		end)
+	)
 end
 
 -- ---------------------------------------------------------------- the map key

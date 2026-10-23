@@ -243,9 +243,8 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			nextLine.Visible = upcoming ~= nil
 			if upcoming then
 				nextLine.Text =
-					`Next week, from your pollster: {upcoming.kind} · {upcoming.name}. {PlanDraft.eventEffect(
-						config,
-						upcoming
+					`Next week, from your pollster: {upcoming.kind} · {upcoming.name}. {Words.percent(
+						PlanDraft.eventEffect(config, upcoming)
 					)}`
 			end
 			effect.Visible = event ~= nil
@@ -266,7 +265,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			card:setTitle(`Event · {event.kind} · {event.name}`)
 			card.root:SetAttribute("EventKind", event.kind)
 			card.root:SetAttribute("EventName", event.name)
-			effect.Text = PlanDraft.eventEffect(config, event)
+			effect.Text = Words.percent(PlanDraft.eventEffect(config, event))
 			flavor.Text = event.text
 			local note = PlanDraft.eventMapNote(event)
 			mapNote.Text = note or ""

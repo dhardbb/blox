@@ -16,6 +16,8 @@
 --   Words.topicLine(config, view, result, t, them) -> string  "You gain +1.0 in 12 states · DE flips to you · KY to a tie"
 --   Words.debateHeadline(view, result, them) -> (string, tone)
 --   Words.everyState(view, result, them) -> string      "Every state also got +0.2 for you · +0.0 for Rex."
+--   Words.inVotes(line) -> string                       "+6 EV" -> "+6 votes" (Swing's lines, said plainly)
+--   Words.plain(text) -> string                         inVotes, and "AP" said as actions (Explain's rules)
 --   Words.stateLine(id) -> string                       "Ohio · 17 votes"
 --   Words.callLine(result, names) -> string             "Dana by 2.9 points"
 --   Words.keyReasons(config, view, winner, names) -> { string }   at most 3, the winner's side
@@ -419,10 +421,41 @@ end
 function Words.everyState(view: View, result: SimState.DebateResult, them: string): string
 	local mine = result.national[view.you] or 0
 	local theirs = result.national[rivalOf(view)] or 0
-	return `Every state also got {Numbers.signed(mine)} for you · {Numbers.signed(theirs)} for {them}.`
+	-- Leave out a side that got nothing ("+0.0 for Rex" says nothing).
+	local parts: { string } = {}
+	if math.abs(mine) >= 0.05 then
+		table.insert(parts, `{Numbers.signed(mine)} for you`)
+	end
+	if math.abs(theirs) >= 0.05 then
+		table.insert(parts, `{Numbers.signed(theirs)} for {them}`)
+	end
+	if #parts == 0 then
+		return "Every state also got nothing extra."
+	end
+	return `Every state also got {table.concat(parts, " · ")}.`
 end
 
 -- ---------------------------------------------------------------- election night
+
+-- A line from the shared helpers (Swing) with "EV" said as "votes".
+function Words.inVotes(line: string): string
+	return (string.gsub(line, "(%d) EV", "%1 votes"))
+end
+
+-- Explain's exact rules in plain words: "3 AP (unused AP is lost)" ->
+-- "3 actions (unused actions are lost)", "1 AP" -> "1 action", "EV" -> "votes".
+function Words.plain(text: string): string
+	local out = Words.inVotes(text)
+	out = string.gsub(out, "unused AP is lost", "unused actions are lost")
+	out = string.gsub(out, "%f[%w](%d+) AP%f[%W]", function(n: string): string
+		return if n == "1" then "1 action" else `{n} actions`
+	end)
+	out = string.gsub(out, "extra AP%f[%W]", "extra action")
+	out = string.gsub(out, "%f[%w]AP%f[%W]", "actions")
+	out = string.gsub(out, "%+ EV%f[%W]", "+ votes")
+	out = string.gsub(out, "%f[%w]EV%f[%W]", "votes")
+	return out
+end
 
 function Words.stateLine(id: string): string
 	return `{nameOf(id)} · {plural(evOf(id), "vote")}`

@@ -15,7 +15,7 @@
 -- is dimmed.
 -- Reveal (a debate topic or both stances, after the fact): each moved state
 -- glows toward whoever gained (badge: the net points toward you, in your color,
--- or toward them, in theirs); a flip says FLIP in the new leader's color.
+-- or toward them, in theirs); a flip says just FLIP in the new leader's color.
 --
 --   SwingMarks.preview(view, preview, keep) -> marks
 --   SwingMarks.reveal(view, net, flips, keep) -> marks
@@ -138,11 +138,9 @@ function SwingMarks.reveal(view: View, net: { [string]: number }, flips: { Swing
 	for _, flip in flips do
 		local mark = marks[flip.state]
 		if mark then
-			local points = net[flip.state]
-			if points and points ~= 0 and mark.badge == nil then
-				mark.badge = Numbers.signed(points)
-				mark.badgeColor = if points > 0 then mine else theirs
-			end
+			-- A flip says FLIP alone: the panel has its points, and a short tag
+			-- keeps the busy debate map readable.
+			mark.badge = nil
 			local color = if flip.to == 0 then Kit.colors.text else Kit.playerColor(view, flip.to)
 			mark.note = FLIP
 			mark.noteColor = color

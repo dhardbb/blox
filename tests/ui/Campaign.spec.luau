@@ -379,7 +379,7 @@ describe("Campaign screen", function()
 		check(not shown(find(peer, "EventText")), "the Windfall card is not collapsed")
 		check(shown(find(peer, "EventEffect")), "the effect line is hidden on the collapsed card")
 		expect(text(peer, "EventEffect")):toBe(
-			"Fundraisers in states where you trail in the public poll raise ×1.2 this week"
+			"Fundraisers in states where you trail in the public poll raise 20% more this week"
 		)
 		check(not shown(find(peer, "ChoiceRow")), "answer buttons show in a Windfall week")
 		check(not shown(find(peer, "ChoiceNote")), "the Choice note shows in a Windfall week")
@@ -427,7 +427,7 @@ describe("Campaign screen", function()
 			check(event.kind == "Choice", "not a Choice week")
 			expect(find(peer, "EventCard"):GetAttribute("EventName")):toBe(event.name)
 			check(find(peer, "EventToggle"):GetAttribute("Expanded") == true, "the Choice card is collapsed")
-			expect(text(peer, "EventEffect")):toBe(PlanDraft.eventEffect(C, event))
+			expect(text(peer, "EventEffect")):toBe(Words.percent(PlanDraft.eventEffect(C, event)))
 			-- The header names the event; the card has no title row of its own.
 			check(string.find(text(peer, "WeekLabel"), event.name, 1, true) ~= nil, text(peer, "WeekLabel"))
 			check(not shown(find(peer, "EventToggle")), "the stance card still has a title row")
@@ -584,11 +584,10 @@ describe("Campaign screen", function()
 		local view: any = { week = 0, id = event.id, kind = event.kind, name = event.name, text = event.text }
 		view.issue, view.region = event.issue, event.region
 		local expected = PlanDraft.eventStates(view, Rig.payloadOf(rig.world, peer).view.issueMap)
-		expect(text(peer, "EventEffect")):toBe(PlanDraft.eventEffect(C, view))
-		check(
-			string.find(text(peer, "EventEffect"), "×1.", 1, true) ~= nil,
-			"no multiplier in the effect line"
-		)
+		expect(text(peer, "EventEffect")):toBe(Words.percent(PlanDraft.eventEffect(C, view)))
+		-- The multiplier is said as a percent ("50% more"), never "×1.5".
+		check(string.find(text(peer, "EventEffect"), "% more", 1, true) ~= nil, "no boost in the effect line")
+		check(string.find(text(peer, "EventEffect"), "×", 1, true) == nil, "a × in the effect line")
 		check(shown(find(peer, "EventMapNote")), "no note on what the * means")
 		check(
 			text(peer, "EventMapNote") == PlanDraft.eventMapNote(view),

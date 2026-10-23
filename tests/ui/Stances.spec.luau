@@ -269,9 +269,10 @@ describe("Stances: the debate reveal", function()
 		local count = 0
 		for _, s in view.states do
 			local want = marks[s.id]
-			-- A flip with no net points of its own shows FLIP alone.
-			local none = if flipped[s.id] then "FLIP" else nil
-			expect(badgeOf(peer, s.id)):toBe(if want then Numbers.signed(want) else none)
+			-- A flip shows FLIP alone (its points are on the panel).
+			expect(badgeOf(peer, s.id)):toBe(
+				if flipped[s.id] then "FLIP" elseif want then Numbers.signed(want) else nil
+			)
 			if want then
 				count += 1
 			end
@@ -313,9 +314,14 @@ describe("Stances: the resolve reveal after a Choice week", function()
 		check(shown(label), "Why? does not show the stance lines")
 		-- Without last week's polls (a fixture), the map badges what the stances
 		-- moved: the flips and the biggest moves only.
-		local marks = Words.topMarks(Swing.net(entry.moves, view), Swing.flips(entry.flips))
+		local flips = Swing.flips(entry.flips)
+		local flipped: { [string]: boolean } = {}
+		for _, flip in flips do
+			flipped[flip.state] = true
+		end
+		local marks = Words.topMarks(Swing.net(entry.moves, view), flips)
 		for id, net in marks do
-			expect(badgeOf(peer, id)):toBe(Numbers.signed(net))
+			expect(badgeOf(peer, id)):toBe(if flipped[id] then "FLIP" else Numbers.signed(net))
 		end
 		check(Rig.contains(textOf(peer, "FeedEvent"), lines[1]), textOf(peer, "FeedEvent"))
 		Rig.noErrors(world)
@@ -330,7 +336,11 @@ describe("Stances: Results", function()
 		Rig.tap(world, peer, "Results", "FullBreakdown")
 		check(Rig.shown(Rig.need(peer, "Results", "Decided"), "Results"), "no What decided it section")
 		for k, line in lines do
-			expect(Rig.textOf(peer, "Results", `Decided_{k}`)):toBe(line)
+			expect(Rig.textOf(peer, "Results", `Decided_{k}`)):toBe(Words.inVotes(line))
+			check(
+				not string.find(Rig.textOf(peer, "Results", `Decided_{k}`), "%d EV"),
+				"EV in What decided it"
+			)
 		end
 		Rig.noErrors(world)
 	end)

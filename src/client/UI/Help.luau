@@ -403,7 +403,7 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 					Font = Kit.font.bold,
 					Parent = box,
 				})
-				Kit.caption(table.concat(section.lines, "\n"), {
+				Kit.caption(Words.plain(table.concat(section.lines, "\n")), {
 					Name = `HelpText_{id}`,
 					LayoutOrder = 2,
 					TextColor3 = Kit.colors.text,

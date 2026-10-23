@@ -273,6 +273,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local waitingNow = Kit.text("", {
 		Name = "WaitingNow",
 		LayoutOrder = 4,
+		-- Room above and below, so the line does not touch the code or Cancel.
+		Size = UDim2.new(1, 0, 0, Kit.size.body + 2 * Kit.space.md),
 		Font = Kit.font.medium,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = waiting,

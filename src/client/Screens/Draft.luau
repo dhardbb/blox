@@ -372,12 +372,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			legend.root.Parent = if mode == "Map" then scroll else boardCard.body
 			summary.root.LayoutOrder = 2
 			summary.root.Parent = boardCard.body
+			summary.root.Visible = true
 		else
 			legend.row.Parent = legendSlot
 			legend.root.LayoutOrder = 1
 			legend.root.Parent = below
 			summary.root.LayoutOrder = 2
 			summary.root.Parent = below
+			-- During the map reveal the Strongholds card says it all; the board
+			-- (still all dashes) would only repeat it.
+			summary.root.Visible = mode ~= "Map"
 		end
 		legendSlot.Visible = not portrait
 		boardCard.root.Visible = portrait and mode ~= "Map"

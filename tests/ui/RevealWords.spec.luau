@@ -234,3 +234,15 @@ describe("Words: Help", function()
 		end
 	end)
 end)
+
+describe("Words: plain votes and actions", function()
+	it("says EV as votes and AP as actions, leaving the rest alone", function()
+		expect(Words.inVotes("DE flipped to you (+6 EV)")):toBe("DE flipped to you (+6 votes)")
+		expect(Words.plain("Each week you get 3 AP (unused AP is lost) and $4.0 income.")):toBe(
+			"Each week you get 3 actions (unused actions are lost) and $4.0 income."
+		)
+		expect(Words.plain("Rally (1 AP): +3.0 support")):toBe("Rally (1 action): +3.0 support")
+		expect(Words.plain("no extra AP. States with 10+ EV")):toBe("no extra action. States with 10+ votes")
+		expect(Words.plain("APPLE and EVENTS stay")):toBe("APPLE and EVENTS stay")
+	end)
+end)
