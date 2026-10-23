@@ -111,7 +111,7 @@
 --   Kit.radius   + button 12 (primary, secondary) · sheet 16 (sheets, help)
 --   Kit.size     + wordmark 72 (the Lobby's "270" only; texts carry attribute Wordmark)
 --   Kit.colors   + loss, lossEdge, onLoss, goodEdge, accentLip, raisedLip, glow
---   Kit.tone     + "loss" (preferred over "bad"/"warn") · "white" (text; a white pill)
+--   Kit.tone     + "loss" (preferred over "bad"/"warn") · "white" (text; the battleground pill)
 --   Kit.playerText(view, p) -> Color3   a player color readable as text (Colors.textOn)
 --   Kit.textColor(color) -> Color3      the same for any Color3
 --   Chunky buttons: primary and secondary are a face (the TextButton returned,
@@ -146,8 +146,10 @@
 --   Kit.wordmark(px?) -> Frame "Wordmark"   the "270" lockup: glow, lip, outline
 --   Kit.iconPlate(name, px?) -> Frame "IconPlate"   an icon in a field circle
 --   Kit.pill(text, tone, { filled = true, fill = Color3? })   a filled tag: tone
---     (or `fill`, a data color) fill, readable text, a 1 px edge. Tone "white":
---     a text-colored fill with background text (the battleground mark)
+--     (or `fill`, a data color) fill, readable text, a 1 px edge. Tone "white"
+--     (D-058): the battleground mark, an outlined tag (field fill, Kit.MARK_STROKE
+--     `text` stroke, white bold text after Kit.STAR); never a white fill, which
+--     is the primary button's
 --   Every ImageLabel from shadow and glow carries Decor = true (the audit skips
 --   it) and Asset = "shadow" | "glow" (the snapshot renderer draws a stand-in).
 --
@@ -181,6 +183,8 @@ Kit.MAX_TEXT_SIZES = 4 -- distinct text sizes one screen may show (UI audit text
 Kit.MAX_LABEL_WORDS = 8 -- words on one button label (UI audit labelWords)
 Kit.MAX_TEXT_WORDS = 30 -- words in one text outside a details area (UI audit wallOfText)
 Kit.PILL_H = 24 -- px, a read-only tag
+Kit.STAR = "★" -- the battleground mark's glyph (D-058): on the white pill and the map's vote tag
+Kit.MARK_STROKE = 1.5 -- px, the outline of a battleground tag (thinner than the 2 px selection)
 Kit.NOW_H = 32 -- px, the header's "what to do now" line
 Kit.SHEET_MAX_W = 560 -- px, widest a sheet gets on a wide screen
 Kit.SCRIM_TRANSPARENCY = 0.3 -- the dimmed layer behind a sheet
@@ -1043,8 +1047,8 @@ end
 -- A read-only tag, Kit.PILL_H tall and as wide as its text: "Your platform",
 -- "Battleground", "Locked in". The tone colors the text on a raised fill. With
 -- props.filled = true the tone is the fill instead (props.fill: any data color,
--- marked dataColor) with readable text and a 1 px edge; tone "white" is always
--- filled: a text-colored fill with background text (the battleground mark).
+-- marked dataColor) with readable text and a 1 px edge; tone "white" is the
+-- battleground mark: "★ Battleground", outlined in white on a field fill (D-058).
 local EDGE_TINT = 0.35 -- a data-colored fill's edge: this far toward the background
 local EDGES: { [string]: Color3 } = {
 	loss = Kit.colors.lossEdge,
@@ -1052,7 +1056,6 @@ local EDGES: { [string]: Color3 } = {
 	warn = Kit.colors.lossEdge,
 	good = Kit.colors.goodEdge,
 	accent = Kit.colors.accentEdge,
-	white = Kit.colors.line,
 }
 
 function Kit.pill(text: string, tone: Tone?, props: { [string]: any }?): TextLabel
@@ -1093,7 +1096,7 @@ function Kit.pill(text: string, tone: Tone?, props: { [string]: any }?): TextLab
 		Parent = label,
 	})
 	if filled or fill ~= nil or name == "white" then
-		Kit.paintPill(label, name, true, fill)
+		Kit.paintPill(label, name, filled or fill ~= nil, fill)
 	end
 	return label
 end
@@ -1226,7 +1229,7 @@ local WORDMARK_TEXT = "270"
 local WORDMARK_DROP = 6 -- px, the lip under the wordmark
 local WORDMARK_STROKE = 3 -- px
 local WORDMARK_GLOW = 2.4
-local WORDMARK_GLOW_TRANSPARENCY = 0.65
+local WORDMARK_GLOW_TRANSPARENCY = 0.78 -- white (D-058): softer than the pink was, so it reads as light, not haze
 local WORDMARK_BOTTOM = Color3.fromRGB(232, 236, 248) -- the wordmark gradient's bottom (a multiply of text)
 local ICON_PLATE = 24 -- px, an icon plate's default size
 
@@ -1364,14 +1367,56 @@ local function edgeOf(color: Color3): Color3
 	return Kit.color(Colors.tint(Kit.rgb(color), Colors.background, EDGE_TINT))
 end
 
+-- `text` with the battleground star in front (`on`) or without it.
+local STAR_PREFIX = Kit.STAR .. " "
+local function starred(text: string, on: boolean): string
+	local has = string.sub(text, 1, #STAR_PREFIX) == STAR_PREFIX
+	if on and not has and text ~= "" then
+		return STAR_PREFIX .. text
+	elseif not on and has then
+		return string.sub(text, #STAR_PREFIX + 1)
+	end
+	return text
+end
+
+-- The pill's 1 px "Edge" stroke, made on first use.
+local function pillEdge(pill: TextLabel): UIStroke
+	local edge = pill:FindFirstChild("Edge") :: UIStroke?
+	if edge == nil then
+		edge = Kit.new("UIStroke", {
+			Name = "Edge",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Thickness = 1,
+			Parent = pill,
+		})
+	end
+	return edge :: UIStroke
+end
+
 -- Re-tones a Kit.pill: `tone` as the text on a raised fill, or with `filled`
 -- the tone (or `fill`, a data color: the pill is marked dataColor) as the fill
--- with readable text and a 1 px edge ("white" is always filled). For pills
--- whose meaning changes (a verdict, a state's tags).
+-- with readable text and a 1 px edge. Tone "white" is the battleground mark
+-- (D-058): a field fill, a Kit.MARK_STROKE `text` outline and bold `text` after
+-- Kit.STAR (added to the pill's current text, and taken off again by any other
+-- tone), so it never looks like the white primary or a selection. For pills
+-- whose meaning changes (a verdict, a state's tags); set the Text first.
 function Kit.paintPill(pill: TextLabel, tone: Tone, filled: boolean?, fill: Color3?)
-	local solid = filled == true or fill ~= nil or tone == "white"
+	local mark = tone == "white"
+	local solid = not mark and (filled == true or fill ~= nil)
 	local edge = pill:FindFirstChild("Edge") :: UIStroke?
 	pill:SetAttribute("Filled", solid)
+	pill:SetAttribute("Outlined", mark)
+	pill.Text = starred(pill.Text, mark)
+	if mark then
+		local stroke = pillEdge(pill)
+		stroke.Enabled = true
+		stroke.Color = Kit.colors.text
+		stroke.Thickness = Kit.MARK_STROKE
+		pill.BackgroundColor3 = Kit.colors.field
+		pill.TextColor3 = Kit.colors.text
+		pill.Font = Kit.font.bold
+		return
+	end
 	if not solid then
 		pill.BackgroundColor3 = Kit.colors.raised
 		pill.TextColor3 = Kit.tone(tone)
@@ -1385,16 +1430,9 @@ function Kit.paintPill(pill: TextLabel, tone: Tone, filled: boolean?, fill: Colo
 	pill.BackgroundColor3 = color
 	pill.TextColor3 = Kit.color(Colors.onColor(Kit.rgb(color)))
 	pill.Font = Kit.font.bold
-	if edge == nil then
-		edge = Kit.new("UIStroke", {
-			Name = "Edge",
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-			Thickness = 1,
-			Parent = pill,
-		})
-	end
-	local stroke = edge :: UIStroke
+	local stroke = pillEdge(pill)
 	stroke.Enabled = true
+	stroke.Thickness = 1
 	stroke.Color = if fill then edgeOf(fill) else (EDGES[tone] or Kit.colors.line)
 	if fill then
 		Kit.dataColor(pill)
@@ -1586,8 +1624,8 @@ export type RaceBar = {
 -- top, rounded at the outer end; they never cover each other), and the tick at
 -- `mark`, overhanging the bar RACE_OVERHANG px each way. The root (dataColor) is
 -- full width and h + 8 px tall (+ the caption row). bar:set(l, r) takes shares
--- of the track (0..1) and slides there; bar:cross() flashes the tick accent
--- with a glow pulse (the crossing moment; the glow is decorative).
+-- of the track (0..1) and slides there; bar:cross() flashes the tick to the
+-- accent white with a white glow pulse (the crossing moment; the glow is decorative).
 function Kit.raceBar(parent: Instance, opts: RaceBarOptions?): RaceBar
 	local o: RaceBarOptions = opts or {}
 	local h = o.h or 10
@@ -1703,9 +1741,9 @@ function Kit.raceBar(parent: Instance, opts: RaceBarOptions?): RaceBar
 end
 
 -- The "270" lockup (the Lobby, any title moment): Fredoka One at `px` (default
--- Kit.size.wordmark) in `text`, lit from the top, a 3 px accentEdge outline, a
--- 6 px accentLip drop under it (the button lip, in type) and an accent glow
--- behind. Returns the Frame "Wordmark" (full width, px + 16 tall); the label is
+-- Kit.size.wordmark) in `text`, lit from the top, a 3 px slate (accentLip)
+-- outline, a 6 px `line` drop under it (the button lip, in type) and a soft
+-- white glow behind (D-058). Returns the Frame "Wordmark" (full width, px + 16 tall); the label is
 -- "Mark" (attribute Wordmark, so the audit knows its size).
 function Kit.wordmark(px: number?, props: { [string]: any }?): Frame
 	local size = px or Kit.size.wordmark
@@ -1737,9 +1775,9 @@ function Kit.wordmark(px: number?, props: { [string]: any }?): Frame
 		})
 		return label
 	end
-	local drop = line("Drop", Kit.colors.accentLip, WORDMARK_DROP, Kit.colors.accentLip, 1)
+	local drop = line("Drop", Kit.colors.line, WORDMARK_DROP, Kit.colors.line, 1)
 	drop:SetAttribute("Decor", true)
-	local mark = line("Mark", Kit.colors.text, 0, Kit.colors.accentEdge, 2)
+	local mark = line("Mark", Kit.colors.text, 0, Kit.colors.accentLip, 2)
 	local bottom = WORDMARK_BOTTOM
 	local light = Kit.colors.text
 	Kit.new("UIGradient", {

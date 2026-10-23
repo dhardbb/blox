@@ -127,7 +127,7 @@ end
 
 describe("Map lenses", function()
 	it(
-		"starts on Votes: each state shows its votes, a star outlined in white on a battleground, tags keep only the event's *",
+		"starts on Votes: each state shows its votes, a starred outlined tag on a battleground, tags keep only the event's *",
 		function()
 			local world, peer = Rig.fixture("Plan")
 			local _, Kit = modules(world, peer)
@@ -141,9 +141,9 @@ describe("Map lenses", function()
 				check(same(part.TextColor3, Kit.colors.text), `{s.id}: the number is not the text color`)
 				check(same(part.BackgroundColor3, Kit.colors.field), `{s.id}: the plate is not the field`)
 				if s.battleground then
-					-- D-056: a battleground is good news: a star and a white outline,
-					-- never a white fill (that means "selected").
-					expect(pills(peer, "Campaign", s.id)):toEqual({ `★{ev}` })
+					-- D-056/D-058: a battleground is good news: a star and a white
+					-- outline, never a white fill (that means "selected").
+					expect(pills(peer, "Campaign", s.id)):toEqual({ Kit.STAR .. ev })
 					check(
 						same(edge.Color, Kit.colors.text) and edge.Transparency == 0,
 						`{s.id}: a battleground's plate is not outlined in white`

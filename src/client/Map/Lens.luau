@@ -53,8 +53,6 @@ export type Context = {
 
 local Lens = {}
 
-local STAR = "★" -- a battleground's mark before its votes
-
 Lens.ORDER = table.freeze({ "EV", "Issues", "Polls", "Money" } :: { Id })
 Lens.LABEL =
 	table.freeze({ EV = "Votes", Issues = "Issues", Polls = "Polls", Money = "Money" } :: { [Id]: string })
@@ -99,7 +97,7 @@ function Lens.legend(_config: ConfigModule.Config, id: Id): string
 	elseif id == "Money" then
 		return "What one more fundraiser raises"
 	end
-	return `Votes · {STAR} = battleground`
+	return `Votes · {Kit.STAR} = battleground`
 end
 
 -- ---------------------------------------------------------------- helpers
@@ -148,14 +146,14 @@ end
 
 local function evLine(_ctx: Context, s: StateView): Line
 	local record = StateData.byId[s.id]
+	local votes = if record then tostring(record.ev) else "?"
 	return {
 		parts = {
 			{
-				text = if record then `{if s.battleground then STAR else ""}{record.ev}` else "?",
-				-- A battleground is good news: a star and a white outline, not
-				-- orange, and not a white fill (that means "selected", D-056).
-				color = if s.battleground then Kit.colors.text else nil,
-				outline = if s.battleground then true else nil,
+				text = if s.battleground then Kit.STAR .. votes else votes,
+				-- A battleground is good news (D-056): a star and a white outline,
+				-- never orange, never a white fill, which means "selected" (D-058).
+				outlined = if s.battleground then true else nil,
 			},
 		},
 	}

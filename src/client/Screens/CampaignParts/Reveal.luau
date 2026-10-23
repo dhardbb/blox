@@ -152,7 +152,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		Size = UDim2.new(1, 0, 0, Kit.size.heading + 8),
 		Font = Kit.font.display,
 		TextSize = Kit.size.heading,
-		TextColor3 = Kit.colors.accent,
+		TextColor3 = Kit.colors.text,
 		Parent = intro,
 	})
 	local orderLine = Kit.caption("", { Name = "RevealOrder", LayoutOrder = 2, Parent = intro })

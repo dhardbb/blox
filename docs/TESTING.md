@@ -734,11 +734,11 @@ Client only. The other front-page packages (map, panels, moments) build on this;
 
 Before testing: the two decoration images need uploading first (`assets/ui/README.md`). Without them the game still runs; there are just no shadows or glows. Test once before the upload (nothing should error) and once after.
 
-1. **Lobby.** The background is a deep navy, not black. Press and hold **Play vs Bot**: the pink button sinks onto a darker pink lip under it and springs back on release. The grey buttons (**Find match**, **Play a friend**) do the same on a dark lip. *Send back:* a screenshot of the Lobby, and whether the press feels chunky or mushy.
-2. **Pink button shine.** Wait on any screen with the pink button for about 5 seconds: a soft light band sweeps across it, then again every few seconds. With Reduce Motion on (Settings chip or Roblox setting) it never sweeps. *Send back:* too much or fine?
+1. **Lobby.** The background is a deep navy, not black. Press and hold **Play vs Bot**: the white button (pink before D-058) sinks onto a slate lip under it and springs back on release. The grey buttons (**Find match**, **Play a friend**) do the same on a dark lip. *Send back:* a screenshot of the Lobby, and whether the press feels chunky or mushy.
+2. **Main button shine.** Wait on any screen with the white main button for about 5 seconds: a soft light band sweeps across it, then again every few seconds. With Reduce Motion on (Settings chip or Roblox setting) it never sweeps. *Send back:* too much or fine?
 3. **Color sheet** (with the Color Pass set up): each swatch is a circle with your initial in that color. Amber looks gold, clearly not the orange of a loss. *Send back:* a screenshot.
 4. **Hosting a private match:** **Cancel** has an orange outline and orange text.
-5. **Campaign:** the bottom bar sits on its own panel with a soft shadow above it (after the upload). The header's time bar is thicker, rounded, with a glowing pink tip, and turns orange in the last 5 seconds; the timer text is orange under 10 seconds. Battleground states show their vote number on a white tag, not orange.
+5. **Campaign:** the bottom bar sits on its own panel with a soft shadow above it (after the upload). The header's time bar is thicker, rounded, with a glowing white tip, and turns orange in the last 5 seconds; the timer text is orange under 10 seconds. Battleground states show their vote number in a white-outlined tag with a ★ (D-058), not orange.
 6. **A sheet** (Map key, a state's Details): on the iPad it scales in from slightly smaller, has rounder corners and a shadow (after the upload); on a phone it has a small handle bar at the top.
 7. **Losing:** finish a match you lose. "You lost" is orange; nothing on that screen is red unless it is the other player's color. In a debate week, a topic the other player wins shows an orange "Rex wins" tag.
 8. **No errors:** the Output window shows no errors from `Kit`, `Assets`, `Header`, `ActionBar` or `Sheet`, before and after the upload. *Send back:* the Output log.
@@ -749,10 +749,20 @@ Client only. Needs the foundation's images uploaded (shadow, glow) to see the gl
 
 1. **Campaign map (iPad).** Behind the map there is a soft navy glow, like a lit table. Every state looks like a chunky token: a darker edge just under it, the top a little lighter than the bottom, a faint shadow. Lines between states are fainter than before. *Send back:* a screenshot; does the map look like the hero of the screen?
 2. **Battlegrounds.** In the Votes lens a battleground shows "★" before its votes, on a dark tag with a white outline. Nothing on the map is orange unless it goes against you. *Send back:* can you spot the battlegrounds at a glance?
-3. **Selecting a state.** Tap Ohio: its ring turns to the accent and a soft glow under it slowly breathes. Tap another state: the glow moves. With Reduce Motion on, the glow stays still.
+3. **Selecting a state.** Tap Ohio: its ring turns white and a soft white glow under it slowly breathes. Tap another state: the glow moves. With Reduce Motion on, the glow stays still.
 4. **Polls lens.** Each lead ("+3") sits on a tag filled in the leader's color, readable on any state; a near-tie says "tie".
 5. **Phone (portrait).** No state's circle overlaps another, and every two-letter code is readable, also in the Northeast and around Ohio, Pennsylvania and Virginia. The bigger states show their votes inside. *Send back:* a phone screenshot of the Campaign map and of the Draft map.
 6. **A stance week.** Pick stance A or B: states it helps get a ring and soft glow in your color with "+1.0"-style tags filled in your color; states it hurts glow orange with an orange "-0.5" tag in dark text. A state that would flip says FLIP on a dark tag with a thick edge in the new leader's color.
-7. **Debate reveal.** Moved states glow toward whoever gained; flips say FLIP with an edge in the new leader's color (a white edge for a tie).
+7. **Debate reveal.** Moved states glow toward whoever gained; flips say FLIP with an edge in the new leader's color (a grey edge for a tie).
 8. **Election night.** The state being counted ("?") glows; the map otherwise fills in as before.
 9. **No errors** from `NodeMap`, `Lens` or `SwingMarks` in the Output window. *Send back:* the Output log.
+
+## White accent (unreleased, D-058)
+
+Client only. Pink is replaced by white everywhere.
+
+1. **Lobby.** **Play vs Bot** is a solid white button with a dark label; press and hold it: it sinks onto a slate-blue lip and springs back. Nothing on any screen is pink. *Send back:* a screenshot, and whether the white button looks like the thing to press.
+2. **Selection.** In the Campaign, tap a lens chip (**Issues**), a state, an action: each selected thing gets a white outline and the others none. *Send back:* is the selection obvious at a glance on the iPad?
+3. **Battlegrounds.** On the map (Votes lens) a battleground's number reads "★13" in a white-outlined tag; the state card and the Draft's battleground round show "★ Battleground", outlined, not filled. The Draft's home-state round shows a plain "Home state" tag. *Send back:* could a battleground tag be mistaken for a button?
+4. **Timer.** The time bar and timer are white; the timer turns orange under 10 seconds and the bar under 5, as before.
+5. **Tips and toasts.** A coach tip has a grey outline and a grey **Got it** button that still works; a notice toast has a grey outline, a rejected plan an orange one.

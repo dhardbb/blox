@@ -32,9 +32,7 @@ export type LensPart = {
 	text: string,
 	color: Color3?, -- the text's color (default: the text color)
 	filled: boolean?, -- fill the pill in `color` instead (e.g. an issue on your platform)
-	-- Outline the pill in `color` (a 1 px edge on the dark plate, text in
-	-- `color`): a battleground's votes, "★13"
-	outline: boolean?,
+	outlined: boolean?, -- the battleground mark (D-058): field fill, a white outline, white text
 }
 
 -- What the current lens shows under a state's label. Empty `parts` shows nothing.

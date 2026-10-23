@@ -269,12 +269,16 @@ local function paintLens(node: Node, line: MapInterface.LensLine?, roomy: boolea
 		part.Visible = true
 		part.Text = spec.text
 		-- Filled: a solid plate in the color with readable text and its edge
-		-- (an issue of yours, a poll lead).
-		-- Outlined: the dark plate edged in the color (a battleground).
+		-- (an issue of yours, a poll lead). Outlined: the dark plate with a
+		-- Kit.MARK_STROKE white edge (the battleground mark, D-058).
 		part.TextColor3 = if spec.filled then onFill(color) else color
 		part.BackgroundColor3 = if spec.filled then color else Kit.colors.field
-		edge.Color = if spec.filled then edgeOf(color) elseif spec.outline then color else Kit.colors.line
-		edge.Transparency = if spec.filled or spec.outline then 0 else PART_EDGE
+		edge.Color = if spec.filled
+			then edgeOf(color)
+			elseif spec.outlined then Kit.colors.text
+			else Kit.colors.line
+		edge.Transparency = if spec.filled or spec.outlined then 0 else PART_EDGE
+		edge.Thickness = if spec.outlined then Kit.MARK_STROKE else 1
 	end
 	for i = #parts + 1, #node.parts do
 		node.parts[i].Visible = false

@@ -4,7 +4,7 @@
 -- Store and shows the newest message at the top center for Toast.SECONDS: max
 -- width 480, at least 44 px tall, body text on a raised panel (elevation 2, so
 -- it stands off the cards under it) with a 2 px stroke (loss orange for a
--- rejection, accent for a notice) and a soft shadow (Kit.shadow). A notice fades in sliding down Toast.SLIDE px
+-- rejection, muted for a notice; D-058) and a soft shadow (Kit.shadow). A notice fades in sliding down Toast.SLIDE px
 -- (Motion.enter); a rejection fades in where it rests, shakes (Motion.shake)
 -- and plays "error". After Toast.SECONDS it fades out (Motion.exit); a newer
 -- message replaces it at once. Under reduced motion it only fades.
@@ -67,7 +67,7 @@ function Toast.mount(parent: Instance, store: StoreLike): Toast
 	})
 	local stroke = Kit.new("UIStroke", {
 		Name = "ToastStroke",
-		Color = Kit.colors.accent,
+		Color = Kit.colors.muted,
 		Thickness = 2,
 		Parent = frame,
 	}) :: UIStroke
@@ -115,7 +115,7 @@ function Toast.mount(parent: Instance, store: StoreLike): Toast
 		shownId = message.id
 		settle()
 		label.Text = message.text
-		stroke.Color = if message.rejected then Kit.colors.loss else Kit.colors.accent
+		stroke.Color = if message.rejected then Kit.colors.loss else Kit.colors.muted
 		frame:SetAttribute("Rejected", message.rejected)
 		frame.Visible = true
 		-- A rejection arrives in place and shakes; a notice slides down.
