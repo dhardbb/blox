@@ -1,0 +1,337 @@
+--!strict
+-- Headless screenshots of every screen and state, for reviewing the UI without
+-- Studio. Not a spec: `lune run tests` ignores it. Run from the repo root:
+--
+--   lune run tests/ui/snap.luau                      every shot at every size
+--   lune run tests/ui/snap.luau -- campaign          shots whose name contains "campaign"
+--   lune run tests/ui/snap.luau -- --size phone      one size: phone | ipad | desktop
+--   lune run tests/ui/snap.luau -- --no-png          SVG only
+--
+-- Writes build/snaps/<size>/<shot>.svg (build/ is gitignored) and, on a Mac,
+-- a .png next to each (qlmanage renders, sips crops; nothing is installed).
+-- build/snaps/audit.txt lists each shot's strict UI audit findings (UI/Audit).
+--
+-- Each shot starts the client offline on a fixture (the DEBUG_UI path in
+-- App.client.luau, Shared/UI/Fixtures), then taps through the real screen the
+-- way the specs do (tests/ui/Rig.luau). The picture comes from
+-- tests/lib/Snapshot.luau: layout is approximated (see its header), and the
+-- dim strip at the top is the Roblox top bar.
+
+local fs = require("@lune/fs")
+local process = require("@lune/process")
+
+local FakeRoblox = require("@testlib/FakeRoblox")
+local Snapshot = require("@testlib/Snapshot")
+local Rig = require("./Rig")
+
+local UDim2 = FakeRoblox.types.UDim2
+
+type World = FakeRoblox.World
+type Peer = FakeRoblox.Peer
+
+local SIZES = {
+	{ name = "phone", x = 390, y = 844 },
+	{ name = "ipad", x = 1024, y = 768 },
+	{ name = "desktop", x = 1280, y = 720 },
+}
+
+type Shot = {
+	name: string,
+	moment: string, -- a DebugScreen fixture moment
+	screen: string, -- the screen holder taps go to
+	steps: ((world: World, peer: Peer) -> ())?,
+}
+
+local function tapIf(world: World, peer: Peer, screen: string, name: string, wait: number?)
+	if Rig.findIn(peer, screen, name) then
+		Rig.tap(world, peer, screen, name, wait)
+	else
+		print(`  (no {name} on {screen})`)
+	end
+end
+
+local function lens(id: string): (World, Peer) -> ()
+	return function(world, peer)
+		tapIf(world, peer, "Campaign", `Lens{id}`)
+	end
+end
+
+-- The style v2 kit on one page (docs/UI-STYLE.md): a reference picture for
+-- the screen packages. Built over the Lobby fixture, which it hides.
+local function kitGallery(world: World, peer: Peer)
+	local function load(name: string): any
+		return FakeRoblox.require(world, peer, `src/client/UI/{name}.luau`)
+	end
+	world.current = peer
+	local Kit = load("Kit")
+	local Header = load("Header")
+	local ActionBar = load("ActionBar")
+	local CoachTip = load("CoachTip")
+	local Sheet = load("Sheet")
+	local Collapsible = load("Collapsible")
+	local screens = FakeRoblox.find(peer, "Screens")
+	screens.Visible = false
+	local gui =
+		Kit.new("ScreenGui", { Name = "KitGallery", Parent = peer.player:FindFirstChild("PlayerGui") })
+	local root = Kit.box({ Name = "Gallery", Parent = gui })
+	Kit.pad(10).Parent = root
+	root:SetAttribute("PrimaryOptional", true)
+	local header =
+		Header.new(root, { title = "Week 3 of 12", subtitle = "Plan", now = true, onHelp = function() end })
+	header:setNow("Tap a state on the map")
+	header:setTimer(32, nil, 50)
+	local scroll = Kit.box({
+		Name = "Body",
+		Position = UDim2.fromOffset(0, header.height + Kit.space.sm),
+		Size = UDim2.new(1, 0, 1, -(header.height + Kit.space.sm + Kit.BAR_H + Kit.space.sm)),
+		Parent = root,
+	})
+	local column = Kit.stack({ Name = "Column", Parent = scroll }, "Vertical", Kit.space.md)
+	CoachTip.reset()
+	CoachTip.show(column, { id = "campaign.map", order = 1 })
+	local card = Kit.card({ LayoutOrder = 2, Parent = column })
+	Kit.heading("Ohio · 17 votes", { Parent = card, LayoutOrder = 1 })
+	local pills = Kit.stack({ LayoutOrder = 2, Parent = card }, "Horizontal", Kit.space.xs)
+	Kit.pill("Battleground", "warn", { Parent = pills, LayoutOrder = 1 })
+	Kit.pill("You lead +3", "good", { Parent = pills, LayoutOrder = 2 })
+	Kit.pill("Your issue", "accent", { Parent = pills, LayoutOrder = 3 })
+	Kit.text("You lead by 3. Rally here to grow it.", { LayoutOrder = 3, Parent = card })
+	Kit.caption("Public poll · updated this week", { LayoutOrder = 4, Parent = card })
+	local chips = Kit.stack({ LayoutOrder = 3, Parent = column }, "Horizontal", Kit.space.sm)
+	for i, label in { "Rally", "Ad $3", "Poll $1" } do
+		local chip = Kit.chip(
+			label,
+			function() end,
+			{ Size = UDim2.fromOffset(110, Kit.MIN_TOUCH), LayoutOrder = i, Parent = chips }
+		)
+		Kit.setSelected(chip, i == 1)
+	end
+	local option = Kit.cardButton(function() end, { LayoutOrder = 4, Parent = column })
+	Kit.text("A · Side with the staff", { Font = Kit.font.bold, LayoutOrder = 1, Parent = option })
+	Kit.caption("+1.5 where Health is a top issue", { LayoutOrder = 2, Parent = option })
+	Kit.setSelected(option, true)
+	local more = Collapsible.new(column, { title = "Why?", order = 5 })
+	Kit.caption("Details live here, one tap away.", { Parent = more.body })
+	Kit.button("More details", function() end, { variant = "ghost", LayoutOrder = 6, Parent = column })
+	local bar = ActionBar.new(root, {
+		primary = "Lock in",
+		onPrimary = function() end,
+		secondary = "Bank +15s",
+		onSecondary = function() end,
+	})
+	bar:setStatus("2 of 3 actions used", "muted")
+	bar:setOpponent("Opponent: thinking")
+	if world.screen.x > 1100 then
+		local sheet = Sheet.new(root, { title = "How rallies work" })
+		Kit.text("A rally adds support in one state. On your issues it adds more.", { Parent = sheet.body })
+		sheet:open()
+	end
+	world.current = nil
+	FakeRoblox.run(world, 0.2)
+end
+
+local SHOTS: { Shot } = {
+	{ name = "00-kit", moment = "Lobby", screen = "KitGallery", steps = kitGallery },
+	{ name = "01-lobby", moment = "Lobby", screen = "Lobby" },
+	{
+		name = "02-lobby-hosting",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby({ state = "Hosting", code = "AB3CD", queued = 0, full = false })
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "03-select-candidate",
+		moment = "Select",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+		end,
+	},
+	{
+		name = "04-select-issues",
+		moment = "Select",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+			tapIf(world, peer, "Select", "LockIn", 0.5)
+			tapIf(world, peer, "Select", "Issue_Jobs")
+			tapIf(world, peer, "Select", "Issue_Health")
+		end,
+	},
+	{ name = "05-map-reveal", moment = "MapReveal", screen = "Draft" },
+	{
+		name = "06-draft",
+		moment = "Draft",
+		screen = "Draft",
+		steps = function(world, peer)
+			local id = Rig.safeState(Rig.payloadOf(world, peer).view)
+			tapIf(world, peer, "Draft", `Row_{id}`)
+		end,
+	},
+	{ name = "07-decision-stance", moment = "Stance", screen = "Decision" },
+	{ name = "08-decision-focus", moment = "Focus", screen = "Decision" },
+	{ name = "09-campaign-plan", moment = "Plan", screen = "Campaign" },
+	{
+		name = "10-campaign-state-card",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "OH")
+		end,
+	},
+	{ name = "11-lens-ev", moment = "Plan", screen = "Campaign", steps = lens("EV") },
+	{ name = "12-lens-issues", moment = "Plan", screen = "Campaign", steps = lens("Issues") },
+	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
+	{ name = "14-lens-money", moment = "Plan", screen = "Campaign", steps = lens("Money") },
+	{ name = "15-campaign-choice-week", moment = "ChoiceWeek", screen = "Campaign" },
+	{ name = "16-resolve-start", moment = "Resolve", screen = "Campaign" },
+	{
+		name = "17-resolve-end",
+		moment = "Resolve",
+		screen = "Campaign",
+		steps = function(world, _peer)
+			FakeRoblox.run(world, 6)
+		end,
+	},
+	{ name = "18-choice-resolve", moment = "ChoiceResolve", screen = "Campaign" },
+	{ name = "19-debate", moment = "Debate", screen = "Campaign" },
+	{
+		name = "20-debate-late",
+		moment = "Debate",
+		screen = "Campaign",
+		steps = function(world, _peer)
+			FakeRoblox.run(world, 6)
+		end,
+	},
+	{ name = "21-election-start", moment = "Election", screen = "Election" },
+	{
+		name = "22-election-late",
+		moment = "Election",
+		screen = "Election",
+		steps = function(world, _peer)
+			FakeRoblox.run(world, 12)
+		end,
+	},
+	{ name = "23-results", moment = "Over", screen = "Results" },
+	{
+		name = "24-help",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+		end,
+	},
+}
+
+-- ------------------------------------------------------------- arguments
+
+local filter: string? = nil
+local onlySize: string? = nil
+local png = true
+do
+	local args = process.args
+	local i = 1
+	while i <= #args do
+		local arg = args[i]
+		if arg == "--size" then
+			onlySize = args[i + 1]
+			i += 1
+		elseif arg == "--no-png" then
+			png = false
+		elseif arg ~= "--" then
+			filter = arg
+		end
+		i += 1
+	end
+end
+
+if not fs.isFile("default.project.json") then
+	print("Run from the repository root: lune run tests/ui/snap.luau")
+	process.exit(1)
+end
+
+local function canConvert(): boolean
+	if not png then
+		return false
+	end
+	local ok = pcall(function()
+		local q = process.exec("which", { "qlmanage" })
+		local s = process.exec("which", { "sips" })
+		assert(q.ok and s.ok, "qlmanage or sips is missing")
+	end)
+	return ok
+end
+local convert = canConvert()
+
+-- qlmanage only makes square thumbnails, so it renders a square copy of the
+-- picture (content centered) and sips crops the middle back out.
+local function toPng(squareSvg: string, dir: string, name: string, w: number, h: number)
+	local tmp = `{dir}/_{name}.svg`
+	fs.writeFile(tmp, squareSvg)
+	local side = math.max(w, h)
+	local result = process.exec("qlmanage", { "-t", "-s", tostring(side), "-o", dir, tmp })
+	local thumb = tmp .. ".png"
+	if result.ok and fs.isFile(thumb) then
+		process.exec("sips", { "-c", tostring(h), tostring(w), thumb, "--out", `{dir}/{name}.png` })
+		fs.removeFile(thumb)
+	else
+		print(`  png failed for {name}`)
+	end
+	fs.removeFile(tmp)
+end
+
+-- ------------------------------------------------------------- run
+
+fs.writeDir("build/snaps")
+local auditLines: { string } = {}
+local count = 0
+for _, size in SIZES do
+	if onlySize and size.name ~= onlySize then
+		continue
+	end
+	local dir = `build/snaps/{size.name}`
+	fs.writeDir(dir)
+	for _, shot in SHOTS do
+		if filter and not string.find(shot.name, filter, 1, true) then
+			continue
+		end
+		print(`{size.name} {shot.name}`)
+		local world, peer = Rig.fixture(shot.moment, { x = size.x, y = size.y })
+		if shot.steps then
+			shot.steps(world, peer)
+		end
+		-- Let the Router's audit (0.5 s after a mount) and any tweens settle.
+		FakeRoblox.run(world, 0.6)
+		for _, e in world.errors do
+			print(`  script error: {e}`)
+		end
+		local path = `{dir}/{shot.name}.svg`
+		fs.writeFile(path, Snapshot.svg(peer))
+		if convert then
+			toPng(Snapshot.svg(peer, { square = true }), dir, shot.name, size.x, size.y)
+		end
+		-- The strict audit (UI/Audit.check, style rules included) of the screen on show.
+		local audit = peer.modules[`{world.root}/src/client/UI/Audit.luau`]
+		local holder = FakeRoblox.find(peer, shot.screen)
+		if audit and holder then
+			local findings, sizes = audit.check(holder, { style = true })
+			table.insert(
+				auditLines,
+				`== {size.name} {shot.name}: {#findings} finding(s), {sizes} text size(s)`
+			)
+			for _, finding in findings do
+				table.insert(auditLines, `   {finding.rule}: {finding.message}`)
+			end
+		else
+			table.insert(auditLines, `== {size.name} {shot.name}: {shot.screen} not mounted`)
+		end
+		count += 1
+	end
+end
+fs.writeFile("build/snaps/audit.txt", table.concat(auditLines, "\n") .. "\n")
+print(`{count} shot(s) in build/snaps{if convert then " (svg + png)" else " (svg)"}`)

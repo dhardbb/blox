@@ -1,0 +1,849 @@
+--!strict
+-- Headless screenshots: turns a FakeRoblox GUI tree (a client's PlayerGui) into
+-- an SVG so agents can look at a screen without Studio (tests/ui/snap.luau).
+--
+-- The fake engine's own layout skips list, grid and padding layouts (good enough
+-- for the audit's checks, not for a picture), so this module lays the tree out
+-- again with a closer approximation of Roblox:
+--   Size/Position/AnchorPoint against the parent's padded content box,
+--   UIPadding, UIListLayout (alignment, padding, Wraps, UIFlexItem Fill),
+--   UIGridLayout, UISizeConstraint, UIAspectRatioConstraint, AutomaticSize
+--   (frames from their children, texts from an estimate of their bounds),
+--   ScrollingFrame (clipped at CanvasPosition 0; a "+N px below" marker shows
+--   how much is hidden), ClipsDescendants, ZIndex (sibling order), Rotation.
+-- Drawn: BackgroundColor3/Transparency, UICorner, UIStroke (border, or text
+-- outline when Contextual on a text), text with color, size, font weight,
+-- X/Y alignment, wrapping, TextScaled (UITextSizeConstraint), TextTruncate,
+-- TextStroke; images as labeled boxes. Text widths are estimated (Gotham is
+-- drawn as Helvetica), so line breaks are close to Studio, not exact.
+--
+-- Snapshot.svg(peer, options?) -> string
+--   options.topInset  px the Roblox top bar takes from ScreenGuis that respect
+--                     the core UI inset (default 58; drawn as a dim strip)
+--   options.square    pad the picture to a square, content centered (qlmanage
+--                     only renders square thumbnails; snap.luau crops it back)
+
+local Snapshot = {}
+
+export type Options = {
+	topInset: number?,
+	square: boolean?,
+}
+
+type Node = {
+	inst: any,
+	x: number, -- relative to the parent node's top-left corner
+	y: number,
+	w: number,
+	h: number,
+	children: { Node },
+	contentH: number?, -- ScrollingFrame: height of what it holds
+	text: { string }?, -- wrapped lines
+	textSize: number?,
+}
+
+local GUI = {
+	Frame = true,
+	TextLabel = true,
+	TextButton = true,
+	TextBox = true,
+	ImageLabel = true,
+	ImageButton = true,
+	ScrollingFrame = true,
+	CanvasGroup = true,
+	ViewportFrame = true,
+}
+local TEXT = { TextLabel = true, TextButton = true, TextBox = true }
+
+local function props(inst: any): { [string]: any }
+	return rawget(inst, "_props")
+end
+
+local function class(inst: any): string
+	return rawget(inst, "_class")
+end
+
+local function kids(inst: any): { any }
+	return rawget(inst, "_children")
+end
+
+local function enum(value: any, default: string): string
+	return if value == nil then default else tostring(value.Name)
+end
+
+local function childOf(inst: any, className: string): any
+	for _, child in kids(inst) do
+		if class(child) == className then
+			return child
+		end
+	end
+	return nil
+end
+
+local function udim(value: any, total: number): number
+	if value == nil then
+		return 0
+	end
+	return value.Scale * total + value.Offset
+end
+
+-- ------------------------------------------------------------- text metrics
+
+-- Approximate advance of one character in em (Gotham-like proportions).
+local function charWidth(c: string, bold: boolean): number
+	local w
+	if string.find(c, "^[ilj'|!.,:;]$") then
+		w = 0.28
+	elseif string.find(c, "^[ftrI%(%)%[%]]$") then
+		w = 0.36
+	elseif string.find(c, "^[mwMW]$") then
+		w = 0.86
+	elseif string.find(c, "^[A-Z]$") then
+		w = 0.68
+	elseif string.find(c, "^[0-9]$") then
+		w = 0.6
+	elseif string.byte(c) and (string.byte(c) :: number) >= 0xC0 then
+		w = 0.85 -- glyphs and symbols
+	else
+		w = 0.55
+	end
+	return if bold then w * 1.07 else w
+end
+
+local function utf8chars(s: string): { string }
+	local out = {}
+	for _, code in utf8.codes(s) do
+		table.insert(out, utf8.char(code))
+	end
+	return out
+end
+
+local function measure(s: string, size: number, bold: boolean, mono: boolean): number
+	local w = 0
+	for _, c in utf8chars(s) do
+		w += if mono then 0.6 else charWidth(c, bold)
+	end
+	return w * size
+end
+
+local function stripRich(s: string): string
+	return (string.gsub(s, "<[^>]+>", ""))
+end
+
+local function fontOf(p: { [string]: any }): (boolean, boolean, string)
+	local font = enum(p.Font, "Legacy")
+	local bold = string.find(font, "Bold") ~= nil or string.find(font, "Black") ~= nil
+	local medium = string.find(font, "Medium") ~= nil or string.find(font, "Semi") ~= nil
+	local mono = font == "Code" or font == "RobotoMono"
+	local weight = if bold then "700" elseif medium then "500" else "400"
+	return bold, mono, weight
+end
+
+local LINE = 1.2 -- line height in em
+
+-- Lines of `text` wrapped to `width` (no wrapping when width is nil).
+local function wrap(text: string, size: number, bold: boolean, mono: boolean, width: number?): { string }
+	local lines = {}
+	for paragraph in string.gmatch(text .. "\n", "(.-)\n") do
+		if width == nil then
+			table.insert(lines, paragraph)
+			continue
+		end
+		local line = ""
+		for word in string.gmatch(paragraph, "%S+") do
+			local candidate = if line == "" then word else line .. " " .. word
+			if line ~= "" and measure(candidate, size, bold, mono) > width then
+				table.insert(lines, line)
+				line = word
+			else
+				line = candidate
+			end
+		end
+		table.insert(lines, line)
+	end
+	return lines
+end
+
+local function widest(lines: { string }, size: number, bold: boolean, mono: boolean): number
+	local w = 0
+	for _, line in lines do
+		w = math.max(w, measure(line, size, bold, mono))
+	end
+	return w
+end
+
+-- ------------------------------------------------------------- layout
+
+local DEFAULT_SIZE: { [string]: { number } } = {
+	TextLabel = { 200, 50 },
+	TextButton = { 200, 50 },
+	TextBox = { 200, 50 },
+}
+
+local function visibleGui(inst: any): boolean
+	return GUI[class(inst)] == true and props(inst).Visible ~= false
+end
+
+local function padding(inst: any, w: number, h: number): (number, number, number, number)
+	local pad = childOf(inst, "UIPadding")
+	if pad == nil then
+		return 0, 0, 0, 0
+	end
+	local p = props(pad)
+	return udim(p.PaddingLeft, w), udim(p.PaddingRight, w), udim(p.PaddingTop, h), udim(p.PaddingBottom, h)
+end
+
+local function constrain(inst: any, w: number, h: number): (number, number)
+	for _, child in kids(inst) do
+		local c = class(child)
+		local p = props(child)
+		if c == "UISizeConstraint" then
+			if p.MaxSize then
+				w, h = math.min(w, p.MaxSize.X), math.min(h, p.MaxSize.Y)
+			end
+			if p.MinSize then
+				w, h = math.max(w, p.MinSize.X), math.max(h, p.MinSize.Y)
+			end
+		elseif c == "UIAspectRatioConstraint" then
+			local ratio = p.AspectRatio or 1
+			local kind = enum(p.AspectType, "FitWithinMaxSize")
+			local dominant = enum(p.DominantAxis, "Width")
+			if kind == "ScaleWithParentSize" then
+				if dominant == "Width" then
+					h = w / ratio
+				else
+					w = h * ratio
+				end
+			elseif w / math.max(h, 1e-6) > ratio then
+				w = h * ratio
+			else
+				h = w / ratio
+			end
+		end
+	end
+	return w, h
+end
+
+local layoutNode: (inst: any, availW: number, availH: number, forced: { number }?) -> Node
+
+-- Sizes of a text's content: wrapped lines and the size they are drawn at.
+local function layoutText(node: Node)
+	local p = props(node.inst)
+	local raw = tostring(p.Text or "")
+	if class(node.inst) == "TextBox" and raw == "" then
+		raw = tostring(p.PlaceholderText or "")
+	end
+	if p.RichText then
+		raw = stripRich(raw)
+	end
+	local bold, mono = fontOf(p)
+	local pl, pr, pt, pb = padding(node.inst, node.w, node.h)
+	local boxW, boxH = math.max(1, node.w - pl - pr), math.max(1, node.h - pt - pb)
+	local size = p.TextSize or 14
+	local autoX = enum(p.AutomaticSize, "None") == "X" or enum(p.AutomaticSize, "None") == "XY"
+	local wrapped = p.TextWrapped == true and not autoX
+	if p.TextScaled then
+		local constraint = childOf(node.inst, "UITextSizeConstraint")
+		local maxSize = if constraint then props(constraint).MaxTextSize or 100 else 100
+		local minSize = if constraint then props(constraint).MinTextSize or 1 else 1
+		size = minSize
+		local s = math.floor(maxSize)
+		while s >= minSize do
+			local lines = wrap(raw, s, bold, mono, if wrapped then boxW else nil)
+			local fitsWidth = widest(lines, s, bold, mono) <= boxW + 0.5
+			if #lines * s * LINE <= boxH + 0.5 and fitsWidth then
+				size = s
+				break
+			end
+			s -= 1
+		end
+	end
+	local lines = wrap(raw, size, bold, mono, if wrapped then boxW else nil)
+	if not wrapped and enum(p.TextTruncate, "None") == "AtEnd" then
+		for i, line in lines do
+			if measure(line, size, bold, mono) > boxW then
+				local chars = utf8chars(line)
+				local cut = ""
+				for _, c in chars do
+					if measure(cut .. c .. "…", size, bold, mono) > boxW then
+						break
+					end
+					cut ..= c
+				end
+				lines[i] = cut .. "…"
+			end
+		end
+	end
+	node.text = lines
+	node.textSize = size
+end
+
+local function textExtent(node: Node): (number, number)
+	local p = props(node.inst)
+	local bold, mono = fontOf(p)
+	local size = node.textSize or 14
+	local lines = node.text or {}
+	return widest(lines, size, bold, mono), #lines * size * LINE
+end
+
+-- Lays out the GUI children of `node` inside its padded content box.
+local function layoutChildren(node: Node)
+	local inst = node.inst
+	local pl, pr, pt, pb = padding(inst, node.w, node.h)
+	local cw, ch = math.max(0, node.w - pl - pr), math.max(0, node.h - pt - pb)
+	local scrolling = class(inst) == "ScrollingFrame"
+	if scrolling then
+		local canvas = props(inst).CanvasSize
+		local canvasH = udim(canvas and canvas.Y, node.h)
+		if canvasH > 0 then
+			ch = math.max(0, canvasH - pt - pb)
+		end
+	end
+	local guis: { any } = {}
+	for _, child in kids(inst) do
+		if visibleGui(child) then
+			table.insert(guis, child)
+		end
+	end
+	node.children = {}
+	local list = childOf(inst, "UIListLayout")
+	local grid = childOf(inst, "UIGridLayout")
+	local layout = list or grid
+	if layout then
+		local lp = props(layout)
+		local order: { [any]: number } = {}
+		for i, child in guis do
+			order[child] = i
+		end
+		local byName = enum(lp.SortOrder, "LayoutOrder") == "Name"
+		table.sort(guis, function(a, b)
+			if byName then
+				return tostring(props(a).Name) < tostring(props(b).Name)
+			end
+			local la, lb = props(a).LayoutOrder or 0, props(b).LayoutOrder or 0
+			if la ~= lb then
+				return la < lb
+			end
+			return order[a] < order[b]
+		end)
+	end
+
+	if list then
+		local lp = props(list)
+		local horizontal = enum(lp.FillDirection, "Vertical") == "Horizontal"
+		local gap = udim(lp.Padding, if horizontal then cw else ch)
+		local hAlign = enum(lp.HorizontalAlignment, "Left")
+		local vAlign = enum(lp.VerticalAlignment, "Top")
+		local wraps = lp.Wraps == true and horizontal
+		local nodes: { Node } = {}
+		local total = 0
+		local fills: { number } = {}
+		for i, child in guis do
+			local n = layoutNode(child, cw, ch)
+			nodes[i] = n
+			total += if horizontal then n.w else n.h
+			local flex = childOf(child, "UIFlexItem")
+			if flex and enum(props(flex).FlexMode, "None") ~= "None" then
+				table.insert(fills, i)
+			end
+		end
+		total += gap * math.max(0, #nodes - 1)
+		local main = if horizontal then cw else ch
+		if #fills > 0 and not wraps and total < main then
+			local extra = (main - total) / #fills
+			for _, i in fills do
+				local n = nodes[i]
+				local forced = if horizontal then { n.w + extra, n.h } else { n.w, n.h + extra }
+				nodes[i] = layoutNode(guis[i], cw, ch, forced)
+			end
+			total = main
+		end
+		-- Rows (one unless Wraps): each a list of node indexes.
+		local rows: { { number } } = { {} }
+		local cursor = 0
+		for i, n in nodes do
+			local len = if horizontal then n.w else n.h
+			local row = rows[#rows]
+			if wraps and #row > 0 and cursor + len > main + 0.5 then
+				rows[#rows + 1] = {}
+				row = rows[#rows]
+				cursor = 0
+			end
+			table.insert(row, i)
+			cursor += len + gap
+		end
+		local cross = 0
+		for _, row in rows do
+			local length, thick = 0, 0
+			for k, i in row do
+				local n = nodes[i]
+				length += (if horizontal then n.w else n.h) + (if k > 1 then gap else 0)
+				thick = math.max(thick, if horizontal then n.h else n.w)
+			end
+			local start = 0
+			local align = if horizontal then hAlign else vAlign
+			if align == "Center" then
+				start = (main - length) / 2
+			elseif align == "Right" or align == "Bottom" then
+				start = main - length
+			end
+			local at = start
+			for _, i in row do
+				local n = nodes[i]
+				if horizontal then
+					n.x = pl + at
+					local off = if vAlign == "Center"
+						then (if wraps then (thick - n.h) / 2 else (ch - n.h) / 2)
+						elseif vAlign == "Bottom" then (if wraps then thick - n.h else ch - n.h)
+						else 0
+					n.y = pt + cross + off
+					at += n.w + gap
+				else
+					n.y = pt + at
+					local off = if hAlign == "Center"
+						then (cw - n.w) / 2
+						elseif hAlign == "Right" then cw - n.w
+						else 0
+					n.x = pl + off
+					at += n.h + gap
+				end
+				table.insert(node.children, n)
+			end
+			cross += thick + gap
+		end
+	elseif grid then
+		local gp = props(grid)
+		local cellW = if gp.CellSize then udim(gp.CellSize.X, cw) else 100
+		local cellH = if gp.CellSize then udim(gp.CellSize.Y, ch) else 100
+		local padX = if gp.CellPadding then udim(gp.CellPadding.X, cw) else 5
+		local padY = if gp.CellPadding then udim(gp.CellPadding.Y, ch) else 5
+		local perRow = math.max(1, math.floor((cw + padX + 0.5) / (cellW + padX)))
+		local maxCells = gp.FillDirectionMaxCells or 0
+		if maxCells > 0 then
+			perRow = math.min(perRow, maxCells)
+		end
+		local center = enum(gp.HorizontalAlignment, "Left") == "Center"
+		for i, child in guis do
+			local n = layoutNode(child, cw, ch, { cellW, cellH })
+			local col = (i - 1) % perRow
+			local row = (i - 1) // perRow
+			local inRow = math.min(perRow, #guis - row * perRow)
+			local rowW = inRow * cellW + (inRow - 1) * padX
+			local start = if center then (cw - rowW) / 2 else 0
+			n.x = pl + start + col * (cellW + padX)
+			n.y = pt + row * (cellH + padY)
+			table.insert(node.children, n)
+		end
+	else
+		for _, child in guis do
+			local n = layoutNode(child, cw, ch)
+			local p = props(child)
+			local pos, anchor = p.Position, p.AnchorPoint
+			n.x = pl + (if pos then udim(pos.X, cw) else 0) - (if anchor then anchor.X * n.w else 0)
+			n.y = pt + (if pos then udim(pos.Y, ch) else 0) - (if anchor then anchor.Y * n.h else 0)
+			table.insert(node.children, n)
+		end
+	end
+end
+
+local function contentBottom(node: Node): (number, number)
+	local right, bottom = 0, 0
+	for _, child in node.children do
+		right = math.max(right, child.x + child.w)
+		bottom = math.max(bottom, child.y + child.h)
+	end
+	return right, bottom
+end
+
+layoutNode = function(inst: any, availW: number, availH: number, forced: { number }?): Node
+	local p = props(inst)
+	local c = class(inst)
+	local w, h
+	if forced then
+		w, h = forced[1], forced[2]
+	elseif p.Size then
+		w, h = udim(p.Size.X, availW), udim(p.Size.Y, availH)
+	else
+		local default = DEFAULT_SIZE[c] or { 100, 100 }
+		w, h = default[1], default[2]
+	end
+	w, h = constrain(inst, math.max(0, w), math.max(0, h))
+	local node: Node = { inst = inst, x = 0, y = 0, w = w, h = h, children = {} }
+	local auto = enum(p.AutomaticSize, "None")
+	if TEXT[c] then
+		layoutText(node)
+	end
+	layoutChildren(node)
+	if auto ~= "None" then
+		local pl, pr, pt, pb = padding(inst, w, h)
+		local right, bottom = contentBottom(node)
+		local growW, growH = right + pr, bottom + pb
+		if TEXT[c] then
+			local tw, th = textExtent(node)
+			growW = math.max(growW, pl + tw + pr)
+			growH = math.max(growH, pt + th + pb)
+		end
+		local nw = if auto == "X" or auto == "XY" then math.max(w, growW) else w
+		local nh = if auto == "Y" or auto == "XY" then math.max(h, growH) else h
+		nw, nh = constrain(inst, nw, nh)
+		if nw ~= w or nh ~= h then
+			node.w, node.h = nw, nh
+			if TEXT[c] then
+				layoutText(node)
+			end
+			layoutChildren(node)
+		end
+	end
+	if c == "ScrollingFrame" then
+		local _, bottom = contentBottom(node)
+		local _, _, _, pb = padding(inst, node.w, node.h)
+		node.contentH = bottom + pb
+	end
+	return node
+end
+
+-- ------------------------------------------------------------- drawing
+
+local function esc(s: string): string
+	s = string.gsub(s, "&", "&amp;")
+	s = string.gsub(s, "<", "&lt;")
+	s = string.gsub(s, ">", "&gt;")
+	s = string.gsub(s, '"', "&quot;")
+	return s
+end
+
+local function hex(color: any, default: string): string
+	if color == nil then
+		return default
+	end
+	local function ch(v: number): number
+		return math.clamp(math.floor(v * 255 + 0.5), 0, 255)
+	end
+	return string.format("#%02x%02x%02x", ch(color.R), ch(color.G), ch(color.B))
+end
+
+local function num(v: number): string
+	return string.format("%.1f", v)
+end
+
+local function radiusOf(inst: any, w: number, h: number): number
+	local corner = childOf(inst, "UICorner")
+	if corner == nil then
+		return 0
+	end
+	local r = props(corner).CornerRadius
+	local value = if r then r.Scale * math.min(w, h) + r.Offset else 8
+	return math.clamp(value, 0, math.min(w, h) / 2)
+end
+
+type Out = { lines: { string }, clips: number }
+
+local function emit(out: Out, s: string)
+	table.insert(out.lines, s)
+end
+
+local function drawText(out: Out, node: Node, ax: number, ay: number)
+	local p = props(node.inst)
+	local lines = node.text
+	if lines == nil or #lines == 0 or (#lines == 1 and lines[1] == "") then
+		return
+	end
+	local isPlaceholder = class(node.inst) == "TextBox" and (p.Text == nil or p.Text == "")
+	local opacity = 1 - (p.TextTransparency or 0)
+	if opacity <= 0.01 then
+		return
+	end
+	local _, mono, weight = fontOf(p)
+	local size = node.textSize or 14
+	local pl, pr, pt, pb = padding(node.inst, node.w, node.h)
+	local x0, y0 = ax + pl, ay + pt
+	local bw, bh = node.w - pl - pr, node.h - pt - pb
+	local xAlign = enum(p.TextXAlignment, "Center")
+	local yAlign = enum(p.TextYAlignment, "Center")
+	local blockH = #lines * size * LINE
+	local top = if yAlign == "Top"
+		then y0
+		elseif yAlign == "Bottom" then y0 + bh - blockH
+		else y0 + (bh - blockH) / 2
+	local anchor, tx = "start", x0
+	if xAlign == "Center" then
+		anchor, tx = "middle", x0 + bw / 2
+	elseif xAlign == "Right" then
+		anchor, tx = "end", x0 + bw
+	end
+	local fill = if isPlaceholder then hex(p.PlaceholderColor3, "#8a8f9c") else hex(p.TextColor3, "#1b2a35")
+	local family = if mono
+		then "Menlo, Consolas, monospace"
+		else "Gotham, Montserrat, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+	local strokeAttr = ""
+	local stroke = childOf(node.inst, "UIStroke")
+	if
+		stroke
+		and props(stroke).Enabled ~= false
+		and enum(props(stroke).ApplyStrokeMode, "Contextual") == "Contextual"
+	then
+		local sp = props(stroke)
+		strokeAttr = string.format(
+			' stroke="%s" stroke-width="%s" stroke-opacity="%s" paint-order="stroke"',
+			hex(sp.Color, "#000000"),
+			num((sp.Thickness or 1) * 2),
+			num(1 - (sp.Transparency or 0))
+		)
+	elseif p.TextStrokeTransparency ~= nil and p.TextStrokeTransparency < 1 then
+		strokeAttr = string.format(
+			' stroke="%s" stroke-width="2" stroke-opacity="%s" paint-order="stroke"',
+			hex(p.TextStrokeColor3, "#000000"),
+			num(1 - p.TextStrokeTransparency)
+		)
+	end
+	for i, line in lines do
+		local baseline = top + (i - 1) * size * LINE + size * 0.95
+		emit(
+			out,
+			string.format(
+				'<text x="%s" y="%s" font-family="%s" font-size="%s" font-weight="%s" fill="%s" fill-opacity="%s" text-anchor="%s"%s>%s</text>',
+				num(tx),
+				num(baseline),
+				family,
+				num(size),
+				weight,
+				fill,
+				num(opacity),
+				anchor,
+				strokeAttr,
+				esc(line)
+			)
+		)
+	end
+end
+
+local function drawNode(out: Out, node: Node, ox: number, oy: number)
+	local inst = node.inst
+	local p = props(inst)
+	local c = class(inst)
+	local ax, ay = ox + node.x, oy + node.y
+	local w, h = node.w, node.h
+	if w <= 0 or h <= 0 then
+		return
+	end
+	local rotation = p.Rotation or 0
+	local opened = false
+	if rotation ~= 0 then
+		emit(
+			out,
+			string.format('<g transform="rotate(%s %s %s)">', num(rotation), num(ax + w / 2), num(ay + h / 2))
+		)
+		opened = true
+	end
+	local r = radiusOf(inst, w, h)
+	local bgAlpha = 1 - (p.BackgroundTransparency or 0)
+	if bgAlpha > 0.01 then
+		local default = if TEXT[c] or c == "ImageButton" then "#a3a2a5" else "#a3a2a5"
+		emit(
+			out,
+			string.format(
+				'<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="%s" fill-opacity="%s"/>',
+				num(ax),
+				num(ay),
+				num(w),
+				num(h),
+				num(r),
+				hex(p.BackgroundColor3, default),
+				num(bgAlpha)
+			)
+		)
+	end
+	if c == "ImageLabel" or c == "ImageButton" or c == "ViewportFrame" then
+		local alpha = 1 - (p.ImageTransparency or 0)
+		if alpha > 0.01 then
+			emit(
+				out,
+				string.format(
+					'<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="none" stroke="#7a8094" stroke-dasharray="4 3"/>',
+					num(ax + 1),
+					num(ay + 1),
+					num(w - 2),
+					num(h - 2),
+					num(r)
+				)
+			)
+			emit(
+				out,
+				string.format(
+					'<text x="%s" y="%s" font-family="Helvetica" font-size="10" fill="#7a8094" text-anchor="middle">%s</text>',
+					num(ax + w / 2),
+					num(ay + h / 2 + 3),
+					esc(c == "ViewportFrame" and "3D view" or "image")
+				)
+			)
+		end
+	end
+	local stroke = childOf(inst, "UIStroke")
+	if stroke and props(stroke).Enabled ~= false then
+		local sp = props(stroke)
+		local mode = enum(sp.ApplyStrokeMode, "Contextual")
+		if not (TEXT[c] and mode == "Contextual") then
+			local t = sp.Thickness or 1
+			emit(
+				out,
+				string.format(
+					'<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="none" stroke="%s" stroke-width="%s" stroke-opacity="%s"/>',
+					num(ax - t / 2),
+					num(ay - t / 2),
+					num(w + t),
+					num(h + t),
+					num(if r > 0 then r + t / 2 else 0),
+					hex(sp.Color, "#000000"),
+					num(t),
+					num(1 - (sp.Transparency or 0))
+				)
+			)
+		end
+	end
+	if TEXT[c] then
+		drawText(out, node, ax, ay)
+	end
+	local clips = c == "ScrollingFrame" or p.ClipsDescendants == true
+	if clips then
+		out.clips += 1
+		local id = `c{out.clips}`
+		emit(
+			out,
+			string.format(
+				'<clipPath id="%s"><rect x="%s" y="%s" width="%s" height="%s" rx="%s"/></clipPath><g clip-path="url(#%s)">',
+				id,
+				num(ax),
+				num(ay),
+				num(w),
+				num(h),
+				num(r),
+				id
+			)
+		)
+	end
+	local ordered = table.clone(node.children)
+	local index: { [Node]: number } = {}
+	for i, child in ordered do
+		index[child] = i
+	end
+	table.sort(ordered, function(a, b)
+		local za, zb = props(a.inst).ZIndex or 1, props(b.inst).ZIndex or 1
+		if za ~= zb then
+			return za < zb
+		end
+		return index[a] < index[b]
+	end)
+	for _, child in ordered do
+		drawNode(out, child, ax, ay)
+	end
+	if clips then
+		emit(out, "</g>")
+	end
+	local hidden = (node.contentH or 0) - h
+	if c == "ScrollingFrame" and hidden > 4 then
+		emit(
+			out,
+			string.format(
+				'<rect x="%s" y="%s" width="%s" height="16" rx="8" fill="#e85454" fill-opacity="0.85"/>',
+				num(ax + w - 108),
+				num(ay + h - 18),
+				"104"
+			)
+		)
+		emit(
+			out,
+			string.format(
+				'<text x="%s" y="%s" font-family="Helvetica" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">+%d px below ▼</text>',
+				num(ax + w - 56),
+				num(ay + h - 7),
+				math.floor(hidden)
+			)
+		)
+	end
+	if opened then
+		emit(out, "</g>")
+	end
+end
+
+-- The SVG for everything a client's PlayerGui shows.
+function Snapshot.svg(peer: any, options: Options?): string
+	local world = rawget(peer.player, "_world")
+	local W, H = world.screen.x, world.screen.y
+	local topInset = if options and options.topInset ~= nil then options.topInset else 58
+	local square = options ~= nil and options.square == true
+	local S = math.max(W, H)
+	local dx, dy = if square then (S - W) / 2 else 0, if square then (S - H) / 2 else 0
+	local out: Out = { lines = {}, clips = 0 }
+	local cw, chh = if square then S else W, if square then S else H
+	emit(
+		out,
+		string.format(
+			'<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">',
+			cw,
+			chh,
+			cw,
+			chh
+		)
+	)
+	emit(out, string.format('<rect width="%d" height="%d" fill="#3a3a3a"/>', cw, chh))
+	emit(out, string.format('<g transform="translate(%s %s)">', num(dx), num(dy)))
+	emit(out, string.format('<clipPath id="screen"><rect width="%d" height="%d"/></clipPath>', W, H))
+	emit(out, '<g clip-path="url(#screen)">')
+	emit(out, string.format('<rect width="%d" height="%d" fill="#000000"/>', W, H))
+
+	local playerGui = peer.player:FindFirstChild("PlayerGui")
+	local guis: { any } = {}
+	if playerGui then
+		for _, child in kids(playerGui) do
+			if class(child) == "ScreenGui" and props(child).Enabled ~= false then
+				table.insert(guis, child)
+			end
+		end
+	end
+	local order: { [any]: number } = {}
+	for i, g in guis do
+		order[g] = i
+	end
+	table.sort(guis, function(a, b)
+		local da, db = props(a).DisplayOrder or 0, props(b).DisplayOrder or 0
+		if da ~= db then
+			return da < db
+		end
+		return order[a] < order[b]
+	end)
+	for _, g in guis do
+		local p = props(g)
+		local insets = enum(p.ScreenInsets, "CoreUISafeInsets")
+		local inset = if p.IgnoreGuiInset == true
+				or insets == "None"
+				or insets == "DeviceSafeInsets"
+			then 0
+			else topInset
+		local root: Node = { inst = g, x = 0, y = inset, w = W, h = H - inset, children = {} }
+		layoutChildren(root)
+		for _, child in root.children do
+			drawNode(out, child, 0, inset)
+		end
+	end
+	if topInset > 0 then
+		-- The Roblox top bar: its menu buttons sit over the game.
+		emit(
+			out,
+			string.format(
+				'<rect x="12" y="%s" width="44" height="44" rx="22" fill="#000000" fill-opacity="0.45"/>',
+				num((topInset - 44) / 2)
+			)
+		)
+		emit(
+			out,
+			string.format(
+				'<rect x="64" y="%s" width="44" height="44" rx="22" fill="#000000" fill-opacity="0.45"/>',
+				num((topInset - 44) / 2)
+			)
+		)
+	end
+	emit(out, "</g></g></svg>")
+	return table.concat(out.lines, "\n")
+end
+
+return Snapshot
