@@ -74,6 +74,7 @@ local OWNER_RING_PX = 3 -- a home state's or stronghold's ring
 local SELECTED_RING_PX = 3 -- the selected state's accent ring
 local CIRCLE_SHARE = 0.88 -- the drawn circle's share of its layout diameter (room for the ring)
 local TWO_LINES = 30 -- px, the smallest circle that shows its code and a lens value
+local STAR_ROOM = 40 -- px, the smallest circle whose battleground value keeps its ★
 local LABEL_H = 0.4 -- label band height, share of the tap target
 local BAND_H = 0.3 -- arrow band (bottom), share of the tap target
 local TAG_H = Kit.size.caption + 5 -- px, the tag's height
@@ -256,7 +257,15 @@ end
 -- Fills a node's lens row from `line` (nil or no parts, or a circle too small
 -- for two lines: hidden).
 -- `k` is the drawn circle's share of the tap target.
-local function paintLens(node: Node, line: MapInterface.LensLine?, roomy: boolean, k: number)
+-- `starRoom`: the circle is wide enough for "★13"; a smaller one shows the
+-- battleground by its white outline alone ("13"), so the plate fits inside.
+local function paintLens(
+	node: Node,
+	line: MapInterface.LensLine?,
+	roomy: boolean,
+	k: number,
+	starRoom: boolean
+)
 	local parts: { MapInterface.LensPart } = if line and roomy then line.parts else {}
 	for i, spec in parts do
 		if i > #node.parts then
@@ -267,7 +276,8 @@ local function paintLens(node: Node, line: MapInterface.LensLine?, roomy: boolea
 		local part, edge = node.parts[i], node.edges[i]
 		local color = spec.color or Kit.colors.text
 		part.Visible = true
-		part.Text = spec.text
+		local star = string.sub(spec.text, 1, #Kit.STAR) == Kit.STAR
+		part.Text = if star and not starRoom then string.sub(spec.text, #Kit.STAR + 1) else spec.text
 		-- Filled: a solid plate in the color with readable text and its edge
 		-- (an issue of yours, a poll lead). Outlined: the dark plate with a
 		-- Kit.MARK_STROKE white edge (the battleground mark, D-058).
@@ -548,6 +558,12 @@ function NodeMap.new(): MapInterface.Map
 		return width <= 0 or 2 * node.r * CIRCLE_SHARE * width >= TWO_LINES
 	end
 
+	-- ... and for a starred battleground value ("★13")?
+	local function starRoom(node: Node): boolean
+		local width = root.AbsoluteSize.X
+		return width <= 0 or 2 * node.r * CIRCLE_SHARE * width >= STAR_ROOM
+	end
+
 	-- The drawn circle's share of the tap target as laid out: k, unless the
 	-- 36 px minimum grew the target past its layout size (a phone), where the
 	-- circle keeps its layout size inside it.
@@ -572,7 +588,7 @@ function NodeMap.new(): MapInterface.Map
 		node.label.TextTransparency = if dim then DIM_TEXT else 0
 		node.label.TextStrokeTransparency = if dim then 1 else LABEL_STROKE
 		node.shadow.ImageTransparency = if dim then 1 - (1 - SHADOW_FADE) / 2 else SHADOW_FADE
-		paintLens(node, line, roomy(node), k)
+		paintLens(node, line, roomy(node), k, starRoom(node))
 		if isSelected then
 			node.ring.Color = Kit.colors.accent
 			node.ring.Thickness = SELECTED_RING_PX
