@@ -25,6 +25,7 @@ export type Op =
 	| "PrePick" -- remember a candidate and platform for Select: { pick }
 	| "SetColor" -- save a chosen color (Color Pass owners, D-055): { color? } (absent = auto)
 	| "Claim" -- Select step 1: claim a candidate (D-048): { matchId, step, input = candidate id }
+	| "ClaimColor" -- Select, Color Pass owners: claim a color, first come first served (D-061): { matchId, step, color }
 	| "Submit" -- lock in this stage's input: { matchId, step, input }
 	| "Bank" -- take 15 s of time bank: { matchId, step }
 	| "Skip" -- skip the resolve animation or election night: { matchId, step }
@@ -40,7 +41,7 @@ export type Request = {
 	step: number?,
 	input: any?,
 	events: boolean?, -- Host: false turns the event deck off for this private match
-	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue)
+	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue). ClaimColor: the color (required)
 	difficulty: string?, -- Practice: "Easy" | "Medium" | "Hard" | "Extreme"; absent or anything else = "Medium" (D-057)
 }
 

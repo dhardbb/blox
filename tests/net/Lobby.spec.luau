@@ -25,6 +25,7 @@ describe("Schemas.request", function()
 			{ op = "Skip", matchId = "m1", step = 3 },
 			{ op = "Resync" },
 			{ op = "SetColor", color = "Crimson" },
+			{ op = "ClaimColor", matchId = "m1", step = 3, color = "Teal" },
 		}
 		for _, raw in good do
 			local ok, reason, request = Schemas.request(raw)
@@ -86,6 +87,26 @@ describe("Schemas.request", function()
 		expect((request :: any).color):toBe(nil)
 		for _, bad in { 5, true, {} } do
 			local good, reason = Schemas.request({ op = "SetColor", color = bad })
+			expect(good):toBe(false)
+			expect(reason):toBe("BadShape")
+		end
+	end)
+
+	it("a ClaimColor request carries a match, a step and a string color (D-061)", function()
+		local ok, _, request =
+			Schemas.request({ op = "ClaimColor", matchId = "m1", step = 2, color = "Teal" })
+		expect(ok):toBe(true)
+		expect((request :: any).color):toBe("Teal")
+		expect((request :: any).step):toBe(2)
+		for _, raw in
+			{
+				{ op = "ClaimColor", matchId = "m1", step = 2 },
+				{ op = "ClaimColor", matchId = "m1", step = 2, color = 5 },
+				{ op = "ClaimColor", step = 2, color = "Teal" },
+				{ op = "ClaimColor", matchId = "m1", step = 1.5, color = "Teal" },
+			} :: { any }
+		do
+			local good, reason = Schemas.request(raw)
 			expect(good):toBe(false)
 			expect(reason):toBe("BadShape")
 		end

@@ -4,7 +4,7 @@
 --   [Decision "Focus" -> Debate] -> [Decision "Stance"] -> Plan
 -- (the focus only in debate weeks, the stance only in Choice weeks; D-044, Sim/Decision).
 --
--- Pure: Match.new(config, seed, playerIds, colorPicks?) builds a match; Match.advance(config,
+-- Pure: Match.new(config, seed, playerIds, colorPass?) builds a match; Match.advance(config,
 -- match, inputs) returns a new state plus events and never mutates its argument.
 -- The server collects one input per player for the current phase (validated with
 -- Match.validate); anyone missing gets Match.default, the same thing the server
@@ -39,48 +39,50 @@ export type Selection = {
 
 local Match = {}
 
--- The default colors, in the order players without a pick are dealt them
--- (D-055): red and blue first, so two players who did not pick are always one
--- Crimson and one Cobalt.
+-- The default colors, in the order players without a claimed color are dealt
+-- them (D-055): red and blue first, so two players without a claim are always
+-- one Crimson and one Cobalt.
 Match.DEFAULT_COLORS = table.freeze({ "Crimson", "Cobalt" })
 
--- Deals one distinct color per seat (D-055). `picks` (optional, by player id)
--- is each Color Pass owner's saved color; the server sends it only for owners,
--- and a name that is not one of Candidates.colors is ignored. A picker gets
--- their pick; two players who picked the same color settle it with a seeded
--- coin flip (fork "colorPicks"), and the loser is dealt like a non-picker.
--- Non-pickers are dealt, in a seeded seat order, from Crimson and Cobalt (their
--- order a seeded coin flip) and then the other four in a seeded order (fork
--- "colors"), skipping colors already taken. No seat is favored (D-001).
-function Match.dealColors(rng: Rng.Rng, playerIds: { string }, picks: { [string]: string }?): { string }
-	local n = #playerIds
-	assert(n <= #Candidates.colors, "more players than colors")
-	local colors: { string } = table.create(n, "")
-	local taken: { [string]: boolean } = {}
+-- A Color Pass owner, as the server passes them to Match.new (D-055, D-061).
+-- `favorite` is their saved color (the Lobby's Color sheet), claimed for them
+-- as Select opens; nil = no favorite.
+export type ColorPass = {
+	favorite: string?,
+}
 
-	if picks then
-		local wanting: { [string]: { number } } = {}
-		for p, id in playerIds do
-			local pick = picks[id]
-			if type(pick) == "string" and table.find(Candidates.colors, pick) ~= nil then
-				local seats = wanting[pick] or {}
-				table.insert(seats, p)
-				wanting[pick] = seats
-			end
+-- The color player p has claimed this Select, or nil (D-061).
+function Match.colorClaimOf(match: MatchState, p: number): string?
+	for color, owner in match.colorClaims do
+		if owner == p then
+			return color
 		end
-		-- In the fixed color order, never the table's, so replays match.
-		local tie = Rng.fork(rng, "colorPicks")
-		for _, color in Candidates.colors do
-			local seats = wanting[color]
-			if seats then
-				local winner = if #seats == 1 then seats[1] else seats[Rng.nextInt(tie, 1, #seats)]
-				colors[winner] = color
-				taken[color] = true
-			end
+	end
+	return nil
+end
+
+-- Deals a color to every player without a claimed color (D-055, D-061): in a
+-- seeded seat order, from Crimson and Cobalt (their order a seeded coin flip)
+-- and then the other four in a seeded order (fork "colors"), skipping claimed
+-- colors. Distinct, and no seat is favored (D-001). The root stream is never
+-- advanced, so the same claims always deal the same colors: a player's dealt
+-- color changes only when someone claims it. Mutates `match`.
+local function dealColors(match: MatchState)
+	local n = #match.players
+	assert(n <= #Candidates.colors, "more players than colors")
+	local taken: { [string]: boolean } = {}
+	local open: { number } = {}
+	for p, player in match.players do
+		local claimed = Match.colorClaimOf(match, p)
+		if claimed ~= nil then
+			player.color = claimed
+			taken[claimed] = true
+		else
+			table.insert(open, p)
 		end
 	end
 
-	local deal = Rng.fork(rng, "colors")
+	local deal = Rng.fork(match.rng, "colors")
 	local order: { string } = table.clone(Match.DEFAULT_COLORS) :: { string }
 	if Rng.nextInt(deal, 1, 2) == 2 then
 		order[1], order[2] = order[2], order[1]
@@ -95,50 +97,128 @@ function Match.dealColors(rng: Rng.Rng, playerIds: { string }, picks: { [string]
 	for _, color in rest do
 		table.insert(order, color)
 	end
-	local open: { number } = {}
+	-- Shuffle every seat (claimed or not) so the draw count, and so each open
+	-- seat's place in line, never depends on who has claimed.
+	local seats: { number } = {}
 	for p = 1, n do
-		if colors[p] == "" then
-			table.insert(open, p)
-		end
+		seats[p] = p
 	end
-	Rng.shuffle(deal, open)
+	Rng.shuffle(deal, seats)
 	local k = 1
-	for _, p in open do
-		while taken[order[k]] do
+	for _, p in seats do
+		if table.find(open, p) ~= nil then
+			while taken[order[k]] do
+				k += 1
+			end
+			match.players[p].color = order[k]
+			taken[order[k]] = true
 			k += 1
 		end
-		colors[p] = order[k]
-		taken[order[k]] = true
-		k += 1
 	end
-	return colors
+end
+
+-- Can player p claim `color` now? (true, nil) or (false, reasonCode). Only a
+-- Color Pass owner may, during Select, and only a color nobody else holds
+-- (D-061). Holding a color already is fine: re-claiming it changes nothing.
+function Match.canClaimColor(match: MatchState, p: number, color: any): (boolean, string?)
+	if match.phase ~= "Select" then
+		return false, "WrongPhase"
+	end
+	local player = match.players[p]
+	if player == nil then
+		return false, "UnknownPlayer"
+	end
+	if not player.colorPass then
+		return false, "NoColorPass"
+	end
+	if type(color) ~= "string" or table.find(Candidates.colors, color) == nil then
+		return false, "UnknownColor"
+	end
+	local owner = match.colorClaims[color]
+	if owner ~= nil and owner ~= p then
+		return false, "ColorTaken"
+	end
+	return true, nil
+end
+
+-- Settles one batch of color claims in place (see Match.claimColor).
+local function settleColorClaims(match: MatchState, requests: { [number]: any }): { [number]: string }
+	local outcomes: { [number]: string } = {}
+	local order = {}
+	for p in match.players do
+		if requests[p] ~= nil then
+			table.insert(order, p)
+		end
+	end
+	if #order == 0 then
+		return outcomes
+	end
+	Rng.shuffle(Rng.fork(match.rng, `colorClaims:{match.colorRounds}`), order)
+	match.colorRounds += 1
+	for _, p in order do
+		local color = requests[p]
+		local ok, reason = Match.canClaimColor(match, p, color)
+		if ok then
+			-- A new claim releases the old one (a change of mind, D-061).
+			local old = Match.colorClaimOf(match, p)
+			if old ~= nil then
+				match.colorClaims[old] = nil
+			end
+			match.colorClaims[color] = p
+		else
+			outcomes[p] = reason or "Rejected"
+		end
+	end
+	dealColors(match)
+	return outcomes
+end
+
+-- Claims colors during Select (D-061: Color Pass owners pick their color first
+-- come, first served, like candidates, D-048). `requests` maps player -> color
+-- for one batch of claims that arrived together (the same server step). They
+-- are settled in a seeded order, a coin flip that never favors a seat (D-001):
+-- the first claim on a free color gets it, a later one on the same color is
+-- turned down with "ColorTaken" and the loser keeps their old color (or the
+-- one dealt to them) and may claim another. A claim releases the claimant's
+-- previous color. Every player without a claim is then dealt a color again,
+-- skipping claimed ones. Pure: returns the new state and each request's
+-- outcome (nil = claimed, or a reason code); the argument is not modified.
+function Match.claimColor(
+	_config: Config,
+	current: MatchState,
+	requests: { [number]: any }
+): (MatchState, { [number]: string })
+	local match = State.clone(current)
+	local outcomes = settleColorClaims(match, requests)
+	return match, outcomes
 end
 
 -- A new match in the Select phase. Leans, the issue map, colors, debate topics and
 -- the event deck are seeded now (the issue map and colors are public from Select,
 -- so players pick a platform against this match's map, D-047; leans are shown from
 -- MapReveal on; each event only in its own week).
--- `colorPicks` (optional, by player id): Color Pass owners' saved colors (D-055).
+-- `colorPass` (optional, by player id): the Color Pass owners (D-055). They may
+-- claim colors during Select, and a favorite is claimed for them now, as Select
+-- opens; two owners with the same favorite settle it with the seeded coin flip,
+-- and the loser starts without a claim and picks another color (D-061).
 -- A private lobby with events off passes Config.with(config, { EVENTS_ENABLED = false }).
 function Match.new(
 	config: Config,
 	seed: number,
 	playerIds: { string },
-	colorPicks: { [string]: string }?
+	colorPass: { [string]: ColorPass }?
 ): MatchState
 	local n = #playerIds
 	assert(n >= 2, "a match needs at least two players")
 	local rng = Rng.new(seed)
 	local placeholder = Candidates.ids[1]
-	-- Red and blue by default, a pick with the Color Pass (D-055; replaces D-047's
-	-- shuffle of all six). Distinct, deterministic, no seat favored (D-001).
-	local colors = Match.dealColors(rng, playerIds, colorPicks)
 	local players: { State.PlayerState } = {}
 	for p, id in playerIds do
 		players[p] = {
 			id = id,
 			candidate = placeholder,
-			color = colors[p],
+			color = "", -- dealt below
+			colorPass = colorPass ~= nil and colorPass[id] ~= nil,
 			platform = {},
 			profile = Candidates.profile(config, placeholder),
 			cash = 0,
@@ -187,7 +267,7 @@ function Match.new(
 		}
 	end
 
-	return {
+	local match: MatchState = {
 		seed = seed,
 		rng = rng,
 		phase = "Select",
@@ -199,6 +279,8 @@ function Match.new(
 		states = states,
 		claims = {},
 		claimRounds = 0,
+		colorClaims = {},
+		colorRounds = 0,
 		issueMap = issueMap,
 		platformMults = IssueMap.platformMults(config, issueMap),
 		draftLog = {},
@@ -208,6 +290,22 @@ function Match.new(
 		eventLog = {},
 		election = nil,
 	}
+	-- Red and blue by default; a Color Pass owner's favorite is claimed as
+	-- Select opens, like a PrePick (D-055, D-061). Distinct, deterministic, no
+	-- seat favored (D-001).
+	local favorites: { [number]: string } = {}
+	if colorPass ~= nil then
+		for p, id in playerIds do
+			local pass = colorPass[id]
+			local favorite = if pass ~= nil then pass.favorite else nil
+			if type(favorite) == "string" and table.find(Candidates.colors, favorite) ~= nil then
+				favorites[p] = favorite
+			end
+		end
+	end
+	settleColorClaims(match, favorites)
+	dealColors(match)
+	return match
 end
 
 -- Phases that wait for player input.
@@ -311,7 +409,8 @@ local function validateSelection(
 	if type(input) ~= "table" then
 		return false, "BadShape", nil
 	end
-	-- Any other field (an old client's `color`) is ignored: colors are dealt at Match.new (D-047, D-055).
+	-- Any other field (an old client's `color`) is ignored: colors are claimed
+	-- with Match.claimColor or dealt (D-047, D-055, D-061).
 	local candidate, platform = input.candidate, input.platform
 	if type(candidate) ~= "string" or not Candidates.exists(candidate) then
 		return false, "UnknownCandidate", nil
@@ -411,7 +510,9 @@ local function collect(config: Config, match: MatchState, inputs: { [number]: an
 	return out
 end
 
--- Reveals every player's candidate and platform (colors were dealt at Match.new).
+-- Reveals every player's candidate and platform. Colors stand as claimed or
+-- dealt during Select (D-061): a player without a claim keeps the color dealt
+-- from the default order, which already skips every claimed color.
 -- Candidates are unique (D-048): claims stand; every other selection is settled
 -- in a seeded order (no seat is favored, D-001), and one whose candidate is
 -- already taken gets a free candidate drawn from the seed.
@@ -440,6 +541,7 @@ local function resolveSelect(config: Config, match: MatchState, selections: { Se
 		player.cash = player.profile.startCash
 		table.insert(events, { kind = "Selected", player = p })
 	end
+	dealColors(match)
 	return events
 end
 

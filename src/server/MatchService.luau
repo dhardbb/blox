@@ -60,15 +60,20 @@ local function sendLobby(id: string)
 	Replication.send(id, { kind = "Lobby", lobby = status })
 end
 
--- The color a player starts a match with when they chose one (D-055): only a
--- Color Pass owner's saved pick counts, as the server knows it now (no waiting).
--- Anyone else, or an owner whose check failed, is dealt red or blue by Match.new.
-local function colorPick(id: string): string?
-	if not PassService.ownsColorPass(id) then
-		return nil
-	end
-	local profile = DataService.profile(id)
-	return if profile then profile.color else nil
+-- A human seat for a match. Color Pass ownership is the server's own check as
+-- it knows it now (no waiting, D-055): an owner may claim colors during Select
+-- and their saved color is claimed for them as Select opens (D-061). Anyone
+-- else, or an owner whose check failed, is dealt red or blue.
+local function humanSpec(id: string): Session.SeatSpec
+	local owns = PassService.ownsColorPass(id)
+	local profile = if owns then DataService.profile(id) else nil
+	return {
+		id = id,
+		kind = "Human",
+		prePick = prePicks[id],
+		colorPass = owns,
+		color = if profile then profile.color else nil,
+	}
 end
 
 -- SetColor: saves a chosen color (or auto, when `color` is nil) in the profile.
@@ -249,7 +254,7 @@ local function startMatch(outcome: Lobby.Outcome)
 	local seed = random:NextInteger(1, 2 ^ 31 - 1)
 	local specs: { Session.SeatSpec } = {}
 	for _, id in outcome.players do
-		table.insert(specs, { id = id, kind = "Human", prePick = prePicks[id], color = colorPick(id) })
+		table.insert(specs, humanSpec(id))
 	end
 	if outcome.kind == "Practice" then
 		local candidate = Candidates.ids[random:NextInteger(1, #Candidates.ids)]
@@ -344,6 +349,8 @@ local function matchRequest(player: Player, request: Remotes.Request)
 			accepted, reason = Session.submit(session, seat, request.step, request.input, now())
 		elseif request.op == "Claim" then
 			accepted, reason = Session.claim(session, seat, request.step, request.input, now())
+		elseif request.op == "ClaimColor" then
+			accepted, reason = Session.claimColor(session, seat, request.step, request.color, now())
 		elseif request.op == "Bank" then
 			accepted, reason = Session.bank(session, seat, request.step, now())
 		else
@@ -393,7 +400,7 @@ end
 -- Handles one schema-checked request.
 function MatchService.handle(player: Player, request: Remotes.Request)
 	local op = request.op
-	if op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
+	if op == "Submit" or op == "Claim" or op == "ClaimColor" or op == "Bank" or op == "Skip" then
 		matchRequest(player, request)
 	elseif op == "Forfeit" then
 		forfeit(player, request)

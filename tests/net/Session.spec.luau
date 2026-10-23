@@ -36,6 +36,15 @@ local function auto(session: Session.Session, p: number): any
 	return Bot.act(C, view, Rng.new(p), "okafor")
 end
 
+-- Each seat's color.
+local function colorsOfSession(session: Session.Session): { string }
+	local out = {}
+	for p, player in session.match.players do
+		out[p] = player.color
+	end
+	return out
+end
+
 -- Locks every human seat with a bot-made input, at time `now`.
 local function lockAll(session: Session.Session, now: number)
 	for p, seat in session.seats do
@@ -299,6 +308,121 @@ describe("Session: unique candidates (D-048)", function()
 		expect(session.match.claims.hale):toBe(2)
 		expect(select(2, Session.claim(session, 1, session.step, "hale", 1))):toBe("CandidateTaken")
 		expect((Session.claim(session, 1, session.step, "okafor", 1))):toBe(true)
+	end)
+end)
+
+describe("Session: color claims (D-061)", function()
+	local function owners(seed: number, one: string?, two: string?): Session.Session
+		return Session.new(C, "m", seed, {
+			{ id = "1", kind = "Human", colorPass = true, color = one },
+			{ id = "2", kind = "Human", colorPass = true, color = two },
+		}, 0)
+	end
+
+	local function notices(session: Session.Session, p: number): { string }
+		local out = {}
+		for _, message in Session.drain(session) do
+			if message.seat == p and message.kind == "Notice" then
+				table.insert(out, message.notice :: string)
+			end
+		end
+		return out
+	end
+
+	it("claims a saved favorite as Select opens; only owners may pick, and they see it", function()
+		local session = Session.new(C, "m", 3, {
+			{ id = "1", kind = "Human", colorPass = true, color = "Teal" },
+			{ id = "2", kind = "Human", color = "Violet" }, -- not an owner: the favorite is ignored
+		}, 0)
+		expect(session.match.players[1].color):toBe("Teal")
+		local other = session.match.players[2].color
+		expect(other == "Crimson" or other == "Cobalt"):toBe(true)
+		expect(Session.payload(session, 1).view.canPickColor):toBe(true)
+		expect(Session.payload(session, 2).view.canPickColor):toBe(false)
+		expect(Session.payload(session, 2).view.colorClaims.Teal):toBe(1)
+		local ok, reason = Session.claimColor(session, 2, session.step, "Amber", 1)
+		expect(ok):toBe(false)
+		expect(reason):toBe("NoColorPass")
+	end)
+
+	it("is first come, first served; a taken color is turned down at once", function()
+		local session = owners(5)
+		expect((Session.claimColor(session, 1, session.step, "Emerald", 1))):toBe(true)
+		Session.update(session, 1)
+		expect(session.match.colorClaims.Emerald):toBe(1)
+		local seen = false
+		for _, message in Session.drain(session) do
+			if message.seat == 2 and message.state then
+				seen = message.state.view.colorClaims.Emerald == 1
+					and message.state.view.players[1].color == "Emerald"
+			end
+		end
+		expect(seen):toBe(true)
+		local ok, reason = Session.claimColor(session, 2, session.step, "Emerald", 2)
+		expect(ok):toBe(false)
+		expect(reason):toBe("ColorTaken")
+		expect((Session.claimColor(session, 2, session.step, "Amber", 2))):toBe(true)
+		Session.update(session, 2)
+		expect(session.match.players[2].color):toBe("Amber")
+		-- A change of mind releases the old color, even after locking in.
+		expect((Session.submit(session, 1, session.step, SELECTION, 3))):toBe(true)
+		expect((Session.claimColor(session, 1, session.step, "Violet", 3))):toBe(true)
+		Session.update(session, 3)
+		expect(session.match.colorClaims):toEqual({ Violet = 1, Amber = 2 })
+		-- Stale steps and the end of Select turn claims down.
+		expect(select(2, Session.claimColor(session, 2, session.step - 1, "Teal", 4))):toBe("StaleStep")
+		expect(select(2, Session.claimColor(session, 2, session.step, "Gold", 4))):toBe("UnknownColor")
+		expect((Session.submit(session, 2, session.step, OTHER, 4))):toBe(true)
+		expect(session.match.phase):toBe("MapReveal")
+		expect(colorsOfSession(session)):toEqual({ "Violet", "Amber" })
+		expect(select(2, Session.claimColor(session, 2, session.step, "Teal", 5))):toBe("NotInput")
+	end)
+
+	it("claims of one color in the same server step go to a seeded coin flip; the loser is told", function()
+		local wins = { 0, 0 }
+		for seed = 1, 200 do
+			local session = owners(seed)
+			Session.drain(session)
+			expect((Session.claimColor(session, 2, session.step, "Teal", 1))):toBe(true)
+			expect((Session.claimColor(session, 1, session.step, "Teal", 1))):toBe(true)
+			expect(Session.nextWake(session) <= 1):toBe(true)
+			Session.update(session, 1)
+			local winner = session.match.colorClaims.Teal
+			wins[winner] += 1
+			local loser = 3 - winner
+			expect(notices(session, loser)):toEqual({ Session.COLOR_TAKEN })
+			-- The loser picks another; nobody is stuck with a default.
+			expect((Session.claimColor(session, loser, session.step, "Violet", 2))):toBe(true)
+			Session.update(session, 2)
+			expect(session.match.players[loser].color):toBe("Violet")
+		end
+		expect(wins[1] > 70 and wins[2] > 70):toBe(true)
+	end)
+
+	it("two owners with the same favorite: one gets it, the other is told to pick another", function()
+		local wins = { 0, 0 }
+		for seed = 1, 200 do
+			local session = owners(seed, "Amber", "Amber")
+			local winner = session.match.colorClaims.Amber
+			wins[winner] += 1
+			local loser = 3 - winner
+			expect(notices(session, loser)):toEqual({ Session.COLOR_TAKEN })
+			expect(Session.payload(session, loser).view.canPickColor):toBe(true)
+			expect((Session.claimColor(session, loser, session.step, "Emerald", 1))):toBe(true)
+			Session.update(session, 1)
+			expect(session.match.players[loser].color):toBe("Emerald")
+		end
+		expect(wins[1] > 70 and wins[2] > 70):toBe(true)
+	end)
+
+	it("an owner who never picks is dealt red or blue when Select ends, never a taken color", function()
+		for seed = 1, 50 do
+			local session = owners(seed)
+			expect((Session.claimColor(session, 1, session.step, "Crimson", 1))):toBe(true)
+			Session.update(session, C.TIMER_SELECT)
+			expect(session.match.phase):toBe("MapReveal")
+			expect(colorsOfSession(session)):toEqual({ "Crimson", "Cobalt" })
+		end
 	end)
 end)
 

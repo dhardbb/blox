@@ -22,6 +22,7 @@ local OPS: { [string]: boolean } = {
 	PrePick = true,
 	SetColor = true,
 	Claim = true,
+	ClaimColor = true,
 	Submit = true,
 	Bank = true,
 	Skip = true,
@@ -119,7 +120,7 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			return false, "BadShape", nil
 		end
 		request.matchId = raw.matchId
-	elseif op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
+	elseif op == "Submit" or op == "Claim" or op == "ClaimColor" or op == "Bank" or op == "Skip" then
 		local matchId, step = raw.matchId, raw.step
 		if type(matchId) ~= "string" or type(step) ~= "number" or step ~= math.floor(step) then
 			return false, "BadShape", nil
@@ -136,6 +137,12 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 				return false, "BadShape", nil
 			end
 			request.input = raw.input
+		elseif op == "ClaimColor" then
+			-- Which names are colors, and who may claim one, is the match's check (D-061).
+			if type(raw.color) ~= "string" then
+				return false, "BadShape", nil
+			end
+			request.color = raw.color
 		end
 	end
 	return true, nil, request

@@ -89,7 +89,8 @@ export type PollFlip = {
 export type PlayerState = {
 	id: string, -- opaque id from the server (e.g. a UserId as a string)
 	candidate: string,
-	color: string, -- dealt when the match is made: red or blue by default, a Color Pass pick (D-055); distinct per player
+	color: string, -- claimed in Select by a Color Pass owner, else dealt: red or blue first (D-055, D-061); distinct per player
+	colorPass: boolean, -- owns the Color Pass: may claim colors during Select (D-061)
 	platform: { Types.Issue },
 	profile: Candidates.Profile,
 	cash: number, -- exact cash (opponents see only a bracket)
@@ -165,6 +166,8 @@ export type MatchState = {
 	states: { StateSim }, -- in StateData.list order
 	claims: { [string]: number }, -- Select: candidate id -> the player who claimed it (public; unique candidates, D-048)
 	claimRounds: number, -- claim batches resolved so far (labels each batch's seeded coin flip)
+	colorClaims: { [string]: number }, -- Select: color -> the Color Pass owner who claimed it (public, D-061)
+	colorRounds: number, -- color claim batches resolved so far (labels each batch's seeded coin flip)
 	issueMap: IssueMap.IssueMap, -- each state's two top issues this match, drawn from the seed (public, D-047)
 	platformMults: { [string]: number }, -- rally/ad multiplier on a platform issue where it is a top issue, by issue (public, D-047)
 	draftLog: { DraftPick },

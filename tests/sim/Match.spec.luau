@@ -134,11 +134,12 @@ describe("Match", function()
 	end)
 end)
 
-describe("dealt colors: red and blue by default, a Color Pass pick (D-055)", function()
+describe("colors: red and blue by default, Color Pass owners claim theirs (D-055, D-061)", function()
 	local View = require("@sim/View")
 
-	local function colorsOf(seed: number, ids: { string }, picks: { [string]: string }?): { string }
-		local match = Match.new(C, seed, ids, picks)
+	type Pass = { [string]: Match.ColorPass }
+
+	local function colorsOf(match: State.MatchState): { string }
 		local out = {}
 		for p, player in match.players do
 			out[p] = player.color
@@ -146,31 +147,42 @@ describe("dealt colors: red and blue by default, a Color Pass pick (D-055)", fun
 		return out
 	end
 
-	it("deals one Crimson and one Cobalt to two players who did not pick, every match", function()
+	local function newMatch(seed: number, ids: { string }?, pass: Pass?): State.MatchState
+		return Match.new(C, seed, ids or { "a", "b" }, pass)
+	end
+
+	local function distinct(match: State.MatchState)
+		local seen: { [string]: boolean } = {}
+		for _, player in match.players do
+			expect(table.find(Candidates.colors, player.color) ~= nil):toBe(true)
+			expect(seen[player.color]):toBe(nil)
+			seen[player.color] = true
+		end
+	end
+
+	it("deals one Crimson and one Cobalt to two players without the pass, every match", function()
 		for seed = 1, 200 do
-			local one, two = table.unpack(colorsOf(seed, { "a", "b" }))
+			local one, two = table.unpack(colorsOf(newMatch(seed)))
 			local pair = { [one] = true, [two] = true }
 			expect(pair.Crimson == true and pair.Cobalt == true):toBe(true)
 		end
 	end)
 
-	it("shows the color from Select on, and the same seed and picks deal the same colors", function()
+	it("shows colors from Select on, and the same seed and passes give the same colors", function()
 		for seed = 1, 50 do
-			local match = Match.new(C, seed, { "a", "b" })
+			local match = newMatch(seed)
 			local one = match.players[1].color
 			expect(View.build(C, match, 2).players[1].color):toBe(one)
-			expect(Match.new(C, seed, { "x", "y" }).players[1].color):toBe(one)
-			local picks = { a = "Emerald", b = "Emerald" }
-			expect(table.concat(colorsOf(seed, { "a", "b" }, picks), ",")):toBe(
-				table.concat(colorsOf(seed, { "a", "b" }, table.clone(picks)), ",")
-			)
+			expect(newMatch(seed, { "x", "y" }).players[1].color):toBe(one)
+			local pass: Pass = { a = { favorite = "Emerald" }, b = { favorite = "Emerald" } }
+			expect(newMatch(seed, nil, pass)):toEqual(newMatch(seed, nil, table.clone(pass)))
 		end
 	end)
 
 	it("favors no seat: each seat gets Crimson about half the time (D-001)", function()
 		local first = 0
 		for seed = 1, 1000 do
-			if colorsOf(seed, { "a", "b" })[1] == "Crimson" then
+			if newMatch(seed).players[1].color == "Crimson" then
 				first += 1
 			end
 		end
@@ -178,61 +190,185 @@ describe("dealt colors: red and blue by default, a Color Pass pick (D-055)", fun
 		expect(first > 440 and first < 560):toBe(true)
 	end)
 
-	it("gives a picker their pick, and the other player red or blue", function()
+	it("claims an owner's favorite as Select opens; the other player gets red or blue", function()
 		for seed = 1, 100 do
-			local colors = colorsOf(seed, { "a", "b" }, { b = "Crimson" })
-			expect(colors[2]):toBe("Crimson")
-			expect(colors[1]):toBe("Cobalt")
-			colors = colorsOf(seed, { "a", "b" }, { a = "Cobalt" })
-			expect(colors[1]):toBe("Cobalt")
-			expect(colors[2]):toBe("Crimson")
-			colors = colorsOf(seed, { "a", "b" }, { a = "Emerald" })
-			expect(colors[1]):toBe("Emerald")
-			expect(colors[2] == "Crimson" or colors[2] == "Cobalt"):toBe(true)
-		end
-	end)
-
-	it("ignores an unknown color and a pick for someone who is not playing", function()
-		for seed = 1, 50 do
-			local plain = table.concat(colorsOf(seed, { "a", "b" }), ",")
-			expect(table.concat(colorsOf(seed, { "a", "b" }, { a = "Gold", b = "red", z = "Teal" }), ",")):toBe(
-				plain
-			)
-		end
-	end)
-
-	it("settles two players who picked the same color with a fair, seeded coin flip", function()
-		local wins = 0
-		for seed = 1, 1000 do
-			local colors = colorsOf(seed, { "a", "b" }, { a = "Violet", b = "Violet" })
-			expect(colors[1] ~= colors[2]):toBe(true)
-			expect(colors[1] == "Violet" or colors[2] == "Violet"):toBe(true)
-			-- The loser is dealt like a player who did not pick: red or blue.
-			local other = if colors[1] == "Violet" then colors[2] else colors[1]
+			local match = newMatch(seed, nil, { b = { favorite = "Crimson" } })
+			expect(colorsOf(match)):toEqual({ "Cobalt", "Crimson" })
+			expect(match.colorClaims):toEqual({ Crimson = 2 })
+			match = newMatch(seed, nil, { a = { favorite = "Cobalt" } })
+			expect(colorsOf(match)):toEqual({ "Cobalt", "Crimson" })
+			match = newMatch(seed, nil, { a = { favorite = "Emerald" } })
+			expect(match.players[1].color):toBe("Emerald")
+			local other = match.players[2].color
 			expect(other == "Crimson" or other == "Cobalt"):toBe(true)
-			if colors[1] == "Violet" then
-				wins += 1
-			end
+			-- An owner without a favorite starts with a dealt color and no claim.
+			match = newMatch(seed, nil, { a = {} })
+			expect(match.colorClaims):toEqual({})
+			expect(colorsOf(match)):toEqual(colorsOf(newMatch(seed)))
 		end
-		expect(wins > 440 and wins < 560):toBe(true)
+	end)
+
+	it("ignores an unknown favorite and a pass for someone who is not playing", function()
+		for seed = 1, 50 do
+			local match = newMatch(
+				seed,
+				nil,
+				{ a = { favorite = "Gold" }, b = { favorite = "red" }, z = {
+					favorite = "Teal",
+				} }
+			)
+			expect(colorsOf(match)):toEqual(colorsOf(newMatch(seed)))
+			expect(match.colorClaims):toEqual({})
+		end
+	end)
+
+	it(
+		"settles two owners with the same favorite by a fair coin flip; the loser keeps the pass and picks another",
+		function()
+			local wins = 0
+			for seed = 1, 1000 do
+				local match =
+					newMatch(seed, nil, { a = { favorite = "Violet" }, b = { favorite = "Violet" } })
+				distinct(match)
+				local winner = match.colorClaims.Violet
+				expect(winner == 1 or winner == 2):toBe(true)
+				local loser = 3 - winner
+				expect(match.players[winner].color):toBe("Violet")
+				-- Not a claim: a provisional red or blue until they pick (D-061).
+				expect(Match.colorClaimOf(match, loser)):toBe(nil)
+				local dealt = match.players[loser].color
+				expect(dealt == "Crimson" or dealt == "Cobalt"):toBe(true)
+				expect(View.build(C, match, loser).canPickColor):toBe(true)
+				if seed <= 50 then
+					local after, outcomes = Match.claimColor(C, match, { [loser] = "Teal" })
+					expect(outcomes[loser]):toBe(nil)
+					expect(after.players[loser].color):toBe("Teal")
+					expect(after.players[winner].color):toBe("Violet")
+				end
+				if winner == 1 then
+					wins += 1
+				end
+			end
+			expect(wins > 440 and wins < 560):toBe(true)
+		end
+	)
+
+	it("is first come, first served: a claimed color is taken, any free one can be claimed", function()
+		local match = newMatch(4, nil, { a = {}, b = {} })
+		local claimed, outcomes = Match.claimColor(C, match, { [1] = "Teal" })
+		expect(outcomes[1]):toBe(nil)
+		expect(claimed.players[1].color):toBe("Teal")
+		expect(claimed.colorClaims.Teal):toBe(1)
+		expect(match.colorClaims.Teal):toBe(nil) -- pure: the argument is untouched
+		-- Everyone sees it claimed at once.
+		expect(View.build(C, claimed, 2).colorClaims.Teal):toBe(1)
+		local ok, reason = Match.canClaimColor(claimed, 2, "Teal")
+		expect(ok):toBe(false)
+		expect(reason):toBe("ColorTaken")
+		local again, lost = Match.claimColor(C, claimed, { [2] = "Teal" })
+		expect(lost[2]):toBe("ColorTaken")
+		expect(again.colorClaims.Teal):toBe(1)
+		expect(again.players[2].color == "Crimson" or again.players[2].color == "Cobalt"):toBe(true)
+		-- Seat 2 takes another free color; re-claiming your own is fine.
+		local both, fine = Match.claimColor(C, again, { [1] = "Teal", [2] = "Amber" })
+		expect(fine):toEqual({})
+		expect(colorsOf(both)):toEqual({ "Teal", "Amber" })
+	end)
+
+	it("settles claims of the same color in one step by a fair, seeded coin flip", function()
+		local wins = { 0, 0 }
+		for seed = 1, 1000 do
+			local match = newMatch(seed, nil, { a = {}, b = {} })
+			local after, outcomes = Match.claimColor(C, match, { "Amber", "Amber" })
+			local winner = after.colorClaims.Amber
+			wins[winner] += 1
+			local loser = 3 - winner
+			expect(outcomes[loser]):toBe("ColorTaken")
+			expect(outcomes[winner]):toBe(nil)
+			distinct(after)
+			-- The same seed and claims settle the same way.
+			expect((Match.claimColor(C, match, { "Amber", "Amber" }))):toEqual(after)
+			-- The loser can claim another color straight away.
+			local next = Match.claimColor(C, after, { [loser] = "Crimson" })
+			expect(next.players[loser].color):toBe("Crimson")
+		end
+		expect(wins[1] > 440 and wins[1] < 560):toBe(true)
+	end)
+
+	it("turns down a player without the pass, a bad color, and claims after Select", function()
+		local match = newMatch(6, nil, { a = {} })
+		expect(View.build(C, match, 1).canPickColor):toBe(true)
+		expect(View.build(C, match, 2).canPickColor):toBe(false)
+		local after, outcomes = Match.claimColor(C, match, { [2] = "Teal" })
+		expect(outcomes[2]):toBe("NoColorPass")
+		expect(after.colorClaims):toEqual({})
+		expect(colorsOf(after)):toEqual(colorsOf(match))
+		expect(select(2, Match.canClaimColor(match, 1, "Gold"))):toBe("UnknownColor")
+		expect(select(2, Match.canClaimColor(match, 1, 5))):toBe("UnknownColor")
+		expect(select(2, Match.canClaimColor(match, 3, "Teal"))):toBe("UnknownPlayer")
+		local selected = Match.advance(C, match, {})
+		expect(select(2, Match.canClaimColor(selected, 1, "Teal"))):toBe("WrongPhase")
+		expect(View.build(C, selected, 1).canPickColor):toBe(false)
+	end)
+
+	it("a new claim releases the old color", function()
+		local match = newMatch(8, nil, { a = {}, b = {} })
+		local first = Match.claimColor(C, match, { [1] = "Teal" })
+		local changed = Match.claimColor(C, first, { [1] = "Violet" })
+		expect(changed.colorClaims):toEqual({ Violet = 1 })
+		expect(changed.players[1].color):toBe("Violet")
+		local taken = Match.claimColor(C, changed, { [2] = "Teal" })
+		expect(taken.players[2].color):toBe("Teal")
+		expect(taken.colorClaims):toEqual({ Violet = 1, Teal = 2 })
+	end)
+
+	it("claiming the color dealt to someone without a claim deals them the next default", function()
+		for seed = 1, 100 do
+			local match = newMatch(seed, nil, { a = {} })
+			local dealt = match.players[2].color
+			local after = Match.claimColor(C, match, { [1] = dealt })
+			expect(after.players[1].color):toBe(dealt)
+			local other = after.players[2].color
+			expect(other ~= dealt and (other == "Crimson" or other == "Cobalt")):toBe(true)
+		end
+	end)
+
+	it("keeps claimed colors at the end of Select and deals the rest, skipping taken colors", function()
+		for seed = 1, 100 do
+			local match = newMatch(seed, nil, { a = {} })
+			match = Match.claimColor(C, match, { [1] = "Cobalt" })
+			local done = Match.advance(C, match, {})
+			expect(done.phase):toBe("MapReveal")
+			expect(colorsOf(done)):toEqual({ "Cobalt", "Crimson" })
+			match = Match.claimColor(C, newMatch(seed, nil, { a = {} }), { [1] = "Teal" })
+			done = Match.advance(C, match, {})
+			expect(done.players[1].color):toBe("Teal")
+			expect(done.players[2].color == "Crimson" or done.players[2].color == "Cobalt"):toBe(true)
+		end
 	end)
 
 	it("keeps colors distinct for more than two players", function()
 		local ids = { "a", "b", "c", "d", "e", "f" }
 		for seed = 1, 100 do
-			for _, picks in { {}, { a = "Crimson", c = "Crimson", f = "Teal" }, { b = "Amber", d = "Amber" } } do
-				local colors = colorsOf(seed, ids, picks :: any)
-				local seen: { [string]: boolean } = {}
-				for _, color in colors do
-					expect(table.find(Candidates.colors, color) ~= nil):toBe(true)
-					expect(seen[color]):toBe(nil)
-					seen[color] = true
-				end
+			local all: Pass = {}
+			for _, id in ids do
+				all[id] = {}
 			end
-			-- Three non-pickers: red and blue go to two of them, never always the same seats.
-			local three = colorsOf(seed, { "a", "b", "c" })
+			for _, pass in
+				{
+					{} :: Pass,
+					{ a = { favorite = "Crimson" }, c = { favorite = "Crimson" }, f = { favorite = "Teal" } } :: Pass,
+					{ b = { favorite = "Amber" }, d = { favorite = "Amber" } } :: Pass,
+				}
+			do
+				local match = newMatch(seed, ids, pass)
+				distinct(match)
+				match = Match.claimColor(C, newMatch(seed, ids, all), { "Teal", "Teal", "Crimson", "Cobalt" })
+				distinct(match)
+			end
+			-- Three without a claim: red and blue go to two of them.
 			local defaults = 0
-			for _, color in three do
+			for _, color in colorsOf(newMatch(seed, { "a", "b", "c" })) do
 				if color == "Crimson" or color == "Cobalt" then
 					defaults += 1
 				end
@@ -241,7 +377,7 @@ describe("dealt colors: red and blue by default, a Color Pass pick (D-055)", fun
 		end
 		local seatThreeRed = 0
 		for seed = 1, 600 do
-			local color = colorsOf(seed, { "a", "b", "c" })[3]
+			local color = newMatch(seed, { "a", "b", "c" }).players[3].color
 			if color == "Crimson" or color == "Cobalt" then
 				seatThreeRed += 1
 			end
@@ -251,17 +387,17 @@ describe("dealt colors: red and blue by default, a Color Pass pick (D-055)", fun
 	end)
 
 	it(
-		"changes no other seeded stream: the issue map and leans are the same with or without picks",
+		"changes no other seeded stream: the issue map and leans are the same with or without claims",
 		function()
 			for seed = 1, 20 do
-				local plain = Match.new(C, seed, { "a", "b" })
-				local picked = Match.new(C, seed, { "a", "b" }, { a = "Teal", b = "Amber" })
-				expect(picked.players[1].color):toBe("Teal")
-				expect(picked.players[2].color):toBe("Amber")
+				local plain = newMatch(seed)
+				local picked = newMatch(seed, nil, { a = { favorite = "Teal" }, b = { favorite = "Amber" } })
+				expect(colorsOf(picked)):toEqual({ "Teal", "Amber" })
 				for i, state in plain.states do
 					expect(picked.states[i].lean):toBe(state.lean)
 					expect(picked.states[i].leanTo):toBe(state.leanTo)
 				end
+				expect(picked.issueMap):toEqual(plain.issueMap)
 				expect(picked.priorityA):toBe(plain.priorityA)
 			end
 		end

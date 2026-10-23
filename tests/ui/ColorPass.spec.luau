@@ -121,6 +121,39 @@ describe("Color Pass: server (D-055)", function()
 		Rig.noErrors(world)
 	end)
 
+	it("lets an owner claim another color in Select, and turns a non-owner down (D-061)", function()
+		local world, peer = live(8, { passId = PASS, owns = true, saved = { color = "Teal" } })
+		expect(practiceColor(world, peer)):toBe("Teal")
+		local payload = Rig.payloadOf(world, peer)
+		expect(payload.view.canPickColor):toBe(true)
+		expect(payload.view.colorClaims.Teal):toBe(payload.you)
+		FakeRoblox.fire(
+			world,
+			peer,
+			{ op = "ClaimColor", matchId = payload.matchId, step = payload.step, color = "Violet" }
+		)
+		FakeRoblox.run(world, 0.5)
+		payload = Rig.payloadOf(world, peer)
+		expect(payload.view.players[payload.you].color):toBe("Violet")
+		expect(payload.view.colorClaims):toEqual({ Violet = payload.you })
+		Rig.noErrors(world)
+
+		local other, stranger = live(9, { passId = PASS, owns = false })
+		practiceColor(other, stranger)
+		local theirs = Rig.payloadOf(other, stranger)
+		expect(theirs.view.canPickColor):toBe(false)
+		FakeRoblox.fire(
+			other,
+			stranger,
+			{ op = "ClaimColor", matchId = theirs.matchId, step = theirs.step, color = "Violet" }
+		)
+		FakeRoblox.run(other, 0.5)
+		expect(rejected(other, stranger, "NoColorPass")):toBe(true)
+		local color = Rig.payloadOf(other, stranger).view.players[theirs.you].color
+		expect(color == "Crimson" or color == "Cobalt"):toBe(true)
+		Rig.noErrors(other)
+	end)
+
 	it("Auto clears the pick", function()
 		local world, peer = live(3, { passId = PASS, owns = true, saved = { color = "Violet" } })
 		expect(lobbyOf(world, peer).color):toBe("Violet")

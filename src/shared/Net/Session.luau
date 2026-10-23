@@ -15,6 +15,7 @@
 -- request with the step they saw, and stale requests are rejected.
 
 local Bot = require("../Sim/Bot")
+local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
 local Match = require("../Sim/Match")
 local Rng = require("../Sim/Rng")
@@ -99,6 +100,7 @@ export type Session = {
 	result: Result?,
 	outbox: { Message },
 	pendingClaims: { [number]: string }, -- Select: candidate claims waiting for the next update (one batch, D-048)
+	pendingColorClaims: { [number]: string }, -- Select: color claims waiting for the next update (one batch, D-061)
 }
 
 -- Match options a private lobby may set (public queue and practice use none).
@@ -110,7 +112,8 @@ export type SeatSpec = {
 	id: string,
 	kind: SeatKind,
 	prePick: any?, -- Human: optional lobby pre-pick
-	color: string?, -- Human: their Color Pass pick (the server sends it only for owners, D-055)
+	colorPass: boolean?, -- Human: owns the Color Pass (the server's check, D-055): may claim colors in Select (D-061)
+	color: string?, -- Human: a Color Pass owner's saved favorite, claimed as Select opens (D-061); ignored without colorPass
 	candidate: string?, -- Bot: candidate to play
 	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
 	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
@@ -131,6 +134,9 @@ Session.Reason = table.freeze({
 
 -- Notice sent to a player whose claim lost a same-step coin flip (D-048).
 Session.CANDIDATE_TAKEN = "CandidateTaken"
+-- Notice sent to a Color Pass owner whose color claim (or saved favorite, as
+-- Select opened) lost a same-step coin flip: pick another color (D-061).
+Session.COLOR_TAKEN = "ColorTaken"
 -- Notice sent to the others when a player leaves the match (D-059).
 Session.OPPONENT_FORFEITED = "OpponentForfeited"
 
@@ -254,20 +260,38 @@ local function advance(session: Session, inputs: { [number]: any })
 	session.events = events
 end
 
--- Settles the claims that arrived since the last update as one batch: a
--- seeded coin flip orders them (Match.claim), and a loser is told (D-048).
+local function tell(session: Session, p: number, notice: string)
+	local seat = session.seats[p]
+	if seat.kind == "Human" and seat.connected then
+		table.insert(session.outbox, { seat = p, kind = "Notice", notice = notice })
+	end
+end
+
+-- Settles the claims that arrived since the last update as one batch each
+-- (candidates, then colors): a seeded coin flip orders them (Match.claim,
+-- Match.claimColor), and a loser is told (D-048, D-061).
 local function settleClaims(session: Session)
-	if next(session.pendingClaims) == nil then
+	if next(session.pendingClaims) == nil and next(session.pendingColorClaims) == nil then
 		return
 	end
-	local requests = session.pendingClaims
-	session.pendingClaims = {}
-	local nextMatch, outcomes = Match.claim(session.config, session.match, requests)
-	session.match = nextMatch
-	for p in outcomes do
-		local seat = session.seats[p]
-		if seat.kind == "Human" and seat.connected then
-			table.insert(session.outbox, { seat = p, kind = "Notice", notice = Session.CANDIDATE_TAKEN })
+	if next(session.pendingClaims) ~= nil then
+		local requests = session.pendingClaims
+		session.pendingClaims = {}
+		local nextMatch, outcomes = Match.claim(session.config, session.match, requests)
+		session.match = nextMatch
+		for p in outcomes do
+			tell(session, p, Session.CANDIDATE_TAKEN)
+		end
+	end
+	if next(session.pendingColorClaims) ~= nil then
+		local requests = session.pendingColorClaims
+		session.pendingColorClaims = {}
+		local nextMatch, outcomes = Match.claimColor(session.config, session.match, requests)
+		session.match = nextMatch
+		for p, reason in outcomes do
+			if reason == "ColorTaken" then
+				tell(session, p, Session.COLOR_TAKEN)
+			end
 		end
 	end
 	broadcast(session)
@@ -454,7 +478,7 @@ function Session.nextWake(session: Session): number
 	if session.stage == "Over" then
 		return math.huge
 	end
-	if next(session.pendingClaims) ~= nil then
+	if next(session.pendingClaims) ~= nil or next(session.pendingColorClaims) ~= nil then
 		return -math.huge -- claims settle on the next tick
 	end
 	local wake = if session.stage == "Input" then math.huge else showEnd(session)
@@ -486,12 +510,12 @@ function Session.new(
 		config = ConfigModule.with(config, { EVENTS_ENABLED = false })
 	end
 	local ids = {}
-	local colorPicks: { [string]: string } = {}
+	local colorPass: { [string]: Match.ColorPass } = {}
 	local seats: { Seat } = {}
 	for p, spec in specs do
 		ids[p] = spec.id
-		if spec.color then
-			colorPicks[spec.id] = spec.color
+		if spec.kind == "Human" and spec.colorPass == true then
+			colorPass[spec.id] = { favorite = spec.color }
 		end
 		-- A practice bot's level (D-057); an explicit style (the harness) wins.
 		local difficulty: Bot.Difficulty? = if spec.kind == "Bot"
@@ -521,7 +545,7 @@ function Session.new(
 	local session: Session = {
 		id = id,
 		config = config,
-		match = Match.new(config, seed, ids, colorPicks),
+		match = Match.new(config, seed, ids, colorPass),
 		seats = seats,
 		step = 0,
 		stage = "Input",
@@ -533,8 +557,19 @@ function Session.new(
 		result = nil,
 		outbox = {},
 		pendingClaims = {},
+		pendingColorClaims = {},
 	}
 	enterPhase(session, now)
+	-- An owner whose saved favorite lost the coin flip as Select opened (both
+	-- owners saved the same color) is told to pick another (D-061).
+	for p, spec in specs do
+		local favorite = if colorPass[spec.id] ~= nil then spec.color else nil
+		if favorite ~= nil and table.find(Candidates.colors, favorite) ~= nil then
+			if Match.colorClaimOf(session.match, p) ~= favorite then
+				tell(session, p, Session.COLOR_TAKEN)
+			end
+		end
+	end
 	return session
 end
 
@@ -627,6 +662,46 @@ function Session.claim(
 		return true, nil
 	end
 	session.pendingClaims[p] = candidate
+	return true, nil
+end
+
+-- A Color Pass owner claims a color during Select (D-061), first come, first
+-- served like a candidate: a color someone else holds is turned down at once
+-- ("ColorTaken"), a player without the pass is turned down ("NoColorPass");
+-- otherwise the claim waits for the next update, where every color claim that
+-- arrived in the same server step is settled together by a seeded coin flip.
+-- A new claim releases the player's old color. Allowed until Select ends, also
+-- after locking in (the color is not part of the selection).
+function Session.claimColor(
+	session: Session,
+	p: number,
+	step: any,
+	color: any,
+	now: number
+): (boolean, string?)
+	local stale = checkStep(session, step)
+	if stale then
+		return false, stale
+	end
+	local seat = session.seats[p]
+	if session.stage ~= "Input" then
+		return false, Session.Reason.NotInput
+	end
+	if session.match.phase ~= "Select" then
+		return false, Session.Reason.NotSelect
+	end
+	if now > seatDeadline(session, seat) + 1 then
+		return false, Session.Reason.StaleStep
+	end
+	local ok, reason = Match.canClaimColor(session.match, p, color)
+	if not ok then
+		return false, reason
+	end
+	if Match.colorClaimOf(session.match, p) == color then
+		session.pendingColorClaims[p] = nil -- back to the color they hold
+		return true, nil
+	end
+	session.pendingColorClaims[p] = color
 	return true, nil
 end
 

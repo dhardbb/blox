@@ -43,7 +43,7 @@ export type StateView = {
 export type PlayerView = {
 	id: string,
 	candidate: string?, -- nil until Select ends
-	color: string, -- dealt at Match.new (D-055), shown from Select on
+	color: string, -- claimed or dealt (D-055, D-061), shown from Select on; may change during Select
 	platform: { Types.Issue }?,
 	home: string?,
 	strongholds: { string },
@@ -89,6 +89,8 @@ export type View = {
 	players: { PlayerView },
 	states: { StateView },
 	claims: { [string]: number }, -- Select: candidate id -> the player who claimed it (D-048)
+	colorClaims: { [string]: number }, -- Select: color -> the player who claimed it (D-061); a color not in here was dealt
+	canPickColor: boolean, -- you own the Color Pass and it is Select: you may claim any color not claimed by someone else (D-061)
 	issueMap: IssueMap.IssueMap, -- each state's two top issues this match (D-047), public from Select on
 	platformMults: { [string]: number }, -- by issue: rally/ad multiplier on a platform issue where it is a top issue (D-047)
 	projectedEV: { number },
@@ -230,6 +232,8 @@ function View.build(config: Config, match: MatchState, you: number): View
 		players = players,
 		states = states,
 		claims = table.clone(match.claims),
+		colorClaims = table.clone(match.colorClaims),
+		canPickColor = match.phase == "Select" and me.colorPass,
 		issueMap = copy(match.issueMap),
 		platformMults = copy(match.platformMults),
 		projectedEV = Polls.projectedEV(match),
