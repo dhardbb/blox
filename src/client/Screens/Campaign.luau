@@ -31,6 +31,8 @@ local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local AutoLock = require(script.Parent.Common.AutoLock)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local Lens = require(script.Parent.Parent.Map.Lens)
+local LensToggle = require(script.Parent.Parent.Map.LensToggle)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local Messages = require(script.Parent.Common.Messages)
 local Model = require(script.Parent.CampaignParts.Model)
@@ -49,10 +51,9 @@ type Payload = Session.StatePayload
 local Screen = {}
 
 local GAP = Kit.space.sm -- px between the big blocks
-local CAPTION_H = 20 -- px, the line above the map
+local CAPTION_H = LensToggle.HEIGHT -- px, the caption and the lens chips above the map
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
 local PORTRAIT_MAP_MAX = 0.42 -- most of the body height the map may take on phones
-local MOMENTUM_ARROW = 0.5 -- momentum lead that earns the leader a ▲ on the map (display only)
 local BACK_SECONDS = 4 -- how long "Opponent: back" shows after a reconnect
 
 -- LayoutOrder of each side-column panel.
@@ -107,11 +108,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local body = Kit.box({ Name = "Body", Parent = parent })
 
-	-- Map area: a caption line, then the map.
+	-- Map area: a caption beside the lens chips, then the map.
 	local mapArea = Kit.box({ Name = "MapArea", Parent = body })
 	local caption = Kit.text("", {
 		Name = "Caption",
-		Size = UDim2.new(1, 0, 0, CAPTION_H),
+		Size = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.sm), 0, CAPTION_H),
 		TextSize = Kit.size.caption,
 		TextScaled = true,
 		TextColor3 = Kit.colors.muted,
@@ -146,6 +147,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Paints the map (defined below with the other map code).
 	local paintMapFor: (view: View, shown: View) -> ()
+
+	local lensToggle = LensToggle.new(mapArea, function()
+		model.render()
+	end)
+	lensToggle.root.AnchorPoint = Vector2.new(1, 0)
+	lensToggle.root.Position = UDim2.fromScale(1, 0)
 
 	-- Sends the plan as drafted (the Lock in button, or the timer about to end).
 	local function lockPlan()
@@ -261,37 +268,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local live = model.payload
 		local event = if live then Model.shownEvent(live) else nil
 		local starred = if event then PlanDraft.eventStates(event) else {}
-		local me, rival = view.you, Model.opponentOf(view)
-		-- Marks carry `arrow` for the momentum leader; a map that does not draw
-		-- arrows yet ignores the field.
+		-- Owner rings and the event's * stay in every lens; the rest is in the
+		-- lens row under each label (Map/Lens, D-044).
 		local marks: { [string]: any } = {}
 		for _, s in view.states do
-			local parts: { string } = {}
-			if s.isHome and s.owner then
-				table.insert(parts, "H")
-			end
-			if s.battleground then
-				table.insert(parts, "B")
-			end
-			local units = s.gotv + Model.plannedUnits(model, s.id)
-			if units > 0 then
-				table.insert(parts, `G{units}`)
-			end
-			if starred[s.id] then
-				table.insert(parts, "*")
-			end
 			local ring = if s.owner then Kit.playerColor(view, s.owner) else nil
-			local lead = (s.momentum[me] or 0) - (s.momentum[rival] or 0)
-			local leader = if lead >= MOMENTUM_ARROW then me elseif lead <= -MOMENTUM_ARROW then rival else nil
-			if ring or #parts > 0 or leader then
-				marks[s.id] = {
-					ring = ring,
-					badge = if #parts > 0 then table.concat(parts, " ") else nil,
-					arrow = if leader then "up" else nil,
-					arrowColor = if leader then Kit.playerColor(view, leader) else nil,
-				}
+			if ring or starred[s.id] then
+				marks[s.id] = { ring = ring, badge = if starred[s.id] then "*" else nil }
 			end
 		end
+		map:setLens(Lens.lines(Lens.current(), { config = config, view = shown, draft = model.draft }))
 		-- A reveal shows what moved; a Choice week previews the stance (D-042).
 		local swing = model.revealSwing
 		local stance: SharedTypes.Choice? = if live then Model.previewStance(model, live) else nil
@@ -431,10 +417,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				`Map: stance {stance} · badge = support for you · red = a loss · FLIP = poll leader changes`
 		elseif Model.planning(p) and Model.isLocked(model, p) then
 			caption.Text = "Locked in · waiting for opponent"
-		elseif Model.planning(p) then
-			caption.Text = "Tap a state to see its polls and plan actions there"
 		else
-			caption.Text = ""
+			caption.Text = Lens.legend(config, Lens.current())
 		end
 	end
 

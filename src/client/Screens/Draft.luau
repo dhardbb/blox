@@ -36,6 +36,8 @@ local Board = require(script.Parent.DraftParts.Board)
 local Collapsible = require(script.Parent.Parent.UI.Collapsible)
 local Header = require(script.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local Lens = require(script.Parent.Parent.Map.Lens)
+local LensToggle = require(script.Parent.Parent.Map.LensToggle)
 local Logic = require(script.Parent.DraftParts.Logic)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local Messages = require(script.Parent.Common.Messages)
@@ -48,7 +50,8 @@ local Screen = {}
 local GAP = Kit.space.sm -- px, between the big blocks
 local MAP_SHARE = 0.65 -- of the width, wide screens
 local MAP_HEIGHT_SHARE = 0.66 -- of the map column, wide screens (the rest is Below)
-local MAP_SHARE_PORTRAIT = 0.34 -- of the height at most, phones
+local MAP_SHARE_PORTRAIT = 0.34 -- of the height at most, phones (before the lens row)
+local LENS_H = LensToggle.HEIGHT + Kit.space.xs -- px, the lens row over the map
 
 -- Panel order (PanelScroll's list).
 local ORDER = {
@@ -104,7 +107,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local mapHolder = Kit.box({ Name = "MapHolder", Parent = mapArea })
 	local map = NodeMap.new()
 	map.root.AnchorPoint = Vector2.new(0.5, 0)
-	map.root.Position = UDim2.fromScale(0.5, 0)
+	map.root.Position = UDim2.new(0.5, 0, 0, LENS_H)
+	map.root.Size = UDim2.new(1, 0, 1, -LENS_H)
 	map.root.Parent = mapHolder
 
 	-- Wide screens: legend and board under the map (scrolls if the screen is short).
@@ -269,7 +273,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		laidOut = shape
 		local top = Kit.HEADER_H + GAP
 		if portrait then
-			local mapH = math.floor(math.min(size.X / MapLayout.ASPECT, MAP_SHARE_PORTRAIT * size.Y))
+			local mapH = LENS_H
+				+ math.floor(math.min(size.X / MapLayout.ASPECT, MAP_SHARE_PORTRAIT * size.Y - LENS_H))
 			mapArea.Position = UDim2.fromOffset(0, top)
 			mapArea.Size = UDim2.new(1, 0, 0, mapH)
 			mapHolder.Size = UDim2.fromScale(1, 1)
@@ -623,6 +628,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 		map:setMarks(marks)
+		map:setLens(Lens.lines(Lens.current(), { config = config, view = view }))
 		map:select(if mode == "Input" then choices.first elseif mine then mine.state else nil)
 
 		-- Legend, board and the list.
@@ -641,6 +647,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		header:setTimer(payload.deadline - ctx.now(), if mode == "Input" then nil else 0)
 	end
 	refresh = render
+
+	-- The lens chips over the map (Map/LensToggle, D-044).
+	LensToggle.bar(mapHolder, config, function()
+		render()
+	end)
 
 	return {
 		update = function(state: Types.State)

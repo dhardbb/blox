@@ -994,7 +994,7 @@ function Explain.help(config: Config, view: View?): { Section }
 		)} on every campaign effect.`,
 		`Momentum: rallies add {num(c.RALLY_MOMENTUM)}, ads {num(c.MEDIA_MOMENTUM)}, attacks none (max {num(
 			c.MOMENTUM_CAP
-		)}). Drift: {Explain.driftRule(c, view)}. The ▲ on the map marks the leader.`,
+		)}). Drift: {Explain.driftRule(c, view)}. The ▲ in the map's Polls view marks the leader.`,
 		`Backlash: each attack ad fills your meter in that state by 1. Once it is at {c.BACKLASH_THRESHOLD}, the next attack there also costs you {points(
 			c.BACKLASH_PENALTY
 		)} support and empties it. It fades {num(c.BACKLASH_DECAY)} a week.`,

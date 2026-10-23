@@ -640,7 +640,9 @@ describe("Draft screen: UI overhaul (WP4)", function()
 		local screen = FakeRoblox.find(peer, "Draft")
 		local width, height = screen.AbsoluteSize.X, screen.AbsoluteSize.Y
 		local mapArea, panel = need(peer, "MapArea"), need(peer, "Panel")
-		local want = math.floor(math.min(width / 1.6, 0.34 * height))
+		-- The lens row (44 px chips + 4 px) sits over the map, inside the same 0.34 share (D-044).
+		local lensRow = 44 + 4
+		local want = lensRow + math.floor(math.min(width / 1.6, 0.34 * height - lensRow))
 		expect(mapArea.AbsoluteSize.Y):toBe(want)
 		expect(panel.AbsolutePosition.Y):toBe(bottom(mapArea) + 8)
 		expect(bottom(panel)):toBe(bottom(screen))
