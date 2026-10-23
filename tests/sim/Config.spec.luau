@@ -88,9 +88,25 @@ describe("Config", function()
 	it("a stance is a real decision: a camp is worth taking, the hedge is mild (D-039)", function()
 		-- A liked state moves about half a rally; a disliked one loses the same, so
 		-- a stance only pays where you need its camp. The hedge is a sure, small gain.
-		expect(C.STANCE_POINTS > 0 and C.STANCE_POINTS <= C.EVENT_CAP):toBe(true)
+		expect(C.STANCE_POINTS > 0 and C.STANCE_POINTS <= C.STANCE_CAP):toBe(true)
 		expect(C.STANCE_HEDGE > 0 and C.STANCE_HEDGE <= C.STANCE_POINTS / 2):toBe(true)
 		expect(C.STANCE_POINTS <= C.RALLY_SUPPORT):toBe(true)
+	end)
+
+	it("a base hears a stance louder and the hedge costs there; the cap bounds the stack (D-043)", function()
+		-- Your base listens harder, but not so hard that one state decides the week.
+		expect(C.STANCE_BASE_MULT > 1 and C.STANCE_BASE_MULT <= 3):toBe(true)
+		-- The hedge's cost is small, and never more than a side's mildest reaction.
+		expect(C.STANCE_HEDGE_COST > 0 and C.STANCE_HEDGE_COST <= C.STANCE_HEDGE):toBe(true)
+		-- The cap leaves room for a base (or a platform) on a liked state, so those
+		-- multipliers matter, and bites the full stack of both.
+		expect(C.STANCE_CAP >= C.STANCE_POINTS * math.max(C.STANCE_BASE_MULT, C.STANCE_PLATFORM_MULT)):toBe(
+			true
+		)
+		expect(C.STANCE_CAP < C.STANCE_POINTS * C.STANCE_BASE_MULT * C.STANCE_PLATFORM_MULT):toBe(true)
+		expect(C.STANCE_CAP >= C.EVENT_CAP):toBe(true)
+		-- Still modest next to a rally (a stance is a nudge, not a campaign).
+		expect(C.STANCE_CAP <= C.RALLY_SUPPORT * 2):toBe(true)
 	end)
 
 	it("events stay small and off the first and last weeks (D-027)", function()
@@ -99,8 +115,8 @@ describe("Config", function()
 		for _, mult in { C.EVENT_SPOTLIGHT_MULT, C.EVENT_REGIONAL_MULT, C.EVENT_WINDFALL_MULT } do
 			expect(mult > 1 and mult <= 1.5):toBe(true)
 		end
-		-- Every stance reaction is inside the cap.
-		expect(C.STANCE_POINTS <= C.EVENT_CAP and C.STANCE_HEDGE <= C.EVENT_CAP):toBe(true)
+		-- Every unmultiplied stance reaction is inside the cap.
+		expect(C.STANCE_POINTS <= C.STANCE_CAP and C.STANCE_HEDGE <= C.STANCE_CAP):toBe(true)
 	end)
 
 	it("ground game beats a poorly matched media buy per dollar (D-021)", function()

@@ -652,7 +652,8 @@ function Bot.stanceValue(
 	estimates: { Estimate },
 	event: ViewModule.EventView,
 	id: Types.Choice,
-	platform: { Types.Issue }
+	platform: { Types.Issue },
+	base: { string }?
 ): number
 	local definition = Events.byId[event.id]
 	if definition == nil then
@@ -660,7 +661,7 @@ function Bot.stanceValue(
 	end
 	local value = 0
 	for i, record in StateData.list do
-		local points = Events.stanceEffect(config, definition, id, i, platform)
+		local points = Events.stanceEffect(config, definition, id, i, platform, base)
 		if points ~= 0 then
 			local e = estimates[i]
 			local margin = if points > 0 then marginFromGain(config, e, points) else points
@@ -685,11 +686,12 @@ function Bot.choose(
 	end
 	local event = view.event
 	local platform: { Types.Issue } = view.players[view.you].platform or {}
+	local base = Events.baseOf(view.players[view.you])
 	local best: Types.Choice, bestValue = Events.CHOICES[1], -math.huge
 	if event ~= nil then
 		for k = 1, #Events.CHOICES do
 			local id: Types.Choice = Events.CHOICES[k]
-			local value = Bot.stanceValue(config, estimates, event, id, platform)
+			local value = Bot.stanceValue(config, estimates, event, id, platform, base)
 			if value > bestValue then
 				best, bestValue = id, value
 			end

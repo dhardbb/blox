@@ -178,7 +178,7 @@ function Format.eventLine(event: State.Event, you: number): string?
 	elseif kind == "InternalPolls" then
 		return `your {plural(amount, "internal poll")} came back`
 	elseif kind == "Choice" then
-		return `{who} took stance {issue} ({Numbers.signed(amount)} points in all over the states it moved)`
+		return `{who} took stance {issue} ({Numbers.signed(amount)} support points summed over the states it moved)`
 	elseif kind == "DebateTopic" then
 		if event.player == nil or event.player == 0 then
 			return `debate: {issue} tied`

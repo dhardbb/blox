@@ -40,6 +40,7 @@ local Candidates = require("@shared/Sim/Candidates")
 local Config = require("@shared/Sim/Config")
 local Issues = require("@shared/Sim/Issues")
 local Drafted = require("@shared/UI/Drafted")
+local Events = require("@shared/Sim/Events")
 local Explain = require("@shared/UI/Explain")
 local Format = require("@shared/DebugUI/Format")
 local Numbers = require("@shared/UI/Numbers")
@@ -553,7 +554,7 @@ local function planGuide(payload: any, turn: Turn): { string }
 				out,
 				`CHOICE WEEK ({view.event.name}, issue {view.event.issue}): add "choice a", "choice b" or "choice c" to your plan (default c, the hedge). The board below has the states you need and one summary per stance (what it gains, the leads it risks, the poll leaders it would flip on today's polls, before their stance). Every state each stance moves, for you:`
 			)
-			for _, line in Explain.choiceLines(C, view.event, me.platform) do
+			for _, line in Explain.choiceLines(C, view.event, me.platform, Events.baseOf(me)) do
 				table.insert(out, `  {line}`)
 			end
 			for _, stance in view.event.stances or {} do

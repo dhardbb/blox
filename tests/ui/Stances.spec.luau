@@ -104,12 +104,13 @@ local function viewOf(world: FakeRoblox.World, peer: FakeRoblox.Peer): any
 	return Rig.payloadOf(world, peer).view
 end
 
--- A stance whose biggest gain state you can be made to trail by 1 (so it flips).
+-- A stance with a gain state worth more than a point, which you can be made to
+-- trail by 1 (so it flips rather than ties).
 local function flippable(view: any): (string, string)
 	for _, id in { "A", "B" } do
 		local preview = Swing.stance(C, view, id :: any)
 		for _, state in preview.gains do
-			if preview.effects[state] >= 1 then
+			if preview.effects[state] > 1 then
 				return id, state
 			end
 		end

@@ -279,10 +279,12 @@ describe("PlanDraft weekly events", function()
 			"Rallies and ads about Jobs are worth ×2 this week"
 		)
 		expect(PlanDraft.choiceNote(C)):toBe(
-			-- Numbers follow D-039 (stances).
+			-- Numbers follow D-039 and D-043 (stances).
 			`States with the issue react by their other top issue (+{C.STANCE_POINTS} or -{C.STANCE_POINTS}); every other state moves {PlanDraft.points(
 				C.STANCE_SPILL
-			)} per top issue a side likes, {PlanDraft.points(-C.STANCE_SPILL)} per one it dislikes. The hedge (C) is +{C.STANCE_HEDGE} in the issue's states only. Running on the issue: ×{C.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
+			)} per top issue a side likes, {PlanDraft.points(-C.STANCE_SPILL)} per one it dislikes. Your home and strongholds count ×{C.STANCE_BASE_MULT}. The hedge (C) moves nothing, but costs {PlanDraft.points(
+				-C.STANCE_HEDGE_COST
+			)} in your home and strongholds with the issue. Running on the issue: ×{C.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
 		)
 	end)
 
@@ -332,7 +334,7 @@ describe("PlanDraft weekly events", function()
 		for _, move in moves do
 			gain += math.max(0, move.points[1])
 		end
-		check(string.find(mineLines[1], `: {Numbers.signed(gain)} in `, 1, true) ~= nil, mineLines[1])
+		check(string.find(mineLines[1], `: {Numbers.signed(gain)} total over `, 1, true) ~= nil, mineLines[1])
 		local theirs = View.build(C, after, 2)
 		local theirLines = Swing.choiceLines(C, theirs, Swing.lastChoice(theirs) :: any)
 		check(string.find(theirLines[1], `You took A · {stanceA}`, 1, true) ~= nil, theirLines[1])

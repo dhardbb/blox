@@ -407,7 +407,9 @@ function PlanDraft.choiceNote(config: Config): string
 		-config.STANCE_POINTS
 	)}); every other state moves {points(config.STANCE_SPILL)} per top issue a side likes, {points(
 		-config.STANCE_SPILL
-	)} per one it dislikes. The hedge (C) is {points(config.STANCE_HEDGE)} in the issue's states only. Running on the issue: ×{config.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
+	)} per one it dislikes. Your home and strongholds count ×{config.STANCE_BASE_MULT}. The hedge (C) moves nothing, but costs {points(
+		-config.STANCE_HEDGE_COST
+	)} in your home and strongholds with the issue. Running on the issue: ×{config.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
 end
 
 PlanDraft.points = points

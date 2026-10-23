@@ -2,6 +2,13 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## 0.7.0: your base hears your stance (D-043)
+
+- Choice events: a side (A or B) now counts double in your own home state and strongholds. The hedge (C) no longer gives anything; it costs 0.5 in each of your home and strongholds where the issue is a top issue. Stance moves are capped at 3 a state (was 2).
+- The rules text, the event card's stance lines and the duel screens explain the new rule, including the platform ×1.5 and the cap (playtest 3 found the old text left them out).
+- Harness: stances now change the winner in 14.6% of matches (was 5.1%); the bot that reads the card beats random stances 66–34 (was 61–39).
+- Test in Studio: in a Choice week, your home and strongholds should show the biggest badges; selecting C should show red badges only on your own base states that have the issue.
+
 ## Unreleased: map tags
 
 - Map badges and FLIP markers now share one solid tag on each circle's top edge, drawn above every state, so they no longer cover neighboring states' names. A flip fills the tag in its color ("+0.5 FLIP").

@@ -51,18 +51,20 @@ local function calm(view: any)
 end
 
 local function effects(view: any, id: string): { [string]: number }
-	return Events.stanceEffects(C, Events.byId[view.event.id], id :: any, view.players[view.you].platform)
+	local me = view.players[view.you]
+	return Events.stanceEffects(C, Events.byId[view.event.id], id :: any, me.platform, Events.baseOf(me))
 end
 
--- A stance with at least one gain and one loss state, and those states.
+-- A stance with at least one gain and one loss state, and those states. Each is
+-- worth more than a point, so a one-point poll gap flips rather than ties.
 local function splitStance(view: any): (string, string, string)
 	for _, id in { "A", "B" } do
 		local gain, loss = nil, nil
 		for _, record in StateData.list do
 			local points = effects(view, id)[record.id]
-			if points and points >= 1 and gain == nil then
+			if points and points > 1 and gain == nil then
 				gain = record.id
-			elseif points and points <= -1 and loss == nil then
+			elseif points and points < -1 and loss == nil then
 				loss = record.id
 			end
 		end
@@ -114,8 +116,15 @@ describe("Swing: stance previews", function()
 			expect(preview.gainTotal):toBeCloseTo(gain, 1e-9)
 			expect(preview.lossTotal):toBeCloseTo(loss, 1e-9)
 		end
-		expect(Swing.stance(C, view, "C").hedge):toBe(true)
-		expect(#Swing.stance(C, view, "C").losses):toBe(0)
+		-- The hedge gains nowhere; it only costs in the taker's base states with the issue.
+		local hedge = Swing.stance(C, view, "C")
+		expect(hedge.hedge):toBe(true)
+		expect(#hedge.gains):toBe(0)
+		local base = Events.baseOf(view.players[view.you])
+		for _, state in hedge.losses do
+			expect(table.find(base, state) ~= nil):toBe(true)
+		end
+		expect(#hedge.losses <= #base):toBe(true)
 	end)
 
 	it("names the gains you need, the leads you risk and the leader flips", function()
@@ -147,8 +156,19 @@ describe("Swing: stance previews", function()
 		calm(view)
 		local text = Swing.stanceSummary(C, view, Swing.stance(C, view, "C"))
 		check(has(text, "(the hedge)"), text)
-		check(has(text, "no state loses"), text)
 		check(has(text, "no poll leader would change"), text)
+		-- Nothing to gain; the only cost is the hedge's, in your own base.
+		local preview = Swing.stance(C, view, "C")
+		expect(#preview.gains):toBe(0)
+		expect(preview.flips):toEqual({})
+		if #preview.losses == 0 then
+			check(has(text, "no state loses"), text)
+		else
+			check(
+				has(text, `{string.format("%+.1f", preview.lossTotal)} total over {#preview.losses} state`),
+				text
+			)
+		end
 	end)
 end)
 
@@ -230,7 +250,9 @@ describe("Swing: resolved Choice weeks and the result", function()
 		entry.choices[you], entry.choices[them] = "A", "B"
 		local lines = Swing.choiceLines(C, view, entry)
 		local stanceA = Events.stance(Events.byId[view.event.id], "A") :: any
-		expect(lines[1]):toBe(`You took A · {stanceA.name}: +2.0 in 2 states, -1.5 in 1 state.`)
+		expect(lines[1]):toBe(
+			`You took A · {stanceA.name}: +2.0 total over 2 states, -1.5 total over 1 state.`
+		)
 		check(has(lines[2], "They took B"), lines[2])
 		expect(lines[3]):toBe(`On the polls you both saw, the stances flipped: OH flipped to you (+17 EV).`)
 		expect(Swing.net(entry.moves, view)):toEqual({ OH = 3, PA = -3, MI = 0.5 })

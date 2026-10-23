@@ -355,18 +355,30 @@ describe("Explain: debates, Choice events, election night", function()
 		has(theirs, `them: {C.DEBATE_PLATFORM_BONUS} platform`)
 	end)
 
-	it("shows every stance of a Choice event and the states it moves (D-039)", function()
+	it("shows every stance of a Choice event and the states it moves (D-039, D-043)", function()
 		local lines = Explain.choiceLines(C, { id = "plant" })
 		expect(#lines):toBe(3)
 		has(lines[1], "A · Stand with the plant: ")
 		has(lines[1], `{Numbers.signed(C.STANCE_POINTS)} in `)
 		has(lines[1], `{Numbers.signed(-C.STANCE_POINTS)} in `)
-		has(lines[3], `C · Call for a study: {Numbers.signed(C.STANCE_HEDGE)} in `)
+		-- With no base the hedge moves nothing; in a base with the issue it costs.
+		has(lines[3], "C · Call for a study: no state reacts")
+		local base = { "GA", "WV" } -- GA has Jobs; West Virginia does not
+		local withBase = Explain.choiceLines(C, { id = "plant" }, {}, base)
+		has(withBase[3], `C · Call for a study: {Numbers.signed(-C.STANCE_HEDGE_COST)} in GA`)
+		expect(string.find(withBase[3], "WV", 1, true)):toBe(nil)
+		-- A base doubles a side there, and the preview is the sim's own arithmetic.
+		local plain = Explain.stanceEffects(C, "plant", "A", {}, nil)
+		local doubled = Explain.stanceEffects(C, "plant", "A", {}, { "GA" })
+		expect(doubled.GA):toBe(plain.GA * C.STANCE_BASE_MULT)
+		has(withBase[1], Numbers.signed(plain.GA * C.STANCE_BASE_MULT))
 		-- Without an event: the general rule.
 		local general = Explain.choiceLines(C, nil)
 		expect(#general):toBe(3)
 		has(general[1], Numbers.signed(C.STANCE_POINTS))
-		has(general[3], Numbers.signed(C.STANCE_HEDGE))
+		has(general[1], `×{C.STANCE_BASE_MULT} in your home and strongholds`)
+		has(general[1], `at most ±{C.STANCE_CAP} a state`)
+		has(general[3], Numbers.signed(-C.STANCE_HEDGE_COST))
 	end)
 
 	it("turns a poll lead into a chance to win the state", function()

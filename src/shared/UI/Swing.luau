@@ -241,8 +241,9 @@ function Swing.stance(config: Config, view: View, id: Types.Choice): Preview
 	local definition = if event then Events.byId[event.id] else nil
 	local stance = if definition then Events.stance(definition, id) else nil
 	local platform = view.players[view.you].platform or {}
+	local base = Events.baseOf(view.players[view.you])
 	local effects: { [string]: number } = if definition
-		then Events.stanceEffects(config, definition, id, platform)
+		then Events.stanceEffects(config, definition, id, platform, base)
 		else {}
 	local preview: Preview = {
 		id = id,
@@ -299,7 +300,7 @@ function Swing.stance(config: Config, view: View, id: Types.Choice): Preview
 	return preview
 end
 
--- "Stance A · Stand with the plant: +6.0 in 9 states (4 you need: OH, PA…) · -3.0 in 5 states (2 you lead: KY by 3, AL by 8) · could flip PA (+19 EV), lose WI (-10 EV)"
+-- "Stance A · Stand with the plant: +6.0 total over 9 states (4 you need: OH, PA…) · -3.0 total over 5 states (2 you lead: KY by 3, AL by 8) · could flip PA (+19 EV), lose WI (-10 EV)"
 function Swing.stanceSummary(_config: Config, view: View, preview: Preview): string
 	local label = `Stance {preview.id} · {preview.name}{if preview.hedge then " (the hedge)" else ""}`
 	local parts: { string } = {}
@@ -309,7 +310,7 @@ function Swing.stanceSummary(_config: Config, view: View, preview: Preview): str
 			else "none you need"
 		table.insert(
 			parts,
-			`{Numbers.signed(preview.gainTotal)} in {plural(#preview.gains, "state")} ({need})`
+			`{Numbers.signed(preview.gainTotal)} total over {plural(#preview.gains, "state")} ({need})`
 		)
 	end
 	if #preview.losses > 0 then
@@ -320,7 +321,7 @@ function Swing.stanceSummary(_config: Config, view: View, preview: Preview): str
 		local at = if #hurt > 0 then `{#hurt} you lead: {list(hurt)}` else "none you lead"
 		table.insert(
 			parts,
-			`{Numbers.signed(preview.lossTotal)} in {plural(#preview.losses, "state")} ({at})`
+			`{Numbers.signed(preview.lossTotal)} total over {plural(#preview.losses, "state")} ({at})`
 		)
 	elseif #preview.gains > 0 then
 		table.insert(parts, "no state loses")
@@ -519,10 +520,10 @@ local function sideText(moves: { SimState.StateMove }, p: number): string
 	end
 	local parts: { string } = {}
 	if up > 0 then
-		table.insert(parts, `{Numbers.signed(gain)} in {plural(up, "state")}`)
+		table.insert(parts, `{Numbers.signed(gain)} total over {plural(up, "state")}`)
 	end
 	if down > 0 then
-		table.insert(parts, `{Numbers.signed(loss)} in {plural(down, "state")}`)
+		table.insert(parts, `{Numbers.signed(loss)} total over {plural(down, "state")}`)
 	end
 	return if #parts > 0 then table.concat(parts, ", ") else "no state moved"
 end

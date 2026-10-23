@@ -132,11 +132,16 @@ local Config = {
 	EVENT_WINDFALL_MULT = 1.2, -- fundraisers where the fundraiser trails in the public poll (PLAN 1.5 -> 1.2, D-027: cheap media turned it into a Venkat edge)
 	-- Choice events are stances on an issue (D-039). Only states where the event's
 	-- issue is a top issue react, by their other top issue: liked +STANCE_POINTS,
-	-- disliked -STANCE_POINTS, otherwise (and for the hedge stance) +STANCE_HEDGE,
-	-- all x STANCE_PLATFORM_MULT for a candidate whose platform carries the issue.
+	-- disliked -STANCE_POINTS, otherwise +STANCE_HEDGE, all x STANCE_PLATFORM_MULT
+	-- for a candidate whose platform carries the issue. A side counts
+	-- STANCE_BASE_MULT in the taker's own home and strongholds; the hedge costs
+	-- STANCE_HEDGE_COST in those of them that have the issue (D-043).
 	STANCE_POINTS = 1.5, -- support points a stance adds (or costs) in a state that likes (dislikes) it
-	STANCE_HEDGE = 0.5, -- support points the hedge stance, or an indifferent state, gives where the issue is a top issue (0.3 while sides did not spill; D-041)
-	STANCE_PLATFORM_MULT = 1.5, -- every reaction in the issue's states is this much stronger when the issue is on your platform (states listen harder; capped at EVENT_CAP)
+	STANCE_HEDGE = 0.5, -- support points a side gives in an indifferent state where the issue is a top issue (D-041)
+	STANCE_HEDGE_COST = 0.5, -- support points the hedge costs in each of your home and strongholds with the issue (was +0.5 everywhere; D-043: the hedge was never wrong)
+	STANCE_BASE_MULT = 2, -- a side's reaction in your own home and strongholds (they listen hardest; D-043: makes each player's right answer their own)
+	STANCE_CAP = 3, -- most a stance moves one state for one player, either way (was EVENT_CAP 2; D-043)
+	STANCE_PLATFORM_MULT = 1.5, -- every reaction in the issue's states is this much stronger when the issue is on your platform (states listen harder; capped at STANCE_CAP)
 	STANCE_SPILL = 0.5, -- a state without the issue still moves this much per top issue of its own that a side likes (+) or dislikes (-); the hedge spills nothing (D-041: the stakes that make the stance a skill)
 
 	-- Timers (D-005)

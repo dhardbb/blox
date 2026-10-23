@@ -191,7 +191,7 @@ describe("Bot", function()
 	end
 
 	it(
-		"takes the stance that pays in the states it needs, and the hedge when it needs both camps (D-039)",
+		"takes the stance that pays in the states it needs; the hedge never beats a side (D-039, D-043)",
 		function()
 			local event = Events.byId.plant -- Jobs: A likes Transit and Farms, B likes Health and Safety
 			local likedByA: { [string]: boolean }, likedByB: { [string]: boolean } = {}, {}
@@ -208,18 +208,77 @@ describe("Bot", function()
 			expect(Bot.plan(C, View.build(C, match, 2), Rng.new(1)).choice):toBe("A")
 			needOnly(match, likedByB)
 			expect(Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice):toBe("B")
-			-- Close everywhere: a side nets about nothing, the hedge is a sure gain.
+			-- Close everywhere: a side gains where it is liked and loses where it is not,
+			-- and a gain buys more margin than the same loss costs, so a side nets
+			-- something. The hedge moves nothing (and costs in your own base), so it is
+			-- never the better answer: it is the safe default, not a winning play.
 			match = stanceWeek("plant")
-			expect(Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice):toBe("C")
-			-- The value the bot computes is the public per-state preview, EV-weighted.
 			local view = View.build(C, match, 1)
 			local estimates = Bot.estimates(C, view)
 			local platform = view.players[1].platform :: { Types.Issue }
-			local valueA = Bot.stanceValue(C, estimates, view.event :: any, "A", platform)
-			local valueC = Bot.stanceValue(C, estimates, view.event :: any, "C", platform)
-			expect(valueC > valueA):toBe(true)
+			local base = Events.baseOf(view.players[1])
+			local function value(id: Types.Choice): number
+				return Bot.stanceValue(C, estimates, view.event :: any, id, platform, base)
+			end
+			expect(value("A") > 0 and value("B") > 0):toBe(true)
+			expect(value("C") <= 0):toBe(true)
+			expect(Bot.plan(C, view, Rng.new(1)).choice ~= "C"):toBe(true)
+			-- With no base the hedge is worth nothing; with every state your base it costs.
+			expect(Bot.stanceValue(C, estimates, view.event :: any, "C", platform, {})):toBe(0)
+			local everyone: { string } = {}
+			for _, record in StateData.list do
+				table.insert(everyone, record.id)
+			end
+			expect(Bot.stanceValue(C, estimates, view.event :: any, "C", platform, everyone) < 0):toBe(true)
 		end
 	)
+
+	it("two seats with different bases take different stances on the same board (D-043)", function()
+		local event = Events.byId.plant
+		local stance = Events.stance(event, "A") :: Events.Stance
+		-- One state A is cheered in and one it is jeered in, same EV, both with Jobs.
+		local cheered: Types.StateRecord? = nil
+		local jeered: Types.StateRecord? = nil
+		for _, one in StateData.list do
+			for _, two in StateData.list do
+				if one.ev == two.ev and table.find(one.issues, "Jobs") and table.find(two.issues, "Jobs") then
+					local a = Events.stanceEffect(C, event, "A", State.indexOf[one.id], {})
+					local b = Events.stanceEffect(C, event, "A", State.indexOf[two.id], {})
+					if a == C.STANCE_POINTS and b == -C.STANCE_POINTS then
+						cheered, jeered = one, two
+					end
+				end
+			end
+			if cheered then
+				break
+			end
+		end
+		expect(stance.id):toBe("A")
+		expect(cheered ~= nil and jeered ~= nil):toBe(true)
+		local c, j = cheered :: Types.StateRecord, jeered :: Types.StateRecord
+		local match = stanceWeek("plant")
+		needOnly(match, { [c.id] = true, [j.id] = true })
+		for _, player in match.players do
+			player.platform = {}
+		end
+		-- Seat 1 holds the state A is cheered in; seat 2 holds the one it is jeered in.
+		match.players[1].home, match.players[1].strongholds = c.id, {}
+		match.players[2].home, match.players[2].strongholds = j.id, {}
+		-- Same polls for both seats: the board is identical, only the bases differ.
+		local one = Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice
+		local two = Bot.plan(C, View.build(C, match, 2), Rng.new(1)).choice
+		expect(one):toBe("A")
+		expect(two):toBe("B")
+		-- And through stanceValue: each seat's own base tips its own answer.
+		local view = View.build(C, match, 1)
+		local estimates = Bot.estimates(C, view)
+		local function value(id: Types.Choice, base: { string }): number
+			return Bot.stanceValue(C, estimates, view.event :: any, id, {}, base)
+		end
+		expect(value("A", { c.id }) > value("B", { c.id })):toBe(true)
+		expect(value("B", { j.id }) > value("A", { j.id })):toBe(true)
+		expect(value("A", {})):toBeCloseTo(value("B", {}), 1e-9)
+	end)
 
 	it("the RandomStance style takes every slot about equally; every style carries a valid stance", function()
 		local match = stanceWeek("river")

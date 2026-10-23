@@ -14,7 +14,7 @@
 --   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
 --   Explain.debateOdds(config, edge) -> (win, tie, lose)
 --   Explain.debateParts / debateLine (a resolved topic, split into prep, platform, stat, roll)
---   Explain.choiceLines(config, event?, platform?) (each stance of a Choice event and the states it moves)
+--   Explain.choiceLines(config, event?, platform?, base?) (each stance of a Choice event and the states it moves)
 --   Explain.leadWinChance(config, pollLead)
 --   Explain.help(config, view?) -> { Section } (the "How it works" screen)
 
@@ -752,7 +752,12 @@ end
 -- One line per stance of a Choice event (D-039), for a candidate with `platform`:
 -- "A · Stand with the plant: +1.5 in GA, IN … · -1.5 in AL, KY … · +0.3 in OH".
 -- Without an event, the general rule.
-function Explain.choiceLines(config: Config, event: { id: string }?, platform: { Types.Issue }?): { string }
+function Explain.choiceLines(
+	config: Config,
+	event: { id: string }?,
+	platform: { Types.Issue }?,
+	base: { string }?
+): { string }
 	local definition = if event then Events.byId[event.id] else nil
 	local out: { string } = {}
 	for k = 1, #Events.CHOICES do
@@ -762,7 +767,7 @@ function Explain.choiceLines(config: Config, event: { id: string }?, platform: {
 			table.insert(
 				out,
 				`{id} · {stance.name}: {stanceText(
-					Explain.stanceEffects(config, definition.id, id, platform or {})
+					Explain.stanceEffects(config, definition.id, id, platform or {}, base)
 				)}`
 			)
 		elseif k < #Events.CHOICES then
@@ -772,31 +777,36 @@ function Explain.choiceLines(config: Config, event: { id: string }?, platform: {
 					-config.STANCE_POINTS
 				)} in those that don't, {signed(config.STANCE_HEDGE)} in the rest of them (by the state's other top issue); other states {signed(
 					config.STANCE_SPILL
-				)} per top issue it likes, {signed(-config.STANCE_SPILL)} per one it dislikes`
+				)} per top issue it likes, {signed(-config.STANCE_SPILL)} per one it dislikes; ×{num(
+					config.STANCE_BASE_MULT
+				)} in your home and strongholds, ×{num(config.STANCE_PLATFORM_MULT)} in the issue's states if it is on your platform, at most ±{num(
+					config.STANCE_CAP
+				)} a state`
 			)
 		else
 			table.insert(
 				out,
-				`{id} (the hedge): {signed(config.STANCE_HEDGE)} in every state where the issue is a top issue`
+				`{id} (the hedge): moves no state, except {signed(-config.STANCE_HEDGE_COST)} in each of your home and strongholds where the issue is a top issue (they want you to pick a side)`
 			)
 		end
 	end
 	return out
 end
 
--- The public per-state preview of a stance for a candidate with `platform`:
--- state id -> support points (D-039).
+-- The public per-state preview of a stance for a candidate with `platform` and
+-- `base` (Events.baseOf): state id -> support points (D-039, D-043).
 function Explain.stanceEffects(
 	config: Config,
 	eventId: string,
 	id: Types.Choice,
-	platform: { Types.Issue }
+	platform: { Types.Issue },
+	base: { string }?
 ): { [string]: number }
 	local definition = Events.byId[eventId]
 	if definition == nil then
 		return {}
 	end
-	return Events.stanceEffects(config, definition, id, platform)
+	return Events.stanceEffects(config, definition, id, platform, base)
 end
 
 -- ---------------------------------------------------------------- election night

@@ -255,7 +255,7 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 		}, 1)
 		expect(lines):toEqual({
 			"you raised $13.5",
-			"P2 took stance A (-0.2 points in all over the states it moved)",
+			"P2 took stance A (-0.2 support points summed over the states it moved)",
 			"P2 rallied in OH on Jobs",
 			"P1 (you) took 1 flight",
 			"new public polls",

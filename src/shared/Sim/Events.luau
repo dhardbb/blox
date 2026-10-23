@@ -19,18 +19,19 @@
 -- Stances (D-039): "A" and "B" are opposed positions, "C" the hedge. A state
 -- with the event's issue as a top issue reacts by its OTHER top issue: if the
 -- stance likes it, +STANCE_POINTS; if it dislikes it, -STANCE_POINTS; otherwise
--- +STANCE_HEDGE. The hedge gives +STANCE_HEDGE in every such state. A state
--- without the issue still hears a side through its own top issues: +STANCE_SPILL
--- per issue the stance likes, -STANCE_SPILL per issue it dislikes (the hedge
--- spills nothing). A candidate whose platform carries the issue is listened to
--- harder: every reaction in the issue's states x STANCE_PLATFORM_MULT. Reactions
--- depend only on fixed state data and the (public) platform, so the same event
--- moves the same states the same way in every match, and a player can learn
--- them. Both players' stances resolve from one snapshot.
+-- +STANCE_HEDGE. A state without the issue still hears a side through its own
+-- top issues: +STANCE_SPILL per issue the stance likes, -STANCE_SPILL per issue
+-- it dislikes. The taker's own home and strongholds (their base) listen hardest:
+-- a side counts x STANCE_BASE_MULT there, and the hedge, which moves no other
+-- state, costs STANCE_HEDGE_COST in each base state with the issue (D-043), so
+-- each player's right answer depends on their own draft. A candidate whose
+-- platform carries the issue is listened to harder: every reaction in the
+-- issue's states x STANCE_PLATFORM_MULT. Reactions depend only on fixed state
+-- data, the public platform and the public draft, so a player can learn them. Both players' stances resolve from one snapshot.
 --
 -- The cap: an event adds at most EVENT_CAP to one player in one state in one week
 -- beyond what the actions would have given without it (support points, or $ for a
--- Windfall). Stance points are clamped to +/- EVENT_CAP per state.
+-- Windfall). Stance points are clamped to +/- STANCE_CAP per state instead.
 
 local ConfigModule = require("./Config")
 local Rng = require("./Rng")
@@ -462,16 +463,28 @@ function Events.grant(config: Config, ledger: Ledger, i: number, p: number, extr
 	return granted
 end
 
+-- A candidate's base for stances: their home and strongholds (state ids, public
+-- once the draft is revealed).
+function Events.baseOf(player: { home: string?, strongholds: { string }? }): { string }
+	local base = if player.strongholds then table.clone(player.strongholds) else {}
+	if player.home and not table.find(base, player.home) then
+		table.insert(base, player.home)
+	end
+	return base
+end
+
 -- Support points stance `id` of a Choice event moves for a candidate with
--- `platform` who takes it, in the state at index i (0 where the state does not
--- react). Public arithmetic on fixed state data and the public platform, clamped
--- to +/- EVENT_CAP: the client previews it, the server applies it.
+-- `platform` and `base` (Events.baseOf) who takes it, in the state at index i (0
+-- where the state does not react). Public arithmetic on fixed state data, the
+-- platform and the draft, clamped to +/- STANCE_CAP: the client previews it, the
+-- server applies it.
 function Events.stanceEffect(
 	config: Config,
 	event: Definition,
 	id: Types.Choice,
 	i: number,
-	platform: { Types.Issue }
+	platform: { Types.Issue },
+	base: { string }?
 ): number
 	local stance = Events.stance(event, id)
 	local issue = event.issue
@@ -479,6 +492,7 @@ function Events.stanceEffect(
 		return 0
 	end
 	local issues = StateData.list[i].issues
+	local inBase = base ~= nil and table.find(base, StateData.list[i].id) ~= nil
 	local points = 0
 	if table.find(issues, issue) == nil then
 		-- Spillover: a state that does not care about the issue still hears the
@@ -492,38 +506,43 @@ function Events.stanceEffect(
 				end
 			end
 		end
+	elseif stance.hedge then
+		-- The hedge moves nobody, and your own base hears it as ducking the issue.
+		points = if inBase then -config.STANCE_HEDGE_COST else 0
 	else
 		points = config.STANCE_HEDGE
-		if not stance.hedge then
-			for _, topIssue in issues do
-				if topIssue ~= issue then
-					if table.find(stance.likes, topIssue) then
-						points = config.STANCE_POINTS
-					elseif table.find(stance.dislikes, topIssue) then
-						points = -config.STANCE_POINTS
-					end
+		for _, topIssue in issues do
+			if topIssue ~= issue then
+				if table.find(stance.likes, topIssue) then
+					points = config.STANCE_POINTS
+				elseif table.find(stance.dislikes, topIssue) then
+					points = -config.STANCE_POINTS
 				end
 			end
 		end
-		-- A candidate who runs on the issue is heard harder where it is a top issue.
-		if table.find(platform, issue) then
-			points *= config.STANCE_PLATFORM_MULT
-		end
 	end
-	return math.clamp(points, -config.EVENT_CAP, config.EVENT_CAP)
+	if inBase and not stance.hedge then
+		points *= config.STANCE_BASE_MULT
+	end
+	-- A candidate who runs on the issue is heard harder where it is a top issue.
+	if table.find(issues, issue) and table.find(platform, issue) then
+		points *= config.STANCE_PLATFORM_MULT
+	end
+	return math.clamp(points, -config.STANCE_CAP, config.STANCE_CAP)
 end
 
--- Every state a stance moves for a candidate with `platform`: state id -> support
--- points (nonzero entries only).
+-- Every state a stance moves for a candidate with `platform` and `base`: state id
+-- -> support points (nonzero entries only).
 function Events.stanceEffects(
 	config: Config,
 	event: Definition,
 	id: Types.Choice,
-	platform: { Types.Issue }
+	platform: { Types.Issue },
+	base: { string }?
 ): { [string]: number }
 	local out: { [string]: number } = {}
 	for i, record in StateData.list do
-		local points = Events.stanceEffect(config, event, id, i, platform)
+		local points = Events.stanceEffect(config, event, id, i, platform, base)
 		if points ~= 0 then
 			out[record.id] = points
 		end

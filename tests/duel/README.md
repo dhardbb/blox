@@ -41,7 +41,7 @@ Header (TURN, REFRESH, player, attempt), the output of your last command file (a
 A Choice week asks for a stance on one issue: add `choice a`, `choice b` or `choice c` to the plan (`c`, the hedge, is the default; `pass` takes it). The screen shows what the game's event card and map show, in words:
 
 - `WHAT TO DO` lists every state each stance moves for you (`A · Side with the staff: +1.5 in GA, IN … · -1.5 in AL …`) and each stance's flavor line.
-- The `BOARD` has the states you need (within 5 points in the public poll, either way: "you trail WI by 2 · you lead OH by 3") and one summary per stance: `Stance A · …: +6.0 in 9 states (4 you need: OH, PA …) · -3.0 in 5 states (2 you lead: KY by 3 …) · could flip PA (+19 EV), lose WI (-10 EV)`. Flips are on today's public polls, from your stance alone (the opponent's is secret).
+- The `BOARD` has the states you need (within 5 points in the public poll, either way: "you trail WI by 2 · you lead OH by 3") and one summary per stance: `Stance A · …: +6.0 total over 9 states (4 you need: OH, PA …) · -3.0 total over 5 states (2 you lead: KY by 3 …) · could flip PA (+19 EV), lose WI (-10 EV)`. Flips are on today's public polls, from your stance alone (the opponent's is secret).
 - The week after, the board says what both stances moved and which poll leaders they flipped; earlier Choice weeks are under `DEBATES AND EVENTS SO FAR`.
 
 After a debate the board names the states each topic swung and every flip (`Your Jobs win swung OH, MI, PA (+1.0 each) - PA flipped to you (+19 EV)`, `Their gaffe on Safety: -0.6 in TX, AZ`); the score breakdown (prep, platform, stat, roll) is under `DEBATES AND EVENTS SO FAR`, and the log has one line per flipped state.

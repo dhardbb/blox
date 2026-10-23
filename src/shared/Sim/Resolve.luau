@@ -306,13 +306,17 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 			for p in match.players do
 				choices[p] = plans[p].choice or Events.defaultChoice()
 			end
+			local bases: { { string } } = {}
+			for p, player in match.players do
+				bases[p] = Events.baseOf(player)
+			end
 			local moves: { State.StateMove } = {}
 			batch = {}
 			for i, s in match.states do
 				local points = table.create(n, 0)
 				local any = false
 				for p, player in match.players do
-					points[p] = Events.stanceEffect(config, event, choices[p], i, player.platform)
+					points[p] = Events.stanceEffect(config, event, choices[p], i, player.platform, bases[p])
 					any = any or points[p] ~= 0
 				end
 				if any then

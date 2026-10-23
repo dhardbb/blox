@@ -10,6 +10,7 @@ local Events = require("@sim/Events")
 local Match = require("@sim/Match")
 local Session = require("@net/Session")
 local State = require("@sim/State")
+local StateData = require("@sim/StateData")
 local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
@@ -199,7 +200,18 @@ describe("View: no leaks", function()
 		for k, stance in stances do
 			expect(stance.id):toBe(Events.CHOICES[k])
 			expect(#stance.name > 0 and #stance.text > 0):toBe(true)
-			expect(next(Events.stanceEffects(C, Events.byId[event.id], stance.id, {})) ~= nil):toBe(true)
+			-- The hedge moves a state only in the taker's base (D-043): public too.
+			local base = Events.baseOf(pending.players[1])
+			if stance.id == "C" then
+				base = {}
+				for _, record in StateData.list do
+					table.insert(base, record.id)
+				end
+				expect(next(Events.stanceEffects(C, Events.byId[event.id], stance.id, {}, {}))):toBe(nil)
+			end
+			expect(next(Events.stanceEffects(C, Events.byId[event.id], stance.id, {}, base)) ~= nil):toBe(
+				true
+			)
 		end
 		local other = State.clone(match)
 		other.eventDeck[2] = "expo"

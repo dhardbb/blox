@@ -7,6 +7,7 @@
 -- here the screens must show exactly what Explain says.
 
 local Config = require("@sim/Config")
+local Events = require("@sim/Events")
 local Explain = require("@ui/Explain")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local PlanDraft = require("@ui/PlanDraft")
@@ -166,7 +167,14 @@ describe("Explained: events and debates", function()
 	it("shows where each stance of the week's Choice event moves support", function()
 		local world, peer = Rig.fixture("ChoiceWeek", nil)
 		local view = Rig.payloadOf(world, peer).view
-		for k, line in Explain.choiceLines(C, view.event, view.players[view.you].platform) do
+		for k, line in
+			Explain.choiceLines(
+				C,
+				view.event,
+				view.players[view.you].platform,
+				Events.baseOf(view.players[view.you])
+			)
+		do
 			local label = need(peer, `ChoicePay{k}`)
 			expect(label.Text):toBe(line)
 			check(Rig.shown(label, "Campaign"), `ChoicePay{k} is hidden`)

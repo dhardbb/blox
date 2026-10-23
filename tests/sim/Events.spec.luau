@@ -399,115 +399,256 @@ local function campEV(issue: string, issues: { Types.Issue }): number
 	return ev
 end
 
+-- The rule written out independently of Events.stanceEffect (D-039, D-041, D-043).
+local function expectedStance(
+	event: Events.Definition,
+	stance: Events.Stance,
+	record: Types.StateRecord,
+	platform: { Types.Issue },
+	base: { string }
+): number
+	local issue = event.issue :: Types.Issue
+	local inBase = table.find(base, record.id) ~= nil
+	local points = 0
+	if not table.find(record.issues, issue) then
+		-- Spillover: STANCE_SPILL per liked top issue, minus the same per disliked
+		-- one; nothing for the hedge; no platform multiplier.
+		if not stance.hedge then
+			for _, topIssue in record.issues do
+				if table.find(stance.likes, topIssue) then
+					points += C.STANCE_SPILL
+				elseif table.find(stance.dislikes, topIssue) then
+					points -= C.STANCE_SPILL
+				end
+			end
+			if inBase then
+				points *= C.STANCE_BASE_MULT
+			end
+		end
+		return math.clamp(points, -C.STANCE_CAP, C.STANCE_CAP)
+	end
+	if stance.hedge then
+		points = if inBase then -C.STANCE_HEDGE_COST else 0
+	else
+		local other: Types.Issue = if record.issues[1] == issue then record.issues[2] else record.issues[1]
+		points = C.STANCE_HEDGE
+		if table.find(stance.likes, other) then
+			points = C.STANCE_POINTS
+		elseif table.find(stance.dislikes, other) then
+			points = -C.STANCE_POINTS
+		end
+		if inBase then
+			points *= C.STANCE_BASE_MULT
+		end
+	end
+	if table.find(platform, issue) then
+		points *= C.STANCE_PLATFORM_MULT
+	end
+	return math.clamp(points, -C.STANCE_CAP, C.STANCE_CAP)
+end
+
+-- The id of the first state with `issue` as a top issue whose other top issue
+-- the stance likes (`liked` true) or dislikes (false).
+local function stateWhere(event: Events.Definition, stance: Events.Stance, liked: boolean): Types.StateRecord
+	local issue = event.issue :: Types.Issue
+	for _, record in StateData.list do
+		if table.find(record.issues, issue) then
+			for _, other in record.issues do
+				if other ~= issue and table.find(if liked then stance.likes else stance.dislikes, other) then
+					return record
+				end
+			end
+		end
+	end
+	error("no such state")
+end
+
 describe("Events: Choice stances (D-039)", function()
 	it(
-		"a state with the issue reacts by its other top issue, the rest spill a little; a platform is heard harder",
+		"a state with the issue reacts by its other top issue, the rest spill a little; a platform and a base are heard harder",
 		function()
 			local NONE: { Types.Issue } = {}
-			for _, event in choiceEvents() do
-				local issue = event.issue :: Types.Issue
-				local ON: { Types.Issue } = { issue }
-				for _, stance in event.stances :: { Events.Stance } do
-					local listed = Events.stanceEffects(C, event, stance.id, NONE)
-					local nonzero = 0
-					for i, record in StateData.list do
-						local points = Events.stanceEffect(C, event, stance.id, i, NONE)
-						local heard = Events.stanceEffect(C, event, stance.id, i, ON)
-						if not table.find(record.issues, issue) then
-							-- Spillover: STANCE_SPILL per liked top issue, minus the same per
-							-- disliked one; nothing for the hedge; no platform multiplier.
-							local expected = 0
-							if not stance.hedge then
-								for _, topIssue in record.issues do
-									if table.find(stance.likes, topIssue) then
-										expected += C.STANCE_SPILL
-									elseif table.find(stance.dislikes, topIssue) then
-										expected -= C.STANCE_SPILL
-									end
-								end
-							end
-							expect(points):toBeCloseTo(expected, EPS)
-							expect(heard):toBeCloseTo(expected, EPS)
-						else
-							local other: Types.Issue = if record.issues[1] == issue
-								then record.issues[2]
-								else record.issues[1]
-							local expected = C.STANCE_HEDGE
-							if table.find(stance.likes, other) then
-								expected = C.STANCE_POINTS
-							elseif table.find(stance.dislikes, other) then
-								expected = -C.STANCE_POINTS
-							end
-							expect(points):toBe(expected)
-							expect(heard):toBe(
-								math.clamp(expected * C.STANCE_PLATFORM_MULT, -C.EVENT_CAP, C.EVENT_CAP)
-							)
-						end
-						expect(math.abs(points) <= C.EVENT_CAP and math.abs(heard) <= C.EVENT_CAP):toBe(true)
-						if points ~= 0 then
-							nonzero += 1
-							expect(listed[record.id]):toBe(points)
-						else
-							expect(listed[record.id]):toBe(nil)
-						end
-					end
-					local count = 0
-					for _ in listed do
-						count += 1
-					end
-					expect(count):toBe(nonzero)
-					expect(nonzero >= 8):toBe(true) -- every issue tops at least eight states
-					if stance.hedge then
-						-- The hedge never spills: exactly the issue's states move.
-						local withIssue = 0
-						for _, record in StateData.list do
-							if table.find(record.issues, issue) then
-								withIssue += 1
-							end
-						end
-						expect(nonzero):toBe(withIssue)
-					end
+			-- Three bases: none, every third state, every state.
+			local third: { string } = {}
+			local everyone: { string } = {}
+			for i, record in StateData.list do
+				table.insert(everyone, record.id)
+				if i % 3 == 0 then
+					table.insert(third, record.id)
 				end
-				-- Unknown stances and events without stances move nothing.
-				expect(Events.stanceEffect(C, event, "Z" :: any, 1, NONE)):toBe(0)
-				expect(Events.stanceEffect(C, Events.byId.expo, "A", 1, NONE)):toBe(0)
+			end
+			for _, base in { {}, third, everyone } do
+				for _, event in choiceEvents() do
+					local issue = event.issue :: Types.Issue
+					local ON: { Types.Issue } = { issue }
+					for _, stance in event.stances :: { Events.Stance } do
+						local listed = Events.stanceEffects(C, event, stance.id, NONE, base)
+						local nonzero = 0
+						for i, record in StateData.list do
+							local points = Events.stanceEffect(C, event, stance.id, i, NONE, base)
+							local heard = Events.stanceEffect(C, event, stance.id, i, ON, base)
+							expect(points):toBeCloseTo(expectedStance(event, stance, record, NONE, base), EPS)
+							expect(heard):toBeCloseTo(expectedStance(event, stance, record, ON, base), EPS)
+							expect(math.abs(points) <= C.STANCE_CAP and math.abs(heard) <= C.STANCE_CAP):toBe(
+								true
+							)
+							if not table.find(record.issues, issue) then
+								-- The platform never reaches a state without the issue.
+								expect(heard):toBe(points)
+							end
+							if points ~= 0 then
+								nonzero += 1
+								expect(listed[record.id]):toBe(points)
+							else
+								expect(listed[record.id]):toBe(nil)
+							end
+						end
+						local count = 0
+						for _ in listed do
+							count += 1
+						end
+						expect(count):toBe(nonzero)
+						if not stance.hedge then
+							expect(nonzero >= 8):toBe(true) -- every issue tops at least eight states
+						end
+					end
+					-- Unknown stances and events without stances move nothing.
+					expect(Events.stanceEffect(C, event, "Z" :: any, 1, NONE, base)):toBe(0)
+					expect(Events.stanceEffect(C, Events.byId.expo, "A", 1, NONE, base)):toBe(0)
+				end
 			end
 		end
 	)
 
 	it(
-		"the hedge is mild and never negative; each side's camp holds a fair share of the issue's EV",
+		"a side counts double in the taker's own base, in issue states and spill states alike (D-043)",
+		function()
+			local event = Events.byId.plant -- Jobs: A likes Transit and Farms, dislikes Health and Safety
+			local stance = Events.stance(event, "A")
+			local liked, disliked = stateWhere(event, stance, true), stateWhere(event, stance, false)
+			local NONE: { Types.Issue } = {}
+			local function at(record: Types.StateRecord, base: { string }): number
+				return Events.stanceEffect(C, event, "A", State.indexOf[record.id], NONE, base)
+			end
+			expect(at(liked, {})):toBe(C.STANCE_POINTS)
+			expect(at(liked, { liked.id })):toBe(C.STANCE_POINTS * C.STANCE_BASE_MULT)
+			expect(at(disliked, {})):toBe(-C.STANCE_POINTS)
+			expect(at(disliked, { disliked.id })):toBe(-C.STANCE_POINTS * C.STANCE_BASE_MULT)
+			-- Someone else's base changes nothing here.
+			expect(at(liked, { disliked.id })):toBe(C.STANCE_POINTS)
+			-- A spill state doubles too (no Jobs, at least one issue the stance likes).
+			local spill: Types.StateRecord? = nil
+			for _, record in StateData.list do
+				if not table.find(record.issues, "Jobs") then
+					local value = Events.stanceEffect(C, event, "A", State.indexOf[record.id], NONE, nil)
+					if value == C.STANCE_SPILL then
+						spill = record
+						break
+					end
+				end
+			end
+			expect(spill ~= nil):toBe(true)
+			expect(at(spill :: Types.StateRecord, { (spill :: Types.StateRecord).id })):toBe(
+				C.STANCE_SPILL * C.STANCE_BASE_MULT
+			)
+			-- Events.baseOf is the home plus the strongholds, each once.
+			expect(Events.baseOf({ home = "OH", strongholds = { "PA", "OH" } })):toEqual({ "PA", "OH" })
+			expect(Events.baseOf({ home = "OH", strongholds = { "PA" } })):toEqual({ "PA", "OH" })
+			expect(Events.baseOf({ home = nil, strongholds = {} })):toEqual({})
+		end
+	)
+
+	it(
+		"the hedge moves nothing, except a cost in the taker's base states that have the issue (D-043)",
 		function()
 			for _, event in choiceEvents() do
 				local issue = event.issue :: Types.Issue
-				local stances = event.stances :: { Events.Stance }
-				local total = campEV(issue, Issues.list :: { Types.Issue })
-				for _, stance in stances do
-					local liked, disliked = campEV(issue, stance.likes), campEV(issue, stance.dislikes)
-					if stance.hedge then
-						expect(liked + disliked):toBe(0)
-						for _, points in Events.stanceEffects(C, event, stance.id, {}) do
-							expect(points):toBe(C.STANCE_HEDGE)
-						end
+				local ON: { Types.Issue } = { issue }
+				-- No base: the hedge moves no state at all.
+				expect(next(Events.stanceEffects(C, event, "C", {}, {}))):toBe(nil)
+				expect(next(Events.stanceEffects(C, event, "C", ON, nil))):toBe(nil)
+				-- Everyone's base: exactly the issue's states move, all by the cost.
+				local everyone: { string } = {}
+				for _, record in StateData.list do
+					table.insert(everyone, record.id)
+				end
+				local plain = Events.stanceEffects(C, event, "C", {}, everyone)
+				local platform = Events.stanceEffects(C, event, "C", ON, everyone)
+				for _, record in StateData.list do
+					if table.find(record.issues, issue) then
+						expect(plain[record.id]):toBe(-C.STANCE_HEDGE_COST)
+						expect(platform[record.id]):toBe(-C.STANCE_HEDGE_COST * C.STANCE_PLATFORM_MULT)
 					else
-						-- Both camps are real: at least a quarter of the issue's EV each way.
-						expect(liked >= 0.25 * total):toBe(true)
-						expect(disliked >= 0.25 * total):toBe(true)
+						expect(plain[record.id]):toBe(nil) -- the hedge never spills
+						expect(platform[record.id]):toBe(nil)
+					end
+				end
+				-- A base state without the issue is free, too.
+				for _, record in StateData.list do
+					if not table.find(record.issues, issue) then
+						expect(Events.stanceEffects(C, event, "C", ON, { record.id })[record.id]):toBe(nil)
+						break
 					end
 				end
 			end
 		end
 	)
+
+	it("each side's camp holds a fair share of the issue's EV; the hedge belongs to neither", function()
+		for _, event in choiceEvents() do
+			local issue = event.issue :: Types.Issue
+			local stances = event.stances :: { Events.Stance }
+			local total = campEV(issue, Issues.list :: { Types.Issue })
+			for _, stance in stances do
+				local liked, disliked = campEV(issue, stance.likes), campEV(issue, stance.dislikes)
+				if stance.hedge then
+					expect(liked + disliked):toBe(0)
+				else
+					-- Both camps are real: at least a quarter of the issue's EV each way.
+					expect(liked >= 0.25 * total):toBe(true)
+					expect(disliked >= 0.25 * total):toBe(true)
+				end
+			end
+		end
+	end)
+
+	it("a stance moves a state by at most STANCE_CAP, either way (D-043)", function()
+		local event = Events.byId.plant
+		local stance = Events.stance(event, "A")
+		local liked, disliked = stateWhere(event, stance, true), stateWhere(event, stance, false)
+		local ON: { Types.Issue } = { "Jobs" }
+		-- 1.5 x 2 (base) x 1.5 (platform) = 4.5 asks for more than the cap.
+		expect(C.STANCE_POINTS * C.STANCE_BASE_MULT * C.STANCE_PLATFORM_MULT > C.STANCE_CAP):toBe(true)
+		expect(Events.stanceEffect(C, event, "A", State.indexOf[liked.id], ON, { liked.id })):toBe(
+			C.STANCE_CAP
+		)
+		expect(Events.stanceEffect(C, event, "A", State.indexOf[disliked.id], ON, { disliked.id })):toBe(
+			-C.STANCE_CAP
+		)
+		-- Short of the cap the product stands: base alone, platform alone.
+		expect(Events.stanceEffect(C, event, "A", State.indexOf[liked.id], {}, { liked.id })):toBe(
+			C.STANCE_POINTS * C.STANCE_BASE_MULT
+		)
+		expect(Events.stanceEffect(C, event, "A", State.indexOf[liked.id], ON, {})):toBe(
+			C.STANCE_POINTS * C.STANCE_PLATFORM_MULT
+		)
+		-- The cap is STANCE_CAP, not EVENT_CAP: a lower one bites.
+		local tight = Config.with(C, { STANCE_CAP = 2.5 })
+		expect(Events.stanceEffect(tight, event, "A", State.indexOf[liked.id], ON, { liked.id })):toBe(2.5)
+	end)
 
 	it("resolves both stances together from one snapshot, records the moves and reveals them", function()
 		local match = clean("plant") -- Jobs: on both platforms here, so every reaction is heard x1.5
 		local event = Events.byId.plant
 		local after = resolve(match, { { actions = {}, choice = "A" }, { actions = {}, choice = "B" } })
+		local bases = { Events.baseOf(match.players[1]), Events.baseOf(match.players[2]) }
 		local effects = {
-			Events.stanceEffects(C, event, "A", match.players[1].platform),
-			Events.stanceEffects(C, event, "B", match.players[2].platform),
+			Events.stanceEffects(C, event, "A", match.players[1].platform, bases[1]),
+			Events.stanceEffects(C, event, "B", match.players[2].platform, bases[2]),
 		}
-		expect(effects[1].GA):toBe(math.min(C.EVENT_CAP, C.STANCE_POINTS * C.STANCE_PLATFORM_MULT))
+		-- Georgia (Jobs + Transit): A likes Transit, heard x1.5, and x2 more in a base.
+		local gaMult = if table.find(bases[1], "GA") then C.STANCE_BASE_MULT else 1
+		expect(effects[1].GA):toBe(math.min(C.STANCE_CAP, C.STANCE_POINTS * gaMult * C.STANCE_PLATFORM_MULT))
 		local expected = State.clone(match)
 		local moves: { State.StateMove } = {}
 		for i, s in expected.states do
@@ -529,10 +670,11 @@ describe("Events: Choice stances (D-039)", function()
 			expect(after.states[i].support[2]):toBeCloseTo(s.support[2], EPS)
 			expect(after.states[i].undecided):toBeCloseTo(s.undecided, EPS)
 			-- No stance asks for more than the cap; a state without Jobs moves only by
-			-- the spillover.
-			expect(math.abs(points[1]) <= C.EVENT_CAP and math.abs(points[2]) <= C.EVENT_CAP):toBe(true)
+			-- the spillover (doubled in a base).
+			expect(math.abs(points[1]) <= C.STANCE_CAP and math.abs(points[2]) <= C.STANCE_CAP):toBe(true)
 			if not table.find(StateData.list[i].issues, "Jobs") then
-				expect(math.abs(points[1]) <= 2 * C.STANCE_SPILL + EPS):toBe(true)
+				local most = 2 * C.STANCE_SPILL * C.STANCE_BASE_MULT + EPS
+				expect(math.abs(points[1]) <= most and math.abs(points[2]) <= most):toBe(true)
 			end
 			-- The recount counterfactual sees exactly this move.
 			for p = 1, 2 do
@@ -593,6 +735,9 @@ describe("Events: Choice stances (D-039)", function()
 
 	it("swapping seats mirrors the outcome exactly", function()
 		local match = clean("river") -- a symmetric board
+		-- Same platform and same base for both seats (stances now depend on the draft).
+		match.players[2].home = match.players[1].home
+		match.players[2].strongholds = table.clone(match.players[1].strongholds)
 		for _, pair in { { "A", "B" }, { "A", "C" }, { "B", "C" } } do
 			local a =
 				resolve(match, { { actions = {}, choice = pair[1] }, { actions = {}, choice = pair[2] } })
@@ -612,21 +757,37 @@ describe("Events: Choice stances (D-039)", function()
 		end
 	end)
 
-	it("a missing stance defaults to the hedge", function()
-		local match = clean("walkout")
-		expect(Events.defaultChoice()):toBe("C")
-		local ok, _, plan = Plan.validate(C, match, 1, { actions = {} })
-		expect(ok):toBe(true)
-		expect((plan :: Plan.Plan).choice):toBe("C")
-		expect(Plan.empty(C, match, 2).choice):toBe("C")
-		local after = Match.advance(C, match, {})
-		expect(after.eventLog[#after.eventLog].choices):toEqual({ "C", "C" })
-		for _, move in after.eventLog[#after.eventLog].moves :: { State.StateMove } do
-			expect(move.points[1]):toBe(move.points[2])
-			local heard = C.STANCE_HEDGE * C.STANCE_PLATFORM_MULT
-			expect(move.points[1] == C.STANCE_HEDGE or move.points[1] == heard):toBe(true)
+	it(
+		"a missing stance defaults to the hedge, which costs each seat only in its own base (D-043)",
+		function()
+			local match = clean("walkout") -- Health
+			expect(Events.defaultChoice()):toBe("C")
+			-- Seat 1's home has Health; seat 2 has no base state with Health.
+			local healthy: string? = nil
+			for _, record in StateData.list do
+				if table.find(record.issues, "Health") then
+					healthy = record.id
+					break
+				end
+			end
+			expect(healthy ~= nil):toBe(true)
+			match.players[1].home = healthy
+			match.players[1].strongholds = {}
+			match.players[2].home = nil
+			match.players[2].strongholds = {}
+			local ok, _, plan = Plan.validate(C, match, 1, { actions = {} })
+			expect(ok):toBe(true)
+			expect((plan :: Plan.Plan).choice):toBe("C")
+			expect(Plan.empty(C, match, 2).choice):toBe("C")
+			local after = Match.advance(C, match, {})
+			expect(after.eventLog[#after.eventLog].choices):toEqual({ "C", "C" })
+			local moves = after.eventLog[#after.eventLog].moves :: { State.StateMove }
+			-- Health is on both platforms here, so the cost is heard x1.5.
+			expect(moves):toEqual({
+				{ state = healthy :: string, points = { -C.STANCE_HEDGE_COST * C.STANCE_PLATFORM_MULT, 0 } },
+			})
 		end
-	end)
+	)
 
 	it("rejects an invalid stance with a reason code, whole", function()
 		local match = clean("calendar")

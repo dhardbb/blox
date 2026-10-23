@@ -229,7 +229,8 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			local isChoice = event.kind == "Choice"
 			payHead.Visible = isChoice
 			local view = p.view
-			for k, line in Explain.choiceLines(config, event, view.players[view.you].platform) do
+			local me = view.players[view.you]
+			for k, line in Explain.choiceLines(config, event, me.platform, Events.baseOf(me)) do
 				local label = payLines[k]
 				if label then
 					label.Text = line
