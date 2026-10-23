@@ -2,6 +2,21 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Front-page foundation (D-056)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Front-page foundation".
+
+- **Losses are orange, never red.** Anything that goes against you (a lost state, a negative number, an error, a destructive button, the timer's last 10 seconds, "You lost") is orange now. Red is only a player's color.
+- **Battlegrounds are white tags**, not orange: on the map's numbers, the Draft and the state card.
+- **A navy stage.** The background, cards and buttons move from grey-black to navy, with a visible light-from-the-top on every card and button edge.
+- **Chunky buttons.** The pink button and the grey ones sit on a darker lip and press down onto it; the pink button's label is the round display font, and a light band sweeps it now and then.
+- **The bottom bar is a panel** with a soft shadow; sheets have rounder corners, a shadow and (on a phone) a drag handle; the header's time bar is thicker with a glowing tip.
+- **Color sheet:** each swatch shows your initial in that color. Amber is a little more golden so it never looks like the loss orange.
+- Debate verdicts are filled tags: green "You win", orange "Rex wins".
+- **Needed from the humans:** upload `assets/ui/ui-shadow.png` and `assets/ui/ui-glow.png` as images and send the two ids (they go in `src/client/UI/Assets.luau`; `assets/ui/README.md`). Until then there are no shadows or glows in the game; nothing breaks.
+
 ## 0.11.0: Colors: red, blue and the Color Pass (Oct 23, 2026)
 
 The designers asked for red and blue by default and a color pick for Robux (D-055). Sim, server, client. No Config numbers changed; the balance report is identical. Studio checklist: `docs/TESTING.md`, "Colors: red, blue and the Color Pass".

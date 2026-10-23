@@ -78,87 +78,111 @@ Everything here exists in code (`src/client/UI/Kit.luau` and friends; see the he
 
 ### 2.1 Color tokens (`Shared/UI/Colors.luau`, `Kit.colors`)
 
-One dark theme. Use the token, never a literal (`tests/ui/Tokens.spec.luau` and the audit's `tokenColor` rule enforce it).
+One dark theme: a navy stage (front-page foundation, D-056). Use the token, never a literal (`tests/ui/Tokens.spec.luau` and the audit's `tokenColor` rule enforce it).
 
 | Token | RGB | Use |
 |---|---|---|
-| `background` | 16, 18, 24 | the board behind everything |
-| `field` | 22, 25, 33 | text boxes, read-only wells |
-| `surface` | 28, 31, 40 | cards and panels (elevation 1) |
-| `raised` | 40, 44, 56 | buttons, chips, pills, coach tips (elevation 2) |
-| `raisedHover` | 56, 62, 78 | a selected chip or card |
-| `line` | 64, 70, 86 | dividers, sheet outline, map edges |
-| `text` | 234, 236, 242 | everything a player must read |
-| `muted` | 150, 156, 172 | secondary text only (never an instruction) |
-| `accent` | 255, 128, 214 (pink, D-051) | **the primary action only**: its fill, the selection outline, the timer, the "now" mark |
-| `onAccent` | = background | text on the accent |
-| `good` | 92, 200, 128 | a gain, "you lead", success |
-| `bad` (= `danger`) | 232, 84, 84 | a loss, an error, a destructive button, an urgent timer |
-| `warn` | 255, 150, 64 | "careful" text and icons, never a fill (new: was the accent); the timer under 10 s |
-| `surfaceTop` | 34, 38, 48 | top stop of a card's gradient (polish, D-053) |
-| `raisedTop` | 48, 53, 66 | top stop of an elevation-4 panel's gradient (D-053) |
-| `accentEdge` | 214, 96, 178 | the primary button's 2 px edge (D-053) |
+| `background` | 13, 17, 30 | the stage behind everything |
+| `field` | 18, 23, 38 | text boxes, read-only wells, icon plates |
+| `surface` | 24, 30, 48 | cards and panels (elevation 1) |
+| `surfaceTop` | 31, 38, 60 | top stop of a card's gradient |
+| `raised` | 38, 46, 70 | buttons, chips, pills (elevation 2) |
+| `raisedTop` | 46, 55, 82 | top stop of an elevation-4 panel's gradient |
+| `raisedHover` | 54, 64, 94 | a selected chip or card |
+| `raisedLip` | 9, 12, 22 | the lip under a secondary or icon button |
+| `line` | 70, 80, 112 | hairlines (at 0.5), dividers, sheet outline, map edges |
+| `text` | 240, 243, 250 | everything a player must read (14.9:1 on surface) |
+| `muted` | 158, 168, 194 | secondary text only (7.0:1 on surface) |
+| `accent` | 255, 128, 214 (pink, D-051) | **press here / selected**: the primary's fill, the selection outline, the timer, the "now" mark |
+| `accentEdge` | 214, 96, 178 | the primary's 2 px edge |
+| `accentLip` | 158, 58, 126 | the lip under the primary |
+| `onAccent` | = background | text on the accent (8.3:1) |
+| `good` / `goodEdge` | 92, 200, 128 / 64, 136, 94 | a gain, "you lead", success; the edge of a filled good pill |
+| `loss` / `lossEdge` | **255, 122, 40** / 196, 84, 20 | anything against you: a loss, a negative number, an error, a destructive button, the timer under 10 s; the edge of a filled loss tag |
+| `onLoss` | = background | text on a loss fill (7.2:1) |
+| `warn`, `danger`, `bad` | = `loss` | the old names, kept so every caller still works: there is one orange |
+| `glow` | 44, 62, 120 | the map's backdrop glow |
 | `neutral`, `undecided` | | map only |
-| player colors | Crimson, Cobalt, Emerald, Amber, Violet, Teal | that player's things: name, EV, map fill, dots |
+| player colors | Crimson, Cobalt, Emerald, Amber (240, 186, 36), Violet, Teal | that player's things: map fill, dots, bars, rings, monograms |
 
-Rules: one accent-filled thing per screen (the primary button). Selection is an accent outline, never a fill. Player colors only mark that player. Data colors (map fills, feed-row tints, EV bars) come from `Colors.stateFill` / `Colors.tint` / `Kit.playerColor` and their container is marked `Kit.dataColor(inst)`. Green is not "neutral info": status lines are `muted` unless they report a gain or a problem.
+**Color means one thing (D-056).** Team colors mark ownership. Green marks a gain. Orange marks a loss or a warning: anything against you. Pink marks "press here / selected". White marks "special" (a battleground, the 270 line). **Red never means bad**: red and blue are the default player colors. A player's color as *text* goes through `Kit.playerText(view, p)` (`Colors.textOn`: a quarter of the way to `text`, so Crimson text is 4.7:1 on surface); fills, dots, bars and rings keep the base color.
 
-**Depth (polish, D-053).** Still no shadows. Cards (`Kit.card`) fill with `surfaceTop` and carry a vertical `UIGradient` ("Depth") down to `surface`, plus a 1 px `line` hairline at 0.5 transparency ("Edge"). Primary, secondary and chip buttons get a gentle top-light gradient (bottom 86 % of the fill; their `BackgroundColor3` tokens are unchanged, so `setEnabled`/`setSelected` work as before). The primary has a 2 px `accentEdge` stroke (a disabled primary trades it for the hairline); secondaries get the hairline. Elevation 4 (the election spotlight, the results banner) is `Kit.depth(panel, Kit.colors.raisedTop, Kit.colors.raised)` plus a 1 px `line`. A `UIGradient` multiplies its parent's colors, text included, which is why button shades stay light.
+**Orange never carries meaning alone** (audit rule `lossText`): an orange tag or number of one or two words carries a sign ("−", "▼", "lost", "behind") or sits under attribute `Warn` (the status line's warn and bad tones, the timer, a danger button). A battleground is good news: a white tag, never orange.
 
-**Map bands (D-053, display only).** `Colors.band(margin)` returns the band for a poll margin in points (`Colors.BANDS`: toss-up < 3, lean < 8, likely < 15, safe), and `Colors.bandFill(support, colors)` is the stepped twin of `stateFill`: neutral, then 45 / 75 / 100 % of the leader's color. WP-1 switches the map to it and adds the Key sheet.
+Rules: one accent-filled thing per screen (the primary button). Selection is an accent outline, never a fill. Data colors (map fills, feed-row tints, EV bars) come from `Colors.stateFill` / `Colors.tint` / `Kit.playerColor` and their container is marked `Kit.dataColor(inst)`. Status lines are `muted` unless they report a gain or a problem.
 
-Amber (232, 164, 40) used to sit close to the old yellow accent; the accent is now pink (D-051), clearly apart from all six player colors and from good, bad and warn. Still keep player colors on dots and bars rather than 28 px text next to the primary (§4.9).
+**Depth (D-053, D-056).** Cards (`Kit.card`) fill with `surfaceTop` and carry a vertical `UIGradient` ("Depth") down to `surface`. Every card, button, sheet and the action-bar plate has an "Edge" (`Kit.bevel`): a border in its base color (a 1 px `line` hairline at 0.5, the primary's 2 px `accentEdge`) lit from the top: the stroke is `text` and its own `UIGradient` "EdgeLight" fades it into the base over the top 30 %, which draws the top highlight without an extra frame (a frame would be moved by a list layout). Buttons shade to 80 % at the bottom. Shadows (`Kit.shadow`) sit beside free-standing objects (the action-bar plate, sheets, toasts, positioned tips, the spotlight); an object inside a list or grid gets no shadow (the layout would move it), its bevel carries the depth. Elevation 4 (the election spotlight, the results banner) is `Kit.depth(panel, Kit.colors.raisedTop, Kit.colors.raised)` plus a stroke in the moment's color and a glow.
 
-### 2.2 Type (`Kit.size`, `Kit.text/caption/heading/title`)
+**Map bands (D-053, display only).** `Colors.band(margin)` returns the band for a poll margin in points (`Colors.BANDS`: toss-up < 3, lean < 8, likely < 15, safe), and `Colors.bandFill(support, colors)` is the stepped twin of `stateFill`: neutral, then 45 / 75 / 100 % of the leader's color.
 
-Five tokens exist; **a screen shows at most four** (`Kit.MAX_TEXT_SIZES`, audit rule `textSizes`).
+### 2.2 Type (`Kit.size`, `Kit.text/caption/heading/title/eyebrow`)
+
+Five tokens plus the Lobby's wordmark; **a screen shows at most four** (`Kit.MAX_TEXT_SIZES`, audit rule `textSizes`; a monogram's initials do not count).
 
 | Token | px | Font | Use |
 |---|---|---|---|
-| `caption` | 14 (was 13, D-053) | `Kit.font.body` | secondary info only: tags, hints, legends, timestamps |
-| `body` | 16 | `body` / `medium` | sentences, list rows, button labels, the "now" line |
-| `heading` | 20 | `bold` | header title, card titles, the timer |
-| `title` | 28 | `display` (`Kit.title`) | the one big number or headline on a screen (EV totals, election counters) |
-| `hero` | 48 | `display` | Lobby "270", "You won", the private code. Lobby and Results only |
+| `caption` | 14 | `Kit.font.body` | secondary info only: tags, hints, legends, eyebrows |
+| `body` | 16 | `body` / `medium` | sentences, list rows, secondary button labels, the "now" line |
+| `heading` | 20 | `bold`; `display` for the primary's label and the timer | header title, card titles, the primary's label |
+| `title` | 28 | `display` (`Kit.title`) | the one big number or headline on a screen (EV totals, stamps) |
+| `hero` | 48 | `display` | "You won" / "You lost", the private code. Lobby and Results only |
+| `wordmark` | 72 | `display` | the Lobby's "270" only (`Kit.wordmark`; the audit allows it on a text with attribute `Wordmark`, and the Lobby drops `title` for it) |
 
-Anything a player needs in order to act is `body` or bigger. A screen that uses `hero` drops one other size (usually `title` or `heading`).
+**Hero numbers are display type.** Fredoka One for vote totals, the timer, stamps, the wordmark and the primary's label; Builder Sans for everything you read. `Kit.eyebrow(text)` is a caption in upper case and medium weight over a title ("JUST CALLED", "WEEK 3 RESULTS"); Roblox has no letter spacing, upper case alone gives the broadcast feel. Display text on a colored fill (a stamp, the wordmark) gets a 2-3 px `Contextual` outline in the fill's edge color; display text on the navy gets none.
 
-**Fonts (D-053).** Always `Kit.font.*`, never an `Enum.Font` literal (`Tokens.spec`). `body`/`medium`/`bold` are Builder Sans (Roblox's own UI font; Gotham where it is missing), `display` is Fredoka One (OFL; falls back to Builder Sans ExtraBold, then Gotham Black) for hero, title-size numbers, the primary button's label and the election spotlight's state name; `mono` stays Code (the match code). Going back to one family is one line in `Kit.font`. The snapshot draws all of them as Helvetica (Fredoka as bold), so check counters and "Lock in" in Studio.
+**Fonts (D-053).** Always `Kit.font.*`, never an `Enum.Font` literal (`Tokens.spec`). `body`/`medium`/`bold` are Builder Sans (Gotham where it is missing), `display` is Fredoka One (falls back to Builder Sans ExtraBold, then Gotham Black), `mono` stays Code (the match code). The snapshot draws all of them as Helvetica (Fredoka as bold), so check counters and "Lock in" in Studio.
 
-**Big screens.** `App.client` puts a `UIScale` ("BoardScale") on the board: `clamp(min(w / 1024, h / 768), 1, 1.35)`, recomputed when the camera's viewport changes. Phones, a 1024x768 iPad and 1280x720 stay at 1 (every snapshot size); an iPad Pro or a big Mac window gets about 1.33. Don't `TextScaled` body text, so `GuiService.PreferredTextSize` keeps working.
+**Big screens.** `App.client` puts a `UIScale` ("BoardScale") on the board: `clamp(min(w / 1024, h / 768), 1, 1.35)`. Phones, a 1024x768 iPad and 1280x720 stay at 1 (every snapshot size). Don't `TextScaled` body text, so `GuiService.PreferredTextSize` keeps working.
 
 ### 2.3 Spacing, shape, elevation
 
-- Spacing `Kit.space`: xs 4 (inside a row), sm 8 (between items), md 12 (card padding), lg 16 (between groups), xl 24 (screen sections). Screen edge padding is 10 (App).
-- Corners `Kit.radius`: control 8 (buttons, chips, fields), panel 12 (cards, sheets, coach tips), pill (height / 2).
-- Elevation (no shadows in Roblox UI; steps of fill instead): 0 `background`; 1 `surface` (cards); 2 `raised` (controls, chips, coach tips); 3 overlay = sheet (`surface` + 1 px `line` stroke over a `background` scrim at 0.35 transparency).
-- Sizes: `MIN_TOUCH` 44 (every tap target, both ways), `PRIMARY_H` 56, `BAR_H` 84, `HEADER_H` 44, `NOW_H` 32, `PILL_H` 24, `MAP_NODE_MIN` 36, `SHEET_MAX_W` 560.
+- Spacing `Kit.space`: xs 4 (inside a row), sm 8 (between items), md 12 (panel padding), lg 16 (between groups), xl 24 (screen sections). Cards pad 14. Screen edge padding is 10 (App).
+- Corners `Kit.radius`: control 8 (chips, fields, icon buttons), button 12 (primary, secondary, danger), panel 12 (cards, toasts, coach tips), sheet 16 (sheets, the help overlay), pill (height / 2). One shape family: 8 / 12 / 16 / pill; strokes 1 / 2 / 3 px; shadows drop down (the action bar's up); lips always below.
+- Elevation: 0 `background`; 1 card (surface gradient, bevel); 2 control (raised gradient, bevel; buttons add a lip); 3 sheet (surface gradient, 1 px `line` lit from the top, radius 16, shadow dy 8 spread 20, `background` scrim at 0.3); 4 spotlight / banner (`raisedTop → raised`, 2 px stroke in the moment's color, glow).
+- Sizes: `MIN_TOUCH` 44 (every tap target, both ways), `PRIMARY_H` 56, `BAR_H` 84, `HEADER_H` 44, `NOW_H` 32, `PILL_H` 24, `MAP_NODE_MIN` 36, `SHEET_MAX_W` 560, `LIP_PRIMARY` 4, `LIP_SECONDARY` 3.
 
 ### 2.4 Buttons: one primary per screen
 
 | Level | Kit | Look | Use |
 |---|---|---|---|
-| Primary | `variant = "primary"` in the `ActionBar` | accent fill, 56 px, pinned bottom | the one thing to do next: "Lock in", "Next", "Skip", "Play again". Disabled = says what is missing ("Pick 1 more issue") |
-| Secondary | `variant = "secondary"` | raised fill, 44 px | a real alternative: "+15 s", "Back to lobby", "Find match" |
+| Primary | `variant = "primary"` in the `ActionBar` | accent face, 56 px, Fredoka 20 label, 2 px lit edge, 4 px `accentLip` below; pinned bottom; a light band sweeps it every 4.5 s | the one thing to do next: "Lock in", "Next", "Skip", "Play again". Disabled = says what is missing |
+| Secondary | `variant = "secondary"` | raised face, 44 px, lit hairline, 3 px `raisedLip` | a real alternative: "+15 s", "Back to lobby", "Find match" |
 | Tertiary | `variant = "ghost"` | no fill, text color, 44 px | "More", "Why?", "Show all states", "Got it" |
-| Destructive | `variant = "danger"` | outline in `bad` | "Cancel", "Leave match" |
-| Toggle | `Kit.chip`, `Kit.setSelected` | raised; selected = accent outline | lens, issue, message, action type |
+| Destructive | `variant = "danger"` | `loss` label and 1 px `loss` outline, no lip (attribute `Warn`) | "Cancel", "Clear", "Leave match" |
+| Toggle | `Kit.chip`, `Kit.setSelected` | raised, no lip; selected = accent outline | lens, issue, message, action type |
 | Option | `Kit.cardButton` | a tappable card, selected = accent outline | candidate, stance, debate topic |
-| Icon | `Kit.iconButton` | 44x44 secondary | `?`, `×`, `+`, `−` |
+| Icon | `Kit.iconButton` | 44x44 secondary with a lip, corner 8 | `?`, `×`, `+`, `−`, ♪ |
 
-Labels: a verb or a noun, at most 8 words (`labelWords`), no numbers the player has to decode. Never two secondary buttons that look like the primary's alternative; at most one secondary next to the primary.
+**Chunky buttons (D-056).** A primary or secondary is a face (the `TextButton` `Kit.button` returns: Name, attributes, `Activated` as before) inside a transparent holder `Frame` "`<Name>Holder`" (= `button.Parent`, `Kit.outer(button)`) that also holds the "Lip" (attribute `Decor`). The holder takes the caller's Parent, Size, Position, AnchorPoint, LayoutOrder, Visible and ZIndex; later changes to the face's Size, Visible and LayoutOrder pass to the holder by themselves. **Move or reparent a lipped button through `Kit.outer(button)`** (`Kit.outer(header.help).Position = …`, `Kit.outer(button).Parent = grid`); a face moved out of its holder loses its lip. Pressing moves the face down onto the lip (0.07 s, scale 0.98) and back (0.12 s, Back Out). `lip = false` makes a secondary without a holder (Collapsible's title row). The lip sits outside the holder's box (below it), so leave 4 px under a primary.
+
+Labels: a verb or a noun, at most 8 words (`labelWords`), no numbers the player has to decode. At most one secondary next to the primary.
 
 ### 2.5 Containers and small parts
 
-- **Card** (`Kit.card`): the one container style. Surface, 12 px corner, 12 px padding, vertical list, grows with its content. No cards inside cards; use a divider (`Kit.divider`) or spacing.
-- **Pill** (`Kit.pill(text, tone)`): a 24 px read-only tag ("Battleground", "You lead +3", "Your issue", "Locked in"). Tone colors the text, the fill stays raised. At most 3 pills in a row.
+- **Card** (`Kit.card`): the one container style. Surface gradient, bevel, 12 px corner, 14 px padding, vertical list, grows with its content. No cards inside cards.
+- **Pill** (`Kit.pill(text, tone, props)`): a 24 px read-only tag. Tone colors the text on a raised fill. `props.filled = true` fills it in the tone with readable text and a 1 px edge (a loss tag "−0.5", a verdict "You win"); `props.fill = color` fills it with a data color (marked `dataColor`); tone `"white"` is always filled: a text-colored tag with dark text (the battleground mark). `Kit.paintPill(pill, tone, filled?, fill?)` re-tones a pill that changes meaning. At most 3 pills in a row unless the row wraps.
 - **Stack** (`Kit.stack`): a transparent list that grows; use it instead of hand-positioning rows.
-- **Expander** (`UI/Collapsible`): a 44 px title row ("Why? +" / "Why? −") that shows a details body. Collapsed by default unless it holds the screen's main decision. Its body is a details area.
-- **Sheet** (`UI/Sheet`): bottom sheet on a phone, centered panel (≤ 560 px) on wide screens, scrim behind, × to close. For "more about this state", rules, the full results breakdown. Never holds the primary action.
-- **Coach tip** (`UI/CoachTip`): §3.4.
-- **Header** (`UI/Header`): title, short subtitle, sound button (♪, mutes every cue; steps aside when the title would not fit beside it, e.g. a phone with a long title or a labeled timer; an owner that lays the title row out itself reads `header.rightWidth` again, as `TopBar` does), `?`, timer; `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 3 px time bar. The timer is accent, `warn` under 10 s, `bad` under 5 s with a pop and a "tick" each second (`warn = 0` turns all of it off); the bar stays accent until 5 s (warn is never a fill).
-- **Action bar** (`UI/ActionBar`): status (left), opponent (right), secondary + primary, pinned. `bar:setProgress(fraction?)` shows the time left as a light veil inside the primary; when an enabled primary becomes a disabled "Locked in…" it flashes and plays `lockIn` by itself (`bar:lockFlash(pitch?)` to do it by hand, e.g. pitch 0.8 for time's up).
-- **Toast** (`UI/Toast`): unchanged.
+- **Expander** (`UI/Collapsible`): a card-lit panel whose 44 px title row ("Why? +" / "Why? −") shows a details body. Collapsed by default unless it holds the screen's main decision.
+- **Sheet** (`UI/Sheet`): bottom sheet on a phone (with a 36 x 4 drag handle), centered panel (≤ 560 px) on wide screens that scales in from 0.96; radius 16, lit 1 px line, shadow, scrim 0.3, × to close. Never holds the primary action.
+- **Coach tip** (`UI/CoachTip`): §3.4. Raised, 2 px accent outline (its only stroke), md padding; a positioned tip casts a shadow.
+- **Header** (`UI/Header`): title, short subtitle, sound button, `?` (both lipped icon buttons, 8 px apart), timer (Fredoka); `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 4 px rounded time bar under the title, stopping short of the buttons, with a glowing accent dot at its end. The timer is accent, `loss` under 10 s (attribute `Warn`), with a pop and a "tick" each second under 5 s; the bar turns `loss` under 5 s.
+- **Action bar** (`UI/ActionBar`): a lit `surface` plate ("Plate", decor) reaching 8 px past the bar left, right and up, with a shadow cast upward: the one persistent bottom bar. Status (left), opponent (right), secondary + primary. `bar:setProgress(fraction?)` shows the time left as a veil inside the primary; a primary that becomes a disabled "Locked in…" flashes and plays `lockIn`.
+- **Toast** (`UI/Toast`): raised, 2 px stroke (`loss` for a rejection, accent for a notice), shadow.
+
+### 2.5.1 Front-page parts (D-056)
+
+Every one is in the `00-kit` snap. Signatures in the header of `Kit.luau`.
+
+- `Kit.shadow(inst, { dy 4, spread 12, transparency 0.45 })`: a 9-slice soft shadow (`Assets.shadow`) as a sibling one ZIndex under `inst`, following its size, place, Visible and fade. Nil when `inst` has no parent or its parent lays children out.
+- `Kit.glow(parent, color, { scale, px, transparency 0.6, stretch })`: a radial glow (`Assets.glow`) centered in `parent` under its other children (ZIndex 0). Behind the map, a selected node, a stamp, the wordmark, the results banner, the 270 tick. Nil in a list or grid.
+- `Kit.stamp(text, color, { size })`: the big moments only (CALLED, 270!, You won / You lost, the debate headline). A plate of `color` tilted −6°, Fredoka label in its readable color with an outline, 2 px edge, glow; `Overhang`. `Motion.stamp` lands it from 1.6.
+- `Kit.monogram(name, color, px)`: initials on a lit circle (gradient, darker edge, sheen): 56 on Select cards, 64 on Results, 24 inline, 36 in the color sheet (the player's own initial in each color).
+- `Kit.raceBar(parent, { h, mark, caption })`: the race to 270: a raised track, each player's segment from their end, the tick (3 px, overhanging 4 px each way) and an optional caption. `bar:set(l, r)`, `bar:setColors(l, r)`, `bar:cross()` (tick flash + glow pulse).
+- `Kit.wordmark(px?)`: "270" in Fredoka, lit from the top, 3 px `accentEdge` outline, 6 px `accentLip` drop, accent glow.
+- `Kit.iconPlate(name, px?)`: an icon in a round `field` plate (state-card actions, help rows, settings chips).
+- `Kit.eyebrow`, `Kit.bevel`, `Kit.paintPill`, `Kit.playerText`, `Kit.textColor`, `Kit.outer`: above.
+
+Images (`UI/Assets.luau`, `assets/ui/`): `ui-shadow.png` and `ui-glow.png` (plus an unused `ui-dots.png`), made by `assets/ui/make.py`. While an id is "" the helpers still build their `ImageLabel` (attribute `Asset`, so the snapshots draw a stand-in) and the game shows nothing there.
 
 ### 2.6 Icons and glyphs
 
@@ -173,6 +197,7 @@ Short and purposeful, and never in the way. Every animation goes through `UI/Mot
 - **Timings** (`Motion.t`, s): press 0.07, release 0.12, fast 0.12, base 0.2, enter 0.25, exit 0.15, pop 0.22, count 0.5, beat 0.35, call 0.4, hero 0.45. `Kit.motion` (fast/base/slow) stays for old callers. Easings `Motion.ease`: `out` (Quad Out, the default), `in_`, `soft` (Quart Out, arrivals), `back` (Back Out, pops only), `linear` (bars).
 - **Never block.** Nothing waits on `Tween.Completed` while the player plans; every effect starts and returns at once. A new tween on a property cancels the old one. Reveals pace themselves with the server's deadlines, not tweens.
 - **Reduced motion.** Roblox's Reduce Motion setting (`GuiService.ReducedMotionEnabled`) or the in-game toggle (`Motion.setReduced`, session only): decorative effects (press, pop, ring, shake, confetti) do nothing; informational ones (tween, countTo, flash, typewriter) land at once; enter/exit keep a 0.1 s fade without the slide. Sound is unaffected.
+- **Front-page effects (D-056).** `Motion.press` on a lipped button moves the face down its lip (scale 0.98) instead of shrinking it to 0.96. `Motion.stamp(inst, delay?)` lands a stamp (scale 1.6 → 1, Back Out, fading in 0.15 s). `Motion.shine(button)` sweeps a light band over the primary every 4.5 s while it is enabled (`ActionBar` runs it). `Motion.breathe(inst, prop, a, b, seconds)` ping-pongs a property (the wordmark's glow, 2.4 s). `Motion.pulseOnce(inst)` nudges 1 → 1.03 → 1 over 0.9 s. All four are decorative: nothing under reduced motion or headless (a stamp is simply there); `shine` and `breathe` return a cancel.
 - **Every cue has a visual.** Sound never carries meaning alone, and it is muted from the header (session only).
 - **Headless.** The fake engine has a stub TweenService (goals apply on Play, Completed fires on the next step), GuiService (`world.reducedMotion`), SoundService (`world.sounds` logs every play) and ContentProvider. Specs assert end states, never timings.
 
@@ -253,7 +278,7 @@ Decorative frames Motion creates (`Ring`, `Confetti`) carry `Decor = true`, whic
 
 ### 2.9 How the rules are enforced
 
-`UI/Audit.luau` runs in Studio (Router, 0.5 s after a mount) and in the specs. Layout rules (D-030) are unchanged. Style v2 adds four rules, checked by `Audit.run` and by `Audit.check(root, { style = true })`:
+`UI/Audit.luau` runs in Studio (Router, 0.5 s after a mount) and in the specs. Layout rules (D-030) are unchanged. Style v2 adds four rules and the front-page foundation a fifth, checked by `Audit.run` and by `Audit.check(root, { style = true })`:
 
 | Rule | Fires when |
 |---|---|
@@ -261,6 +286,7 @@ Decorative frames Motion creates (`Ring`, `Confetti`) carry `Decor = true`, whic
 | `textSizes` | a screen shows more than 4 distinct text sizes |
 | `labelWords` | a button label has more than 8 words |
 | `wallOfText` | a text has more than 30 words outside a details area (`Kit.details`, Sheet and Collapsible bodies) |
+| `lossText` | an orange (`loss`) text of one or two words has no sign ("−", "-", "▼", "lost", "lose", "behind") and no `Warn` attribute on it or above it (D-056: orange never carries meaning alone) |
 
 Not-yet-migrated screens are listed in `Audit.PENDING` (notes in the Output, not warnings; still notes under `strict`). `tests/ui/Style.spec.luau` fails if a screen breaks an unlisted style rule, or if a listed one no longer fires: **when you fix a screen, delete its line**. Today's list:
 

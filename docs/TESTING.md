@@ -727,3 +727,18 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 9. Output: any line with `Color Pass check` (a failed ownership check) or `rejected SetColor`.
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
+
+## Front-page foundation (unreleased, D-056)
+
+Client only. The other front-page packages (map, panels, moments) build on this; test it on an iPad if you can.
+
+Before testing: the two decoration images need uploading first (`assets/ui/README.md`). Without them the game still runs; there are just no shadows or glows. Test once before the upload (nothing should error) and once after.
+
+1. **Lobby.** The background is a deep navy, not black. Press and hold **Play vs Bot**: the pink button sinks onto a darker pink lip under it and springs back on release. The grey buttons (**Find match**, **Play a friend**) do the same on a dark lip. *Send back:* a screenshot of the Lobby, and whether the press feels chunky or mushy.
+2. **Pink button shine.** Wait on any screen with the pink button for about 5 seconds: a soft light band sweeps across it, then again every few seconds. With Reduce Motion on (Settings chip or Roblox setting) it never sweeps. *Send back:* too much or fine?
+3. **Color sheet** (with the Color Pass set up): each swatch is a circle with your initial in that color. Amber looks gold, clearly not the orange of a loss. *Send back:* a screenshot.
+4. **Hosting a private match:** **Cancel** has an orange outline and orange text.
+5. **Campaign:** the bottom bar sits on its own panel with a soft shadow above it (after the upload). The header's time bar is thicker, rounded, with a glowing pink tip, and turns orange in the last 5 seconds; the timer text is orange under 10 seconds. Battleground states show their vote number on a white tag, not orange.
+6. **A sheet** (Map key, a state's Details): on the iPad it scales in from slightly smaller, has rounder corners and a shadow (after the upload); on a phone it has a small handle bar at the top.
+7. **Losing:** finish a match you lose. "You lost" is orange; nothing on that screen is red unless it is the other player's color. In a debate week, a topic the other player wins shows an orange "Rex wins" tag.
+8. **No errors:** the Output window shows no errors from `Kit`, `Assets`, `Header`, `ActionBar` or `Sheet`, before and after the upload. *Send back:* the Output log.
