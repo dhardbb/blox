@@ -14,13 +14,18 @@
 -- "Your week" and "{Rex}'s week" (one line per action and state: "Rally in
 -- Texas ×2 · Farms & Rural", never the same line twice). Once the new polls are
 -- in, "What changed": every state whose poll leader flipped, one bold line each
--- in green or red, and the biggest moves as pills; the map badges only those
--- (flips and the Words.MAP_MARKS biggest moves). A Choice week's stances are a
--- line in each group; their numbers are behind "Why?".
+-- in the new leader's readable color behind a ▲ (your way, green) or ▼
+-- (against you, orange), and the biggest moves as filled pills (green ▲ /
+-- orange ▼); the map badges only those (flips and the Words.MAP_MARKS biggest
+-- moves). The title then says who flipped how many (Words.flipHeadline). A
+-- Choice week's stances are a line in each group; their numbers are behind "Why?".
+-- The panel's head is an eyebrow ("WEEK 3 RESULTS", "WEEK 4 DEBATE") over the
+-- title ("You vs Rex"); each group head has the player's 24 px monogram.
 -- Debate: a scoreboard, one row per topic revealed every DEBATE_BEAT seconds
 -- (the row fades in, its verdict pill pops, a win plays "debateWin")
--- (topic, "you – them" score, a verdict pill) with one short line on what it
--- swung; then the headline ("You won 2 of 3 topics!") and the points every
+-- (topic, "you – them" score in Fredoka, a filled verdict pill) with one short
+-- line on what it swung; then the headline ("You won 2 of 3 topics!") lands as a
+-- stamp (green for you, orange for them, raised for even) and the points every
 -- state got. The dice math and the full state lists are behind "Why?". The map
 -- badges the flips and the biggest moves only.
 --
@@ -35,12 +40,13 @@
 --   reveal:tick(p, now)     starts a new reveal and moves it along
 --   reveal:status(p) -> string   the action bar's status line during a reveal
 --
--- Element names: RevealPanel, RevealTitle, RevealIntro, RevealOrder, RevealGroups, YouGroup, YouHead,
+-- Element names: RevealPanel, RevealEyebrow, RevealTitle, RevealIntro, RevealOrder, RevealGroups, YouGroup, YouHead,
 -- RevealLine<k> (your lines), ThemGroup, ThemHead, RevealThem<k>, RevealChanged,
--- RevealFlip<k>, RevealFlipMore, RevealMoves, RevealMove<k>, RevealSummary,
+-- RevealFlipRow<k> (its Mark and RevealFlip<k>), RevealFlipMore, RevealMoves, RevealMove<k>, RevealSummary,
 -- WhyButton, RevealWhy (details), RevealChoice; DebateRows, DebateHead,
 -- DebateRow<t>, DebateTopic<t>, DebateScore<t>, DebateVerdict<t>,
--- DebateSwing<t>, DebateGaffe<t>, DebateHeadline, DebateOther, DebateParts<t>,
+-- DebateSwing<t>, DebateGaffe<t>, DebateHeadlineBox (its Stamp's label is
+-- DebateHeadline), DebateOther, DebateParts<t>,
 -- DebateDetail<t>, DebateCallouts.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -73,10 +79,13 @@ local REVEAL_BEAT = 0.25 -- fastest pace: one tick of the router
 local REVEAL_SLOW = 0.8 -- slowest pace, when there are few events
 local GROUP_LINES = 6 -- lines per side before "+N more"
 local DEBATE_BEAT = 2 -- seconds per debate topic
-local DOT = 12 -- px, a player's color dot
+local PORTRAIT = 24 -- px, a player's monogram in a group head
+local MARK_W = 20 -- px, the ▲/▼ column of a "What changed" row
 local ROW_H = 28 -- px, one scoreboard row
 local SCORE_W = 84 -- px, the scoreboard's score column
 local VERDICT_W = 96 -- px, the scoreboard's verdict column
+local STAMP_SLACK = 24 -- px over the stamp's height in its row: room for its tilt
+local STAMP_INSET = 6 -- px the debate stamp keeps from each side (its tilted corners stay in)
 
 export type Hooks = {
 	caption: (text: string) -> (),
@@ -102,32 +111,43 @@ local function grows(props: { [string]: any }): { [string]: any }
 	return props
 end
 
--- A group head: the player's dot and "Your week".
+-- A group head: the player's monogram (filled in by `portrait`) and "Your week".
 local function groupHead(parent: Instance, name: string): (Frame, TextLabel)
 	local row = Kit.box({
 		Name = name,
 		LayoutOrder = 0,
-		Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
+		Size = UDim2.new(1, 0, 0, PORTRAIT + 2),
 		Parent = parent,
 	})
-	local dot = Kit.box({
-		Name = "Dot",
+	local slot = Kit.box({
+		Name = "Portrait",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(DOT, DOT),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.muted,
+		Size = UDim2.fromOffset(PORTRAIT, PORTRAIT),
 		Parent = row,
 	})
-	Kit.round().Parent = dot
 	local label = Kit.text("", {
 		Name = "Label",
-		Position = UDim2.fromOffset(DOT + Kit.space.sm, 0),
-		Size = UDim2.new(1, -(DOT + Kit.space.sm), 1, 0),
+		Position = UDim2.fromOffset(PORTRAIT + Kit.space.sm, 0),
+		Size = UDim2.new(1, -(PORTRAIT + Kit.space.sm), 1, 0),
 		Font = Kit.font.bold,
 		Parent = row,
 	})
-	return dot, label
+	return slot, label
+end
+
+-- Puts `name`'s monogram in `color` into a group head's slot (once per name and color).
+local function portrait(slot: Frame, name: string, color: Color3)
+	local rgb = Kit.rgb(color)
+	local key = `{name}|{rgb.r},{rgb.g},{rgb.b}`
+	if slot:GetAttribute("For") == key then
+		return
+	end
+	slot:SetAttribute("For", key)
+	for _, child in slot:GetChildren() do
+		child:Destroy()
+	end
+	Kit.monogram(name, color, PORTRAIT).Parent = slot
 end
 
 function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: Hooks): Reveal
@@ -140,8 +160,13 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		Visible = false,
 		Parent = parent,
 	})
+	-- Lit like a card (the elevation of a moment), not a flat panel.
+	Kit.depth(root, Kit.colors.surfaceTop, Kit.colors.surface)
+	Kit.bevel(root)
 	Kit.list("Vertical", Kit.space.md).Parent = root
-	local title = Kit.heading("", { Name = "RevealTitle", LayoutOrder = 1, Parent = root })
+	local headBox = Kit.stack({ Name = "RevealHead", LayoutOrder = 1, Parent = root }, "Vertical", 2)
+	local eyebrow = Kit.eyebrow("", { Name = "RevealEyebrow", LayoutOrder = 1, Parent = headBox })
+	local title = Kit.heading("", { Name = "RevealTitle", LayoutOrder = 2, Parent = headBox })
 
 	-- Beat one: both plans are in, and who goes first.
 	local intro =
@@ -185,18 +210,35 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		"What changed",
 		{ Name = "ChangedHead", LayoutOrder = 0, Font = Kit.font.bold, Parent = changed }
 	)
+	-- One row per flip: the ▲/▼ in its own column (green or orange), the line
+	-- in the new leader's readable color.
+	local flipRows: { Frame } = {}
+	local flipMarks: { TextLabel } = {}
 	local flipLines: { TextLabel } = {}
 	for k = 1, Words.FLIP_LINES do
-		flipLines[k] = Kit.text(
-			"",
-			grows({
-				Name = `RevealFlip{k}`,
-				LayoutOrder = k,
-				Font = Kit.font.bold,
-				Visible = false,
-				Parent = changed,
-			})
-		)
+		local row = Kit.box({
+			Name = `RevealFlipRow{k}`,
+			LayoutOrder = k,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Visible = false,
+			Parent = changed,
+		})
+		flipRows[k] = row
+		flipMarks[k] = Kit.text("", {
+			Name = "Mark",
+			Size = UDim2.fromOffset(MARK_W, Kit.size.body + 6),
+			Font = Kit.font.bold,
+			Parent = row,
+		})
+		flipLines[k] = Kit.text("", {
+			Name = `RevealFlip{k}`,
+			Position = UDim2.fromOffset(MARK_W, 0),
+			Size = UDim2.new(1, -MARK_W, 0, Kit.size.body + 6),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Font = Kit.font.bold,
+			Parent = row,
+		})
 	end
 	local flipMore = Kit.caption("", {
 		Name = "RevealFlipMore",
@@ -273,7 +315,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.new(1, -VERDICT_W, 0, 0),
 			Size = UDim2.new(0, SCORE_W, 1, 0),
-			Font = Kit.font.bold,
+			Font = Kit.font.display,
+			TextSize = Kit.size.heading,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Parent = line,
 		})
@@ -305,14 +348,15 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			}),
 		}
 	end
-	local headline = Kit.heading("", {
-		Name = "DebateHeadline",
+	-- The headline's row; its stamp is made when the last topic is in.
+	local headlineBox = Kit.box({
+		Name = "DebateHeadlineBox",
 		LayoutOrder = config.DEBATE_TOPICS + 1,
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, 0, 0, Kit.size.heading + 28 + STAMP_SLACK),
 		Visible = false,
 		Parent = debateBox,
 	})
+	local headlineText = "" -- what the stamp in headlineBox says
 	local debateOther = Kit.text(
 		"",
 		grows({
@@ -446,9 +490,9 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	-- Beat three: "What changed" rows come in one after another.
 	local function enterChanged()
 		local list: { GuiObject } = {}
-		for _, label in flipLines do
-			if label.Visible then
-				table.insert(list, label)
+		for _, row in flipRows do
+			if row.Visible then
+				table.insert(list, row)
 			end
 		end
 		if flipMore.Visible then
@@ -483,10 +527,15 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		local them = themName(view)
 		for k, label in flipLines do
 			local flip = flips[k]
-			label.Visible = flip ~= nil
+			flipRows[k].Visible = flip ~= nil
 			if flip then
+				local up = Words.flipTone(view, flip) == "good"
 				label.Text = Words.flipLine(view, flip, them)
-				label.TextColor3 = Kit.tone(Words.flipTone(view, flip))
+				-- Ownership changed: the line is the new leader's color; the mark says
+				-- whether that was good for you.
+				label.TextColor3 = if flip.to > 0 then Kit.playerText(view, flip.to) else Kit.colors.text
+				flipMarks[k].Text = Words.mark(up)
+				flipMarks[k].TextColor3 = if up then Kit.colors.good else Kit.colors.loss
 			end
 		end
 		local extra = #flips - #flipLines
@@ -500,8 +549,9 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			local move = moves[k]
 			pill.Visible = move ~= nil
 			if move then
-				pill.Text = Words.movePill(move, them)
-				pill.TextColor3 = Kit.tone(if move.delta > 0 then "good" else "bad")
+				local up = move.delta > 0
+				pill.Text = Words.marked(Words.movePill(move, them), up)
+				Kit.paintPill(pill, if up then "good" else "loss", true)
 			end
 		end
 		movesRow.Visible = #moves > 0
@@ -554,11 +604,13 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		orderLine.Text = Words.orderLine(view, first, trails, themName(view))
 		hooks.swing(nil)
 		Audio.play("whoosh")
-		title.Text = `Week {math.max(1, view.week - 1)} results`
+		eyebrow.Text = string.upper(`Week {math.max(1, view.week - 1)} results`)
+		title.Text = `You vs {themName(view)}`
 		youHead.Text = "Your week"
 		themHead.Text = `{themName(view)}'s week`
-		youDot.BackgroundColor3 = Kit.playerColor(view, view.you)
-		themDot.BackgroundColor3 = Kit.playerColor(view, Model.opponentOf(view))
+		local them = Model.opponentOf(view)
+		portrait(youDot, Model.candidateName(config, view, view.you), Kit.playerColor(view, view.you))
+		portrait(themDot, Model.candidateName(config, view, them), Kit.playerColor(view, them))
 		changed.Visible = false
 		summary.Text = ""
 		choiceText.Text = ""
@@ -676,12 +728,14 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		showFlips(view, flips)
 		showMoves(view, moves)
 		changed.Visible = #flips > 0 or #moves > 0
+		title.Text = Words.flipHeadline(view, flips, themName(view))
 		if not flipsRung then
 			-- Beat three, once: rings on the flips (the stance's rang already).
 			flipsRung = true
 			if old then
 				ringFlips(view, flips)
 			end
+			Motion.pop(title)
 			enterChanged()
 		end
 		summary.Text = if #flips > 0
@@ -696,12 +750,13 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		debateShown = 0
 		summary.Text = ""
 		local view = p.view
-		title.Text = `Debate · week {view.week}`
+		eyebrow.Text = string.upper(`Week {view.week} debate`)
+		title.Text = `You vs {themName(view)}`
 		scoreHead.Text = `You – {themName(view)}`
 		for _, entry in topicRows do
 			entry.row.Visible = false
 		end
-		headline.Visible = false
+		headlineBox.Visible = false
 		debateOther.Visible = false
 		choiceText.Text = ""
 		callouts.Text = ""
@@ -709,11 +764,41 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		hooks.swing(nil)
 	end
 
+	-- The debate's headline as a stamp in its tone's color (green: you won it;
+	-- orange: they did; raised: even), slammed in once.
+	local function stampHeadline(text: string, tone: Words.Tone)
+		for _, child in headlineBox:GetChildren() do
+			child:Destroy()
+		end
+		local color = if tone == "good"
+			then Kit.colors.good
+			elseif tone == "loss" or tone == "bad" then Kit.colors.loss
+			else Kit.colors.raisedHover
+		local stamp = Kit.stamp(text, color, {
+			size = Kit.size.heading,
+			Name = "Stamp",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+		})
+		-- As wide as the words need, never wider than the panel (the label scales).
+		local natural = stamp.Size
+		stamp.Size = UDim2.new(1, -2 * STAMP_INSET, 0, natural.Y.Offset)
+		Kit.new(
+			"UISizeConstraint",
+			{ MaxSize = Vector2.new(natural.X.Offset, natural.Y.Offset), Parent = stamp }
+		)
+		local label = stamp:FindFirstChild("Plate"):FindFirstChild("Label") :: TextLabel
+		label.Name = "DebateHeadline"
+		label.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
+		stamp.Parent = headlineBox
+		Motion.stamp(stamp)
+	end
+
 	local function tickDebate(p: Payload, now: number)
 		local view = p.view
 		local result = view.debates[#view.debates]
 		if result == nil then
-			title.Text = "Debate"
+			eyebrow.Text = "DEBATE"
 			return
 		end
 		local you, them = view.you, Model.opponentOf(view)
@@ -794,12 +879,11 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			return
 		end
 		local text, tone = Words.debateHeadline(view, result, rival)
-		headline.Text = text
-		headline.TextColor3 = Kit.tone(tone :: Kit.Tone)
-		if not headline.Visible then
-			Motion.pop(headline)
+		if text ~= headlineText or not headlineBox.Visible then
+			headlineText = text
+			stampHeadline(text, tone)
 		end
-		headline.Visible = true
+		headlineBox.Visible = true
 		if #other > 0 then
 			local phrases: { string } = {}
 			for _, flip in other do
