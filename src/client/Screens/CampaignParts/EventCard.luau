@@ -1,7 +1,8 @@
 --!strict
 -- The two cards about the week (UI overhaul §3.4):
 --
--- The event card, a Collapsible: "Event · Windfall · Donor retreat +" with the
+-- The event card, a Collapsible under a "THIS WEEK" eyebrow (EventEyebrow):
+-- "Windfall · Donor retreat +" with the
 -- effect line always under it (so collapsed it is still two lines), and the
 -- flavor text and the map note in its body. Expanded by default in Spotlight
 -- and Regional weeks, collapsed otherwise; the player's own toggle
@@ -11,8 +12,9 @@
 -- taken on the Decision screen, which shows this card alone, without its title
 -- row (the header names the event): the question in one sentence, the story,
 -- the three stances as full-width chips, each with what it does in a few words
--- ("A · Side with the staff" / "+4 states · −2 states"; "C · Offer to mediate
--- (safe)"; the selection is an accent outline), then "Why?" with the rest:
+-- ("A · Side with the staff" / "+4 states  −2 states", the gain green and the
+-- loss orange; "C · Offer to mediate (safe)"; the selection is the white outline
+-- and a white bar at the chip's left), then "Why?" with the rest:
 -- "States you need" (Shared/UI/Swing, from the public poll), the summary of
 -- the shown stance on the map, the tradeoff note, and every state, stance by
 -- stance (Explain.choiceLines). While the chips show, the map previews the
@@ -32,9 +34,9 @@
 --                                                      event:showsStances() -> boolean
 --   local week = EventCard.week(parent, model, order) week:render(p); week:setPortrait(portrait)
 --
--- Element names: EventCard (attributes EventKind, EventName), EventToggle,
+-- Element names: EventCard (attributes EventKind, EventName), EventEyebrow, EventToggle,
 -- EventEffect, EventText, EventMapNote, ChoiceRow, ChoiceA, ChoiceB, ChoiceC
--- (each with Choice<X>Effect), ChoiceWhy (WhyToggle), ChoiceNeed,
+-- (each with PickBar and Choice<X>Line: Choice<X>Effect, Choice<X>Loss), ChoiceWhy (WhyToggle), ChoiceNeed,
 -- ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3, ChoiceTaken; WeekCard,
 -- WeekToggle, FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog,
 -- FeedEvent, FeedRaised, FeedPolls, FeedLastDebate, FeedDebate, FeedMessages.
@@ -62,6 +64,8 @@ local EventCard = {}
 
 local FEED_MESSAGES = 3 -- latest messages listed in the week card
 local STANCE_H = 60 -- px, one stance chip: its name over what it does
+local STANCE_BAR = 4 -- px, the bar at a stance chip's left: white when it is the pick
+local STANCE_INSET = Kit.space.md + Kit.space.sm -- px, the chip's text inset (room for the bar)
 
 export type EventCard = {
 	root: Frame,
@@ -92,6 +96,10 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		end,
 	})
 	card.toggle.Name = "EventToggle"
+	-- "THIS WEEK" over the title row: the event is news, like a broadcast's eyebrow.
+	local eyebrow = Kit.eyebrow("This week", { Name = "EventEyebrow", LayoutOrder = 0, Parent = card.root })
+	-- Lined up with the title's text (the title row is a button with its padding).
+	Kit.new("UIPadding", { PaddingLeft = UDim.new(0, Kit.space.sm), Parent = eyebrow })
 	-- The effect line sits between the title row and the body: always shown.
 	card.body.LayoutOrder = 3
 	local effect = Kit.text("", {
@@ -148,6 +156,8 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	Kit.list("Vertical", Kit.space.sm).Parent = answerRow
 	local choiceButtons: { [string]: TextButton } = {}
 	local choiceEffects: { [string]: TextLabel } = {}
+	local choiceLosses: { [string]: TextLabel } = {}
+	local choiceBars: { [string]: Frame } = {}
 	local function held(input: InputObject): boolean
 		local kind = input.UserInputType.Name
 		return kind == "MouseButton1" or kind == "Touch"
@@ -177,18 +187,52 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		if pad then
 			pad.PaddingTop = UDim.new(0, Kit.space.sm)
 			pad.PaddingBottom = UDim.new(0, Kit.space.sm)
-			pad.PaddingLeft = UDim.new(0, Kit.space.md)
+			pad.PaddingLeft = UDim.new(0, STANCE_INSET)
 			pad.PaddingRight = UDim.new(0, Kit.space.md)
 		end
-		choiceEffects[answer] = Kit.text("", {
-			Name = `Choice{answer}Effect`,
+		-- A tab-like bar at the left edge: quiet, white on the picked stance.
+		local bar = Kit.new("Frame", {
+			Name = "PickBar",
+			Position = UDim2.fromOffset(Kit.space.sm - STANCE_INSET, 0),
+			Size = UDim2.new(0, STANCE_BAR, 1, 0),
+			BackgroundColor3 = Kit.colors.raisedHover,
+			BorderSizePixel = 0,
+			Parent = button,
+		})
+		Kit.round().Parent = bar
+		-- Decoration (the outline already shows the pick); it sits in the chip's
+		-- left padding, which the headless engine does not lay out.
+		bar:SetAttribute("Decor", true)
+		-- What it does: the gain (green) and the loss (orange, with its −).
+		local line = Kit.box({
+			Name = `Choice{answer}Line`,
 			AnchorPoint = Vector2.new(0, 1),
 			Position = UDim2.fromScale(0, 1),
 			Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
-			TextSize = Kit.size.caption,
-			TextColor3 = Kit.colors.muted,
 			Parent = button,
 		})
+		Kit.list("Horizontal", Kit.space.sm).Parent = line
+		choiceEffects[answer] = Kit.text("", {
+			Name = `Choice{answer}Effect`,
+			LayoutOrder = 1,
+			Size = UDim2.fromScale(0, 1),
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextColor3 = Kit.colors.good,
+			Parent = line,
+		})
+		choiceLosses[answer] = Kit.text("", {
+			Name = `Choice{answer}Loss`,
+			LayoutOrder = 2,
+			Size = UDim2.fromScale(0, 1),
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextColor3 = Kit.colors.loss,
+			Parent = line,
+		})
+		choiceBars[answer] = bar
 		-- Press and hold: preview this stance on the map without picking it.
 		button.InputBegan:Connect(function(input: InputObject)
 			if held(input) and model.peekChoice ~= answer then
@@ -248,6 +292,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 					)}`
 			end
 			effect.Visible = event ~= nil
+			eyebrow.Visible = event ~= nil and not (event.kind == "Choice" and Model.deciding(p) == "Stance")
 			if event == nil then
 				defaultFor = nil
 				card:setTitle("No event this week")
@@ -262,7 +307,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 				defaultFor = key
 				card:setExpanded(openByDefault(event))
 			end
-			card:setTitle(`Event · {event.kind} · {event.name}`)
+			card:setTitle(`{event.kind} · {event.name}`)
 			card.root:SetAttribute("EventKind", event.kind)
 			card.root:SetAttribute("EventName", event.name)
 			effect.Text = Words.percent(PlanDraft.eventEffect(config, event))
@@ -319,17 +364,28 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 						button.Text = if stance.id == hedge
 							then `{stance.id} · {stance.name} (safe)`
 							else `{stance.id} · {stance.name}`
-						choiceEffects[stance.id].Text =
-							Words.stanceEffect(Swing.stance(config, view, stance.id))
+						local gain, loss = Words.stanceParts(Swing.stance(config, view, stance.id))
+						choiceEffects[stance.id].Text = gain or ""
+						choiceEffects[stance.id].Visible = gain ~= nil
+						choiceLosses[stance.id].Text = loss or ""
+						choiceLosses[stance.id].Visible = loss ~= nil
 					end
 				end
 			end
 			for answer, button in choiceButtons do
-				Kit.setSelected(button, model.choice == answer)
+				local picked = model.choice == answer
+				Kit.setSelected(button, picked)
 				Kit.setEnabled(button, canEdit)
-				choiceEffects[answer].TextColor3 = if canEdit
-					then Kit.colors.text
-					else Kit.colors.disabledText
+				choiceBars[answer].BackgroundColor3 = if picked
+					then Kit.colors.accent
+					else Kit.colors.raisedHover
+				local gain = choiceEffects[answer]
+				-- "No change" is not a gain: plain text.
+				gain.TextColor3 = if not canEdit
+					then Kit.colors.disabledText
+					elseif string.sub(gain.Text, 1, 1) == "+" then Kit.colors.good
+					else Kit.colors.text
+				choiceLosses[answer].TextColor3 = if canEdit then Kit.colors.loss else Kit.colors.disabledText
 			end
 			local shownStance: SharedTypes.Choice = model.peekChoice or model.choice or Events.defaultChoice()
 			summary.Text = Swing.stanceSummary(config, view, Swing.stance(config, view, shownStance))

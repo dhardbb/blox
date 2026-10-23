@@ -14,6 +14,17 @@ Sim, server and payload (no client changes yet; no Config changes). Studio check
 - Wire: new request `ClaimColor { matchId, step, color }`; reasons `ColorTaken`, `NoColorPass`, `UnknownColor`; notice `ColorTaken`; View fields `colorClaims` and `canPickColor`.
 - Still to come: the color picker on the Select screen (the server side is ready).
 
+### Front-page panels: Lobby, Select, Draft, stances, Campaign, Help (WP-2)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Front-page panels".
+
+- **Lobby.** The big "270" logo (round font, outlined, a soft glow) under "A 1V1 ELECTION STRATEGY GAME", on a navy stage glow. The bot levels are one segmented control under Play vs Bot. The leaderboard has gold, silver and bronze coins for the top three, ratings in the round font, and your own row raised with a white bar; beside the buttons it casts a shadow. A private match's code sits on a lit plate in the round font.
+- **Select.** Every candidate card leads with a round portrait of their initials in your color (the taken one in your opponent's); the strength and weakness are one line each. The color line shows your candidate's initials in your color.
+- **Draft.** Lean tags are filled in the leaning player's color ("+2 Rex" on red, "+2 you" on blue). On the map, a battleground is the outlined ★ tag (never a white fill), home is "H" in its owner's color, and your picks' numbers are outlined like the selection ring. The reveal names each pick in its taker's color with a ★ Battleground or Home tag.
+- **Stances and debate prep.** Each choice has a bar on its left that turns white when picked; a stance's loss ("−10 states") is orange, its gain green. Good debate odds (50 % or better) are a green tag.
+- **Campaign.** The header's score is the chunky race bar with the 270 tick, the vote counts in the round font at each end, names in readable player colors (numbers only on a phone). The state card's six actions have their icons on round plates, its poll is a small race bar. The event card says "THIS WEEK" over its title. "Map key" is now a **Key** chip with a magnifier.
+- **Help ("?") and How to play.** The tabs are one segmented control; the pictures use the real race bar and the action icons on plates. **Leave match** sits under a line, orange-outlined. How to play's winners are tags filled in each player's color.
+
 ### Front-page map
 
 Client only (and display numbers in `MapLayout`): no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Front-page map".

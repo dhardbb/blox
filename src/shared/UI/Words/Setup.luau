@@ -15,6 +15,8 @@ local Setup = {}
 -- ---------------------------------------------------------------- Lobby
 
 Setup.TAGLINE = "Win the race to 270 votes."
+Setup.EYEBROW = "A 1v1 election strategy game" -- over the wordmark, in capitals
+Setup.HOSTING_TITLE = "Your private match"
 Setup.FRIEND_MAKE = "Make a code and send it to a friend."
 Setup.FRIEND_ENTER = "Got a code from a friend? Type it here."
 Setup.CODE_PLACEHOLDER = "Enter code"

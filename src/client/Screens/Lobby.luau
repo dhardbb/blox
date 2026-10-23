@@ -52,6 +52,10 @@ local BOARD_GAP = Kit.space.lg -- px between the column and the card
 local SIDE_MIN_W = MAX_WIDTH + BOARD_W + BOARD_GAP + 2 * Kit.space.xl -- px of width for the card beside the column
 local TALL_BOARD_H = 560 -- px of height for the top 10 beside the column (else the top 3)
 local PHONE_BOARD_H = 740 -- px of height for the top 3 in a phone's column (else only "You" and See all)
+local STAGE_GLOW = 1.1 -- the stage glow's size, a share of the screen (an ellipse)
+local STAGE_FADE = 0.75 -- its transparency: a lit table, not a spotlight
+local CODE_PLATE_H = Kit.size.hero + 2 * Kit.space.lg -- px, the private match code's plate
+local CODE_GLOW_FADE = 0.9 -- a faint white light inside the code plate
 
 -- Codes use letters A-Z and digits 2-9 (no 0 or 1).
 local function validCode(code: string): boolean
@@ -77,15 +81,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return order
 	end
 
-	local title = Kit.text("270", {
-		Name = "Title",
+	-- The stage: the map's navy glow behind everything, so the first screen is
+	-- not a void (docs/UI-STYLE.md §2, Kit.glow; decorative).
+	Kit.glow(parent, Kit.colors.glow, { scale = STAGE_GLOW, transparency = STAGE_FADE, stretch = true })
+
+	local eyebrow = Kit.eyebrow(Words.EYEBROW, {
+		Name = "Eyebrow",
 		LayoutOrder = nextOrder(),
-		Size = UDim2.new(1, 0, 0, Kit.size.hero + 8),
-		Font = Kit.font.display,
-		TextSize = Kit.size.hero,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
 	})
+	-- The "270" lockup (Kit.wordmark): Fredoka at 72 with its glow and lip.
+	local title = Kit.wordmark(nil, { Name = "Title", LayoutOrder = nextOrder(), Parent = content })
 	local pitch = Kit.text(Words.TAGLINE, {
 		Name = "Pitch",
 		LayoutOrder = nextOrder(),
@@ -277,22 +284,27 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = waiting,
 	})
+	-- The code on a lit plate: a field well with the bevel edge, the code in
+	-- Fredoka at hero size.
 	local codeWell = Kit.new("Frame", {
 		Name = "CodeWell",
 		LayoutOrder = 3,
-		Size = UDim2.new(1, 0, 0, Kit.size.hero + 2 * Kit.space.lg),
+		Size = UDim2.new(1, 0, 0, CODE_PLATE_H),
 		BackgroundColor3 = Kit.colors.field,
 		BorderSizePixel = 0,
 		Visible = false,
 		Parent = waiting,
 	}) :: Frame
-	Kit.corner(Kit.radius.panel).Parent = codeWell
+	Kit.corner(Kit.radius.sheet).Parent = codeWell
+	Kit.bevel(codeWell)
+	Kit.glow(codeWell, Kit.colors.accent, { scale = 1, transparency = CODE_GLOW_FADE, stretch = true })
 	local codeLabel = Kit.text("", {
 		Name = "CodeLabel",
 		Size = UDim2.fromScale(1, 1),
-		Font = Kit.font.mono,
+		Font = Kit.font.display,
 		TextSize = Kit.size.hero,
 		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 2,
 		Parent = codeWell,
 	})
 	local waitingNow = Kit.text("", {
@@ -315,6 +327,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = starting,
 	})
 
+	local cardShadow: ImageLabel? = nil -- the card's shadow while it stands beside the column
 	local function relayout()
 		local size = parent.AbsoluteSize
 		pitch.Visible = size.Y >= SHORT_SCREEN
@@ -327,6 +340,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			card.AnchorPoint = Vector2.new(0, 0.5)
 			card.Position = UDim2.new(0.5, MAX_WIDTH / 2 - shift + BOARD_GAP, 0.5, 0)
 			card.Size = UDim2.fromOffset(BOARD_W, 0)
+			-- Standing on the stage, the card casts a shadow (in the column the
+			-- list would move one, so there it keeps the bevel only).
+			local shadow = cardShadow
+			if shadow == nil or shadow.Parent ~= parent then
+				cardShadow = Kit.shadow(card)
+			end
 			board.setRows(if size.Y >= TALL_BOARD_H then Leaderboard.SHORT else Leaderboard.COMPACT)
 		else
 			content.Position = UDim2.fromScale(0.5, 0)
@@ -366,13 +385,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if status == "Queued" then
 			local count = if lobby then lobby.queued else 0
 			waitingTitle.Text = "Looking for an opponent…"
+			waitingTitle.TextSize = Kit.size.heading
+			waitingTitle.Font = Kit.font.bold
+			waitingTitle.TextColor3 = Kit.colors.text
 			waitingHint.Text = if count > 1
 				then `{count} players waiting`
 				else "You'll start as soon as someone joins."
 			waitingNow.Visible = false
 			codeWell.Visible = false
 		elseif status == "Hosting" then
-			waitingTitle.Text = "Your private match"
+			-- An eyebrow over the code: the code's hero size is this screen's fourth.
+			waitingTitle.Text = string.upper(Words.HOSTING_TITLE)
+			waitingTitle.TextSize = Kit.size.caption
+			waitingTitle.Font = Kit.font.medium
+			waitingTitle.TextColor3 = Kit.colors.muted
 			waitingHint.Text = Words.HOSTING_HINT
 			codeLabel.Text = if lobby and lobby.code then lobby.code else "-----"
 			codeWell.Visible = true
@@ -383,7 +409,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Arrive top to bottom: the hero pops, then each line fades in.
 	Motion.pop(title, Motion.POP_FROM)
-	local arriving: { Instance } = { title, pitch, record, practice, findMatch, playFriend, howToPlay }
+	local arriving: { Instance } =
+		{ eyebrow, title, pitch, record, practice, findMatch, playFriend, howToPlay }
 	for _, child in botLevel.root:GetChildren() do
 		if child:IsA("TextButton") then
 			table.insert(arriving, child)

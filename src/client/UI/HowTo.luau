@@ -63,11 +63,12 @@ local function weekArt(art: Frame)
 			Size = UDim2.fromOffset(NUMBER, NUMBER),
 			BackgroundTransparency = 0,
 			BackgroundColor3 = Kit.colors.raised,
-			Font = Kit.font.bold,
+			Font = Kit.font.display,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Parent = line,
 		})
 		Kit.round().Parent = circle
+		Kit.bevel(circle)
 		Kit.text(text, {
 			Name = "Text",
 			Position = UDim2.fromOffset(NUMBER + Kit.space.sm, 0),
@@ -89,6 +90,7 @@ local function nightArt(art: Frame)
 		})
 		Kit.text(`{call.votes} votes`, {
 			Name = "Votes",
+			TextSize = Kit.size.caption,
 			Position = UDim2.fromScale(0.45, 0),
 			Size = UDim2.fromScale(0.25, 1),
 			TextColor3 = Kit.colors.muted,
@@ -101,16 +103,15 @@ local function nightArt(art: Frame)
 			Size = UDim2.fromScale(0.3, 1),
 			Parent = line,
 		})
-		-- The winner in their own color (blue you, red rival): red is a player
-		-- here, never "bad" (D-056).
-		local winner = Kit.pill(if call.you then "You" else "Rival", "text", {
+		-- The winner's tag filled in their own color (blue you, red rival): red
+		-- is a player here, never "bad" (D-056).
+		Kit.pill(if call.you then "You" else "Rival", "text", {
 			Name = "Winner",
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.fromScale(1, 0.5),
+			fill = Kit.color(if call.you then Colors.player.Cobalt else Colors.player.Crimson),
 			Parent = box,
 		})
-		winner.TextColor3 =
-			Kit.textColor(Kit.color(if call.you then Colors.player.Cobalt else Colors.player.Crimson))
 	end
 end
 
@@ -131,7 +132,7 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		Kit.text(page.title, {
 			Name = `HowToTitle_{page.id}`,
 			LayoutOrder = 1,
-			Font = Kit.font.bold,
+			Font = Kit.font.display,
 			Parent = frame,
 		})
 		local art = Kit.card({

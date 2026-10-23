@@ -25,6 +25,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local LeaderboardNet = require(ReplicatedStorage.Shared.Net.Leaderboard)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 
@@ -37,49 +38,113 @@ local Leaderboard = {}
 Leaderboard.SHORT = LeaderboardNet.SHORT -- rows beside the Lobby's column on a tall screen
 Leaderboard.COMPACT = LeaderboardNet.COMPACT -- rows on a phone or a short screen
 
-local ROW_H = 32 -- px, one entry
-local RANK_W = 44 -- px, "#50"
+local ROW_H = 34 -- px, one entry
+local RANK_W = 44 -- px, "#50" (or the medal, centered in it)
 local RATING_W = 56 -- px, "1480"
 local SEE_ALL_W = 96 -- px
 local SHEET_HEIGHT = 0.8 -- share of the screen height
+local MEDAL = 24 -- px, the top three's rank coin
+local MEDAL_SHADE = 0.8 -- a coin's gradient bottom (lit from the top, like a monogram)
+local YOU_BAR = 3 -- px, the white bar at the left of the viewer's row
 
-export type Board = {
-	card: Frame,
-	sheet: Sheet.Sheet,
-	update: (board: any?) -> (),
-	setRows: (n: number) -> (),
-	open: () -> (),
+-- The top three's coins: gold (the Amber player color), silver (the undecided
+-- grey) and a dull bronze. Data colors: a medal, not chrome, and nowhere near
+-- the loss orange.
+local MEDALS: { Color3 } = {
+	Kit.color(Colors.player.Amber),
+	Kit.colors.undecided,
+	Color3.fromRGB(184, 132, 96),
 }
 
--- One entry: "#3", the name (shrinks to fit), the rating. Raised and bold when
--- it is the viewer's.
+-- A rank coin: the number in Fredoka on a lit disc of `color`.
+local function medal(rank: number, color: Color3): Frame
+	local coin = Kit.dataColor(Kit.new("Frame", {
+		Name = "Medal",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(MEDAL, MEDAL),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+	})) :: Frame
+	Kit.round().Parent = coin
+	Kit.new("UIGradient", {
+		Name = "Depth",
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(MEDAL_SHADE, MEDAL_SHADE, MEDAL_SHADE)),
+		Parent = coin,
+	})
+	Kit.new("UIStroke", {
+		Name = "Edge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = Kit.color(Colors.tint(Kit.rgb(color), Colors.background, 0.35)),
+		Thickness = 1,
+		Parent = coin,
+	})
+	Kit.text(tostring(rank), {
+		Name = "Number",
+		Size = UDim2.fromScale(1, 1),
+		Font = Kit.font.display,
+		TextSize = Kit.size.caption,
+		TextWrapped = false,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = Kit.color(Colors.onColor(Kit.rgb(color))),
+		Parent = coin,
+	})
+	return coin
+end
+
+-- One entry: the rank (a coin for the top three, else "#7"), the name (shrinks
+-- to fit), the rating in Fredoka. The viewer's row is raised, bold and marked
+-- by a white bar at its left.
 local function entryRow(parent: Instance, name: string, entry: any, mine: boolean): Frame
 	local line = Kit.box({
 		Name = name,
 		LayoutOrder = entry.rank,
 		Size = UDim2.new(1, 0, 0, ROW_H),
 		BackgroundTransparency = if mine then 0 else 1,
-		BackgroundColor3 = Kit.colors.raised,
+		BackgroundColor3 = Kit.colors.raisedHover,
 		Parent = parent,
 	})
 	line:SetAttribute("You", mine)
 	if mine then
 		Kit.corner(Kit.radius.control).Parent = line
+		local bar = Kit.new("Frame", {
+			Name = "YouBar",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.fromScale(0, 0.5),
+			Size = UDim2.new(0, YOU_BAR, 1, -Kit.space.sm),
+			BackgroundColor3 = Kit.colors.accent,
+			BorderSizePixel = 0,
+			Parent = line,
+		})
+		Kit.round().Parent = bar
 	end
 	local font = if mine then Kit.font.bold else Kit.font.body
-	Kit.text(`#{entry.rank}`, {
-		Name = "Rank",
+	local rankBox = Kit.box({
+		Name = "RankBox",
 		Position = UDim2.fromOffset(Kit.space.xs, 0),
 		Size = UDim2.new(0, RANK_W, 1, 0),
-		Font = if mine then Kit.font.bold else Kit.font.medium,
-		TextColor3 = if mine then Kit.colors.text else Kit.colors.muted,
-		TextWrapped = false,
 		Parent = line,
 	})
+	local coin = MEDALS[entry.rank]
+	if coin then
+		medal(entry.rank, coin).Parent = rankBox
+	else
+		Kit.text(`#{entry.rank}`, {
+			Name = "Rank",
+			Size = UDim2.fromScale(1, 1),
+			Font = if mine then Kit.font.bold else Kit.font.medium,
+			TextSize = Kit.size.caption,
+			TextColor3 = if mine then Kit.colors.text else Kit.colors.muted,
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Parent = rankBox,
+		})
+	end
 	Kit.text(tostring(entry.name), {
 		Name = "Name",
-		Position = UDim2.fromOffset(Kit.space.xs + RANK_W, 0),
-		Size = UDim2.new(1, -(2 * Kit.space.xs + RANK_W + RATING_W), 1, 0),
+		Position = UDim2.fromOffset(Kit.space.sm + RANK_W, 0),
+		Size = UDim2.new(1, -(Kit.space.sm + Kit.space.xs + RANK_W + RATING_W), 1, 0),
 		Font = font,
 		TextScaled = true,
 		TextWrapped = false,
@@ -88,9 +153,9 @@ local function entryRow(parent: Instance, name: string, entry: any, mine: boolea
 	Kit.text(tostring(entry.rating), {
 		Name = "Rating",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -Kit.space.xs, 0, 0),
+		Position = UDim2.new(1, -Kit.space.sm, 0, 0),
 		Size = UDim2.new(0, RATING_W, 1, 0),
-		Font = Kit.font.bold,
+		Font = Kit.font.display,
 		TextWrapped = false,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = line,
@@ -127,7 +192,7 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 	Kit.text(Words.BOARD_TITLE, {
 		Name = "LeaderboardTitle",
 		Size = UDim2.new(1, -(SEE_ALL_W + Kit.space.sm), 1, 0),
-		Font = Kit.font.bold,
+		Font = Kit.font.display,
 		TextWrapped = false,
 		Parent = head,
 	})
@@ -141,18 +206,20 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.new(0, SEE_ALL_W, 1, 0),
+		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = head,
 	})
-	local rowsBox = Kit.stack({ Name = "LeaderboardRows", LayoutOrder = 2, Parent = card }, "Vertical", 0)
+	Kit.divider({ Name = "LeaderboardRule", LayoutOrder = 2, BackgroundTransparency = 0.5, Parent = card })
+	local rowsBox = Kit.stack({ Name = "LeaderboardRows", LayoutOrder = 3, Parent = card }, "Vertical", 0)
 	local status = Kit.caption("", {
 		Name = "LeaderboardStatus",
-		LayoutOrder = 3,
+		LayoutOrder = 4,
 		Visible = false,
 		Parent = card,
 	})
 	local you = Kit.caption("", {
 		Name = "LeaderboardYou",
-		LayoutOrder = 4,
+		LayoutOrder = 5,
 		TextColor3 = Kit.colors.text,
 		Visible = false,
 		Parent = card,

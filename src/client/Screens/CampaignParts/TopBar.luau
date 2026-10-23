@@ -4,15 +4,18 @@
 -- screen (D-044) uses it too: the title names the decision, and the actions
 -- and money are left out.
 --
---   wide      Week 3 of 12      Dana Okafor 310 ━━━━━━━|━━━━ 189 Rex Calloway      ?  0:48
+--   wide      Week 3 of 12      310 Dana Okafor     Rex Calloway 189      ?  0:48
+--                               ━━━━━━━━━━━━━━|━━━━━━━━━━━━━━━━━━━━
 --             ▌Pick an action in Ohio                           2 actions left · $4.0
---   phone     Week 3   Dana 310 ━━━|━━ 189 Rex     ?  0:48
+--   phone     Week 3   310        189     ?  0:48   (the numbers in each side's color)
+--                      ━━━━━|━━━━━━━
 --             ▌Tap a state on the map         3 actions left · $4.0
 --   Decision  Week 7 · Clinic walkout                    ?  0:18   (phone: no score)
 --             ▌Pick a side: A, B or C
 --
--- The score is each side's projected votes over a two-segment bar with a tick
--- at the halfway mark (270 of 538). The time bar under the first row shows the
+-- The score is each side's projected votes (Fredoka, in the readable player
+-- colors) over the race bar (Kit.raceBar, 10 px) with its tick at the votes
+-- to win (270 of 538). The time bar under the first row shows the
 -- step's time left. The disconnect notice adds a 24 px row under the now line.
 -- The step's name ("Plan your week", "Results", "Debate", "Locked in", "Debate
 -- focus", "Take a stance") is kept on the hidden StageLabel: the now line says
@@ -28,7 +31,8 @@
 --   top:render(now) -> bool  -- true when the height changed (the notice came or went)
 --   top.root   Frame "TopBar"
 --   Elements: WeekLabel, StageLabel (hidden), Countdown, HelpButton, NowText,
---   Score (YouLabel, ThemLabel, EvBar with YouBar, ThemBar, Mid), APLabel,
+--   Score (YouSide: YouVotes, YouLabel; ThemSide: ThemLabel, ThemVotes; EvBar
+--   with YouBar, ThemBar, Mid), APLabel,
 --   MoneyLabel, OpponentNotice.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -46,12 +50,12 @@ local Motion = require(script.Parent.Parent.Parent.UI.Motion)
 local TopBar = {}
 
 local NOTICE_H = 24 -- px, the disconnected notice
-local NAMES_H = 22 -- px, the names line in the score strip
-local BAR_H = 6 -- px, the vote bar under the names
+local NAMES_H = 22 -- px, the names line in the score strip (votes in Fredoka at heading size)
+local BAR_H = 10 -- px, the race bar under the names (Kit.raceBar; it overhangs 4 px each way)
+local SCORE_GAP = 2 -- px between the names line and the race bar's box
 local SCORE_START = 0.24 -- share of the row where the score strip starts (wide)
 local PORTRAIT_SCORE_START = 0.25 -- ... on a phone, after the short "Week 3"
 local BUDGET_SHARE = 0.44 -- share of the now line the actions and money take
-local MID_W = 2 -- px, the halfway tick on the vote bar
 local DELTA_RISE = 12 -- px, a delta chip rises this far
 local DELTA_SECONDS = 0.6 -- s, ... while it fades
 local DELTA_H = Kit.size.caption + 4 -- px, a delta chip's height
@@ -114,58 +118,62 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	-- layout (the sound button steps aside when a long title needs the room).
 	local laidOutRight = header.rightWidth
 
-	-- The score strip: names and projected votes over a two-segment bar.
+	-- The score strip: each side's projected votes (Fredoka, at the outer ends)
+	-- and name (wide screens only) over the race bar (Kit.raceBar) with its
+	-- 270 tick. Names and numbers in the readable player colors.
 	local score = Kit.box({ Name = "Score", Parent = header.root })
 	Kit.dataColor(score)
-	local function name(labelName: string, align: Enum.TextXAlignment): TextLabel
-		return Kit.text("", {
-			Name = labelName,
+	local function side(sideName: string, right: boolean): Frame
+		local group = Kit.box({
+			Name = sideName,
+			AnchorPoint = Vector2.new(if right then 1 else 0, 0),
+			Position = UDim2.fromScale(if right then 1 else 0, 0),
 			Size = UDim2.new(0.5, -Kit.space.xs, 0, NAMES_H),
-			Font = Kit.font.bold,
-			TextScaled = true,
-			TextSize = Kit.size.body,
-			TextXAlignment = align,
 			Parent = score,
 		})
+		local list = Kit.list("Horizontal", Kit.space.sm)
+		list.HorizontalAlignment = if right
+			then Enum.HorizontalAlignment.Right
+			else Enum.HorizontalAlignment.Left
+		list.VerticalAlignment = Enum.VerticalAlignment.Center
+		list.Parent = group
+		return group
 	end
-	local you = name("YouLabel", Enum.TextXAlignment.Left)
-	local them = name("ThemLabel", Enum.TextXAlignment.Right)
-	them.AnchorPoint = Vector2.new(1, 0)
-	them.Position = UDim2.fromScale(1, 0)
-	local bar = Kit.new("Frame", {
-		Name = "EvBar",
-		Position = UDim2.fromOffset(0, NAMES_H + 4),
-		Size = UDim2.new(1, 0, 0, BAR_H),
-		BackgroundColor3 = Kit.colors.raised,
-		BorderSizePixel = 0,
-		Parent = score,
-	}) :: Frame
-	Kit.corner(BAR_H // 2).Parent = bar
-	local youBar = Kit.new("Frame", {
-		Name = "YouBar",
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(0, 1),
-		Parent = bar,
-	}) :: Frame
-	local themBar = Kit.new("Frame", {
-		Name = "ThemBar",
-		BorderSizePixel = 0,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromScale(0, 1),
-		Parent = bar,
-	}) :: Frame
-	-- The halfway tick: whoever crosses it has a majority.
-	Kit.new("Frame", {
-		Name = "Mid",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
-		Size = UDim2.new(0, MID_W, 1, 0),
-		BackgroundColor3 = Kit.colors.text,
-		BorderSizePixel = 0,
-		ZIndex = 2,
-		Parent = bar,
-	})
+	local function votes(labelName: string, order: number, group: Frame): TextLabel
+		return Kit.text("", {
+			Name = labelName,
+			LayoutOrder = order,
+			Size = UDim2.fromOffset(0, NAMES_H),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Font = Kit.font.display,
+			TextSize = Kit.size.heading,
+			TextWrapped = false,
+			Parent = group,
+		})
+	end
+	local function name(labelName: string, order: number, group: Frame): TextLabel
+		return Kit.text("", {
+			Name = labelName,
+			LayoutOrder = order,
+			Size = UDim2.fromOffset(0, NAMES_H),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Font = Kit.font.bold,
+			TextSize = Kit.size.body,
+			TextWrapped = false,
+			Parent = group,
+		})
+	end
+	local youSide = side("YouSide", false)
+	local themSide = side("ThemSide", true)
+	local youVotes = votes("YouVotes", 1, youSide)
+	local you = name("YouLabel", 2, youSide)
+	local them = name("ThemLabel", 1, themSide)
+	local themVotes = votes("ThemVotes", 2, themSide)
+	local race = Kit.raceBar(score, { h = BAR_H, mark = config.EV_TO_WIN / TOTAL_EV, name = "EvBar" })
+	race.root.Position = UDim2.fromOffset(0, NAMES_H + SCORE_GAP)
+	race.left.Name = "YouBar"
+	race.right.Name = "ThemBar"
+	race.tick.Name = "Mid"
 
 	-- The actions left and the money, at the right end of the now line.
 	local nowLine = header.root:FindFirstChild("Now") :: Frame
@@ -203,7 +211,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		Position = UDim2.fromOffset(0, header.height),
 		TextSize = Kit.size.caption,
 		TextScaled = true,
-		TextColor3 = Kit.colors.danger,
+		TextColor3 = Kit.colors.loss,
 		Visible = false,
 		Parent = root,
 	})
@@ -249,8 +257,12 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			left.Size = UDim2.new(1, -(rightW + Kit.space.sm), 0, Kit.HEADER_H)
 		end
 		score.Visible = scoreShown
-		score.Position = UDim2.new(start, 0, 0, (Kit.HEADER_H - (NAMES_H + 4 + BAR_H)) // 2)
-		score.Size = UDim2.new(1 - start, -(rightW + Kit.space.lg), 0, NAMES_H + 4 + BAR_H)
+		local stripH = NAMES_H + SCORE_GAP + race.root.Size.Y.Offset
+		score.Position = UDim2.new(start, 0, 0, (Kit.HEADER_H - stripH) // 2)
+		score.Size = UDim2.new(1 - start, -(rightW + Kit.space.lg), 0, stripH)
+		-- A phone's strip has room for the numbers only: the colors say who.
+		you.Visible = not portrait
+		them.Visible = not portrait
 		root.Size = UDim2.new(1, 0, 0, height())
 	end
 
@@ -338,7 +350,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			local ap, cash = PlanDraft.remaining(config, view, model.draft)
 			local actionsLeft = math.max(0, ap)
 			apLabel.Text = `{actionsLeft} {if actionsLeft == 1 then "action" else "actions"} left`
-			apLabel.TextColor3 = if ap < 0 then Kit.colors.danger else Kit.colors.text
+			apLabel.TextColor3 = if ap < 0 then Kit.colors.loss else Kit.colors.text
+			apLabel:SetAttribute("Warn", ap < 0)
 			local cashBefore = shownCash
 			local moneyNow = Model.money(cash)
 			if planning and cashBefore ~= nil and Model.money(cashBefore) ~= moneyNow then
@@ -349,14 +362,14 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 					cash,
 					Model.money,
 					if change > 0 then `+{Model.money(change)}` else Model.money(change),
-					if change > 0 then Kit.colors.good else Kit.colors.danger
+					if change > 0 then Kit.colors.good else Kit.colors.loss
 				)
 			elseif cashBefore == nil or Model.money(cashBefore) ~= moneyNow or not planning then
 				Motion.cancel(moneyLabel)
 				moneyLabel.Text = moneyNow
 			end
 			shownCash = if planning then cash else nil
-			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.danger else Kit.colors.good
+			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.loss else Kit.colors.good
 
 			-- The score: on a phone the Decision title needs the whole row.
 			local wantScore = not (portrait and deciding ~= nil)
@@ -366,43 +379,35 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			end
 			local ev = view.projectedEV
 			local mine, theirs = ev[me] or 0, ev[rival] or 0
-			local myName = if portrait
-				then Model.firstName(config, view, me)
-				else Model.candidateName(config, view, me)
-			local theirName = if portrait then theirFirst else Model.candidateName(config, view, rival)
+			local myName = Model.candidateName(config, view, me)
+			local theirName = Model.candidateName(config, view, rival)
 			local myColor, theirColor = Kit.playerColor(view, me), Kit.playerColor(view, rival)
-			local function myText(n: number): string
-				return `{myName} {math.floor(n + 0.5)}`
-			end
-			local function theirText(n: number): string
-				return `{math.floor(n + 0.5)} {theirName}`
+			local function count(n: number): string
+				return tostring(math.floor(n + 0.5))
 			end
 			local function signed(n: number): string
 				return if n > 0 then `+{n}` else tostring(n)
 			end
-			local names = `{myName}|{theirName}`
+			local names = `{myName}|{theirName}|{portrait}`
 			if names ~= namesShown then
-				-- A new layout (phone names) or a new match: no count, just the values.
+				-- A new layout or a new match: no count, just the values.
 				namesShown = names
 				shownMine, shownTheirs = nil, nil
-				Motion.cancel(you)
-				Motion.cancel(them)
+				Motion.cancel(youVotes)
+				Motion.cancel(themVotes)
 			end
+			you.Text = myName
+			them.Text = theirName
 			local mineBefore, theirsBefore = shownMine, shownTheirs
-			show(you, mineBefore, mine, myText, signed(mine - (mineBefore or mine)), myColor)
-			show(them, theirsBefore, theirs, theirText, signed(theirs - (theirsBefore or theirs)), theirColor)
+			local myText, theirText = Kit.textColor(myColor), Kit.textColor(theirColor)
+			show(youVotes, mineBefore, mine, count, signed(mine - (mineBefore or mine)), myText)
+			show(themVotes, theirsBefore, theirs, count, signed(theirs - (theirsBefore or theirs)), theirText)
 			shownMine, shownTheirs = mine, theirs
-			you.TextColor3 = myColor
-			them.TextColor3 = theirColor
-			youBar.BackgroundColor3 = myColor
-			themBar.BackgroundColor3 = theirColor
-			local youSize = UDim2.fromScale(math.clamp(mine / TOTAL_EV, 0, 1), 1)
-			local themSize = UDim2.fromScale(math.clamp(theirs / TOTAL_EV, 0, 1), 1)
-			if mineBefore == nil or mineBefore ~= mine then
-				Motion.tween(youBar, { Size = youSize }, Motion.t.count, Motion.ease.soft)
-			end
-			if theirsBefore == nil or theirsBefore ~= theirs then
-				Motion.tween(themBar, { Size = themSize }, Motion.t.count, Motion.ease.soft)
+			you.TextColor3, youVotes.TextColor3 = myText, myText
+			them.TextColor3, themVotes.TextColor3 = theirText, theirText
+			race:setColors(myColor, theirColor)
+			if mineBefore ~= mine or theirsBefore ~= theirs then
+				race:set(mine / TOTAL_EV, theirs / TOTAL_EV)
 			end
 
 			local seat = p.seats[rival]

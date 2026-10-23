@@ -952,6 +952,20 @@ Robustness (400 matches each, a scratch run of `Play.match` against the harness'
 
 **Tests.** `tests/net/Leaderboard.spec` (ordering, ties, bad rows, the top-50 cut, moving a player, what a viewer gets, the two new requests, `Session.forfeit`), `tests/e2e/Leaderboard.spec` (the fake engine now has an OrderedDataStore with its own failure switch and `GetNameFromUserIdAsync`: empty board, ordering and names, one read a minute, failures, name retries, backfill on join; leaving against a person and the bot, a repeated request, a request outside a match), `tests/ui/LobbyExtras.spec` (the level chips and the Practice payload, How to play, the card on phone, short phone and desktop, the sheet, both confirmations, closing when the match ends). Shots `01c`–`01f`, `02e`–`02j`, `28`–`28b`: 0 audit findings at phone, iPad and desktop.
 
+### D-060 — Front-page panels: segmented controls, monograms, header race bar (no rule changes, Oct 23, 2026)
+
+WP-2 of the front-page pass (art direction §4), on the white accent (D-058). Client only; presentation numbers live next to their screens.
+
+**Segmented controls, not folder tabs.** The plan gave Help's tabs per-corner radii ("folder" tabs on the body card). `UICorner`'s per-corner radii are still a Studio beta ("New UI Capabilities"), so a live game can't rely on them. Help's tabs and the Lobby's bot levels are instead one segmented control each: a `field` track, the picked item raised with the 2 px white outline, the others flat with muted labels. Same 44 px targets.
+
+**Battleground marks stay outlined.** The Draft's "B" badge was a white (accent) fill; it is now the outlined ★ tag (a dark tag with a white edge), shown on the rim off the Votes lens and on phones (where small circles carry no number), since the Votes lens already stars the number. Home is "H" filled in its owner's color; a pick's "1"/"2" is outlined like the selection ring. Nothing on the map is filled white.
+
+**Monogram colors on Select.** Candidates have no colors of their own, so every card's monogram is in your dealt color (the face you would play) and the taken one in your opponent's; grey before colors are dealt.
+
+**Header score.** The Campaign header uses `Kit.raceBar` (10 px, tick at 270 of 538) with the vote counts in Fredoka at the outer ends and names in `Kit.textColor`. A phone's strip shows the numbers only (both names don't fit beside the title and the buttons); left is always you, and the colors match the bar.
+
+**Text sizes.** The Lobby keeps four: wordmark 72, heading 20 (the primary's label), body 16, caption 14. Hosting shows the code at hero 48, so its title becomes a caption eyebrow ("YOUR PRIVATE MATCH") and the leaderboard title is body-size Fredoka.
+
 ### D-061 — Color Pass colors are claimed in Select, first come, first served (supersedes D-055's tie rule, Oct 23, 2026)
 
 **Ask.** The designers: "for the paid color choice, if two paid players pick the same color one person shouldn't be stuck with a default color. make it like the candidate selector where it's first come first serve."

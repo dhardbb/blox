@@ -64,6 +64,8 @@ local Screen = {}
 
 local GAP = Kit.space.sm -- px between the big blocks
 local LENS_H = LensToggle.HEIGHT -- px, the "Map key" button and the lens chips above the map
+local KEY_W = 88 -- px, the map key chip
+local KEY_ICON = 24 -- px, its icon plate
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
 local PORTRAIT_MAP_MAX = 0.42 -- most of the body height the map may take on phones
 local BACK_SECONDS = 4 -- how long "<name>: back" shows after a reconnect
@@ -137,17 +139,31 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- Map area: the "Map key" button beside the lens chips, then the map.
 	local mapArea = Kit.box({ Name = "MapArea", Parent = body })
 	local keySheet: Sheet.Sheet? = nil
-	local keyButton = Kit.button("Map key", function()
+	-- A chip like the lens chips beside it: the search icon on its plate and "Key".
+	local keyButton = Kit.chip("", function()
 		local sheet = keySheet
 		if sheet then
 			sheet:open()
 		end
 	end, {
-		variant = "ghost",
 		Name = "MapKey",
-		Size = UDim2.fromOffset(96, LENS_H),
-		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.fromOffset(KEY_W, LENS_H),
 		Parent = mapArea,
+	})
+	local keyContent = Kit.box({ Name = "Content", Parent = keyButton })
+	local keyList = Kit.list("Horizontal", Kit.space.xs)
+	keyList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	keyList.VerticalAlignment = Enum.VerticalAlignment.Center
+	keyList.Parent = keyContent
+	Kit.iconPlate("search", KEY_ICON, Kit.colors.text).Parent = keyContent
+	Kit.text("Key", {
+		Name = "Label",
+		LayoutOrder = 2,
+		Size = UDim2.fromOffset(0, LENS_H),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Font = Kit.font.medium,
+		TextWrapped = false,
+		Parent = keyContent,
 	})
 	local mapHolder = Kit.box({
 		Name = "MapHolder",
@@ -187,7 +203,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end)
 	lensToggle.root.AnchorPoint = Vector2.new(1, 0)
 	lensToggle.root.Position = UDim2.fromScale(1, 0)
-	keyButton.Size = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.sm), 0, LENS_H)
+	-- The key chip keeps its own width (KEY_W); the lens chips take the right end.
 
 	-- A plan that can't go: the bar shakes, its status flashes, one "error".
 	local bar: ActionBar.ActionBar

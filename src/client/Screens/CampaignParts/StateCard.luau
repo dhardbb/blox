@@ -17,7 +17,8 @@
 -- momentum and its drift, ground game, top issues, and one line per action with
 -- the full math (Shared/UI/Explain), a details area.
 --
--- Each action button leads with its icon (Kit.icon, UI/Icons; the word stays).
+-- Each action button leads with its icon on a round plate (Kit.iconPlate,
+-- UI/Icons; the word stays), so the six read as a set.
 -- Motion (docs/DESIGN.md D-053): a newly tapped state's card fades in and its
 -- action buttons pop in one after another; an added action pops its button;
 -- holding an action button shows what it would do on the map (model.ghost).
@@ -76,9 +77,9 @@ local ACTION_H = 64 -- px, one action button: its name over what it does
 local MAIN_PHONE = 3 -- action buttons a phone shows before "More actions"
 local MAIN_WIDE = 6 -- ... a wide screen
 local LEAD_NAMES_H = 18 -- px, the names over the poll bar
-local LEAD_BAR_H = 8 -- px, the poll bar
+local LEAD_BAR_H = 6 -- px, the poll bar (a mini Kit.raceBar; its tick overhangs 4 px each way)
 local MESSAGE_LABEL_W = 76 -- px, "Message" before the chips
-local ICON_PX = 16 -- px, an action button's icon
+local ICON_PX = 20 -- px, an action button's icon plate (Kit.iconPlate)
 local CARD_RISE = 8 -- px, the card sliding in on a new state
 local ADD_POP = 1.06 -- an action button's size as it adds (it settles to 1)
 
@@ -140,7 +141,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 	local leadBox = Kit.box({
 		Name = "CardLead",
 		LayoutOrder = 3,
-		Size = UDim2.new(1, 0, 0, LEAD_NAMES_H + Kit.space.xs + LEAD_BAR_H),
+		Size = UDim2.new(1, 0, 0, LEAD_NAMES_H + Kit.space.xs + LEAD_BAR_H + 8),
 		Parent = root,
 	})
 	Kit.dataColor(leadBox)
@@ -159,29 +160,13 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 	local leadThem = leadName("LeadThem", Enum.TextXAlignment.Right)
 	leadThem.AnchorPoint = Vector2.new(1, 0)
 	leadThem.Position = UDim2.fromScale(1, 0)
-	local leadBar = Kit.new("Frame", {
-		Name = "LeadBar",
-		Position = UDim2.fromOffset(0, LEAD_NAMES_H + Kit.space.xs),
-		Size = UDim2.new(1, 0, 0, LEAD_BAR_H),
-		BackgroundColor3 = Kit.colors.raised,
-		BorderSizePixel = 0,
-		Parent = leadBox,
-	}) :: Frame
-	Kit.corner(LEAD_BAR_H // 2).Parent = leadBar
-	local leadYouBar = Kit.new("Frame", {
-		Name = "YouShare",
-		Size = UDim2.fromScale(0, 1),
-		BorderSizePixel = 0,
-		Parent = leadBar,
-	}) :: Frame
-	local leadThemBar = Kit.new("Frame", {
-		Name = "ThemShare",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromScale(0, 1),
-		BorderSizePixel = 0,
-		Parent = leadBar,
-	}) :: Frame
+	-- The public poll as a mini race bar: each side's share from its end, the
+	-- tick at the halfway mark.
+	local leadRace = Kit.raceBar(leadBox, { h = LEAD_BAR_H, mark = 0.5, name = "LeadBar" })
+	leadRace.root.Position = UDim2.fromOffset(0, LEAD_NAMES_H + Kit.space.xs)
+	leadRace.left.Name = "YouShare"
+	leadRace.right.Name = "ThemShare"
+	local leadBar = leadRace.root
 	local leadNote = Kit.text("", {
 		Name = "LeadNote",
 		Size = UDim2.fromScale(1, 1),
@@ -233,11 +218,16 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local iconName = Kit.actionIcon(entry.kind)
 		local icon: GuiObject? = nil
 		if iconName then
-			local made = Kit.icon(iconName, ICON_PX, Kit.colors.text)
-			made.AnchorPoint = Vector2.new(0, 0.5)
-			made.Position = UDim2.fromScale(0, 0.5)
-			made.Parent = head
-			icon = made
+			local plate = Kit.iconPlate(iconName, ICON_PX, Kit.colors.text)
+			plate.AnchorPoint = Vector2.new(0, 0.5)
+			plate.Position = UDim2.fromScale(0, 0.5)
+			plate.Parent = head
+			-- The glyph or image inside the plate (tinted when the action is off).
+			for _, child in plate:GetChildren() do
+				if child:IsA("GuiObject") then
+					icon = child
+				end
+			end
 		end
 		local label = Kit.text(entry.label, {
 			Name = `{entry.name}Label`,
@@ -804,13 +794,13 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			entry.button.LayoutOrder = rank
 			Kit.setSelected(entry.button, id == model.selected)
 			entry.code.TextColor3 = if sv.owner ~= nil
-				then Kit.playerColor(view, sv.owner)
+				then Kit.playerText(view, sv.owner)
 				else Kit.colors.text
 			entry.margin.Text = StateOrder.marginText(view, sv)
 			local margin = StateOrder.margin(view, sv)
 			entry.margin.TextColor3 = if margin > 0
-				then Kit.playerColor(view, me)
-				elseif margin < 0 then Kit.playerColor(view, rival)
+				then Kit.playerText(view, me)
+				elseif margin < 0 then Kit.playerText(view, rival)
 				else Kit.colors.muted
 			entry.momentum.Text = StateOrder.momentumText(view, sv)
 		end
@@ -883,12 +873,10 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local mine, theirs = poll.support[me] or 0, poll.support[rival] or 0
 		leadYou.Text = `{Model.firstName(config, view, me)} {mine}`
 		leadThem.Text = `{theirs} {Model.firstName(config, view, rival)}`
-		leadYou.TextColor3 = myColor
-		leadThem.TextColor3 = theirColor
-		leadYouBar.BackgroundColor3 = myColor
-		leadThemBar.BackgroundColor3 = theirColor
-		leadYouBar.Size = UDim2.fromScale(math.clamp(mine / 100, 0, 1), 1)
-		leadThemBar.Size = UDim2.fromScale(math.clamp(theirs / 100, 0, 1), 1)
+		leadYou.TextColor3 = Kit.textColor(myColor)
+		leadThem.TextColor3 = Kit.textColor(theirColor)
+		leadRace:setColors(myColor, theirColor)
+		leadRace:set(mine / 100, theirs / 100)
 	end
 
 	local function renderDetails(view: View, s: ViewModule.StateView, id: string)
@@ -904,8 +892,8 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local glyph = if math.abs(lead) >= 0.05 then `{Kit.glyph.up} ` else ""
 		momentumValue.Text = string.format("%syou %.1f · %s %.1f", glyph, mine, theirName, theirs)
 		momentumValue.TextColor3 = if lead >= 0.05
-			then Kit.playerColor(view, me)
-			elseif lead <= -0.05 then Kit.playerColor(view, rival)
+			then Kit.playerText(view, me)
+			elseif lead <= -0.05 then Kit.playerText(view, rival)
 			else Kit.colors.text
 		momentumNote.Text = Explain.momentumNote(config, view, s)
 		local backlash = Explain.backlashNote(config, view, s)

@@ -41,6 +41,8 @@ type Issue = SharedTypes.Issue
 local Focus = {}
 
 local TOPIC_H = 64 -- px, one topic chip: its name over its pills
+local TOPIC_BAR = 4 -- px, the bar at a topic chip's left: white when it is the pick
+local TOPIC_INSET = Kit.space.md + Kit.space.sm -- px, the chip's text inset (room for the bar)
 
 export type Focus = {
 	root: Frame,
@@ -49,6 +51,7 @@ export type Focus = {
 
 type Row = {
 	button: TextButton,
+	bar: Frame,
 	chance: TextLabel,
 	yours: TextLabel,
 	name: TextLabel,
@@ -117,9 +120,22 @@ function Focus.new(parent: Instance, model: Model.Model, order: number): Focus
 		if pad then
 			pad.PaddingTop = UDim.new(0, Kit.space.sm)
 			pad.PaddingBottom = UDim.new(0, Kit.space.sm)
-			pad.PaddingLeft = UDim.new(0, Kit.space.md)
+			pad.PaddingLeft = UDim.new(0, TOPIC_INSET)
 			pad.PaddingRight = UDim.new(0, Kit.space.md)
 		end
+		-- The same left bar as a stance chip (EventCard): white on the pick.
+		local bar = Kit.new("Frame", {
+			Name = "PickBar",
+			Position = UDim2.fromOffset(Kit.space.sm - TOPIC_INSET, 0),
+			Size = UDim2.new(0, TOPIC_BAR, 1, 0),
+			BackgroundColor3 = Kit.colors.raisedHover,
+			BorderSizePixel = 0,
+			Parent = button,
+		})
+		Kit.round().Parent = bar
+		-- Decoration (the outline already shows the pick); it sits in the chip's
+		-- left padding, which the headless engine does not lay out.
+		bar:SetAttribute("Decor", true)
 		-- The odds and "your issue" as pills under the name.
 		local tags = Kit.box({
 			Name = "Tags",
@@ -162,6 +178,7 @@ function Focus.new(parent: Instance, model: Model.Model, order: number): Focus
 		local win = Kit.caption("", { Name = `FocusWin{t}`, LayoutOrder = 10 * t + 3, Parent = why.body })
 		rows[t] = {
 			button = button,
+			bar = bar,
 			chance = chance,
 			yours = yours,
 			name = name,
@@ -205,8 +222,17 @@ function Focus.new(parent: Instance, model: Model.Model, order: number): Focus
 					row.odds.Text = info.oddsLine
 					row.win.Text = info.winLine
 					Kit.setSelected(row.button, model.focus == topic)
+					row.bar.BackgroundColor3 = if model.focus == topic
+						then Kit.colors.accent
+						else Kit.colors.raisedHover
 					Kit.setEnabled(row.button, canEdit)
-					row.chance.TextColor3 = if canEdit then Kit.colors.text else Kit.colors.disabledText
+					-- Good odds (50 % or more) fill the pill green; others stay a raised tag.
+					local likely = canEdit and info.win >= 0.5
+					Kit.paintPill(
+						row.chance,
+						if likely then "good" elseif canEdit then "text" else "muted",
+						likely
+					)
 				end
 			end
 		end,
