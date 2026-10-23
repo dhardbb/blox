@@ -537,3 +537,17 @@ In Studio (one player is enough; Practice):
 2. Play to Results and look at "What decided it", then tap it. **Expect:** the title ends in "−" while open and "+" once closed, never a short dash. Send back a screenshot of the open state.
 3. Play to the first debate focus screen and wait out the timer without picking. **Expect:** the orange "No focus in time" line, Lock in still says "Pick a topic". Check the Output for lines starting `[270] UI audit`: lines with "pending" are expected; send back any line starting with `WARN`.
 4. Optional: on the iPad, repeat 1. **Expect:** the same orange; the text is readable.
+
+## UI style v2: Lobby, Select, map reveal and draft (unreleased)
+
+Agents: `lune run tests/ui/snap.luau -- 0` (shots 01 to 06b) and look at `build/snaps/`; `lune run tests Lobby`, `lune run tests Select`, `lune run tests Draft`, `lune run tests Words.Setup`.
+
+In Studio (one player is enough; do 1 to 6 on the Mac, then 1, 3 and 6 again on the iPad):
+
+1. Open the game. **Expect:** "270", "Win the race to 270 votes.", a yellow Play vs Bot, then Find match and Play a friend side by side, then "How to play". Tap How to play. **Expect:** the help opens. Close it.
+2. Tap Play a friend. **Expect:** a sheet with "Make a code" and a code box + Join. Tap Make a code. **Expect:** the sheet closes, a big code shows with "Waiting for your friend…" under it and a red Cancel. Cancel. Send back a screenshot of the code screen.
+3. Play vs Bot. On Select **expect:** a yellow-outlined tip ("Each candidate has one strength and one weakness"), eight cards, none cut off, each with a green "+" line and a red "−" line; the bot's candidate is dimmed with "Taken". Tap a card. **Expect:** the tip goes away, the card gets a yellow outline, "About <name>" appears under the cards; tap it. **Expect:** a sheet with the strength, weakness, actions per week, starting money and income. Send back a screenshot of step 1 (with the sheet closed).
+4. Press Next: issues. **Expect:** chips like "Jobs" over "154 votes · +41% boost" (two lines on the iPad in portrait), the line under the header counting down ("Pick 3 issues", "Pick 2 more issues", … "All set? Lock in"). Tap "How issues work". **Expect:** four short sentences about votes and boost. Pick 3 and Lock in. **Expect:** the line says "Waiting for <bot's first name>…".
+5. Map reveal (5 s). **Expect:** title "The map", a "Strongholds" card with your dot + "You" + five states and the bot's name + five states, "Round 1: ties go to …", and the legend ("Leans to you", "Leans to <name>"). Nothing to read beyond that; "How the draft works" opens the rules.
+6. Draft round. **Expect:** "Round 1 of 3" (on wide screens "Home state" next to it), a tip "Tap a state to claim it…", a "Home state" pill with "Ties go to …", the 1st / 2nd boxes, 8 states with "N votes" and a colored lean pill, "Show all states". Tap a state. **Expect:** the tip goes away, the line says "Add a backup, or Lock in". Tap Show all states. **Expect:** every state, the ones you can't pick faded. Lock in. Send back a screenshot of the round and of the reveal ("You got …", "<name> got …").
+7. Check the Output for lines starting `[270] UI audit`: send back any line starting with `WARN`.
