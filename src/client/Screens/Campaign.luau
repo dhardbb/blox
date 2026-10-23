@@ -19,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
+local Explain = require(Shared.UI.Explain)
 local MapLayout = require(Shared.UI.MapLayout)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
@@ -276,6 +277,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local units = s.gotv + Model.plannedUnits(model, s.id)
 			if units > 0 then
 				table.insert(parts, `G{units}`)
+			end
+			-- Their ground game, where your polls saw some (D-044).
+			local scout = Explain.scoutOf(view, s.id)
+			local theirs = if scout then scout.gotv[rival] or 0 else 0
+			if theirs > 0 then
+				table.insert(parts, `opp G{theirs}`)
 			end
 			if starred[s.id] then
 				table.insert(parts, "*")

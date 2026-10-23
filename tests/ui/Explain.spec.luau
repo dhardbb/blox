@@ -231,6 +231,7 @@ describe("Explain.action: money, polls, ground game, pivot", function()
 		local p = Explain.action(C, view, PlanDraft.new(), "OH", "Poll", nil)
 		has(p.text, `±{C.INTERNAL_POLL_ERROR}`)
 		has(p.text, Numbers.cost(C.INTERNAL_POLL_COST))
+		has(p.text, "their hidden ground game") -- what a poll is for (D-044)
 		view.players[view.you].candidate = "strand"
 		local free = Explain.action(C, view, PlanDraft.new(), "OH", "Poll", nil)
 		has(free.text, "free")
@@ -243,6 +244,26 @@ describe("Explain.action: money, polls, ground game, pivot", function()
 		end
 		has(region.text, `{n} Great Lakes states`)
 		has(region.text, Numbers.cost(C.REGION_POLL_COST))
+		has(region.text, "ground game")
+	end)
+
+	it("says what your polls saw of their ground game, or that a poll would show it (D-044)", function()
+		local view = ohio()
+		local them = if view.you == 1 then 2 else 1
+		has(Explain.scoutNote(C, view, "OH"), "hidden. A poll shows it")
+		local units = table.create(#view.players, 0)
+		units[them] = 3
+		view.scouted = { { state = "OH", week = 2, gotv = units } } -- view.week is 3: fresh
+		local note = Explain.scoutNote(C, view, "OH")
+		has(note, "3 units")
+		has(note, Numbers.signed(-3 * C.GOTV_PER_UNIT))
+		has(note, "end of week 2")
+		expect(string.find(note, "may have added", 1, true)):toBe(nil)
+		view.week = 5
+		has(Explain.scoutNote(C, view, "OH"), "may have added more since")
+		units[them] = 0
+		has(Explain.scoutNote(C, view, "OH"), "none when you polled")
+		expect(Explain.scoutOf(view, "PA")):toBe(nil)
 	end)
 
 	it("previews ground game and pivot", function()

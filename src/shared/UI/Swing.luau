@@ -27,6 +27,7 @@
 --   Swing.choiceLines(config, view, entry) -> { string }  a resolved Choice week, both sides
 --   Swing.lastChoice(view) -> EventResult?             last week's resolved Choice event
 --   Swing.decided(config, view) -> { string }          the Results screen's "What decided it"
+--   Swing.scoutLine(view) -> string?                   the ground game your polls found, and how those states went (D-044)
 
 local ConfigModule = require("../Sim/Config")
 local Debate = require("../Sim/Debate")
@@ -616,6 +617,47 @@ local function sourceLine(view: View, label: string, flips: { Flip }): string
 	return `{label}: {table.concat(parts, " · ")}.`
 end
 
+-- "Your polls found their ground game in OH (3 units; you had 4, won it), PA (1
+-- unit; you had 0, lost it)." Nil before election night or when no poll saw any.
+function Swing.scoutLine(view: View): string?
+	local election = view.election
+	if election == nil then
+		return nil
+	end
+	local them = rivalOf(view)
+	local winner: { [string]: number } = {}
+	for _, r in election.results do
+		winner[r.state] = r.winner
+	end
+	local found: { { id: string, units: number } } = {}
+	for _, scout in view.scouted or {} do
+		local units = scout.gotv[them] or 0
+		if units > 0 then
+			table.insert(found, { id = scout.state, units = units })
+		end
+	end
+	if #found == 0 then
+		return nil
+	end
+	table.sort(found, function(a, b)
+		if evOf(a.id) ~= evOf(b.id) then
+			return evOf(a.id) > evOf(b.id)
+		end
+		return a.id < b.id
+	end)
+	local parts: { string } = {}
+	for _, entry in found do
+		local s = stateView(view, entry.id)
+		local mine = if s then s.gotv else 0
+		local result = if winner[entry.id] == view.you
+			then "won it"
+			elseif winner[entry.id] == 0 then "tied"
+			else "lost it"
+		table.insert(parts, `{entry.id} ({plural(entry.units, "unit")}; you had {mine}, {result})`)
+	end
+	return `Your polls found their ground game in {table.concat(parts, ", ")}.`
+end
+
 function Swing.decided(_config: Config, view: View): { string }
 	local debates: { Flip } = {}
 	for _, result in view.debates do
@@ -635,6 +677,10 @@ function Swing.decided(_config: Config, view: View): { string }
 		sourceLine(view, "Debates", debates),
 		sourceLine(view, "Choice stances", stances),
 	}
+	local scouting = Swing.scoutLine(view)
+	if scouting then
+		table.insert(out, scouting)
+	end
 	local election = view.election
 	if election then
 		local you, them = view.you, rivalOf(view)

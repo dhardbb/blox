@@ -408,12 +408,22 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	if #view.internalPolls > 0 then
 		local parts = {}
 		for _, poll in view.internalPolls do
+			local units = poll.gotv[them] or 0
 			table.insert(
 				parts,
 				string.format("%s %.1f-%.1f", poll.state, poll.support[you], poll.support[them])
+					.. (if units > 0 then ` their gotv {units}` else "")
 			)
 		end
 		add("Your internal polls: " .. table.concat(parts, ", "))
+	end
+	-- Their ground game, as your polls last saw it (D-044); hidden everywhere else.
+	local seen = {}
+	for _, scout in view.scouted or {} do
+		table.insert(seen, `{scout.state} {scout.gotv[them] or 0} (wk {scout.week})`)
+	end
+	if #seen > 0 then
+		add("Their gotv your polls saw: " .. table.concat(seen, ", "))
 	end
 	if view.raised > 0 then
 		add(`You raised {Numbers.money(view.raised)} last week`)
@@ -501,6 +511,9 @@ function Format.state(payload: Session.StatePayload, id: string): string
 			local backlash = Explain.backlashNote(Config.defaults, view, s)
 			if backlash then
 				table.insert(lines, backlash)
+			end
+			if view.phase ~= "Select" and view.phase ~= "MapReveal" and view.phase ~= "Draft" then
+				table.insert(lines, Explain.scoutNote(Config.defaults, view, id))
 			end
 			if view.phase == "Plan" and view.players[view.you].candidate then
 				local message: Types.Issue = PlanDraft.bestIssue(Config.defaults, view, id)

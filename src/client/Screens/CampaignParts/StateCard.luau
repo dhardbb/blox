@@ -198,7 +198,9 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	internalCell.LayoutOrder = 5
 	internalValue.Name = "CardInternal"
 	internalValue.TextColor3 = Kit.colors.good
-	local issuesLine = Kit.caption("", { Name = "CardIssues", LayoutOrder = 6, Parent = details })
+	-- Their ground game, as your polls saw it (D-044), or the hint that a poll shows it.
+	local scoutNote = Kit.caption("", { Name = "CardScout", LayoutOrder = 6, Parent = details })
+	local issuesLine = Kit.caption("", { Name = "CardIssues", LayoutOrder = 7, Parent = details })
 
 	-- ------------------------------------------------------------ message chips
 
@@ -739,6 +741,11 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 				)
 			end
 			internalCell.Visible = internal ~= nil
+			scoutNote.Text = Explain.scoutNote(config, view, id)
+			local scout = Explain.scoutOf(view, id)
+			scoutNote.TextColor3 = if scout and (scout.gotv[rival] or 0) > 0
+				then Kit.colors.danger
+				else Kit.colors.muted
 			local issueNames: { string } = {}
 			for _, issue in record.issues do
 				table.insert(issueNames, Model.issueName(issue))

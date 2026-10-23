@@ -342,6 +342,16 @@ local function statesTable(payload: any): { string }
 				`your gotv {s.gotv} (+{Numbers.points(s.gotv * C.GOTV_PER_UNIT)} margin on election night)`
 			)
 		end
+		local scout = Explain.scoutOf(view, s.id)
+		if scout then
+			local units = scout.gotv[if you == 1 then 2 else 1] or 0
+			table.insert(
+				tags,
+				if units > 0
+					then `their gotv {units} (-{Numbers.points(units * C.GOTV_PER_UNIT)} for you; your poll, end of week {scout.week})`
+					else `their gotv 0 (your poll, end of week {scout.week})`
+			)
+		end
 		if s.backlash > 0 then
 			table.insert(
 				tags,
@@ -545,6 +555,10 @@ local function planGuide(payload: any, turn: Turn): { string }
 	table.insert(
 		out,
 		`Your ground game so far: {if #ownGotv > 0 then table.concat(ownGotv, ", ") else "none"}.`
+	)
+	table.insert(
+		out,
+		"Their ground game is hidden until election night except where you poll: poll/rpoll show their units there (tagged 'their gotv' in the state list), as of the end of the week you polled."
 	)
 	-- This week's event and the next debate are on the board below; only what to
 	-- add to the plan is said here.

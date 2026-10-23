@@ -11,6 +11,7 @@ local process = require("@lune/process")
 
 local Config = require("@sim/Config")
 local Events = require("@sim/Events")
+local Explain = require("@ui/Explain")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
 local Plan = require("@sim/Plan")
@@ -260,6 +261,27 @@ describe("Campaign screen", function()
 		press(world, peer, "BankButton")
 		check(said(peer, "[270] DEBUG_UI bank"), "Bank sent nothing")
 		noErrors(world)
+	end)
+
+	it("says on the state card what a poll shows of their ground game (D-044)", function()
+		local world, peer = fixture("Plan")
+		press(world, peer, "OH")
+		check(
+			string.find(text(peer, "CardScout"), "hidden. A poll shows it", 1, true) ~= nil,
+			"scout hint: " .. text(peer, "CardScout")
+		)
+		noErrors(world)
+		-- Week 8: the bot playing seat 1 has scouted since week 7.
+		local view = Fixtures.payload(Config.defaults, "DebatePrep").view
+		local scout = view.scouted[1]
+		check(scout ~= nil, "the week-8 fixture has no scouting")
+		local world8, peer8 = Rig.fixture("DebatePrep", nil)
+		Rig.tap(world8, peer8, "Campaign", "StatesToggle")
+		Rig.tap(world8, peer8, "Campaign", `Row_{scout.state}`)
+		expect(Rig.textOf(peer8, "Campaign", "CardScout")):toBe(
+			Explain.scoutNote(Config.defaults, view, scout.state)
+		)
+		Rig.noErrors(world8)
 	end)
 
 	it("pivots in two choices behind the Pivot button", function()
