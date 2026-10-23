@@ -138,10 +138,11 @@ end
 
 -- ---------------------------------------------------------------- select
 
--- Platform for a candidate: the issues whose platform bonus covers the most EV
--- on this match's issue map (EV x the bonus over ISSUE_MULT_STATE, D-044), with a
--- little noise. Niche issues hit harder, so the picks come out close and the
--- noise often decides.
+-- Platform for a candidate: three issues at random. Niche issues hit harder
+-- (D-044), tuned until running on the match's three biggest or three smallest
+-- issues wins about as often as a mixed platform, so no issue is the right pick
+-- before the draft says where the campaign will be fought. The TopIssues and
+-- NicheIssues styles are the harness's check of that.
 function Bot.select(config: Config, view: View, rng: Rng.Rng, candidate: string, style: Style?): any
 	-- Candidates are unique (D-045): keep a claim already made; a candidate the
 	-- opponent holds gives way to a free one drawn from the bot's stream.
@@ -162,23 +163,16 @@ function Bot.select(config: Config, view: View, rng: Rng.Rng, candidate: string,
 		candidate = free[Rng.nextInt(rng, 1, #free)]
 	end
 	local ev = IssueMap.evByIssue(view.issueMap)
-	local weight: { [string]: number } = {}
-	for _, issue in ISSUES do
-		local bonus = (view.platformMults[issue] or config.ISSUE_MULT_BOTH) - config.ISSUE_MULT_STATE
-		weight[issue] = ev[issue] * bonus
-	end
 	local issues: { Types.Issue } = table.clone(ISSUES)
 	local score: { [string]: number } = {}
 	for _, issue in issues do
 		local noise = Rng.nextFloat(rng)
-		if style == "Random" then
-			score[issue] = noise
-		elseif style == "TopIssues" then
+		if style == "TopIssues" then
 			score[issue] = ev[issue] + noise
 		elseif style == "NicheIssues" then
 			score[issue] = -ev[issue] + noise
 		else
-			score[issue] = weight[issue] * (0.85 + 0.3 * noise)
+			score[issue] = noise
 		end
 	end
 	table.sort(issues, function(a, b)

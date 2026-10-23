@@ -81,7 +81,7 @@ local Config = {
 	-- Issue multipliers
 	ISSUE_MULT_BOTH = 1.5, -- issue is in your platform and a state top issue, for an issue covering the mean EV (134.5); see ISSUE_NICHE_POWER
 	ISSUE_MULT_STATE = 1.2, -- state top issue, not in your platform
-	ISSUE_NICHE_POWER = 1, -- niche issues hit harder (D-044): the platform bonus over ISSUE_MULT_STATE is scaled by (mean EV / the issue's EV)^this, so every pick is worth about the same EV x bonus
+	ISSUE_NICHE_POWER = 2.5, -- niche issues hit harder (D-044): the platform bonus over ISSUE_MULT_STATE is scaled by (mean EV / the issue's EV)^this; 2.5 makes the 3 biggest and 3 smallest issues win alike (x1.39 at 161 EV, x1.72 at 108)
 	ISSUE_NICHE_MAX = 2.0, -- but a platform multiplier never exceeds this
 	ISSUE_MULT_PLATFORM = 1.0, -- in your platform only
 	ISSUE_MULT_NEITHER = 0.8, -- neither

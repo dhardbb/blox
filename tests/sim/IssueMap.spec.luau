@@ -97,22 +97,27 @@ describe("IssueMap", function()
 		expect(share > 0.3 and share < 0.6):toBe(true)
 	end)
 
-	it("makes niche issues hit harder: EV x platform bonus is about equal", function()
+	it("makes niche issues hit harder: the bonus grows as the issue's EV shrinks", function()
+		local bonus = C.ISSUE_MULT_BOTH - C.ISSUE_MULT_STATE
 		for seed = 1, 50 do
 			local map = draw(seed)
 			local ev = IssueMap.evByIssue(map)
 			local mults = IssueMap.platformMults(C, map)
 			for _, issue in Issues.list do
-				local worth = ev[issue] * (mults[issue] - C.ISSUE_MULT_STATE)
-				local even = MEAN * (C.ISSUE_MULT_BOTH - C.ISSUE_MULT_STATE)
-				if math.abs(worth - even) > 0.01 * ev[issue] then
-					error(`seed {seed}: {issue} is worth {worth}, not {even}`)
-				end
-				expect(mults[issue] <= C.ISSUE_NICHE_MAX):toBe(true)
+				local want = C.ISSUE_MULT_STATE + bonus * (MEAN / ev[issue]) ^ C.ISSUE_NICHE_POWER
+				expect(mults[issue]):toBeCloseTo(math.min(C.ISSUE_NICHE_MAX, want), 0.005)
+				expect(mults[issue] > C.ISSUE_MULT_STATE):toBe(true)
 			end
-			local ranked = IssueMap.ranked(map)
-			expect(mults[ranked[1]] <= mults[ranked[#ranked]]):toBe(true)
+			for _, a in Issues.list do
+				for _, b in Issues.list do
+					if ev[a] < ev[b] then
+						expect(mults[a] >= mults[b]):toBe(true)
+					end
+				end
+			end
 		end
+		-- An issue at the mean EV gets the plain ISSUE_MULT_BOTH.
+		expect(C.ISSUE_MULT_STATE + bonus * (MEAN / MEAN) ^ C.ISSUE_NICHE_POWER):toBe(C.ISSUE_MULT_BOTH)
 	end)
 
 	it("is public from Select on, with the multipliers", function()
