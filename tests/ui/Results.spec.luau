@@ -168,3 +168,123 @@ describe("Results layout", function()
 		end
 	end)
 end)
+
+-- ------------------------------------------------------------------ the moment (polish WP-2)
+
+local function count(list: { string }, name: string): number
+	local n = 0
+	for _, entry in list do
+		if entry == name then
+			n += 1
+		end
+	end
+	return n
+end
+
+local function confettiIn(peer: FakeRoblox.Peer): number
+	local n = 0
+	for _, inst in FakeRoblox.find(peer, "Screens"):GetDescendants() do
+		if inst.Name == "Confetti" then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- The Over fixture as a new match that `winner` won, pushed onto the screen.
+local function newMatch(world: FakeRoblox.World, peer: FakeRoblox.Peer, winner: number, id: string)
+	local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+	payload.matchId = id
+	payload.result = { winner = winner, reason = "Election" }
+	world.current = peer
+	Rig.storeOf(world, peer).setPayload(payload)
+	world.current = nil
+	FakeRoblox.run(world, 0.1)
+end
+
+describe("Results moment", function()
+	it("plays victory once on a win, with confetti, and never defeat", function()
+		local world, peer = Rig.fixture("Over", nil)
+		local you = Rig.payloadOf(world, peer).you
+		newMatch(world, peer, you, "won-match")
+		expect(confettiIn(peer)):toBe(1)
+		-- A later payload of the same match redraws quietly.
+		local again = Rig.deepCopy(Rig.payloadOf(world, peer))
+		Rig.push(world, peer, again)
+		FakeRoblox.run(world, 2)
+		local sounds = Rig.sounds(peer)
+		expect(count(sounds, "victory") >= 1):toBe(true)
+		local before = count(sounds, "victory")
+		Rig.push(world, peer, Rig.deepCopy(Rig.payloadOf(world, peer)))
+		expect(count(Rig.sounds(peer), "victory")):toBe(before)
+		expect(confettiIn(peer)):toBe(0) -- it cleared itself
+		Rig.noErrors(world)
+	end)
+
+	it("plays defeat once on a loss, with no confetti and no victory", function()
+		local world, peer = Rig.fixture("Over", nil)
+		local you = Rig.payloadOf(world, peer).you
+		local victories = count(Rig.sounds(peer), "victory")
+		newMatch(world, peer, 3 - you, "lost-match")
+		expect(confettiIn(peer)):toBe(0)
+		Rig.push(world, peer, Rig.deepCopy(Rig.payloadOf(world, peer)))
+		local sounds = Rig.sounds(peer)
+		expect(count(sounds, "defeat")):toBe(1)
+		expect(count(sounds, "victory")):toBe(victories)
+		expect(Rig.textOf(peer, "Results", "Banner")):toBe("You lost")
+		Rig.noErrors(world)
+	end)
+
+	it("plays exactly one stinger per match, never both", function()
+		-- The Over fixture is a win for this player: one victory, no defeat.
+		local world, peer = Rig.fixture("Over", nil)
+		local you = Rig.payloadOf(world, peer).you
+		expect(Rig.payloadOf(world, peer).result.winner):toBe(you)
+		FakeRoblox.run(world, 2)
+		expect(count(Rig.sounds(peer), "victory")):toBe(1)
+		expect(count(Rig.sounds(peer), "defeat")):toBe(0)
+		-- The next match, lost (past the stingers' 10 s cooldown): one defeat.
+		FakeRoblox.run(world, 10)
+		newMatch(world, peer, 3 - you, "next-match")
+		FakeRoblox.run(world, 2)
+		expect(count(Rig.sounds(peer), "victory")):toBe(1)
+		expect(count(Rig.sounds(peer), "defeat")):toBe(1)
+		Rig.noErrors(world)
+	end)
+
+	it("counts both vote totals up to the final numbers", function()
+		local world, peer = Rig.fixture("Over", nil)
+		local you = Rig.payloadOf(world, peer).you
+		newMatch(world, peer, you, "count-match")
+		FakeRoblox.run(world, 1)
+		local election = Rig.payloadOf(world, peer).view.election
+		local mine = Rig.need(peer, "Player_You", "EV")
+		expect(tostring(mine.Text)):toBe(`{election.ev[you]} votes`)
+		Rig.noErrors(world)
+	end)
+
+	it("says what to try next time after a loss, and nothing after a win", function()
+		local world, peer = Rig.fixture("Over", nil)
+		local you = Rig.payloadOf(world, peer).you
+		newMatch(world, peer, 3 - you, "tip-loss")
+		local tip = Rig.textOf(peer, "Results", "NextTime")
+		check(string.sub(tip, 1, 15) == "Try next time: ", `tip says "{tip}"`)
+		check(#string.split(tip, " ") <= 12, `the tip is long: {tip}`)
+		newMatch(world, peer, you, "tip-win")
+		check(Rig.findIn(peer, "Results", "NextTime") == nil, "a winner gets advice")
+		Rig.noErrors(world)
+	end)
+
+	it("drops no confetti and still lands on the end state with reduced motion", function()
+		local world, peer = Rig.fixture("Over", nil, { reducedMotion = true })
+		local you = Rig.payloadOf(world, peer).you
+		newMatch(world, peer, you, "calm-win")
+		expect(confettiIn(peer)):toBe(0)
+		expect(Rig.textOf(peer, "Results", "Banner")):toBe("You won")
+		local election = Rig.payloadOf(world, peer).view.election
+		expect(tostring(Rig.need(peer, "Player_You", "EV").Text)):toBe(`{election.ev[you]} votes`)
+		expect(count(Rig.sounds(peer), "victory") >= 1):toBe(true)
+		expect(strictAudit(world, peer)):toBe(0)
+		Rig.noErrors(world)
+	end)
+end)

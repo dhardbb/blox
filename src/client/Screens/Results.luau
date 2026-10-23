@@ -13,11 +13,17 @@
 --                 topics won. Player colors stay on the dot and the bar, never
 --                 on big numbers next to the primary button (D-047, D-051).
 --   WhyHead       "Why you won" / "Why Rex won" and three bullets Reason_<k>
---                 (Shared/UI/Words/Reveal.keyReasons)
+--                 (Shared/UI/Words/Reveal.keyReasons); after a loss, one more
+--                 line NextTime ("Try next time: …", Words.nextTime)
 --   FullBreakdown ghost button: the BreakdownSheet with "What decided it"
 --                 (Decided, Decided_<k>: Swing.decided), the closest states
 --                 (Closest, Closest_<id>) and every debate (Debates, Debate_<k>).
 -- Four text sizes: hero, heading, body, caption.
+--
+-- The moment (docs/UI-STYLE.md §2.7, D-053), once per match: a win pops the
+-- banner from BANNER_FROM, counts both vote totals up, drops confetti in both
+-- players' colors and plays "victory"; a loss fades the banner in, counts the
+-- votes, and plays "defeat". Nothing else moves, and nothing waits on it.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -28,9 +34,11 @@ local Swing = require(ReplicatedStorage.Shared.UI.Swing)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local Audio = require(script.Parent.Parent.UI.Audio)
 local Data = require(script.Parent.Common.Data)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local Motion = require(script.Parent.Parent.UI.Motion)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
 local Types = require(script.Parent.Types)
 
@@ -43,6 +51,10 @@ local WIN_EV = 270
 local EV_BAR_H = 14 -- px
 local TICK_W = 2 -- px, the 270 mark on the EV bar
 local DOT = 14 -- px, a player's color dot
+local BANNER_FROM = 0.8 -- a won banner's starting scale (it springs to 1)
+local LOSS_FADE = 0.5 -- s, a lost banner fading in
+local COUNT_SECONDS = 0.6 -- s, the vote totals counting up
+local CONFETTI = 50 -- pieces on a win
 
 local DECIDED_BY: { [string]: string } = {
 	States = "Votes tied, so the most states won decided it.",
@@ -84,6 +96,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local page = Layout.page(parent, { maxWidth = MAX_WIDTH, footer = Kit.BAR_H })
 
 	local rendered: Session.StatePayload? = nil
+	local celebrated: string? = nil -- the match whose moment has played
 	local details: Frame? = nil
 	local ratingLine: TextLabel? = nil
 	local sheet = Sheet.new(parent, { title = "Full breakdown", name = "BreakdownSheet" })
@@ -130,7 +143,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return won
 	end
 
-	local function playerCard(into: Instance, current: Session.StatePayload, player: number, order: number)
+	local function playerCard(
+		into: Instance,
+		current: Session.StatePayload,
+		player: number,
+		order: number
+	): TextLabel?
 		local view = current.view
 		local election = view.election
 		local mine = player == current.you
@@ -172,8 +190,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.muted,
 		})
+		local votes: TextLabel? = nil
 		if election then
-			label(card, plural(election.ev[player], "vote"), {
+			votes = label(card, plural(election.ev[player], "vote"), {
 				Name = "EV",
 				LayoutOrder = 3,
 				Font = Kit.font.bold,
@@ -194,6 +213,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				TextColor3 = Kit.colors.muted,
 			})
 		end
+		return votes
 	end
 
 	-- The sheet: what decided it, the closest states, every debate.
@@ -297,7 +317,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			order += 1
 			return order
 		end
-		Kit.text(bannerText, {
+		local banner = Kit.text(bannerText, {
 			Name = "Banner",
 			LayoutOrder = nextOrder(),
 			Size = UDim2.new(1, 0, 0, Kit.size.hero + 8),
@@ -389,8 +409,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				table.insert(players, player)
 			end
 		end
+		local voteLabels: { [number]: TextLabel } = {}
 		for index, player in players do
-			playerCard(versus, current, player, index)
+			voteLabels[player] = playerCard(versus, current, player, index) :: any
 		end
 
 		-- Why: three short reasons, the winner's side.
@@ -416,6 +437,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			for k, text in reasons do
 				label(why, `{Kit.glyph.bullet} {text}`, { Name = `Reason_{k}`, LayoutOrder = k })
 			end
+			local tip = Words.nextTime(ctx.config, view, winner, names)
+			if tip then
+				label(why, tip, {
+					Name = "NextTime",
+					LayoutOrder = #reasons + 1,
+					Font = Kit.font.medium,
+					TextColor3 = Kit.colors.accent,
+				})
+			end
 		end
 
 		fillSheet(current)
@@ -435,6 +465,37 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local _, opponent = Data.opponent(current)
 		againBot = opponent ~= nil and opponent.kind == "Bot"
 		bar:setPrimary(if againBot then "Play vs Bot again" else "Play again", true)
+
+		-- The moment, once per match (a later payload of the same match redraws quietly).
+		if result == nil or result.winner == 0 or celebrated == current.matchId then
+			return
+		end
+		celebrated = current.matchId
+		if election then
+			for player, votes in voteLabels do
+				local total = election.ev[player]
+				Motion.countTo(votes, 0, total, function(n: number): string
+					return plural(math.floor(n + 0.5), "vote")
+				end, COUNT_SECONDS)
+			end
+		end
+		if result.winner == you then
+			if not Motion.reduced() then
+				local scale = Motion.scale(banner)
+				scale.Scale = BANNER_FROM
+				Motion.tween(scale, { Scale = 1 }, Motion.t.hero, Motion.ease.back)
+			end
+			local colors: { Color3 } = {}
+			for player = 1, #view.players do
+				table.insert(colors, Kit.playerColor(view, player))
+			end
+			Motion.confetti(parent, colors, CONFETTI)
+			Audio.play("victory")
+		else
+			banner.TextTransparency = 1
+			Motion.tween(banner, { TextTransparency = 0 }, LOSS_FADE, Motion.ease.out)
+			Audio.play("defeat")
+		end
 	end
 
 	local function relayout()
