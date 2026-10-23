@@ -537,3 +537,19 @@ In Studio (one player is enough; Practice):
 2. Play to Results and look at "What decided it", then tap it. **Expect:** the title ends in "−" while open and "+" once closed, never a short dash. Send back a screenshot of the open state.
 3. Play to the first debate focus screen and wait out the timer without picking. **Expect:** the orange "No focus in time" line, Lock in still says "Pick a topic". Check the Output for lines starting `[270] UI audit`: lines with "pending" are expected; send back any line starting with `WARN`.
 4. Optional: on the iPad, repeat 1. **Expect:** the same orange; the text is readable.
+
+## UI style v2: reveals, election night, results, help (WP-C, unreleased)
+
+Agents: `lune run tests/ui/snap.luau -- <16..27>` and look at `build/snaps/`; `lune run tests Words`, `lune run tests Help`, `lune run tests Election`, `lune run tests Results`, `lune run tests Stances`.
+
+In Studio, Practice, once at 16:9 and once on the iPad (or a phone in portrait):
+
+1. **Week results.** Plan week 1 with two rallies in the same state, lock in, and watch the reveal. **Expect:** "Your week" with one line "Rally in <state> ×2 · <issue>", then "<Rex>'s week". When the new polls arrive, "What changed" lists any state that changed leader in green (to you) or red (to Rex), plus up to 3 tags like "TX +2.0 for you"; the map badges only those states. The first time, a tip says "Both plans are out! Marked states moved the most." Send back a screenshot.
+2. **A Choice week.** After a stance week, the reveal shows "<event>: stance A · …" in each group, and "Why? +" opens the stance numbers.
+3. **Debate (week 4).** **Expect:** a scoreboard, one row per topic ("Safety  2 – 1  You win") with one short line under it, then "You won 2 of 3 topics!" (or Rex's), and "Every state also got …". "Why? +" shows the score breakdown. The map has at most about 8 badges. Send back a screenshot.
+4. **Election night.** **Expect:** the spotlight card says "Just called · <state> · N votes · Called for <name> by X points" in the winner's color, and "Too close to call … Counting the last votes" (outlined) before a close state. On the iPad/phone the names at the top are first names, never cut off. A tip "States are called one by one. First to 270 wins!" sits above the calls once.
+5. **Results.** **Expect:** "You won"/"You lost", "280 votes to 258", the bar, two cards, "Why you won" with 3 bullets. "Full breakdown →" opens a sheet with what decided it, the closest states and the debates; × closes it. Play again is the only yellow button.
+6. **How to play.** Tap **?** during the plan, a stance, and election night. **Expect:** a sheet opens on "Your turn", "Events" and "How to win" respectively, with the countdown at the top right; each tab shows a small picture and a short paragraph; "All the numbers +" shows the full rules. × or tapping outside closes it.
+7. Output: send back any line starting with `WARN [270] UI audit` (Election and Results should say `0 problem(s)`).
+
+**Send back:** screenshots of steps 1, 3, 4, 5 and 6 on both devices, and whether the reveal makes it obvious why a state changed hands.

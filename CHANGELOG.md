@@ -4,6 +4,16 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### UI style v2, WP-C: the big moments (reveals, debates, election night, results, help)
+
+- **Week results, grouped.** The reveal after each week lists "Your week" and "Rex's week" (one line per action and state: "Rally in Texas ×2 · Farms & Rural", never the same line twice), then "What changed": every state whose poll leader flipped, one bold green or red line each ("Ohio flips to Rex · 17 votes"), and the three biggest moves as tags. The map badges only those flips and the 3 biggest moves. A Choice week's stances are a line in each group; their numbers are behind "Why?".
+- **Debates as a scoreboard.** One row per topic: the topic, "you – them" score, a "You win" / "Tie" / "Rex wins" tag, and one short line ("You gain +1.0 in 14 states · DE flips to you"). Then the headline ("You won 2 of 3 topics!") and the points every state got. The dice math and the full state lists are behind "Why?". The map shows the flips and the 3 biggest moves instead of 30+ badges.
+- **Election night.** A spotlight card shows the call that just happened ("Ohio · 17 votes", "Called for Dana by 2.9 points" in Dana's color) and builds suspense before a close one ("Too close to call", "Counting the last votes"). Calls read "Ohio · 17 votes" over "Dana by 2.9 points"; first names on a phone, so nothing is cut off. The header has the "?" too.
+- **Results.** "You won" big, "280 votes to 258", the vote bar, two cards (color dot, name, votes and states, debate topics won), then "Why you won" in three short reasons (debates, close races, the biggest prize, your ground game…). "What decided it", the closest states and every debate moved to a "Full breakdown →" sheet. Four text sizes, player colors only on the dots and the bar.
+- **How to play.** The 600-word rulebook is now a sheet with five tabs (How to win, Your turn, Actions, Events, Polls), each a small picture and at most 60 words; "All the numbers +" under each still has every exact rule. It opens on the tab for the moment, keeps the countdown, and closes with × or a tap outside.
+- **Coach tips** reworded (at most 12 words, one per first-match moment); the toast stands off the screen (raised fill) and slides in. Fix: a coach tip in a list no longer breaks the UI audit.
+- Test in Studio: `docs/TESTING.md`, "UI style v2: reveals, election night, results, help". Nothing needed from the humans.
+
 ### UI style v2, phase 1: foundation (D-050)
 
 - **Screenshots without Studio.** `lune run tests/ui/snap.luau` renders every screen and state (lobby, both Select steps, map reveal, draft, stance, focus, plan, state card, each lens, resolve, debate, election night, results, help) at phone, iPad and desktop sizes into `build/snaps/` as SVG and PNG, with each shot's UI audit in `build/snaps/audit.txt`. `00-kit` shows every component.
