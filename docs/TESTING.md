@@ -727,3 +727,28 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 9. Output: any line with `Color Pass check` (a failed ownership check) or `rejected SetColor`.
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
+
+## Start screen: leaderboard, bot levels, How to play, leaving a match (unreleased, D-056)
+
+Agents: `lune run tests "D-056"` (the UI flows), `lune run tests "e2e: the global leaderboard"`, `lune run tests "e2e: leaving a match"`, `lune run tests/ui/snap.luau -- lobby`, `-- howto`, `-- leave` (shots `01`, `01c` to `01f`, `02e` to `02j`, `28`, `28a`, `28b`; 0 audit findings at all three sizes).
+
+The bot levels only change how the bot plays once the server side of that work is merged; until then every level plays like today's bot.
+
+**The leaderboard needs saved data.** It lives in an OrderedDataStore, which only works in a published place with **Game Settings → Security → Enable Studio Access to API Services** turned on. Without it the board says **Leaderboard unavailable** (that is correct, not a bug). Only matches against another player move a rating, so to see anyone listed you need two players to finish (or leave) a match against each other.
+
+### Start screen (alone)
+
+1. **Play (F5)** on the iPad layout (Studio's device emulator, iPad) and on the Mac. **Expect:** under **Play vs Bot**, four chips **Easy · Medium · Hard · Extreme**, Medium outlined. On the iPad and the Mac a **Leaderboard** card sits to the right of the buttons (up to 10 rows); on a phone (emulator, iPhone) it sits under the buttons with the top 3. With nobody ranked yet it says "No ranked players yet. Play someone (not the bot) to get on the board."; with API access off, "Leaderboard unavailable".
+2. Tap **Hard**, then **Play vs Bot**. **Expect:** Hard gets the outline and the match starts (with the server side merged, the bot plays at Hard). Leave the match (below) and check the Lobby still has **Hard** outlined.
+3. Tap **How to play**. **Expect:** a sheet "How to play", page "The goal" with the race bar, a short text, "1 of 5" and **Next** (no Back on page 1). **Next** through "Each week" (three numbered steps), "Your actions" (the six actions with icons), "Debates and events" (a debate scoreboard), "Election night" (three called states). On page 5 the button reads **Got it** and closes the sheet. **Back** goes back a page. Each page fits without scrolling on the iPad.
+4. Tap **See all** on the leaderboard. **Expect:** a sheet "Top 50 players" with "Ranked by rating. Only matches against players count." and your own line ("You: …").
+
+### Leaving a match
+
+5. **Play vs Bot**. On any match screen (Select, the draft, a stance or debate screen, the plan, election night) tap **?**. **Expect:** at the end of the How to play sheet a red-outlined **Leave match** button. Tap it. **Expect:** "Leave this practice match?", "Practice never changes your rating.", **Leave match** (red) and **Keep playing**.
+6. **Keep playing** closes it; the match carries on. Open it again and tap **Leave match**. **Expect:** straight back to the Lobby (no Results screen). Your rating does not change.
+7. **Two players** (Test → Clients and Servers → Local Server, 2 Players, or the published game with a partner): **Find match** on both. On one, **? → Leave match**. **Expect:** "Leave and forfeit?", "This counts as a loss, and your opponent wins.", **Leave and forfeit**. Tap it. **Expect:** the leaver is back in the Lobby and their rating went down; the other player gets a message "Your opponent left the match. You win by forfeit." and the Results screen says "Your opponent forfeited the match.", with their rating up by the same amount.
+8. With API access on, after step 7: both players' Lobbies show them on the leaderboard (it can take up to a minute to appear for a player on another server). The leaver's row is highlighted on their own screen, "You: #2 · 984" or similar.
+9. Output (server): `left match m… (forfeit)`, `match m… over: Forfeit`, and any `could not read the leaderboard` or `could not write player …'s rating` lines.
+
+**Send back:** screenshots of the Lobby on the iPad and the Mac (with the leaderboard), one How to play page, both Leave confirmations, the winner's Results from step 7, and the Output lines from step 9.

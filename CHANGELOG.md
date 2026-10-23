@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Start screen: leaderboard, bot levels, How to play, leaving a match (D-056)
+
+Server, net and client. No Config numbers changed. Studio checklist: `docs/TESTING.md`, "Start screen: leaderboard, bot levels, How to play, leaving a match".
+
+- **Global leaderboard on the start screen.** Players ranked by rating: the top 10 beside the buttons on the iPad and the Mac, the top 3 on a phone, **See all** for the top 50. Your own row is highlighted, with "You: #4" (or "not in the top 50" and your rating). Only matches against players count, so playing the bot never moves you. Needs saved data (Studio: Enable Studio Access to API Services); otherwise it says "Leaderboard unavailable".
+- **Bot levels.** Easy, Medium, Hard and Extreme chips under **Play vs Bot** (Medium to start; your pick is kept until you leave the game, and "Play vs Bot again" uses it too). What each level does arrives with the bot-level server work.
+- **How to play** on the start screen is now five short pages for new players: the goal, a week, the actions, debates and events, election night. The full rules stay in the **?** during a match.
+- **Leave a match.** **? → Leave match** on every match screen. Against a person it asks "Leave and forfeit?" and counts as a loss (rated, like a disconnect forfeit); your opponent is told they won by forfeit. Against the bot it just ends the practice match. Either way you go straight back to the start screen.
+
 ## 0.11.0: Colors: red, blue and the Color Pass (Oct 23, 2026)
 
 The designers asked for red and blue by default and a color pick for Robux (D-055). Sim, server, client. No Config numbers changed; the balance report is identical. Studio checklist: `docs/TESTING.md`, "Colors: red, blue and the Color Pass".
