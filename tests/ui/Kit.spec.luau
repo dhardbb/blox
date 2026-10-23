@@ -497,7 +497,10 @@ describe("Kit polish: icons", function()
 		local c = client()
 		local Kit = c.Kit
 		local Icons = load(c, "Icons")
+		local saved = { megaphone = Icons.megaphone.id, coins = Icons.coins.id }
+		Icons.megaphone.id = ""
 		local glyph = Kit.icon("megaphone", 16, Kit.colors.accent)
+		Icons.megaphone.id = saved.megaphone
 		glyph.Parent = c.stage
 		expect(glyph.ClassName):toBe("TextLabel")
 		expect(glyph.Text):toBe(Icons.megaphone.glyph)
@@ -508,7 +511,7 @@ describe("Kit polish: icons", function()
 		check(constraint ~= nil and constraint.MinTextSize >= Kit.MIN_TEXT, "a glyph can shrink under 12 px")
 		Icons.coins.id = "rbxassetid://1"
 		local image = Kit.icon("coins", 20)
-		Icons.coins.id = ""
+		Icons.coins.id = saved.coins
 		expect(image.ClassName):toBe("ImageLabel")
 		expect(image.Image):toBe("rbxassetid://1")
 		check(same(image.ImageColor3, Kit.colors.text), "the image is not tinted text")

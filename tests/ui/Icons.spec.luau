@@ -70,12 +70,13 @@ describe("Icons", function()
 	it("draws the glyph while the id is empty, the image once it is set", function()
 		local world, peer, Kit = kit()
 		local Live = FakeRoblox.require(world, peer, "src/client/UI/Icons.luau")
+		local saved = Live.megaphone.id
+		Live.megaphone.id = ""
 		local glyph = Kit.icon("megaphone", 20)
 		expect(glyph.ClassName):toBe("TextLabel")
 		expect(glyph.Text):toBe(Icons.megaphone.glyph)
 		expect(glyph:GetAttribute("Icon")):toBe("megaphone")
 
-		local saved = Live.megaphone.id
 		Live.megaphone.id = "rbxassetid://1"
 		local image = Kit.icon("megaphone", 20)
 		Live.megaphone.id = saved

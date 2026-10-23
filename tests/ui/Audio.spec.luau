@@ -233,7 +233,15 @@ describe("Audio in the UI", function()
 		Rig.tap(c.world, c.peer, "Select", "SoundButton")
 		expect(c.Audio.muted()):toBe(true)
 		expect(button:GetAttribute("Muted")):toBe(true)
-		check(button:FindFirstChild("Slash") ~= nil, "no slash over the muted glyph")
+		-- The uploaded volume-x image while muted; a glyph (no image id) gets a slash.
+		local icon = button:FindFirstChild("Icon")
+		if icon:IsA("ImageLabel") then
+			local Icons = FakeRoblox.require(c.world, c.peer, "src/client/UI/Icons.luau")
+			expect(icon.Image):toBe(Icons["volume-x"].id)
+			check(button:FindFirstChild("Slash") == nil, "a slash over the muted image")
+		else
+			check(button:FindFirstChild("Slash") ~= nil, "no slash over the muted glyph")
+		end
 		Rig.tap(c.world, c.peer, "Select", "SoundButton")
 		expect(c.Audio.muted()):toBe(false)
 		expect(button:GetAttribute("Muted")):toBe(false)

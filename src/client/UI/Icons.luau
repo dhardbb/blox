@@ -8,9 +8,9 @@
 -- The glyphs are WGL4 or Latin-1 characters (the set Gotham and Builder Sans
 -- cover, docs/UI-STYLE.md §2.6); ♪ ► ○ ☼ still need one look in Studio.
 --
--- To add the uploaded images, set each `id` to "rbxassetid://<number>"
--- (docs/TESTING.md lists the twelve files by name). This module is plain data:
--- name -> { id, glyph }.
+-- The ids are the uploaded images (assets/icons/README.md lists them by file).
+-- A replaced image gets its new "rbxassetid://<number>" here. This module is
+-- plain data: name -> { id, glyph }.
 
 export type Icon = {
 	id: string, -- "rbxassetid://…" or "" (draw the glyph)
@@ -18,18 +18,18 @@ export type Icon = {
 }
 
 local Icons: { [string]: Icon } = {
-	megaphone = { id = "", glyph = "!" }, -- Rally
-	coins = { id = "", glyph = "$" }, -- Fundraise
-	tv = { id = "", glyph = "►" }, -- Ad (Media)
-	zap = { id = "", glyph = "▼" }, -- Attack ad
-	search = { id = "", glyph = "?" }, -- Poll, region poll
-	footprints = { id = "", glyph = "»" }, -- Ground game
-	vote = { id = "", glyph = "✓" }, -- votes / electoral votes
-	clock = { id = "", glyph = "○" }, -- the timer
-	["volume-2"] = { id = "", glyph = "♪" }, -- sound on
-	["volume-x"] = { id = "", glyph = "♪" }, -- sound off (Header draws a slash over the glyph)
-	sparkles = { id = "", glyph = "☼" }, -- reduce motion
-	plane = { id = "", glyph = "✈" }, -- a flight
+	megaphone = { id = "rbxassetid://74407986384819", glyph = "!" }, -- Rally
+	coins = { id = "rbxassetid://115479549167953", glyph = "$" }, -- Fundraise
+	tv = { id = "rbxassetid://85002016534519", glyph = "►" }, -- Ad (Media)
+	zap = { id = "rbxassetid://106519025012778", glyph = "▼" }, -- Attack ad
+	search = { id = "rbxassetid://81766020463454", glyph = "?" }, -- Poll, region poll
+	footprints = { id = "rbxassetid://123779238671058", glyph = "»" }, -- Ground game
+	vote = { id = "rbxassetid://91914610961279", glyph = "✓" }, -- votes / electoral votes
+	clock = { id = "rbxassetid://95158744203759", glyph = "○" }, -- the timer
+	["volume-2"] = { id = "rbxassetid://108064289798339", glyph = "♪" }, -- sound on
+	["volume-x"] = { id = "rbxassetid://79580394049787", glyph = "♪" }, -- sound off (Header draws a slash over the glyph)
+	sparkles = { id = "rbxassetid://85604574793056", glyph = "☼" }, -- reduce motion
+	plane = { id = "rbxassetid://136061807700836", glyph = "✈" }, -- a flight
 }
 
 return Icons
