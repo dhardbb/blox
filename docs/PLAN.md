@@ -42,7 +42,7 @@ Non-goals: tutorials, quizzes, glossary, the original game's primary season, rea
 | Fundraise only where you have support; pools refill | Good idea | Keep. Yield scales with your support; pools regenerate 25%/week |
 | Attack ads on mismatched issues | Good idea, no downside | Keep, add a backlash meter so spamming attacks eventually costs you |
 | VP pick with home state and skill | Flavor | Folded into candidate perks; running mate is a stretch goal |
-| Fixed map every game | Zero replayability | Seeded public state leans, blind draft of strongholds, nominated battlegrounds, seeded events |
+| Fixed map every game | Zero replayability | Seeded public state leans, strongholds that follow the leans, a blind draft of homes and battlegrounds, seeded events |
 | Slogan picker | Cosmetic | Optional later; any free text must pass TextService filtering |
 
 ## Match flow
@@ -51,8 +51,8 @@ A full match runs about 12 minutes typical and at most about 17½ minutes (budge
 
 1. **Lobby.** Public queue, private match code, or practice vs the bot. Two players matched → a match instance starts in the same server (no teleport). Candidate, color and platform can be pre-picked in the lobby; rematch remembers them.
 2. **Character and platform select (30s, one screen, simultaneous, hidden until both lock).** Pick a candidate, a player color (six options, none of them a party color pairing), and 3 of the 8 issues. Reveal both.
-3. **Map reveal (5s).** The match's seeded state leans are shown (see Core mechanics → Leans).
-4. **State draft (8 blind rounds, 20s each, 2s reveal after each).** Round 0: home state. Rounds 1–5: one stronghold each. Rounds 6–7: one battleground nomination each. Each round both players secretly submit a ranked top 2; picks are revealed together after every round. Full rules in Core mechanics.
+3. **Map reveal (5s).** The match's seeded state leans are shown, and with them each player's five strongholds: their strongest-leaning states (see Core mechanics → Draft; `DESIGN.md` D-044).
+4. **State draft (3 blind rounds, 20s each, 2s reveal after each).** Round 0: home state. Rounds 1–2: one battleground nomination each. Each round both players secretly submit a ranked top 2; picks are revealed together after every round. Full rules in Core mechanics.
 5. **Campaign, weeks 1–12.** Each week: *Plan* (50s, simultaneous, hidden: spend action points and money; the week card, meaning what the opponent did publicly, this week's event, and next debate's topics, sits in a side panel of the plan screen) → *Resolve* (8s animation: rallies, ads, fundraisers, momentum drift, new public polls; skips to 3s if both tap).
 6. **Debates in weeks 4 and 9.** Prep points are allocated during the previous week's plan (prefilled 2/2/2); the debate resolves in a 10s sequence at the start of the week.
 7. **Election night (45s, skippable if both skip).** Safe states called first, closest states last, EV counter ticking. 270 wins. Stats screen (flipped states, money raised, debate results, biggest swing), rating change, rematch and requeue buttons.
@@ -94,11 +94,11 @@ Before the draft, each match seeds fictional state leans (never real-world parti
 
 ### Draft
 
-Eight blind rounds, 20s each. Each round both players secretly submit a ranked top 2 legal states; both picks are revealed together after the round (2s), so every later round can react. If both players' first choices clash, the player with priority that round gets it and the other gets their second choice. If a player submits only one choice, the server fills the backup with the highest-EV legal state that matches their platform. Priority order across the eight rounds is A B B A B A A B (A is chosen by the match seed), so each player has priority four times and the round-0 loser has it in rounds 1 and 2.
+*Revised in D-044 (playtest: "a clear correct choice for both players"): strongholds are no longer drafted.* At the map reveal each player is given their five strongest-leaning states as strongholds (strongest lean first, then the bigger state), so both see them before any pick. Then three blind rounds, 20s each. Each round both players secretly submit a ranked top 2 legal states; both picks are revealed together after the round (2s), so every later round can react. If both players' first choices clash, the player with priority that round gets it and the other gets their second choice. If a player submits only one choice, the server fills the backup with the highest-EV legal state that matches their platform. Priority across the three rounds is A B B (A is chosen by the match seed): A wins a clash for the home, B for both nominations.
 
-- **Home state** (round 0): +12 to the drafter in that state (+6 if the state has 20+ EV), and fundraisers there yield ×1.5 all game.
-- **Strongholds** (rounds 1–5, one each per round): +8 in that state; +4 instead if the state has 20+ EV, so the big four cannot be locked up by draft alone.
-- **Battlegrounds** (rounds 6–7, one nomination each per round): a nominated state loses all draft bonuses (reset to 35 / 35 / 30 plus its lean), gets ×1.5 on every campaign effect for the whole game, and is marked on the map. Nominating an opponent's stronghold is the obvious play; nominating a neutral big state is the greedy one. A home state cannot be nominated.
+- **Home state** (round 0): +12 to the drafter in that state (+6 if the state has 20+ EV), and fundraisers there yield ×1.5 all game. A stronghold cannot be a home.
+- **Strongholds** (assigned at the map reveal, five each): +8 in that state; +4 instead if the state has 20+ EV.
+- **Battlegrounds** (rounds 1–2, one nomination each per round): a nominated state loses all draft bonuses (reset to 35 / 35 / 30 plus its lean), gets ×1.5 on every campaign effect for the whole game, and is marked on the map. Nominating an opponent's stronghold is the obvious play; nominating a neutral big state is the greedy one. A home state cannot be nominated.
 
 All draft bonuses are applied before week 1 and the first public polls are then generated, so both players start with the same noisy picture.
 
@@ -202,7 +202,7 @@ Presentation: each candidate is a Roblox avatar-style portrait built from a huma
 
 The design has five anti-snowball levers and one rubber band; keep all of them tunable and keep the rubber band modest.
 
-1. **Simultaneous turns.** No first-mover advantage in the campaign or the draft. Draft rounds are blind and simultaneous; clash priority follows A B B A B A A B, so each player has it four times.
+1. **Simultaneous turns.** No first-mover advantage in the campaign or the draft. Draft rounds are blind and simultaneous; clash priority follows A B B (D-044), and strongholds come from the mirrored leans, so neither seat gets better ones.
 2. **Saturation cap.** `SUPPORT_CAP = 72` and the saturation multiplier make the last 10 points in a state cost 3–6× what the first 10 did. Piling onto a state you already own is a losing trade.
 3. **Momentum decay and drift cap.** Decay 0.5, cap 6, drift ±3 per week. Early leads erode unless re-invested.
 4. **Noise.** Poll σ 3 and election σ 2 mean a 52–48 state is a coin flip you cannot see; the counter is internal polls and GOTV, both of which cost money, which creates the spending decision.
@@ -358,8 +358,9 @@ Every value here goes in `Config.luau` with a one-line comment. They are first g
 | EVENT\_CAP | 2 | Max points from one event |
 | TIMER\_SELECT | 30 | Candidate, color and platform on one screen |
 | TIMER\_MAP\_REVEAL | 5 | Leans shown before the draft |
-| DRAFT\_ROUNDS / TIMER\_DRAFT\_ROUND / DRAFT\_REVEAL | 8 / 20 / 2 | Blind, ranked top 2 |
-| DRAFT\_PRIORITY | A B B A B A A B | Clash priority per round |
+| DRAFT\_ROUNDS / TIMER\_DRAFT\_ROUND / DRAFT\_REVEAL | 3 / 20 / 2 | Blind, ranked top 2: home, then two nominations (D-044) |
+| STRONGHOLD\_COUNT | 5 | Assigned at the map reveal: each player's strongest-leaning states (D-044) |
+| DRAFT\_PRIORITY | A B B | Clash priority per round |
 | TIMER\_PLAN / TIME\_BANK / TIME\_BANK\_CHUNK | 50 / 30 / 15 | Seconds; bank is per player per match |
 | TIMER\_RESOLVE / TIMER\_RESOLVE\_SKIPPED | 8 / 3 | Both players tap to skip |
 | TIMER\_DEBATE / TIMER\_ELECTION | 10 / 45 | Election skippable if both skip |

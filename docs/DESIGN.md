@@ -631,3 +631,44 @@ Limits: the preview adds your points straight to the shown poll shares, as `Poll
 **Harness** (2,000 matches; before = D-041): stances change the winner **14.6%** (5.1%), EV swung 14.2 (4.7); RandomStance win rate **34.0%** (39.1%), so reading the card is worth more; debates 23.2% (unchanged); comeback 38.3%; candidates Okafor 52.9, Venkat 54.9, Hale 51.7, Alvarado 46.0, Strand 44.6. The bots still take the same stance **83.8%** of the time (90.7%) and never take the hedge (0%): both bots weigh the same close states, and the base is only 5–7 states of 50, so the shared battlegrounds still dominate a bot's sum. Humans, who care more about "my states", should split more; the duel playtests are the check. Variants at 1,000 matches: `STANCE_BASE_MULT` 3 moved the winner in 17.2% but pushed Okafor to 57.7 and Venkat to 62.5 (rejected); `STANCE_HEDGE_COST` 0.25 left the hedge unused (C 0%); `UNDECIDED_FLOOR` 5 with `BATTLEGROUND_MULT` 1.3 (the evaluator's proposal against one-state tug-of-wars) did not change mirroring and dropped Hale to 39.7 (not adopted; the harness does not measure "one state decided it", so that needs a metric first).
 
 *For the designers.* The hedge is now a niche answer: right only when both sides would cost you in your own base. If playtests show nobody ever takes it, a small positive outside your base (+0.25 in the issue's other states) would bring it back without making it the safe default again.
+
+## A shorter draft (playtest feedback)
+
+### D-044 — Strongholds follow the leans; the draft is home + two nominations (approved reshape, Oct 23, 2026)
+
+**Feedback.** "The state selection could be optimized because there's a clear correct choice for both players to make." The harness agrees: with drafted strongholds, GA, OH, MI and NC were somebody's stronghold in 98–100% of matches, and both players' first choice for home was the same state in 81% (CA or TX in 89% of homes). The designers chose a shorter draft: players pick only their home and two battleground nominations; strongholds are assigned from the map's leans.
+
+**Rules.** When Select ends (`Match.advance` → `Draft.assignStrongholds`), each player gets their `STRONGHOLD_COUNT` (5) strongest-leaning states as strongholds: states leaning toward them, ordered by lean (largest first), then EV (larger first), then id. They own them from the map reveal on, so both players see both sets on the map (rings) and on the draft screen ("Your strongholds: … · theirs: …") before the home round. The bonuses are unchanged (+8, +4 at 20+ EV) and still applied after the last round, so a nominated stronghold still loses its bonus but keeps its lean. Then three blind rounds (`Draft.rounds` = 1 + `NOMINATION_ROUNDS`): round 0 home (a stronghold cannot be a home: it is owned), rounds 1–2 nominations (any state but a home or a battleground, either player's strongholds included). `DRAFT_PRIORITY` is A B B. `STRONGHOLD_ROUNDS` is gone; `Draft.Kind` and `DraftPick.kind` are `"Home" | "Nominate"`. The draft goes from 8 rounds and 181 s (5 s reveal + 8 × 22 s) to 3 rounds and 71 s, 110 s shorter; the worst-case match budget falls from 1,042 s to 932 s.
+
+**Why this assignment.**
+- *Fair by construction.* Leans come in EV-adjacent pairs of equal magnitude, one to each side (D-008), so in a 1v1 both players' stronghold leans are the same multiset and the EVs nearly match: the stronghold EV gap is 2 at the median, 4 at p90, 16 at worst (6,000 matches), and the side with more stronghold EV wins 48.8% (no edge). Each player's set comes only from their own leans, so the order players are served in cannot matter; a spec mirrors every lean and checks the strongholds swap seats exactly.
+- *Deterministic and readable.* It is a pure function of the seeded leans: "your strongholds are the states leaning your way the most". Nothing new is random and the player can check it on the map.
+- *Visible before every pick.* Assigned at the end of Select (not in `Match.new`, so the Select screen cannot read a lean's direction off `owner`, D-008).
+- *Rejected.* (1) Strongholds near each player's home, after the home round: they could not be shown before the home pick, and a blind home clash would then decide strongholds too. (2) A seeded draw among each side's leaned states: less learnable and wider EV gaps. (3) Searching for the most EV-balanced subset: unnecessary at a p90 gap of 4 EV. (4) The weakest leans (spreading safe states wider): the strongest is the simpler rule and the one the designers proposed; the harness shows no reason to prefer the other.
+
+**Why the rounds stay blind with priority.** Three rounds are short enough that the reveal-after-each-round rhythm costs little, and the home round is the only one where clashes happen: both bots' first choice for home is the same state 82% of the time, while nominations almost never clash (27% of all rounds clash ≈ 82% / 3). So priority is effectively "who gets the contested home", A by seed. Priority A wins **48.9%** of 6,000 matches (47–53% target). Merging both nominations into one round (22 s faster) was considered and not taken: it removes the reaction to the opponent's first nomination for a small saving. Priority for the home was not split or compensated because the harness shows no seat edge.
+
+**Bots.** No change needed: `Bot.draft` already values a home and a nomination from the View (leans plus owners), and the assigned strongholds enter its margins as owned states. 0 invalid bot inputs.
+
+**Harness** (`lune run tests/harness/balance.luau 2000`, same seeds; before = this branch's start, D-043 rules; 6,000-match run in brackets).
+
+| Check | Before | After | Target |
+|---|---|---|---|
+| Draft rounds / seconds | 8 / 181 s | **3 / 71 s** | |
+| Priority A win rate | 49.6% | 47.8% [48.9%] | 47–53% ✓ |
+| Candidates | Okafor 52.9, **Calloway 56.6**, Venkat 54.9, Hale 51.7, Alvarado 46.0, Reyes 49.2, **Strand 44.6**, **Begay 44.4** | Okafor 54.2 [55.1], **Calloway 57.2** [54.2], Venkat 54.0 [54.3], Hale 47.5 [47.2], **Alvarado 44.6** [46.6], Reyes 50.0 [51.7], Strand 45.0 [45.1], Begay 47.7 [46.3] | 45–55% (±2.2 at 2,000) |
+| Comeback rate | 38.3% | 39.9% [37.5%] | 20–40% ✓ |
+| Mean / median EV margin | 63 / 52 | 60 / 50 | median ≤ 60 ✓ |
+| 40+ / 100+ EV | 62.3% / 21.6% | 60.9% / 19.2% | ≤ 65% / ≤ 25% ✓ |
+| Tossup EV after the draft | 24.4% | 33.4% | informational |
+| Leaned states that flip | 27.2% | 20.6% | 20–40% (near the edge) |
+| Stronghold EV per player / gap p50, p90, max | 95 / 14, 30, 59 | 44 / 2, 4, 16 | |
+| Most common strongholds | GA 100, OH 99, MI 98, NC 98% | VA 28, MI 28, NC 28, NJ 27% | |
+| Both first choices for home the same | 80.6% | 81.5% | |
+| Money raised per player / GOTV spend | $37.1 / $8.3 | $29.7 / $6.7 | |
+| Stances change the winner | 14.6% | 11.4% | informational |
+| RandomStance win rate | 34.0% | 34.9% | ≤ 45% ✓ |
+
+The pass/fail lines are where they were: Calloway's and Okafor's over-55 readings swap between runs at this sample size, the D-020 rubber-band flags and GOTV at 9–10% were red before. What moved: a third more of the map is still in play after the draft (strongholds no longer turn the best unleaned mid-size states, GA, OH, MI and NC, into locks; they make already-leaning states safer), so margins and blowouts fell a little. Side effects worth watching: money raised fell 19% because the old strongholds were the big fundraising pools (strongholds feed fundraisers through support share), and base-weighted stances (D-043) matter a little less because a base is now mostly already-safe states. Neither was tuned here.
+
+*For the designers.* The stronghold choice is gone, but the home is still a clear choice for bots: CA or TX in 92% of homes, the same first choice 82% of the time, settled by priority. If humans show the same, the smallest options are (a) cap the home bonus lower in big states (e.g. +4) or drop the ×1.25 fundraiser there, so a mid-size home near your strongholds competes, or (b) let a home only be chosen among states not leaning to the opponent. Both change a mechanic's intent, so neither was done.

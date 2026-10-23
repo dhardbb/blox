@@ -2,6 +2,14 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased: a shorter draft (D-044)
+
+- **Strongholds are no longer drafted.** At the map reveal each player is given their five strongest-leaning states as strongholds (same +8 / +4 bonuses), shown for both players on the map and in a "Your strongholds: … · theirs: …" line, before any pick. A stronghold can't be a home.
+- **The draft is three blind rounds**: home state, then two battleground nominations (priority A, B, B). It takes about 71 s instead of 181 s.
+- Harness (2,000 matches): priority A 47.8% (48.9% at 6,000), comeback 39.9%, median margin 50 EV (was 52), stronghold EV gap between players 2 EV at the median. The most common stronghold is now in 28% of matches (GA, OH, MI, NC were in 98–100%). Homes are still mostly CA or TX: see `docs/DESIGN.md` D-044 for options.
+- Bots, the balance harness (new "Draft" section), the duel harness and its README, the F2 board and the specs follow the new draft.
+- Test in Studio: `docs/TESTING.md`, "A shorter draft (D-044)". Nothing needed from the humans.
+
 ## 0.7.0: your base hears your stance (D-043)
 
 - Choice events: a side (A or B) now counts double in your own home state and strongholds. The hedge (C) no longer gives anything; it costs 0.5 in each of your home and strongholds where the issue is a top issue. Stance moves are capped at 3 a state (was 2).

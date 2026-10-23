@@ -84,7 +84,7 @@ Start with **Test → Clients and Servers → Local Server, 2 Players → Start*
    - The server Output shows `[270] server up: v0.2.0 (2 Server and networking), 12 weeks` and the sim self-test line.
    - Each client's Output shows a `[270] debug UI sizes: ...` line and **no** `button ... under 44px` or `truncated` warnings. If you see those, screenshot the client window.
 2. **Practice vs the bot (one client).** In Player1, press **Practice**, then **Autoplay**.
-   - The status line walks through Select, MapReveal, 8 Draft rounds, Week 1–12 (with Debate in weeks 4 and 9), Election, and ends back at `Lobby: Idle`.
+   - The status line walks through Select, MapReveal, 3 Draft rounds (8 before D-044), Week 1–12 (with Debate in weeks 4 and 9), Election, and ends back at `Lobby: Idle`.
    - The log shows `match over: Election`, and the board shows `YOU WON` or `You lost` with the EV score.
    - With Autoplay on, a match takes about 1½ minutes (the draft reveals and debates can't be skipped).
 3. **Two players (both clients).** Press **Queue** in Player1, then in Player2.
@@ -173,7 +173,7 @@ In Studio (**Local Server, 2 Players**):
 
 1. In Studio, open a Baseplate, connect Rojo (Plugins → Rojo → Connect) and press **Play**.
    - The Lobby shows "270", your rating (once saved data loads) and Play vs Bot / Find Match / Host / Join.
-2. Press **Play vs Bot** and play a whole match by hand: pick a candidate, color and 3 issues; draft 8 rounds by tapping states or list rows; plan weeks by tapping a state, then Rally / Fundraise / Ad / Attack / Poll / GOTV, then **Lock in**; watch the results animation; answer Choice events; watch election night.
+2. Press **Play vs Bot** and play a whole match by hand: pick a candidate, color and 3 issues; draft 3 rounds (home, then two battlegrounds) by tapping states or list rows; plan weeks by tapping a state, then Rally / Fundraise / Ad / Attack / Poll / GOTV, then **Lock in**; watch the results animation; answer Choice events; watch election night.
    - Nothing overlaps; every button is easy to hit; the countdown runs; the Results screen shows the winner and "Back to lobby" works.
 3. Phone check: Studio's **Test → Device** emulator, pick a phone in portrait, repeat a few steps.
 4. Any screen without a server: in the command bar run `workspace:SetAttribute("DebugScreen", "Plan")` (or Select, Draft, Resolve, ChoiceWeek, Election, Over...) before **Play**.
@@ -287,15 +287,15 @@ Run each in Studio twice: once in the device emulator as a phone in portrait (e.
 
 Map reveal (`MapReveal`)
 1. Look at the header: "The map for this match" (phone: "The map") on the left, the countdown on the right in yellow.
-2. Right panel (16:9) / under the map (phone): "You have priority in round 1." (or "They have…"), the three lines on how the draft works, and the legend row with your color and theirs.
+2. Right panel (16:9) / under the map (phone): "You have priority in round 1." (or "They have…"), "Your strongholds: … · theirs: …" (five each, ringed in each color on the map), the three lines on how the draft works, and the legend row with your color and theirs.
 3. There is no Lock in button. Nothing is yellow-filled.
 4. Phone: at the end of the panel there is a "Draft board ▾" row. Tap it: it opens and shows "You … home —" and "Them … home —".
 
 Draft round (`Draft`, or any round in Practice)
-1. Header: "Round 4 of 8 · Stronghold" (phone: "Round 4 of 8") and the help line "Stronghold: +8 support there…".
+1. Header: "Round 2 of 3 · Nominate" (phone: "Round 2 of 3") and the help line "Battleground: the state loses all draft bonuses…" (round 1 is "Home state").
 2. Phone: right under the map you see the priority line, then the two chips "1st: —" "2nd: —", then the state list starting with California. You should not have to scroll to reach the list.
 3. Tap a state in the list: the 1st chip reads "1st: CA" (or the state you tapped) with a × next to it; the bar at the bottom says "Tap a backup (optional)" and the yellow button says "Lock in".
-4. Tap a state that is already drafted (a row with a "their stronghold" tag, or a dimmed map node): the bar's status line turns red and says e.g. "OH: already drafted". Wait 5 seconds: it is still there. Tap another (legal) state: the red line goes away.
+4. Tap a state you can't pick (in a nomination round, a home: a row with a "their home" tag, or a dimmed map node; in the home round, a stronghold): the bar's status line turns red and says e.g. "OH: a home state, can't nominate". Wait 5 seconds: it is still there. Tap another (legal) state: the red line goes away.
 5. Tap "1st: …" (it gets a yellow outline), then tap a different state: that state replaces your 1st choice.
 6. Tap the × next to the 1st chip: your 2nd choice moves up. Tap × again: "1st: —", and the button reads "Pick a state" in grey.
 7. Pick one state and tap **Lock in**: the button reads "Locked in" (grey), the status line is green "Locked in · waiting for opponent", the × buttons disappear.
@@ -434,3 +434,19 @@ Rules only (`DESIGN.md` D-039 to D-041). The screens for them are the section ab
 1. Open a practice match, press **F2** for the debug panel, and at Week 1 Plan type `plan ad <your state> jobs`. Should: lock in like `media` did (if you have $3). Send back: the log line.
 2. In the campaign, select a state where one side has momentum (the ▲ on the map). Should: the state card says "about +X support drifts to … next week" and "Drift: … about 0.3 support next week per point of momentum lead shown now …". Next week, check the state moved by about that much if nobody campaigned there. Send back: a screenshot of the card, and the two polls.
 3. Open "?" (How it works) → "Leans, momentum, backlash, underdog". Should: the same drift sentence, with your candidate's numbers (Tomas Reyes: 25% kept, 0.15 per point). Send back: a screenshot.
+
+## A shorter draft (D-044)
+
+Strongholds are no longer drafted: each player gets their five strongest-leaning states at the map reveal, then the draft is three blind rounds (home, then two battleground nominations). Test in Studio with **Practice** (or two players via Test → Clients and Servers), once on a phone in portrait and once at 16:9.
+
+1. Start a match and lock in Select. On the map reveal, look at the panel.
+   - Should: "Your strongholds: … · theirs: …" lists five states each; those states have a ring in that player's color on the map and lean toward that player ("+5 you", "+6 them"). The "how it works" lines say strongholds come from the map and there are 3 blind rounds.
+2. Home round ("Round 1 of 3 · Home state"): tap one of your own strongholds, then one of theirs.
+   - Should: neither can be picked; the bar says "XX: a stronghold, can't be a home". Pick any other state and lock in.
+3. Rounds 2 and 3 ("Nominate"): nominate one of the opponent's strongholds.
+   - Should: allowed. After the draft the draft board lists it under "nominated by …", and in week 1 its state card says "Battleground" and "Was their stronghold".
+4. Time the draft from the end of Select to the week-1 plan screen.
+   - Should: about 70 seconds at most (5 s map reveal + 3 × 22 s), against about 3 minutes before.
+5. Play two or three matches and note which home you picked and why, and whether your opponent picked the same one.
+
+**Send back:** a screenshot of the map reveal (step 1) on the phone and at 16:9, the draft time from step 4, and your notes from step 5 (is there still one obvious home?). Plus the Output lines starting with `[270] UI audit Draft` (should say `0 problem(s)`).
