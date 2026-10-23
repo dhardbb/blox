@@ -414,6 +414,27 @@ local SHOTS: { Shot } = {
 			Rig.push(world, peer, payload)
 		end,
 	},
+	{
+		-- Just after the call that takes someone to 270: the tick has flashed and
+		-- the "270!" stamp (CROSS_STAMP after the call) sits over the bar.
+		name = "22b-election-270",
+		moment = "Election",
+		screen = "Election",
+		steps = function(world, peer)
+			-- The call lands 0.3 s after the push (a live call, not a catch-up);
+			-- 0.5 s more here and the 0.6 s settle put the shot 1.1 s after it.
+			local Election = FakeRoblox.require(world, peer, "src/client/Screens/Election.luau")
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			local results = payload.view.election.results
+			local stage = payload.deadline - payload.stageStart
+			local ends = Election.schedule(results, Config.defaults.EV_TO_WIN, stage)
+			local tipping = Election.tippingCall(results, Config.defaults.EV_TO_WIN) or #results
+			payload.stageStart = world.clock + 0.3 - ends[tipping]
+			payload.deadline = payload.stageStart + stage
+			Rig.push(world, peer, payload)
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
 	{ name = "23-results", moment = "Over", screen = "Results" },
 	{
 		-- The same match seen by the loser: no confetti, and a "Try next time" line.
