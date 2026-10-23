@@ -323,7 +323,8 @@ describe("Campaign screen", function()
 	it("plays the resolve reveal and can be skipped from the action bar", function()
 		local world, peer = fixture("Resolve")
 		check(text(peer, "StageLabel") == "Results", "stage label: " .. text(peer, "StageLabel"))
-		check(text(peer, "RevealLine1") ~= "", "no event lines")
+		-- The trailing player's actions land first (WP-2), so either group may lead.
+		check(text(peer, "RevealLine1") ~= "" or text(peer, "RevealThem1") ~= "", "no event lines")
 		-- The reveal's latest line is the header's now line.
 		local first = text(peer, "NowText")
 		FakeRoblox.run(world, 7)
@@ -809,7 +810,11 @@ describe("Campaign auto-submit before the timer ends", function()
 		Rig.waitFor(world, function()
 			return Rig.payloadOf(world, peer).reveal == "Resolve"
 		end, 200, "the resolve reveal")
-		FakeRoblox.run(world, 1)
+		-- Until every action has landed (the trailing player's land first).
+		Rig.waitFor(world, function()
+			local summary = Rig.findIn(peer, "Campaign", "RevealSummary")
+			return summary ~= nil and tostring(summary.Text) ~= ""
+		end, 10, "the end of the reveal")
 		expect(#calls):toBe(1)
 		-- "Your week" merges repeats into one line ("Rally in Ohio ×2 · …").
 		local mentions = 0
