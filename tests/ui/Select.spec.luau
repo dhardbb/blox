@@ -223,7 +223,7 @@ describe("Select fits above the pinned bar", function()
 		Rig.noErrors(world)
 	end)
 
-	it("shows the drawn color as a line in both steps (D-047)", function()
+	it("shows the dealt color as a line in both steps (D-047, D-055)", function()
 		for _, screen in { Rig.PHONE, { x = 1280, y = 720 } } do
 			local world, peer = Rig.fixture("Select", screen)
 			local me = Rig.payloadOf(world, peer).view

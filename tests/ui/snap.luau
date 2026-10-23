@@ -154,6 +154,42 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Lobby", "PlayFriend")
 		end,
 	},
+	{
+		name = "01b-lobby-color",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(Fixtures.lobby("Idle", { colorPass = "owned", color = "Teal" }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02c-lobby-color-locked",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(Fixtures.lobby("Idle", { colorPass = "locked" }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			tapIf(world, peer, "Lobby", "ColorButton")
+		end,
+	},
+	{
+		name = "02d-lobby-color-owned",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer)
+				.setLobby(Fixtures.lobby("Idle", { colorPass = "owned", color = "Emerald" }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			tapIf(world, peer, "Lobby", "ColorButton")
+		end,
+	},
 	{ name = "03a-select-start", moment = "Select", screen = "Select" },
 	{
 		name = "03-select-candidate",

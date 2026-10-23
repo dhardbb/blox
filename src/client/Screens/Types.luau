@@ -31,6 +31,8 @@ export type Net = {
 	send: (op: string, fields: { [string]: any }?) -> (),
 	submit: (input: any) -> (),
 	claim: (candidate: string) -> (), -- Select step 1 (D-048)
+	setColor: ((color: string?) -> ())?, -- save a chosen color, nil = auto (D-055)
+	buyPass: ((passId: number) -> ())?, -- Roblox's purchase prompt for a pass (D-055)
 	bank: () -> (),
 	skip: () -> (),
 	reasonText: (reason: string?) -> string,

@@ -153,6 +153,19 @@ if type(fixture) == "string" then
 	fakeNet.bank = function()
 		print("[270] DEBUG_UI bank")
 	end
+	fakeNet.setColor = function(color: string?)
+		print("[270] DEBUG_UI setColor", color or "auto")
+		-- Offline there is no server: save it in the fixture's lobby status.
+		local lobby = Store.get().lobby
+		if lobby then
+			local copy = table.clone(lobby)
+			copy.color = color
+			Store.setLobby(copy)
+		end
+	end
+	fakeNet.buyPass = function(passId: number)
+		print("[270] DEBUG_UI buyPass", passId)
+	end
 	fakeNet.skip = function()
 		print("[270] DEBUG_UI skip")
 	end

@@ -426,7 +426,7 @@ local function selectGuide(payload: any): { string }
 		"STAGE: Select, in two steps (D-048). Two players never share a candidate: the first to claim one holds it.",
 		"  1. claim CANDIDATE                     holds a free candidate while you choose issues (optional)",
 		"  2. select CANDIDATE ISSUE ISSUE ISSUE  locks in your candidate and platform (claims it too, if still free)",
-		`Your color is drawn: {view.players[view.you].color or "?"}. Your platform stays hidden until both lock.`,
+		`Your color: {view.players[view.you].color or "?"}. Your platform stays hidden until both lock.`,
 		"Candidates (TAKEN = your opponent holds it; pick another):",
 	}
 	for _, id in Candidates.ids do

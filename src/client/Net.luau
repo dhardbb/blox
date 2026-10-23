@@ -2,6 +2,8 @@
 -- Talks to the server: sends requests on ToServer and feeds ToClient messages
 -- into the Store. Match requests are stamped with the current match and step.
 
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
@@ -57,6 +59,10 @@ local REASONS: { [string]: string } = {
 	CodeTaken = "That code is already in use. Try hosting again.",
 	InMatch = "You're already in a match.",
 	BadCode = "Codes are 5 characters: letters A-Z and numbers 2-9.",
+	-- Color (D-055)
+	UnknownColor = "Pick one of the six colors.",
+	NoColorPass = "Picking a color needs the Color Pass.",
+	NotSaved = "Your saved data didn't load, so your color can't be saved.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -126,6 +132,21 @@ end
 -- Select step 1: claim a candidate (D-048).
 function Net.claim(candidate: string)
 	matchRequest("Claim", candidate)
+end
+
+-- Saves a chosen color (Color Pass owners, D-055); nil goes back to auto. The
+-- server checks the pass itself.
+function Net.setColor(color: string?)
+	Net.send("SetColor", { color = color })
+end
+
+-- Opens Roblox's purchase prompt for a pass (a LocalScript may, per the
+-- MarketplaceService docs). The server hears the outcome
+-- (PromptGamePassPurchaseFinished) and sends a new lobby status.
+function Net.buyPass(passId: number)
+	pcall(function()
+		MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, passId)
+	end)
 end
 
 function Net.bank()

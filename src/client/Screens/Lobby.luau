@@ -8,7 +8,9 @@
 -- does not scroll: the "270" hero, a one-line tagline, the record, then Play vs
 -- Bot (the one primary), "Find match" and "Play a friend" side by side, and a
 -- ghost "How to play" (the Help sheet), then the Sound and Reduce motion chips
--- (UI/Settings, session only). "Play a friend" opens a sheet with
+-- (UI/Settings, session only), and once the Color Pass is set up the "Color"
+-- button (UI/ColorPick, D-055: red or blue, or your pick with the pass).
+-- "Play a friend" opens a sheet with
 -- "Make a code" (Host) and the code field + Join. Messages (rejections,
 -- notices, a bad code) go to the global toast.
 --
@@ -18,12 +20,13 @@
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title, Pitch, Settings (SoundChip,
--- MotionChip).
+-- MotionChip), ColorButton, ColorSheet.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
+local ColorPick = require(script.Parent.Parent.UI.ColorPick)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
 local Motion = require(script.Parent.Parent.UI.Motion)
@@ -175,6 +178,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		})
 	end
 	local settings = Settings.row({ LayoutOrder = 4, Parent = idle })
+	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 5, Parent = idle })
 
 	-- The sheet: make a code, or enter one.
 	local body = friend.body
@@ -318,8 +322,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		idle.Visible = status == "Idle"
 		waiting.Visible = status == "Queued" or status == "Hosting"
 		starting.Visible = status == "InMatch"
+		colorPick.update(lobby)
 		if status ~= "Idle" then
 			friend:close()
+			colorPick.sheet:close()
 		end
 		-- Only the idle Lobby has something to press first (UI audit rule "primary").
 		parent:SetAttribute("PrimaryOptional", status ~= "Idle")
@@ -352,6 +358,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			table.insert(arriving, child)
 		end
 	end
+	table.insert(arriving, colorPick.button)
 	Motion.stagger(arriving, function(item, _index, delay)
 		Motion.enter(item, nil, delay)
 	end)

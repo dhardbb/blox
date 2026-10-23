@@ -12,8 +12,8 @@
 --   boost, what a rally or ad on it earns there once it is on your platform
 --   (View.platformMults: niche issues hit harder, D-047).
 --
--- Your color is drawn from the match seed (D-047) and shown as a dot and a line
--- in both steps. The opponent's platform stays hidden until both have locked.
+-- Your color is dealt when the match is made (red or blue, or your Color Pass
+-- pick, D-055) and shown as a dot and a line in both steps. The opponent's platform stays hidden until both have locked.
 --
 -- Layout (docs/UI-STYLE.md §4.2): the standard Header with the "what to do now"
 -- line and the timer, a scroll area (a coach tip, the cards or chips, then the
@@ -59,7 +59,7 @@ local CARD_H = 112 -- px, a candidate card: name, kind, strength, weakness
 local CARD_H_PORTRAIT = 104 -- px, the same on a phone (tighter padding)
 local ISSUE_H = 68 -- px, an issue chip: the name over "154 votes · +41% boost"
 local ISSUE_H_PORTRAIT = 86 -- px, on a phone the votes and the boost take a line each
-local DOT = 16 -- px, the drawn-color dot
+local DOT = 16 -- px, the color dot
 local DETAILS_W = 180 -- px, the ghost button beside the color line
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
 local PICKED = Kit.glyph.bullet .. " " -- before a picked issue's name
@@ -346,7 +346,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ color and details
 
-	-- Colors are drawn from the match seed (D-047): a dot and a line, not a choice.
+	-- Colors are dealt at match start (D-055; picked in the Lobby with the Color
+	-- Pass): a dot and a line, not a choice here.
 	local colorRow = Kit.box({
 		Name = "ColorRow",
 		LayoutOrder = 9,
@@ -430,7 +431,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		shownColor = name
 		dot.BackgroundColor3 = Kit.color(Colors.of(name))
-		colorLine.Text = if name then `Your color: {name}` else "Your color is drawn at random"
+		colorLine.Text = if name then `Your color: {name}` else "Your color: red or blue"
 	end
 
 	-- ------------------------------------------------------------ layout

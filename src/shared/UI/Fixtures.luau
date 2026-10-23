@@ -131,13 +131,24 @@ function Fixtures.payload(
 	error(`fixture never reached {moment}`)
 end
 
--- A lobby status for the lobby screen.
-function Fixtures.lobby(state: ("Idle" | "Queued" | "Hosting")?): any
+-- Made-up pass id for fixtures (the real one lives in Net/Products).
+Fixtures.COLOR_PASS_ID = 1234567
+
+-- A lobby status for the lobby screen. `options.colorPass` shows the color
+-- option (D-055) as a non-owner ("locked") or an owner ("owned"); without it the
+-- pass is not set up. `options.color` is the saved pick.
+function Fixtures.lobby(
+	state: ("Idle" | "Queued" | "Hosting")?,
+	options: { colorPass: ("locked" | "owned")?, color: string? }?
+): any
+	local pass = if options then options.colorPass else nil
 	return {
 		state = state or "Idle",
 		code = if state == "Hosting" then "AB3CD" else nil,
 		queued = if state == "Queued" then 1 else 0,
 		full = false,
+		color = if options then options.color else nil,
+		colorPass = if pass then { id = Fixtures.COLOR_PASS_ID, owned = pass == "owned" } else nil,
 	}
 end
 

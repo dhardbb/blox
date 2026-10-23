@@ -21,6 +21,19 @@ Setup.CODE_PLACEHOLDER = "Enter code"
 Setup.HOSTING_HINT = "Tell your friend this code"
 Setup.HOSTING_WAIT = "Waiting for your friend…"
 
+-- The color option (D-055): shown only once the Color Pass is set up.
+Setup.COLOR_TITLE = "Your color"
+Setup.COLOR_AUTO = "Auto: red or blue"
+Setup.COLOR_LOCKED = "Pick your color with the Color Pass."
+Setup.COLOR_OWNED = "Tap a color. You get it every match."
+Setup.COLOR_TIE = "Same pick as your opponent? A coin flip decides."
+Setup.COLOR_BUY = "Get the Color Pass"
+
+-- The Lobby button: "Color: Emerald", or "Color: red or blue" with no pick.
+function Setup.colorButton(color: string?): string
+	return if color then `Color: {color}` else "Color: red or blue"
+end
+
 -- ---------------------------------------------------------------- candidates
 
 -- One strength and one weakness per candidate, each short enough for one line
