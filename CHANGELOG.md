@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### UI style v2, phase 1: foundation (D-050)
+
+- **Screenshots without Studio.** `lune run tests/ui/snap.luau` renders every screen and state (lobby, both Select steps, map reveal, draft, stance, focus, plan, state card, each lens, resolve, debate, election night, results, help) at phone, iPad and desktop sizes into `build/snaps/` as SVG and PNG, with each shot's UI audit in `build/snaps/audit.txt`. `00-kit` shows every component.
+- **Audit and plan.** `docs/UI-STYLE.md`: what is cluttered or unclear on each screen, the style v2 design system, the principles (one primary action, details one tap away, a "what to do now" line, first-match coach tips, the map as the hero) and a per-screen redesign split into three parallel work packages.
+- **New building blocks** (no screen uses them yet, so nothing looks different except below): ghost buttons, cards, tappable option cards, chips, pills, stacks, dividers, a sheet (bottom on phones, centered on wide screens), coach tips (shown once per session), the header's "what to do now" line and time bar, motion durations and `Kit.tween`.
+- **Small visible changes:** warning text is orange instead of the accent yellow (only Select's "tap one to swap it" and Decision's "No focus in time" use it today), and an expanded section's title ends in "−" instead of "–".
+- **UI audit style rules:** colors only from the palette, at most 4 text sizes per screen, button labels at most 8 words, no text over 30 words outside a details area. Screens not yet redone are listed as pending (notes, not warnings).
+- Test in Studio: `docs/TESTING.md`, "UI style v2 foundation". Nothing needed from the humans; four design questions are at the end of `docs/UI-STYLE.md`.
+
 ## 0.8.0: Playtest 4: cleaner choices (Oct 23, 2026)
 
 Five branches merged for playtest 4 (`docs/DESIGN.md` D-044 to D-049). Each was tuned on its own; the combined harness numbers are below. Studio checklists: `docs/TESTING.md`, one section per feature below.

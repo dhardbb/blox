@@ -526,3 +526,14 @@ Strongholds are no longer drafted: each player gets their five strongest-leaning
 5. Play two or three matches and note which home you picked and why, and whether your opponent picked the same one.
 
 **Send back:** a screenshot of the map reveal (step 1) on the phone and at 16:9, the draft time from step 4, and your notes from step 5 (is there still one obvious home?). Plus the Output lines starting with `[270] UI audit Draft` (should say `0 problem(s)`).
+
+## UI style v2 foundation (unreleased)
+
+Agents: `lune run tests/ui/snap.luau` and look at `build/snaps/`; `lune run tests KitStyle` and `lune run tests Style`.
+
+In Studio (one player is enough; Practice):
+
+1. On Select, pick a candidate and press Next, pick 3 issues, then tap a 4th. **Expect:** the line above the button says "You already have 3; tap one to swap it" in **orange** (it was yellow). Send back a screenshot.
+2. Play to Results and look at "What decided it", then tap it. **Expect:** the title ends in "−" while open and "+" once closed, never a short dash. Send back a screenshot of the open state.
+3. Play to the first debate focus screen and wait out the timer without picking. **Expect:** the orange "No focus in time" line, Lock in still says "Pick a topic". Check the Output for lines starting `[270] UI audit`: lines with "pending" are expected; send back any line starting with `WARN`.
+4. Optional: on the iPad, repeat 1. **Expect:** the same orange; the text is readable.
