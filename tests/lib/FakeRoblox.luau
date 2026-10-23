@@ -12,7 +12,11 @@
 -- (Size, Position, AnchorPoint and UISizeConstraint; list, grid and padding
 -- layouts are not run, so a child of a list sits at its parent's corner). Also
 -- DataStoreService (a world-level key/value table with switches for an
--- unpublished place and transient failures: world.data), game.JobId,
+-- unpublished place and transient failures: world.data; GetOrderedDataStore
+-- too, whose integer values live in world.data.ordered and whose GetSortedAsync
+-- returns one DataStorePages-like page set), Players:GetNameFromUserIdAsync
+-- (world.userNames, else a joined player's name; fails while
+-- world.nameFailures > 0, or for an unknown id), game.JobId,
 -- game:BindToClose (FakeRoblox.shutdown runs the handlers), and os.time on the
 -- simulated clock.
 --
@@ -69,6 +73,13 @@ export type DataState = {
 	latency: number, -- simulated seconds each request takes
 	requests: number, -- requests made so far
 	writes: number, -- successful writes so far
+	-- Ordered data stores (the leaderboard) keep their own counters and failure
+	-- switch, so they never use up the failures a PlayerData spec sets up.
+	ordered: { [string]: { [string]: number } }, -- ordered store name -> key -> integer value
+	orderedFailures: number, -- the next N ordered-store requests fail with a transient error
+	orderedRequests: number, -- ordered-store requests so far
+	orderedWrites: number, -- successful ordered-store writes so far
+	sortedReads: number, -- GetSortedAsync calls so far
 }
 
 export type World = {
@@ -95,6 +106,9 @@ export type World = {
 	brokenAssets: { [string]: boolean }, -- content ids PreloadAsync reports as Failure
 	market: MarketState,
 	overrides: { [string]: { [string]: any } }, -- module path (from the root) -> fields set after it loads
+	userNames: { [number]: string }, -- usernames GetNameFromUserIdAsync knows besides joined players
+	nameFailures: number, -- the next N GetNameFromUserIdAsync calls fail
+	nameLookups: number, -- GetNameFromUserIdAsync calls so far
 }
 
 -- The fake MarketplaceService's world-level state. Tests flip the switches.
@@ -484,10 +498,86 @@ local function newMarketplaceService(world: World): any
 	}
 end
 
+-- An OrderedDataStore: integer values only; GetSortedAsync returns a pages
+-- object with GetCurrentPage ({ key, value } rows), IsFinished and
+-- AdvanceToNextPageAsync, as DataStorePages does.
+-- Counts an ordered-store request, waits, and raises the configured failure.
+local function beginOrderedRequest(world: World)
+	local data = world.data
+	data.orderedRequests += 1
+	requestDelay(world)
+	if data.unpublished then
+		error(data.unpublishedMessage, 0)
+	end
+	if data.orderedFailures > 0 then
+		data.orderedFailures -= 1
+		error("503: DataStore request failed (simulated transient error)", 0)
+	end
+end
+
+local function newOrderedDataStore(world: World, name: string): any
+	local keys = world.data.ordered[name]
+	if keys == nil then
+		keys = {}
+		world.data.ordered[name] = keys
+	end
+	local store = {}
+	function store.GetAsync(_self: any, key: string): any
+		beginOrderedRequest(world)
+		return keys[key]
+	end
+	function store.SetAsync(_self: any, key: string, value: any): ()
+		if type(value) ~= "number" or value ~= math.floor(value) or value ~= value then
+			error("OrderedDataStore: value must be an integer", 0)
+		end
+		beginOrderedRequest(world)
+		keys[key] = value
+		world.data.orderedWrites += 1
+	end
+	function store.GetSortedAsync(_self: any, ascending: boolean, pageSize: number): any
+		assert(type(pageSize) == "number" and pageSize >= 1 and pageSize <= 100, "pagesize must be 1 to 100")
+		world.data.sortedReads += 1
+		beginOrderedRequest(world)
+		local rows = {}
+		for key, value in keys do
+			table.insert(rows, { key = key, value = value })
+		end
+		table.sort(rows, function(a, b)
+			if a.value ~= b.value then
+				return if ascending then a.value < b.value else a.value > b.value
+			end
+			return a.key < b.key
+		end)
+		local page = 1
+		local pages = {}
+		local function slice(): { any }
+			local out = {}
+			for k = (page - 1) * pageSize + 1, math.min(#rows, page * pageSize) do
+				table.insert(out, table.clone(rows[k]))
+			end
+			return out
+		end
+		pages.IsFinished = #rows <= pageSize
+		function pages.GetCurrentPage(_pages: any): { any }
+			return slice()
+		end
+		function pages.AdvanceToNextPageAsync(_pages: any)
+			beginOrderedRequest(world)
+			page += 1
+			pages.IsFinished = #rows <= page * pageSize
+		end
+		return pages
+	end
+	return store
+end
+
 local function newDataStoreService(world: World): any
 	return {
 		GetDataStore = function(_self: any, name: string, _scope: string?): any
 			return newDataStore(world, name)
+		end,
+		GetOrderedDataStore = function(_self: any, name: string, _scope: string?): any
+			return newOrderedDataStore(world, name)
 		end,
 	}
 end
@@ -760,6 +850,29 @@ function methods.GetPlayers(self: any): { any }
 		end
 	end
 	return list
+end
+
+-- Players:GetNameFromUserIdAsync: world.userNames, else a joined player's name,
+-- after the DataStore latency; fails while world.nameFailures > 0 or for an
+-- id nobody has.
+function methods.GetNameFromUserIdAsync(self: any, userId: number): string
+	local world: World = rawget(self, "_world")
+	world.nameLookups += 1
+	requestDelay(world)
+	if world.nameFailures > 0 then
+		world.nameFailures -= 1
+		error("HTTP 500 (simulated GetNameFromUserIdAsync failure)", 0)
+	end
+	local known = world.userNames[userId]
+	if known then
+		return known
+	end
+	for _, player in methods.GetPlayers(self) do
+		if player.UserId == userId then
+			return player.Name
+		end
+	end
+	error("HTTP 400 (Unknown user)", 0)
 end
 
 function methods.GetPlayerByUserId(self: any, userId: number): any
@@ -1293,6 +1406,11 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 			latency = 0.2,
 			requests = 0,
 			writes = 0,
+			ordered = {},
+			orderedFailures = 0,
+			orderedRequests = 0,
+			orderedWrites = 0,
+			sortedReads = 0,
 		},
 		jobId = "job-1",
 		closeHandlers = {},
@@ -1303,6 +1421,9 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		brokenAssets = {},
 		market = { owned = {}, failures = 0, checks = 0, prompts = {} },
 		overrides = {},
+		userNames = {},
+		nameFailures = 0,
+		nameLookups = 0,
 	} :: World
 	world.shared = newInstance(world, "ReplicatedStorage", "ReplicatedStorage")
 	local sharedFolder = newInstance(world, "Folder", "Shared")

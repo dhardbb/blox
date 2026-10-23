@@ -75,6 +75,7 @@ local NOTICES: { [string]: string } = {
 	OpponentDisconnected = "Your opponent disconnected. Their moves auto-submit after the grace period.",
 	OpponentReconnected = "Your opponent is back.",
 	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
+	OpponentForfeited = "Your opponent left the match. You win by forfeit.",
 }
 
 function Net.reasonText(reason: string?): string
@@ -94,6 +95,8 @@ function Net.start()
 			Store.setLobby(message.lobby)
 		elseif message.kind == "Rating" and message.rating then
 			Store.setRating(message.rating)
+		elseif message.kind == "Leaderboard" and message.leaderboard then
+			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Notice" then
 			Store.say(NOTICES[message.notice or ""] or (message.notice or "Notice"))
 		elseif message.kind == "Rejected" then
@@ -147,6 +150,17 @@ function Net.buyPass(passId: number)
 	pcall(function()
 		MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, passId)
 	end)
+end
+
+-- Leaves the match in progress and loses it (D-059). The server ends the match
+-- and sends this player back to the lobby; Store.leave skips its Results.
+function Net.forfeit()
+	local payload = Store.get().payload
+	if payload == nil or payload.stage == "Over" then
+		return
+	end
+	Store.leave(payload.matchId)
+	Net.send("Forfeit", { matchId = payload.matchId })
 end
 
 function Net.bank()

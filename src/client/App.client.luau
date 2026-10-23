@@ -22,6 +22,7 @@ local _DebugPanel = require(script.Parent.DebugPanel) -- builds the hidden debug
 local Audio = require(script.Parent.UI.Audio)
 local Kit = require(script.Parent.UI.Kit)
 local Help = require(script.Parent.UI.Help)
+local LeaveMatch = require(script.Parent.UI.LeaveMatch)
 local Net = require(script.Parent.Net)
 local Router = require(script.Parent.Router)
 local Store = require(script.Parent.Store)
@@ -116,6 +117,8 @@ local ctx: Types.Ctx = {
 -- The "How it works" overlay: above the screens, below the toast (ZIndex 40 < 50).
 local help = Help.mount(background, ctx)
 ctx.help = help.open
+-- "Leave match" (D-059): above Help, below the toast (ZIndex 45).
+ctx.leave = LeaveMatch.mount(background, ctx).open
 
 local fixture = workspace:GetAttribute("DebugScreen")
 if type(fixture) == "string" then
@@ -169,9 +172,13 @@ if type(fixture) == "string" then
 	fakeNet.skip = function()
 		print("[270] DEBUG_UI skip")
 	end
+	fakeNet.forfeit = function()
+		print("[270] DEBUG_UI forfeit")
+	end
 	ctx.net = fakeNet
 	if fixture == "Lobby" then
 		Store.setLobby(Fixtures.lobby("Idle"))
+		Store.setLeaderboard(Fixtures.leaderboard())
 	else
 		local payload = Fixtures.payload(Config.defaults, fixture :: any)
 		-- Keep countdowns running: shift the fixture's times to now.

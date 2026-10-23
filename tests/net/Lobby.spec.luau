@@ -91,6 +91,28 @@ describe("Schemas.request", function()
 		end
 	end)
 
+	it("a Practice request carries a bot difficulty; missing or invalid is Medium (D-057)", function()
+		for _, level in { "Easy", "Medium", "Hard", "Extreme" } do
+			local ok, reason, request = Schemas.request({ op = "Practice", difficulty = level })
+			expect(reason):toBe(nil)
+			expect(ok):toBe(true)
+			expect((request :: any).difficulty):toBe(level)
+		end
+		local ok, _, request = Schemas.request({ op = "Practice" })
+		expect(ok):toBe(true)
+		expect((request :: any).difficulty):toBe("Medium")
+		-- Never a rejection: a bad level plays the standard bot.
+		for _, bad in { "hard", "Impossible", "", 4, true, { "Hard" } } :: { any } do
+			local good, why, normalized = Schemas.request({ op = "Practice", difficulty = bad })
+			expect(why):toBe(nil)
+			expect(good):toBe(true)
+			expect((normalized :: any).difficulty):toBe("Medium")
+		end
+		-- Other ops drop the field.
+		_, _, request = Schemas.request({ op = "Queue", difficulty = "Hard" })
+		expect((request :: any).difficulty):toBe(nil)
+	end)
+
 	it("a Host request may carry events = false, nothing else (D-027)", function()
 		local ok, _, request = Schemas.request({ op = "Host", events = false })
 		expect(ok):toBe(true)
@@ -186,6 +208,17 @@ describe("Lobby", function()
 		expect(queued and queued.events):toBe(nil)
 		local practice = Lobby.practice(lobby, "h")
 		expect(practice and practice.events):toBe(nil)
+	end)
+
+	it("a practice match carries its bot difficulty, Medium by default (D-057)", function()
+		local lobby = Lobby.new(C)
+		local hard = Lobby.practice(lobby, "a", "Extreme")
+		expect(hard and hard.kind):toBe("Practice")
+		expect(hard and hard.difficulty):toBe("Extreme")
+		local plain = Lobby.practice(lobby, "b")
+		expect(plain and plain.difficulty):toBe("Medium")
+		local odd = Lobby.practice(lobby, "c", "Nightmare")
+		expect(odd and odd.difficulty):toBe("Medium")
 	end)
 
 	it("hosting takes a player out of the queue", function()

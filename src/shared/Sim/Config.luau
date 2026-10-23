@@ -171,6 +171,17 @@ local Config = {
 	GRACE_USES = 2, -- grace periods per player per match
 	FORFEIT_MISSED_WEEKS = 2, -- consecutive missed weeks that forfeit
 
+	-- Practice bot difficulty (D-057). Medium is the standard (balance harness) bot
+	-- and reads none of these. Every level decides from its own View only.
+	BOT_EASY_NOISE = 0.45, -- Easy: spread (log scale) of a random weight on each state's worth, redrawn every plan
+	BOT_EASY_SLIP = 0.5, -- Easy: chance a debate focus or a Choice stance is picked at random
+	BOT_HARD_WIN_CHANCE = 1, -- Hard: how far state worth follows the chance of reaching 270 rather than expected EV (0 = Medium's worth)
+	BOT_HARD_FORESIGHT = 1, -- Hard: share of the opponent's predicted plan counted against this week's margins
+	BOT_EXTREME_WIN_CHANCE = 3, -- Extreme: the same, pushed further (defends harder when ahead, reaches further when behind)
+	BOT_EXTREME_FORESIGHT = 1, -- Extreme: share of the opponent's predicted plan counted against this week's margins
+	BOT_FORESIGHT_CASH = { 2, 7, 13 }, -- Hard and up: the opponent's cash guessed from its Low / Medium / High money bracket
+	BOT_FOCUS_READ = 0.5, -- Hard and up: weight on the opponent focusing where the standard bot would (rest spread evenly)
+
 	-- Meta
 	ELO_K = 32, -- rating K-factor
 	ELO_START = 1000, -- starting rating

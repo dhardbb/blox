@@ -35,6 +35,7 @@ local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local Audio = require(script.Parent.Parent.UI.Audio)
+local BotLevel = require(script.Parent.Parent.UI.BotLevel)
 local Data = require(script.Parent.Common.Data)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
@@ -106,7 +107,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		primary = "Play again",
 		onPrimary = function()
 			ctx.store.dismissResult()
-			ctx.net.send(if againBot then "Practice" else "Queue")
+			if againBot then
+				ctx.net.send("Practice", { difficulty = BotLevel.get() }) -- the level picked in the Lobby (D-059)
+			else
+				ctx.net.send("Queue")
+			end
 		end,
 		primaryName = "PlayAgain",
 		secondary = "Back to lobby",

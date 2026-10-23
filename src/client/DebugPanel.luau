@@ -285,7 +285,13 @@ local function command(text: string)
 			end
 			matchRequest(op, parsed.input)
 		else
-			request({ op = op, code = parsed.code, pick = parsed.pick, events = parsed.events })
+			request({
+				op = op,
+				code = parsed.code,
+				pick = parsed.pick,
+				events = parsed.events,
+				difficulty = parsed.difficulty, -- "practice hard" (D-057)
+			})
 		end
 	end
 end

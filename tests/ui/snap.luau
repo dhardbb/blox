@@ -244,6 +244,109 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Lobby", "ColorButton")
 		end,
 	},
+	{
+		-- Bot level picker (D-059): Hard picked.
+		name = "01c-lobby-bot-hard",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "Level_Hard")
+		end,
+	},
+	{
+		-- The leaderboard (D-059) for a ranked player outside the top 50.
+		name = "01d-lobby-board-unlisted",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer).setLeaderboard(Fixtures.leaderboard({ you = 0 }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		-- Nobody ranked yet.
+		name = "01e-lobby-board-empty",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer).setLeaderboard(Fixtures.leaderboard({ count = 0, you = -1 }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		-- The store could not be read and there is no earlier list.
+		name = "01f-lobby-board-unavailable",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer)
+				.setLeaderboard(Fixtures.leaderboard({ count = 0, you = -1, status = "Unavailable" }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02e-lobby-leaderboard-sheet",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "LeaderboardSeeAll")
+		end,
+	},
+	{
+		name = "02f-howto-1-goal",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "HowToPlay")
+		end,
+	},
+	{
+		name = "02g-howto-2-week",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "HowToPlay")
+			tapIf(world, peer, "Lobby", "HowToNext")
+		end,
+	},
+	{
+		name = "02h-howto-3-actions",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "HowToPlay")
+			tapIf(world, peer, "Lobby", "HowToNext")
+			tapIf(world, peer, "Lobby", "HowToNext")
+		end,
+	},
+	{
+		name = "02i-howto-4-events",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "HowToPlay")
+			for _ = 1, 3 do
+				tapIf(world, peer, "Lobby", "HowToNext")
+			end
+		end,
+	},
+	{
+		name = "02j-howto-5-night",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "HowToPlay")
+			for _ = 1, 4 do
+				tapIf(world, peer, "Lobby", "HowToNext")
+			end
+		end,
+	},
 	{ name = "03a-select-start", moment = "Select", screen = "Select" },
 	{
 		name = "03-select-candidate",
@@ -456,6 +559,40 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Campaign", "HelpButton")
 			tapIf(world, peer, "HelpOverlay", "HelpTab_actions")
 			tapIf(world, peer, "HelpOverlay", "HelpMoreButton_actions")
+		end,
+	},
+	{
+		-- "Leave match" at the end of the Help sheet (D-059), in a live match.
+		name = "28-help-leave",
+		moment = "Plan",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+		end,
+	},
+	{
+		-- The confirmation against a person: "Leave and forfeit?"
+		name = "28a-leave-human",
+		moment = "Plan",
+		screen = "LeaveOverlay",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			for _, seat in payload.seats do
+				seat.kind = "Human"
+			end
+			Rig.push(world, peer, payload)
+			tapIf(world, peer, "Campaign", "HelpButton")
+			tapIf(world, peer, "HelpOverlay", "HelpLeave")
+		end,
+	},
+	{
+		-- The confirmation against the bot: "Leave this practice match?"
+		name = "28b-leave-bot",
+		moment = "Plan",
+		screen = "LeaveOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+			tapIf(world, peer, "HelpOverlay", "HelpLeave")
 		end,
 	},
 	{

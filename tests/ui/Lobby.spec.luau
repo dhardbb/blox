@@ -535,8 +535,9 @@ describe("Lobby style v2", function()
 		end
 		check(words <= 8, `the tagline has {words} words`)
 		tap(world, peer, "Lobby", "HowToPlay")
-		local overlay = FakeRoblox.find(peer, "HelpOverlay")
-		check(overlay ~= nil and overlay.Visible == true, "How to play did not open the help")
+		-- D-059: the Lobby's own five-page How to play, not the in-match Help.
+		local sheet = need(peer, "Lobby", "HowToSheet")
+		check(sheet.Visible == true, "How to play did not open")
 		noErrors(world)
 	end)
 

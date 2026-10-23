@@ -24,7 +24,11 @@
 --   HelpTab_<tab>, HelpPage_<tab>, HelpArt_<tab>, HelpIntro_<tab>,
 --   HelpMoreButton_<tab>, HelpMore_<tab>, HelpSection_<id>, HelpTitle_<id>,
 --   HelpText_<id> (one per Explain.help section), HelpSettings (the label
---   HelpSettingsLabel and the row Settings with SoundChip and MotionChip).
+--   HelpSettingsLabel and the row Settings with SoundChip and MotionChip),
+--   HelpLeave (D-059: "Leave match" at the end, only in a live match and only
+--   when App gave ctx.leave; it closes Help and opens the confirmation).
+--   Help.art.<tab>(frame, config) draws a tab's picture (the Lobby's How to
+--   play reuses them).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -32,6 +36,7 @@ local RunService = game:GetService("RunService")
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Explain = require(ReplicatedStorage.Shared.UI.Explain)
+local LobbyWords = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local Audit = require(script.Parent.Audit)
@@ -277,6 +282,15 @@ local function pollsArt(art: Frame)
 	namedRow(art, "Ground", 3, "Ground game", "muted", "Hidden until election night", "footprints")
 end
 
+-- The pictures, for other sheets that explain the same thing (UI/HowTo).
+Help.art = table.freeze({
+	win = winArt,
+	turn = turnArt,
+	actions = actionsArt,
+	events = eventsArt,
+	polls = pollsArt,
+})
+
 -- ---------------------------------------------------------------- mount
 
 function Help.mount(parent: Instance, ctx: Types.Ctx): Help
@@ -422,6 +436,15 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		})
 	end
 
+	-- Leaving the match (D-059): the last thing in the sheet, in a live match only.
+	local leave = Kit.button(LobbyWords.LEAVE, function()
+		local openLeave = ctx.leave
+		sheet:close()
+		if openLeave then
+			openLeave()
+		end
+	end, { variant = "danger", Name = "HelpLeave", LayoutOrder = 10, Visible = false, Parent = sheet.body })
+
 	-- The numbers behind each tab, from Explain (refilled at every open).
 	local function fillNumbers()
 		local payload = ctx.store.get().payload
@@ -510,6 +533,8 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 
 	local function open()
 		fillNumbers()
+		local live = ctx.store.get().payload
+		leave.Visible = ctx.leave ~= nil and live ~= nil and live.stage ~= "Over"
 		-- Five tabs in a row on a wide screen, three per row on a phone.
 		local size = root.AbsoluteSize
 		local columns = if size.Y > size.X then 3 else #tabs

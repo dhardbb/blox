@@ -20,6 +20,17 @@ local C = Config.defaults
 describe("Commands.parse", function()
 	it("parses lobby commands", function()
 		expect(Commands.parse("practice")):toEqual({ kind = "Request", op = "Practice" })
+		expect(Commands.parse("practice HARD")):toEqual({
+			kind = "Request",
+			op = "Practice",
+			difficulty = "Hard",
+		})
+		expect(Commands.parse("practice extreme")):toEqual({
+			kind = "Request",
+			op = "Practice",
+			difficulty = "Extreme",
+		})
+		expect(Commands.parse("practice impossible").kind):toBe("Error")
 		expect(Commands.parse("  Queue ")):toEqual({ kind = "Request", op = "Queue" })
 		expect(Commands.parse("join ab3cd")):toEqual({ kind = "Request", op = "Join", code = "AB3CD" })
 		expect(Commands.parse("join abc").kind):toBe("Error")

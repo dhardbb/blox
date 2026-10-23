@@ -6,10 +6,14 @@
 --
 -- Layout (docs/UI-STYLE.md §4.1): one centered column, at most 480 px wide, that
 -- does not scroll: the "270" hero, a one-line tagline, the record, then Play vs
--- Bot (the one primary), "Find match" and "Play a friend" side by side, and a
--- ghost "How to play" (the Help sheet), then the Sound and Reduce motion chips
+-- Bot (the one primary) with the bot level chips under it (UI/BotLevel, D-059),
+-- "Find match" and "Play a friend" side by side, and a ghost "How to play"
+-- (UI/HowTo, five short pages, D-059), then the Sound and Reduce motion chips
 -- (UI/Settings, session only), and once the Color Pass is set up the "Color"
--- button (UI/ColorPick, D-055: red or blue, or your pick with the pass).
+-- button (UI/ColorPick, D-055: red or blue, or your pick with the pass). The
+-- global leaderboard (UI/Leaderboard, D-059) sits beside the column on a wide
+-- screen (top 10, or top 3 when short) and at the end of it on a phone (top 3,
+-- or just "You" and See all on a short phone: the column never scrolls).
 -- "Play a friend" opens a sheet with
 -- "Make a code" (Host) and the code field + Join. Messages (rejections,
 -- notices, a bad code) go to the global toast.
@@ -20,15 +24,19 @@
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title, Pitch, Settings (SoundChip,
--- MotionChip), ColorButton, ColorSheet.
+-- MotionChip), ColorButton, ColorSheet, BotLevel (Level_<level>), HowToSheet,
+-- LeaderboardCard, LeaderboardSheet.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
+local BotLevel = require(script.Parent.Parent.UI.BotLevel)
 local ColorPick = require(script.Parent.Parent.UI.ColorPick)
+local HowTo = require(script.Parent.Parent.UI.HowTo)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local Leaderboard = require(script.Parent.Parent.UI.Leaderboard)
 local Motion = require(script.Parent.Parent.UI.Motion)
 local Settings = require(script.Parent.Parent.UI.Settings)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
@@ -39,6 +47,11 @@ local Screen = {}
 local MAX_WIDTH = 480 -- px
 local CODE_LENGTH = 5
 local SHORT_SCREEN = 420 -- px; below this the tagline is dropped to make room
+local BOARD_W = 300 -- px, the leaderboard card beside the column
+local BOARD_GAP = Kit.space.lg -- px between the column and the card
+local SIDE_MIN_W = MAX_WIDTH + BOARD_W + BOARD_GAP + 2 * Kit.space.xl -- px of width for the card beside the column
+local TALL_BOARD_H = 560 -- px of height for the top 10 beside the column (else the top 3)
+local PHONE_BOARD_H = 740 -- px of height for the top 3 in a phone's column (else only "You" and See all)
 
 -- Codes use letters A-Z and digits 2-9 (no 0 or 1).
 local function validCode(code: string): boolean
@@ -136,13 +149,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- Never disabled by "server full": that status can be stale, and the server
 	-- answers ServerFull with a toast if there is still no room.
 	local practice = Kit.button("Play vs Bot", function()
-		ctx.net.send("Practice")
+		ctx.net.send("Practice", { difficulty = BotLevel.get() })
 	end, { variant = "primary", Name = "Practice", LayoutOrder = 1, Parent = idle })
 	practice:SetAttribute("PrimaryAction", true)
+	local botLevel = BotLevel.new({ LayoutOrder = 2, Parent = idle })
 
 	local pair = Kit.box({
 		Name = "Pair",
-		LayoutOrder = 2,
+		LayoutOrder = 3,
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = idle,
 	})
@@ -165,20 +179,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.new(0.5, -Kit.space.sm / 2, 1, 0),
 		Parent = pair,
 	})
-	local openHelp = ctx.help
-	local howToPlay: TextButton? = nil
-	if openHelp then
-		howToPlay = Kit.button("How to play", function()
-			openHelp()
-		end, {
-			variant = "ghost",
-			Name = "HowToPlay",
-			LayoutOrder = 3,
-			Parent = idle,
-		})
-	end
-	local settings = Settings.row({ LayoutOrder = 4, Parent = idle })
-	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 5, Parent = idle })
+	local howTo = HowTo.new(parent, ctx)
+	local howToPlay = Kit.button("How to play", function()
+		howTo.open()
+	end, {
+		variant = "ghost",
+		Name = "HowToPlay",
+		LayoutOrder = 4,
+		Parent = idle,
+	})
+	local settings = Settings.row({ LayoutOrder = 5, Parent = idle })
+	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 6, Parent = idle })
+	local board = Leaderboard.new(parent, ctx)
 
 	-- The sheet: make a code, or enter one.
 	local body = friend.body
@@ -304,7 +316,27 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 
 	local function relayout()
-		pitch.Visible = parent.AbsoluteSize.Y >= SHORT_SCREEN
+		local size = parent.AbsoluteSize
+		pitch.Visible = size.Y >= SHORT_SCREEN
+		-- The leaderboard: beside the column when there is room, else at its end.
+		local card = board.card
+		if size.X >= SIDE_MIN_W then
+			local shift = (BOARD_W + BOARD_GAP) / 2
+			content.Position = UDim2.new(0.5, -shift, 0, 0)
+			card.Parent = parent
+			card.AnchorPoint = Vector2.new(0, 0.5)
+			card.Position = UDim2.new(0.5, MAX_WIDTH / 2 - shift + BOARD_GAP, 0.5, 0)
+			card.Size = UDim2.fromOffset(BOARD_W, 0)
+			board.setRows(if size.Y >= TALL_BOARD_H then Leaderboard.SHORT else Leaderboard.COMPACT)
+		else
+			content.Position = UDim2.fromScale(0.5, 0)
+			card.Parent = idle
+			card.LayoutOrder = 7
+			card.AnchorPoint = Vector2.new(0, 0)
+			card.Position = UDim2.new()
+			card.Size = UDim2.fromScale(1, 0)
+			board.setRows(if size.Y >= PHONE_BOARD_H then Leaderboard.COMPACT else 0)
+		end
 	end
 
 	local function update(state: Types.State)
@@ -323,9 +355,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		waiting.Visible = status == "Queued" or status == "Hosting"
 		starting.Visible = status == "InMatch"
 		colorPick.update(lobby)
+		board.update(state.leaderboard)
 		if status ~= "Idle" then
 			friend:close()
 			colorPick.sheet:close()
+			howTo.sheet:close()
 		end
 		-- Only the idle Lobby has something to press first (UI audit rule "primary").
 		parent:SetAttribute("PrimaryOptional", status ~= "Idle")
@@ -349,9 +383,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Arrive top to bottom: the hero pops, then each line fades in.
 	Motion.pop(title, Motion.POP_FROM)
-	local arriving: { Instance } = { title, pitch, record, practice, findMatch, playFriend }
-	if howToPlay then
-		table.insert(arriving, howToPlay)
+	local arriving: { Instance } = { title, pitch, record, practice, findMatch, playFriend, howToPlay }
+	for _, child in botLevel.root:GetChildren() do
+		if child:IsA("TextButton") then
+			table.insert(arriving, child)
+		end
 	end
 	for _, child in settings:GetDescendants() do
 		if child:IsA("TextButton") then
@@ -359,6 +395,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 	end
 	table.insert(arriving, colorPick.button)
+	table.insert(arriving, board.card)
 	Motion.stagger(arriving, function(item, _index, delay)
 		Motion.enter(item, nil, delay)
 	end)

@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Bot = require(ReplicatedStorage.Shared.Sim.Bot)
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
 local Lobby = require(ReplicatedStorage.Shared.Net.Lobby)
@@ -15,6 +16,7 @@ local Profile = require(ReplicatedStorage.Shared.Net.Profile)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local DataService = require(script.Parent.DataService)
+local LeaderboardService = require(script.Parent.LeaderboardService)
 local PassService = require(script.Parent.PassService)
 local Replication = require(script.Parent.Replication)
 
@@ -158,6 +160,7 @@ local function settle(session: Session.Session)
 					kind = "Rating",
 					rating = { matchId = session.id, before = applied.before, after = applied.after },
 				})
+				LeaderboardService.record(seat.id, applied.after)
 				print(
 					`[270] player {seat.id} rating {applied.before} -> {applied.after} (match {session.id})`
 				)
@@ -250,7 +253,12 @@ local function startMatch(outcome: Lobby.Outcome)
 	end
 	if outcome.kind == "Practice" then
 		local candidate = Candidates.ids[random:NextInteger(1, #Candidates.ids)]
-		table.insert(specs, { id = "bot", kind = "Bot", candidate = candidate, style = "Balanced" })
+		table.insert(specs, {
+			id = "bot",
+			kind = "Bot",
+			candidate = candidate,
+			difficulty = Bot.difficulty(outcome.difficulty), -- D-057: absent = Medium (the standard bot)
+		})
 	end
 	local created: Session.Session? = nil
 	local built, err = pcall(function(): string?
@@ -286,7 +294,8 @@ local function startMatch(outcome: Lobby.Outcome)
 		sendLobby(id)
 	end
 	broadcastLobby() -- the queue shrank and a match slot filled up
-	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}`)
+	local against = if outcome.kind == "Practice" then `, bot {Bot.difficulty(outcome.difficulty)}` else ""
+	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
 	flush(session)
 end
 
@@ -300,7 +309,7 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 	elseif request.op == "Join" then
 		outcome, reason = Lobby.join(lobby, id, request.code :: string)
 	elseif request.op == "Practice" then
-		outcome, reason = Lobby.practice(lobby, id)
+		outcome, reason = Lobby.practice(lobby, id, request.difficulty)
 	elseif request.op == "Leave" then
 		Lobby.leave(lobby, id)
 	elseif request.op == "PrePick" then
@@ -349,11 +358,47 @@ local function matchRequest(player: Player, request: Remotes.Request)
 	flush(session)
 end
 
+-- Forfeit (D-059): the player leaves the match they are in and loses it, as a
+-- disconnect forfeit does (rated against a human, a practice loss against the
+-- bot); the match ends for everyone and the leaver is back in the lobby. A
+-- player with no match (already out: a repeated request) just gets the lobby
+-- again. A request for another match than theirs is turned down.
+local function forfeit(player: Player, request: Remotes.Request)
+	local id = idOf(player)
+	local session = sessions[matchOf[id] or ""]
+	if session == nil then
+		sendLobby(id)
+		return
+	end
+	if request.matchId ~= session.id then
+		Replication.reject(player, request.op, "NotInMatch")
+		return
+	end
+	local seat = Session.seatOf(session, id) :: number
+	local accepted, reason = false, nil
+	local ran = guard(session, function()
+		accepted, reason = Session.forfeit(session, seat, now())
+	end)
+	if not ran then
+		Replication.reject(player, request.op, "Internal")
+	elseif not accepted and reason ~= Session.Reason.Over then
+		Replication.reject(player, request.op, reason or "Rejected")
+	end
+	if accepted then
+		print(`[270] player {id} left match {session.id} (forfeit)`)
+	end
+	flush(session)
+end
+
 -- Handles one schema-checked request.
 function MatchService.handle(player: Player, request: Remotes.Request)
 	local op = request.op
 	if op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
 		matchRequest(player, request)
+	elseif op == "Forfeit" then
+		forfeit(player, request)
+	elseif op == "Leaderboard" then
+		LeaderboardService.request(idOf(player))
 	elseif op == "Resync" then
 		local id = idOf(player)
 		local session = sessions[matchOf[id] or ""]
@@ -370,9 +415,24 @@ end
 
 function MatchService.start()
 	DataService.start()
+	LeaderboardService.start({
+		send = function(id: string, board)
+			Replication.send(id, { kind = "Leaderboard", leaderboard = board })
+		end,
+		-- Only a player with rated games has a place on the board.
+		ratingOf = function(id: string): number?
+			local profile = DataService.profile(id)
+			return if profile and profile.games > 0 then profile.rating else nil
+		end,
+	})
 	DataService.onLoaded(function(id: string)
 		if matchOf[id] == nil then
 			sendLobby(id)
+		end
+		-- Ratings saved before the board existed join it on the player's next visit.
+		local profile = DataService.profile(id)
+		if profile and profile.games > 0 and DataService.rating(id) ~= nil then
+			LeaderboardService.record(id, profile.rating)
 		end
 	end)
 	PassService.start()

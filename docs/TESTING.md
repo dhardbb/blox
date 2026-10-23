@@ -752,3 +752,42 @@ Client only. Pink is replaced by white everywhere.
 3. **Battlegrounds.** On the map (Votes lens) a battleground's number reads "★13" in a white-outlined tag; the state card and the Draft's battleground round show "★ Battleground", outlined, not filled. The Draft's home-state round shows a plain "Home state" tag. *Send back:* could a battleground tag be mistaken for a button?
 4. **Timer.** The time bar and timer are white; the timer turns orange under 10 seconds and the bar under 5, as before.
 5. **Tips and toasts.** A coach tip has a grey outline and a grey **Got it** button that still works; a notice toast has a grey outline, a rejected plan an orange one.
+
+## Start screen: leaderboard, bot levels, How to play, leaving a match (unreleased, D-059)
+
+Agents: `lune run tests "D-059"` (the UI flows), `lune run tests "e2e: the global leaderboard"`, `lune run tests "e2e: leaving a match"`, `lune run tests/ui/snap.luau -- lobby`, `-- howto`, `-- leave` (shots `01`, `01c` to `01f`, `02e` to `02j`, `28`, `28a`, `28b`; 0 audit findings at all three sizes).
+
+What each bot level does is in "Bot difficulty" (D-057), below.
+
+**The leaderboard needs saved data.** It lives in an OrderedDataStore, which only works in a published place with **Game Settings → Security → Enable Studio Access to API Services** turned on. Without it the board says **Leaderboard unavailable** (that is correct, not a bug). Only matches against another player move a rating, so to see anyone listed you need two players to finish (or leave) a match against each other.
+
+### Start screen (alone)
+
+1. **Play (F5)** on the iPad layout (Studio's device emulator, iPad) and on the Mac. **Expect:** under **Play vs Bot**, four chips **Easy · Medium · Hard · Extreme**, Medium outlined. On the iPad and the Mac a **Leaderboard** card sits to the right of the buttons (up to 10 rows); on a phone (emulator, iPhone) it sits under the buttons with the top 3. With nobody ranked yet it says "No ranked players yet. Play someone (not the bot) to get on the board."; with API access off, "Leaderboard unavailable".
+2. Tap **Hard**, then **Play vs Bot**. **Expect:** Hard gets the outline and the match starts and the bot plays at Hard (Output ends in `bot Hard`). Leave the match (below) and check the Lobby still has **Hard** outlined.
+3. Tap **How to play**. **Expect:** a sheet "How to play", page "The goal" with the race bar, a short text, "1 of 5" and **Next** (no Back on page 1). **Next** through "Each week" (three numbered steps), "Your actions" (the six actions with icons), "Debates and events" (a debate scoreboard), "Election night" (three called states). On page 5 the button reads **Got it** and closes the sheet. **Back** goes back a page. Each page fits without scrolling on the iPad.
+4. Tap **See all** on the leaderboard. **Expect:** a sheet "Top 50 players" with "Ranked by rating. Only matches against players count." and your own line ("You: …").
+
+### Leaving a match
+
+5. **Play vs Bot**. On any match screen (Select, the draft, a stance or debate screen, the plan, election night) tap **?**. **Expect:** at the end of the How to play sheet a red-outlined **Leave match** button. Tap it. **Expect:** "Leave this practice match?", "Practice never changes your rating.", **Leave match** (red) and **Keep playing**.
+6. **Keep playing** closes it; the match carries on. Open it again and tap **Leave match**. **Expect:** straight back to the Lobby (no Results screen). Your rating does not change.
+7. **Two players** (Test → Clients and Servers → Local Server, 2 Players, or the published game with a partner): **Find match** on both. On one, **? → Leave match**. **Expect:** "Leave and forfeit?", "This counts as a loss, and your opponent wins.", **Leave and forfeit**. Tap it. **Expect:** the leaver is back in the Lobby and their rating went down; the other player gets a message "Your opponent left the match. You win by forfeit." and the Results screen says "Your opponent forfeited the match.", with their rating up by the same amount.
+8. With API access on, after step 7: both players' Lobbies show them on the leaderboard (it can take up to a minute to appear for a player on another server). The leaver's row is highlighted on their own screen, "You: #2 · 984" or similar.
+9. Output (server): `left match m… (forfeit)`, `match m… over: Forfeit`, and any `could not read the leaderboard` or `could not write player …'s rating` lines.
+
+**Send back:** screenshots of the Lobby on the iPad and the Mac (with the leaderboard), one How to play page, both Leave confirmations, the winner's Results from step 7, and the Output lines from step 9.
+
+## Bot difficulty (unreleased, D-057)
+
+Agents: `lune run tests difficulty` (sim, net and e2e specs), `lune run tests/harness/difficulty.luau` (the win-rate table, about a minute).
+
+### In Studio (pick the level with the chips under Play vs Bot)
+
+1. **Play (F5)** alone. Pick **Easy**, **Play vs Bot**, and play a normal match. **Expect:** you win comfortably; the bot still takes a turn every week, raises and spends money, and its debate focus sometimes looks random. Output: `match m1 started (Practice), seed …, bot Easy`.
+2. Back in the Lobby, pick **Hard**, play again. **Expect:** a closer, tougher match; the bot rallies more than it fundraises and fights you in the states you are pushing. Output ends in `bot Hard`.
+3. Same with **Extreme**. **Expect:** the hardest of the four; it defends the close states it leads and goes all-in on the ones it trails when behind. Output ends in `bot Extreme`.
+4. Pick **Medium** (or no pick at all). **Expect:** the same bot as before this update. Output ends in `bot Medium`.
+5. **Expect, every level:** no rating change after the match (practice is unrated); your practice record goes up by one; no `rejected` lines for the bot in Output; plans resolve without a pause when the bot's turn comes.
+
+**Send back:** for each level you played, who won and the final EV score, whether each felt easier or harder than the one before, and any Output lines with `rejected` or `failed`.

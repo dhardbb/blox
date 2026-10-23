@@ -29,9 +29,24 @@
 -- money step answers with ads or ground game where the race is really close.
 --
 -- Styles restrict the balanced policy for the harness's dominance checks.
+--
+-- Difficulty (practice mode, D-057): Medium is the Balanced style, unchanged.
+-- Easy misjudges: every plan it weighs each state's worth by a random factor
+-- (BOT_EASY_NOISE), drafts on a noisier read, and slips into a random debate
+-- focus or stance half the time (BOT_EASY_SLIP). Hard and Extreme see exactly
+-- what Medium sees, the View, and use it better: they predict the opponent's
+-- plan by running the standard bot from the opponent's side of the public board
+-- (their cash guessed from its money bracket) and count it against this week's
+-- margins (BOT_HARD_FORESIGHT); they value a state by how much it moves the
+-- chance of reaching 270, not expected EV alone (BOT_HARD_WIN_CHANCE); and they
+-- focus on the debate topic that moves the odds most against the opponent's
+-- likely focus (Debate.odds, BOT_FOCUS_READ). Extreme is Hard with the win-chance weight
+-- pushed three times as far: it defends the close states it leads harder when
+-- ahead and reaches further for the ones it trails when behind.
 
 local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
+local Debate = require("./Debate")
 local Draft = require("./Draft")
 local Events = require("./Events")
 local IssueMap = require("./IssueMap")
@@ -60,8 +75,43 @@ export type Style =
 	| "NoFocus" -- the standard bot, but never sends a debate focus (the timeout default: what the focus is worth, D-044)
 	| "TopIssues" -- the standard bot, but runs on the three highest-EV issues (the niche check for D-047)
 	| "NicheIssues" -- the standard bot, but runs on the three lowest-EV issues (the niche check for D-047)
+	| "Easy" -- practice difficulty Easy (D-057)
+	| "Hard" -- practice difficulty Hard (D-057)
+	| "Extreme" -- practice difficulty Extreme (D-057)
+
+-- Practice difficulty (D-057). Medium plays the Balanced style.
+export type Difficulty = "Easy" | "Medium" | "Hard" | "Extreme"
 
 local Bot = {}
+
+local DIFFICULTIES: { Difficulty } = { "Easy", "Medium", "Hard", "Extreme" }
+local DEFAULT_DIFFICULTY: Difficulty = "Medium"
+Bot.DIFFICULTIES = table.freeze(DIFFICULTIES)
+Bot.DEFAULT_DIFFICULTY = DEFAULT_DIFFICULTY
+
+-- A difficulty from untrusted input: one of the four names, else Medium.
+function Bot.difficulty(value: any): Difficulty
+	for k = 1, #DIFFICULTIES do
+		local level: Difficulty = DIFFICULTIES[k]
+		if value == level then
+			return level
+		end
+	end
+	return DEFAULT_DIFFICULTY
+end
+
+-- The style a difficulty plays (Medium is the standard Balanced bot).
+function Bot.styleFor(difficulty: Difficulty?): Style
+	local level = Bot.difficulty(difficulty)
+	if level == "Easy" then
+		return "Easy"
+	elseif level == "Hard" then
+		return "Hard"
+	elseif level == "Extreme" then
+		return "Extreme"
+	end
+	return "Balanced"
+end
 
 local INV_SQRT_2PI = 1 / math.sqrt(2 * math.pi)
 local ISSUES: { Types.Issue } = Issues.list :: any
@@ -258,7 +308,11 @@ function Bot.draft(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 						value += #record.adjacent * 0.15 -- a well-connected base for the route
 					end
 				end
-				value *= 0.9 + 0.2 * Rng.nextFloat(rng)
+				if style == "Easy" then
+					value *= math.exp(Rng.gaussian(rng, 0, config.BOT_EASY_NOISE)) -- a hazier read (D-057)
+				else
+					value *= 0.9 + 0.2 * Rng.nextFloat(rng)
+				end
 			end
 			table.insert(scored, { id = record.id, value = value })
 		end
@@ -288,6 +342,7 @@ type Estimate = {
 	bought: number, -- media buys planned here this week
 	gotv: number, -- my units, placed plus planned
 	theirGotv: number, -- the opponent's units, as my latest internal poll there saw them (0 if never polled; D-049)
+	weight: number, -- scales what a point of margin here is worth (1 for Medium; D-057)
 }
 
 local function buildEstimates(config: Config, view: View): { Estimate }
@@ -325,6 +380,7 @@ local function buildEstimates(config: Config, view: View): { Estimate }
 			bought = 0,
 			gotv = s.gotv,
 			theirGotv = theirGotv,
+			weight = 1,
 		}
 	end
 	return out
@@ -334,7 +390,7 @@ Bot.estimates = buildEstimates
 
 -- Expected EV per point of margin in a state.
 local function marginValue(e: Estimate, ev: number): number
-	return ev * pdf(e.margin / e.sigma) / e.sigma
+	return e.weight * ev * pdf(e.margin / e.sigma) / e.sigma
 end
 
 -- Margin a positive gain of `g` support points buys (the normal split).
@@ -359,7 +415,8 @@ local function apply(config: Config, e: Estimate, gain: number, momentum: number
 	e.momentum += momentum
 end
 
-function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
+-- The greedy plan on `estimates` (updated in place as actions are picked).
+local function planOn(config: Config, view: View, style: Style?, estimates: { Estimate }): any
 	local me, them = view.you, opponentOf(view)
 	local profile = profileOf(config, view, me)
 	local player = view.players[me]
@@ -369,14 +426,9 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	local week = view.week
 	local closing = Resolve.closingMult(config, week)
 	local actions: { any } = {}
-	local estimates = buildEstimates(config, view)
 
 	local event = view.event
 	local spotlight: Types.Issue? = if event ~= nil and event.kind == "Spotlight" then event.issue else nil
-
-	if style == "Random" then
-		return Bot.randomPlan(config, view, rng)
-	end
 
 	local underdogRally, underdogFund = 1, 1
 	if player.underdogTier == 1 then
@@ -722,6 +774,101 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	return Bot.merge({ actions = actions })
 end
 
+-- ---------------------------------------------------------------- difficulty
+
+-- The public board as the opponent sees it, built only from this View (D-057):
+-- their cash is guessed from their money bracket, their ground game from what
+-- this bot's own polls saw, and they hold no internal polls this bot knows of.
+local function opponentView(config: Config, view: View): View
+	local them = opponentOf(view)
+	local scouted: { [string]: number } = {}
+	for _, scout in view.scouted do
+		scouted[scout.state] = scout.gotv[them] or 0
+	end
+	local players = table.clone(view.players)
+	local bracket = view.players[them].money
+	local guess = config.BOT_FORESIGHT_CASH
+	local theirs = table.clone(players[them])
+	theirs.cash = if bracket == "Low" then guess[1] elseif bracket == "Medium" then guess[2] else guess[3]
+	players[them] = theirs
+	local states = table.create(#view.states)
+	for i, s in view.states do
+		local copy = table.clone(s)
+		copy.gotv = scouted[s.id] or 0
+		copy.backlash = 0
+		states[i] = copy
+	end
+	local out = table.clone(view)
+	out.you = them
+	out.players = players
+	out.states = states
+	out.internalPolls = {}
+	out.scouted = {}
+	out.nextEvent = nil
+	return out
+end
+
+-- Hard and up: the standard bot's plan from the opponent's side, counted against
+-- this bot's margins (each state's predicted swing, times `share`).
+local function foresee(config: Config, view: View, estimates: { Estimate }, share: number)
+	local theirView = opponentView(config, view)
+	local theirs = buildEstimates(config, theirView)
+	local before = table.create(#theirs, 0)
+	for i, e in theirs do
+		before[i] = e.margin
+	end
+	planOn(config, theirView, "Balanced", theirs)
+	for i, e in theirs do
+		estimates[i].margin -= share * (e.margin - before[i])
+	end
+end
+
+-- Hard and up: weight each state by how much a point of margin there moves the
+-- chance of reaching EV_TO_WIN (a normal approximation of the EV total), relative
+-- to the expected-EV worth Medium uses. Ahead, close states this bot leads count
+-- more (lower variance); behind, it reaches for the states it trails.
+local function weighByWinChance(config: Config, estimates: { Estimate }, strength: number)
+	local mean, var = 0, 0
+	local chance = table.create(#estimates, 0)
+	for i, e in estimates do
+		local ev = StateData.list[i].ev
+		local p = cdf(e.margin / e.sigma)
+		chance[i] = p
+		mean += ev * p
+		var += ev * ev * p * (1 - p)
+	end
+	local sd = math.sqrt(math.max(var, 1))
+	local z = (mean - (config.EV_TO_WIN - 0.5)) / sd
+	for i, e in estimates do
+		local ev = StateData.list[i].ev
+		local w = 1 - z * ev * (1 - 2 * chance[i]) / (2 * sd)
+		e.weight *= math.max(0.1, 1 + strength * (w - 1))
+	end
+end
+
+function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
+	if style == "Random" then
+		return Bot.randomPlan(config, view, rng)
+	end
+	local estimates = buildEstimates(config, view)
+	if style == "Easy" then
+		for _, e in estimates do
+			e.weight = math.exp(Rng.gaussian(rng, 0, config.BOT_EASY_NOISE))
+		end
+	elseif style == "Hard" or style == "Extreme" then
+		local extreme = style == "Extreme"
+		local share = if extreme then config.BOT_EXTREME_FORESIGHT else config.BOT_HARD_FORESIGHT
+		local strength = if extreme then config.BOT_EXTREME_WIN_CHANCE else config.BOT_HARD_WIN_CHANCE
+		if share > 0 then
+			foresee(config, view, estimates, share)
+		end
+		if strength > 0 then
+			weighByWinChance(config, estimates, strength)
+		end
+	end
+	return planOn(config, view, style, estimates)
+end
+
 -- Merges repeated single GOTV units in one state into one action.
 function Bot.merge(plan: any): any
 	local out = {}
@@ -778,7 +925,11 @@ function Bot.choose(
 	rng: Rng.Rng,
 	style: Style?
 ): Types.Choice
-	if style == "Random" or style == "RandomStance" then
+	if
+		style == "Random"
+		or style == "RandomStance"
+		or (style == "Easy" and Rng.nextFloat(rng) < config.BOT_EASY_SLIP)
+	then
 		return Events.CHOICES[Rng.nextInt(rng, 1, #Events.CHOICES)]
 	end
 	local event = view.event
@@ -834,10 +985,17 @@ function Bot.focus(
 	if topics == nil or #topics == 0 then
 		return nil
 	end
-	if style == "Random" or style == "RandomFocus" then
+	if
+		style == "Random"
+		or style == "RandomFocus"
+		or (style == "Easy" and Rng.nextFloat(rng) < config.BOT_EASY_SLIP)
+	then
 		return topics[Rng.nextInt(rng, 1, #topics)]
 	end
 	local es = estimates or buildEstimates(config, view)
+	if style == "Hard" or style == "Extreme" then
+		return Bot.readFocus(config, view, es, topics)
+	end
 	local best: Types.Issue, bestValue = topics[1], -math.huge
 	for k = 1, #topics do
 		local topic: Types.Issue = topics[k]
@@ -847,6 +1005,66 @@ function Bot.focus(
 		end
 	end
 	return best
+end
+
+-- Hard and up (D-057): the focus that most improves the expected worth of the
+-- whole debate, Σ worth(t) x (P(win t) - P(lose t)) over its topics, with each
+-- topic's odds from both sides' fixed scores (Debate.odds). The opponent's focus
+-- is unknown: BOT_FOCUS_READ of the weight goes on the topic the standard bot
+-- would pick from their side, the rest is spread evenly. A topic the opponent
+-- wins costs about what winning it is worth, so one worth serves both.
+function Bot.readFocus(
+	config: Config,
+	view: View,
+	estimates: { Estimate },
+	topics: { Types.Issue }
+): Types.Issue
+	local me, them = view.you, opponentOf(view)
+	local mine, theirs = profileOf(config, view, me), profileOf(config, view, them)
+	local myPlatform: { Types.Issue } = view.players[me].platform or {}
+	local theirPlatform: { Types.Issue } = view.players[them].platform or {}
+	local worth = table.create(#topics, 0)
+	for t = 1, #topics do
+		local topic: Types.Issue = topics[t]
+		worth[t] = Bot.topicValue(config, view.issueMap, estimates, topic)
+	end
+	-- Where the standard bot on their side would focus: it reads the same public
+	-- polls, so the same closeness, and picks the topic worth the most.
+	local predicted, best = 1, -math.huge
+	for t in topics do
+		if worth[t] > best then
+			predicted, best = t, worth[t]
+		end
+	end
+	local function fixed(
+		profile: Candidates.Profile,
+		platform: { Types.Issue },
+		topic: Types.Issue,
+		focus: boolean
+	)
+		return (if focus then profile.focusEdge else 0)
+			+ (if table.find(platform, topic) then config.DEBATE_PLATFORM_BONUS else 0)
+			+ profile.debateStat
+	end
+	local choice: Types.Issue, choiceValue = topics[1], -math.huge
+	for f in topics do
+		local value = 0
+		for g in topics do
+			local weight = (1 - config.BOT_FOCUS_READ) / #topics
+				+ (if g == predicted then config.BOT_FOCUS_READ else 0)
+			for t = 1, #topics do
+				local topic: Types.Issue = topics[t]
+				local edge = fixed(mine, myPlatform, topic, t == f)
+					- fixed(theirs, theirPlatform, topic, t == g)
+				local win, _, lose = Debate.odds(config, edge)
+				value += weight * worth[t] * (win - lose)
+			end
+		end
+		if value > choiceValue then
+			choice, choiceValue = topics[f], value
+		end
+	end
+	return choice
 end
 
 -- A Decision phase (D-044): the debate focus right before the debate, or this
