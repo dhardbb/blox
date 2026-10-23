@@ -55,6 +55,9 @@ export type Model = {
 	peekFocus: Issue?, -- a focus topic being held: previewed, not selected
 	stanceMap: boolean, -- the stance chips are showing, so the map previews a stance
 	revealSwing: RevealSwing?, -- what a reveal shows moved on the map, else nil
+	caption: string?, -- the reveal's latest line, shown as the header's now line
+	moreActions: boolean, -- the state card shows every action, not just the main ones
+	details: boolean, -- the state card's Details are open
 	messages: { Types.Message },
 	render: () -> (),
 	selectState: (id: string) -> (),

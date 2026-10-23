@@ -7,9 +7,13 @@
 --   Focus   right before a debate: pick one of its topics (CampaignParts/Focus).
 --   Stance  in a Choice week: take a stance (the event card's chips, EventCard).
 --
--- Layout: the Campaign header (week, the decision, the countdown, the score),
--- the map (left on 16:9, top on phones) previewing the selected topic or stance,
--- and one panel with the pinned action bar under it. Nothing else: no state
+-- Layout (docs/UI-STYLE.md §4.4): the Campaign header (the week and the event or
+-- "Debate prep", the countdown, the score on wide screens, and the "what to do
+-- now" line), the map (left on 16:9, top on phones) previewing the selected
+-- topic or stance with a two-dot key over it, and one panel with the pinned
+-- action bar under it: the question, the three stances (or the debate's
+-- topics) as big chips with what each does in a few words, and "Why?" for the
+-- rest. On a phone every option is on the first screen. Nothing else: no state
 -- card, plan list or week card.
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:
@@ -28,6 +32,7 @@ local ViewModule = require(Shared.Sim.View)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local AutoLock = require(script.Parent.Common.AutoLock)
+local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
 local Focus = require(script.Parent.CampaignParts.Focus)
 local Kit = require(script.Parent.Parent.UI.Kit)
@@ -46,9 +51,10 @@ type Payload = Session.StatePayload
 local Screen = {}
 
 local GAP = Kit.space.sm -- px between the big blocks
-local CAPTION_H = 20 -- px, the line above the map
+local CAPTION_H = 20 -- px, the map key above the map
+local DOT = 12 -- px, a key dot
 local MAP_SHARE = 0.55 -- share of the width the map takes on 16:9 (the panel gets more room than on the plan screen)
-local PORTRAIT_MAP_MAX = 0.36 -- most of the body height the map may take on phones
+local PORTRAIT_MAP_MAX = 0.3 -- most of the body height the map may take on phones (the options come first)
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local config = ctx.config
@@ -75,6 +81,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		peekFocus = nil,
 		stanceMap = false,
 		revealSwing = nil,
+		caption = nil,
+		moreActions = false,
+		details = false,
 		messages = {},
 		render = function() end,
 		selectState = function(_id: string) end,
@@ -92,14 +101,37 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local body = Kit.box({ Name = "Body", Parent = parent })
 
 	local mapArea = Kit.box({ Name = "MapArea", Parent = body })
-	local caption = Kit.text("", {
-		Name = "Caption",
-		Size = UDim2.new(1, 0, 0, CAPTION_H),
-		TextSize = Kit.size.caption,
-		TextScaled = true,
-		TextColor3 = Kit.colors.muted,
-		Parent = mapArea,
-	})
+	-- The map key: two dots, no sentence ("● helps you  ● hurts you").
+	local legend = Kit.box({ Name = "MapLegend", Size = UDim2.new(1, 0, 0, CAPTION_H), Parent = mapArea })
+	Kit.dataColor(legend)
+	local legendList = Kit.list("Horizontal", Kit.space.xs)
+	legendList.VerticalAlignment = Enum.VerticalAlignment.Center
+	legendList.Parent = legend
+	local function keyItem(order: number, name: string): (Frame, TextLabel)
+		local dot = Kit.new("Frame", {
+			Name = `{name}Dot`,
+			LayoutOrder = order,
+			Size = UDim2.fromOffset(DOT, DOT),
+			BorderSizePixel = 0,
+			Parent = legend,
+		}) :: Frame
+		Kit.round().Parent = dot
+		local label = Kit.text("", {
+			Name = `{name}Text`,
+			LayoutOrder = order + 1,
+			Size = UDim2.fromOffset(0, CAPTION_H),
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextColor3 = Kit.colors.muted,
+			Parent = legend,
+		})
+		Kit.new("UIPadding", { PaddingRight = UDim.new(0, Kit.space.sm), Parent = label })
+		return dot, label
+	end
+	local gainDot, gainText = keyItem(1, "Gain")
+	local lossDot, lossText = keyItem(3, "Loss")
+	lossDot.BackgroundColor3 = Kit.colors.danger
 	local mapHolder = Kit.box({
 		Name = "MapHolder",
 		Position = UDim2.fromOffset(0, CAPTION_H + Kit.space.xs),
@@ -128,6 +160,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local eventCard = EventCard.new(side, model)
 	local focusPanel = Focus.new(side, model, 1)
+
+	-- The first-match coach tip for this decision, under the options (so they
+	-- all stay on the first screen of a phone).
+	local tip: CoachTip.Tip? = nil
+	local function renderTip(p: Payload)
+		local kind = Model.deciding(p)
+		local want = if kind == "Stance"
+			then "decision.stance"
+			elseif kind == "Focus" then "decision.focus"
+			else nil
+		if want and Model.editable(model, p) and tip == nil and not CoachTip.seen(want) then
+			tip = CoachTip.show(side, { id = want, order = 2 })
+		end
+	end
 
 	-- What Lock in would send now, or nil when nothing is picked yet.
 	local function selection(p: Payload): any?
@@ -220,18 +266,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		local stance: SharedTypes.Choice? = Model.previewStance(model, p)
 		local topic: SharedTypes.Issue? = Model.previewFocus(model, p)
+		gainDot.BackgroundColor3 = Kit.playerColor(view, view.you)
+		lossDot.Visible = stance ~= nil
+		lossText.Visible = stance ~= nil
+		gainDot.Visible = stance ~= nil or topic ~= nil
 		if stance then
 			marks = SwingMarks.preview(view, Swing.stance(config, view, stance), marks)
-			caption.Text =
-				`Map: stance {stance} · badge = support for you · red = a loss · FLIP = poll leader changes`
+			gainText.Text = "Helps you"
+			lossText.Text = "Hurts you"
 		elseif topic then
 			marks = SwingMarks.preview(view, Swing.focus(config, view, topic), marks)
-			caption.Text =
-				`Map: a {Model.issueName(topic)} win · badge = support for you · FLIP = poll leader changes`
+			gainText.Text = `A {Model.issueName(topic)} win helps here`
 		elseif Model.deciding(p) == "Focus" then
-			caption.Text = "Tap a topic to see its states on the map; hold to peek"
+			gainText.Text = "Tap a topic to see its states"
 		else
-			caption.Text = ""
+			gainText.Text = ""
 		end
 		map:setMarks(marks :: any)
 		map:setRoute({}, {})
@@ -288,6 +337,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			model.peekChoice = nil
 		end
 		focusPanel:render(p)
+		renderTip(p)
 		paintMap(p)
 		renderBar(p)
 		if top:render(ctx.now()) then

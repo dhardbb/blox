@@ -3,34 +3,39 @@
 --
 -- The event card, a Collapsible: "Event · Windfall · Donor retreat +" with the
 -- effect line always under it (so collapsed it is still two lines), and the
--- flavor text and the map note in its body. Expanded by default in Choice,
--- Spotlight and Regional weeks, collapsed otherwise; the player's own toggle
+-- flavor text and the map note in its body. Expanded by default in Spotlight
+-- and Regional weeks, collapsed otherwise; the player's own toggle
 -- holds for the rest of the week. Hidden during every reveal (B1).
 --
--- Choice weeks (D-039, D-042, D-044): the stance is taken on the Decision
--- screen, which shows this card alone: "States you need" (Shared/UI/Swing, from
--- the public poll), the three stances as full-width chips ("A · Side with the
--- staff", "C · Offer to mediate (hedge, default)"; the selection is an accent
--- outline), the one-line summary of the stance on the map, and under "Every
--- state, stance by stance" the full lists for nerds (Explain.choiceLines).
--- While the chips show, the map previews the selected stance; holding a chip
--- previews that one without selecting it. On the plan screen that follows, the
--- card says the stance you took in one line (ChoiceTaken).
+-- Choice weeks (D-039, D-042, D-044, docs/UI-STYLE.md §4.4): the stance is
+-- taken on the Decision screen, which shows this card alone, without its title
+-- row (the header names the event): the question in one sentence, the story,
+-- the three stances as full-width chips, each with what it does in a few words
+-- ("A · Side with the staff" / "+4 states · −2 states"; "C · Offer to mediate
+-- (safe)"; the selection is an accent outline), then "Why?" with the rest:
+-- "States you need" (Shared/UI/Swing, from the public poll), the summary of
+-- the shown stance on the map, the tradeoff note, and every state, stance by
+-- stance (Explain.choiceLines). While the chips show, the map previews the
+-- selected stance; holding a chip previews that one without selecting it. On
+-- the plan screen that follows, the card says the stance you took in one line
+-- (ChoiceTaken).
 --
--- The week card, a Collapsible: last week's public moves by the opponent, their
+-- The week card ("News"), a Collapsible: last week's public moves by the opponent, their
 -- money bracket, either side's underdog tier and what it gives, last week's
 -- event (a Choice week: both stances, what they moved and flipped), what you
 -- raised, your internal polls, this week's debate topic by topic (prep,
 -- platform, stat and roll, then what each topic swung), the next debate, the
--- latest messages. Expanded on 16:9, collapsed on phones.
+-- latest messages. Collapsed by default on every screen (the map and the
+-- state card come first); the player's own toggle holds.
 --
 --   local event = EventCard.new(parent, model)        event:render(p, order)
 --                                                      event:showsStances() -> boolean
 --   local week = EventCard.week(parent, model, order) week:render(p); week:setPortrait(portrait)
 --
 -- Element names: EventCard (attributes EventKind, EventName), EventToggle,
--- EventEffect, EventText, EventMapNote, ChoiceNeed, ChoiceRow, ChoiceA, ChoiceB,
--- ChoiceC, ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3, ChoiceTaken; WeekCard,
+-- EventEffect, EventText, EventMapNote, ChoiceRow, ChoiceA, ChoiceB, ChoiceC
+-- (each with Choice<X>Effect), ChoiceWhy (WhyToggle), ChoiceNeed,
+-- ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3, ChoiceTaken; WeekCard,
 -- WeekToggle, FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog,
 -- FeedEvent, FeedRaised, FeedPolls, FeedLastDebate, FeedDebate, FeedMessages.
 
@@ -45,6 +50,8 @@ local SharedTypes = require(SharedFolder.Types)
 local Swing = require(SharedFolder.UI.Swing)
 local ViewModule = require(SharedFolder.Sim.View)
 
+local Words = require(SharedFolder.UI.Words.Campaign)
+
 local Collapsible = require(script.Parent.Parent.Parent.UI.Collapsible)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Model = require(script.Parent.Model)
@@ -54,6 +61,7 @@ type View = ViewModule.View
 local EventCard = {}
 
 local FEED_MESSAGES = 3 -- latest messages listed in the week card
+local STANCE_H = 60 -- px, one stance chip: its name over what it does
 
 export type EventCard = {
 	root: Frame,
@@ -67,9 +75,11 @@ export type WeekCard = {
 	setPortrait: (self: WeekCard, portrait: boolean) -> (),
 }
 
--- Is the event card open by default this week?
+-- Is the event card open by default this week? (A Choice week's stance was
+-- taken on the Decision screen, which always shows it open; on the plan screen
+-- its one-line "Your stance" says enough.)
 local function openByDefault(event: ViewModule.EventView): boolean
-	return event.kind == "Choice" or event.kind == "Spotlight" or event.kind == "Regional"
+	return event.kind == "Spotlight" or event.kind == "Regional"
 end
 
 function EventCard.new(parent: Instance, model: Model.Model): EventCard
@@ -113,11 +123,19 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		Parent = card.root,
 	})
 	local mapNote = Kit.caption("", { Name = "EventMapNote", LayoutOrder = 2, Parent = card.body })
+	-- Everything about the stances beyond the one-line effects, one tap away.
+	local why = Collapsible.new(card.body, { title = "Why?", name = "ChoiceWhy", order = 5 })
+	why.toggle.Name = "WhyToggle"
+	why.root.BackgroundTransparency = 1
+	local whyPad = why.root:FindFirstChildOfClass("UIPadding")
+	if whyPad then
+		whyPad:Destroy()
+	end
 	local need = Kit.caption("", {
 		Name = "ChoiceNeed",
-		LayoutOrder = 3,
+		LayoutOrder = 1,
 		TextColor3 = Kit.colors.text,
-		Parent = card.body,
+		Parent = why.body,
 	})
 	-- The stances, one full-width chip each, so long names stay readable on phones.
 	local answerRow = Kit.box({
@@ -129,6 +147,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	})
 	Kit.list("Vertical", Kit.space.sm).Parent = answerRow
 	local choiceButtons: { [string]: TextButton } = {}
+	local choiceEffects: { [string]: TextLabel } = {}
 	local function held(input: InputObject): boolean
 		local kind = input.UserInputType.Name
 		return kind == "MouseButton1" or kind == "Touch"
@@ -136,7 +155,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	for k = 1, #Events.CHOICES do
 		local answer: SharedTypes.Choice = Events.CHOICES[k]
 		local button: TextButton
-		button = Kit.button(answer, function()
+		button = Kit.chip(answer, function()
 			if button.Active == false then
 				return
 			end
@@ -144,11 +163,31 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			model.peekChoice = nil
 			model.render()
 		end, {
-			variant = "chip",
 			Name = `Choice{answer}`,
 			LayoutOrder = k,
+			Size = UDim2.new(1, 0, 0, STANCE_H),
+			Font = Kit.font.bold,
+			TextScaled = false,
+			TextWrapped = true,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
 			Parent = answerRow,
+		})
+		local pad = button:FindFirstChildOfClass("UIPadding")
+		if pad then
+			pad.PaddingTop = UDim.new(0, Kit.space.sm)
+			pad.PaddingBottom = UDim.new(0, Kit.space.sm)
+			pad.PaddingLeft = UDim.new(0, Kit.space.md)
+			pad.PaddingRight = UDim.new(0, Kit.space.md)
+		end
+		choiceEffects[answer] = Kit.text("", {
+			Name = `Choice{answer}Effect`,
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.fromScale(0, 1),
+			Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
+			TextSize = Kit.size.caption,
+			TextColor3 = Kit.colors.muted,
+			Parent = button,
 		})
 		-- Press and hold: preview this stance on the map without picking it.
 		button.InputBegan:Connect(function(input: InputObject)
@@ -167,25 +206,25 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	end
 	local summary = Kit.text("", {
 		Name = "ChoiceSummary",
-		LayoutOrder = 5,
+		LayoutOrder = 2,
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Font = Kit.font.medium,
-		Parent = card.body,
+		Parent = why.body,
 	})
-	local choiceNote = Kit.caption("", { Name = "ChoiceNote", LayoutOrder = 6, Parent = card.body })
+	local choiceNote = Kit.caption("", { Name = "ChoiceNote", LayoutOrder = 3, Parent = why.body })
 	local payHead = Kit.caption("Every state, stance by stance:", {
 		Name = "ChoicePayHead",
-		LayoutOrder = 7,
-		Parent = card.body,
+		LayoutOrder = 4,
+		Parent = why.body,
 	})
 	local payLines: { TextLabel } = {}
 	for k = 1, #Events.CHOICES do
 		payLines[k] = Kit.caption("", {
 			Name = `ChoicePay{k}`,
-			LayoutOrder = 7 + k,
+			LayoutOrder = 4 + k,
 			TextColor3 = Kit.colors.text,
-			Parent = card.body,
+			Parent = why.body,
 		})
 	end
 
@@ -214,6 +253,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 				defaultFor = nil
 				card:setTitle("No event this week")
 				card:setExpanded(false)
+				card.toggle.Visible = true
 				card.root:SetAttribute("EventKind", nil)
 				card.root:SetAttribute("EventName", nil)
 				return
@@ -232,7 +272,13 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			mapNote.Text = note or ""
 			mapNote.Visible = note ~= nil
 			local choosing = event.kind == "Choice" and Model.deciding(p) == "Stance"
+			-- On the Decision screen the header names the event: no title row, always open.
+			card.toggle.Visible = not choosing
+			if choosing then
+				card:setExpanded(true)
+			end
 			answerRow.Visible = choosing
+			why.root.Visible = choosing
 			choiceNote.Visible = choosing
 			need.Visible = choosing
 			summary.Visible = choosing
@@ -272,14 +318,19 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 					local button = choiceButtons[stance.id]
 					if button then
 						button.Text = if stance.id == hedge
-							then `{stance.id} · {stance.name} (hedge, default)`
+							then `{stance.id} · {stance.name} (safe)`
 							else `{stance.id} · {stance.name}`
+						choiceEffects[stance.id].Text =
+							Words.stanceEffect(Swing.stance(config, view, stance.id))
 					end
 				end
 			end
 			for answer, button in choiceButtons do
 				Kit.setSelected(button, model.choice == answer)
 				Kit.setEnabled(button, canEdit)
+				choiceEffects[answer].TextColor3 = if canEdit
+					then Kit.colors.text
+					else Kit.colors.disabledText
 			end
 			local shownStance: SharedTypes.Choice = model.peekChoice or model.choice or Events.defaultChoice()
 			summary.Text = Swing.stanceSummary(config, view, Swing.stance(config, view, shownStance))
@@ -334,7 +385,7 @@ end
 function EventCard.week(parent: Instance, model: Model.Model, order: number): WeekCard
 	local config = model.config
 	local card =
-		Collapsible.new(parent, { title = "Week card", name = "WeekCard", order = order, expanded = true })
+		Collapsible.new(parent, { title = "News", name = "WeekCard", order = order, expanded = false })
 	card.toggle.Name = "WeekToggle"
 	local function line(k: number, name: string, color: Color3?): TextLabel
 		return Kit.text("", {
@@ -356,15 +407,11 @@ function EventCard.week(parent: Instance, model: Model.Model, order: number): We
 	local lastDebate = Kit.caption("", { Name = "FeedLastDebate", LayoutOrder = 8, Parent = card.body })
 	local debateLine = line(9, "FeedDebate")
 	local messages = Kit.caption("", { Name = "FeedMessages", LayoutOrder = 10, Parent = card.body })
-	local portrait: boolean? = nil
 
 	local week: WeekCard = {
 		root = card.root,
-		setPortrait = function(_self: WeekCard, isPortrait: boolean)
-			if portrait ~= isPortrait then
-				portrait = isPortrait
-				card:setExpanded(not isPortrait)
-			end
+		setPortrait = function(_self: WeekCard, _portrait: boolean)
+			-- The same on every screen size since UI style v2 (collapsed by default).
 		end,
 		render = function(_self: WeekCard, p: Model.Payload)
 			local view = p.view

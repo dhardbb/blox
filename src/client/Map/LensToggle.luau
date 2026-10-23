@@ -1,6 +1,6 @@
 --!strict
--- The map's lens switch (D-046): four chips side by side, EV / Issues / Polls /
--- $, each a full touch target (Kit.MIN_TOUCH tall), the current lens selected.
+-- The map's lens switch (D-046): four chips side by side, Votes / Issues /
+-- Polls / Money, each a full touch target (Kit.MIN_TOUCH tall), the current lens selected.
 -- Picking one remembers it for the session (Map/Lens) and calls `onChange`, which
 -- repaints the map.
 --
@@ -18,7 +18,7 @@ local Lens = require(script.Parent.Lens)
 
 local LensToggle = {}
 
-local BUTTON_W = 54 -- px, one chip ("Issues" fits at body size)
+local BUTTON_W = 64 -- px, one chip ("Issues", "Money" fit at body size)
 local GAP = Kit.space.xs -- px, between chips
 LensToggle.HEIGHT = Kit.MIN_TOUCH
 LensToggle.WIDTH = #Lens.ORDER * BUTTON_W + (#Lens.ORDER - 1) * GAP

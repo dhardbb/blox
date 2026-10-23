@@ -1,10 +1,11 @@
 --!strict
--- Map lenses (src/client/Map/Lens.luau, LensToggle.luau, D-046) on the fake
--- engine: the EV lens is the default and the map's tags keep only what is
--- relevant now; the chips switch lenses and the choice is remembered for the
--- session; each lens's pills per state; the Polls lens's extra-detail hook; and
--- every lens passes the strict UI audit, with each lens row inside the map, at
--- phone and tablet sizes on the Campaign and Draft screens.
+-- Map lenses (src/client/Map/Lens.luau, LensToggle.luau, D-046, UI-STYLE §4.6)
+-- on the fake engine: the Votes lens is the default and the map's tags keep
+-- only what is relevant now; the chips switch lenses and the choice is
+-- remembered for the session; each lens shows one mark per state, inside its
+-- circle; the "Map key" sheet says how to read each lens; and every lens passes
+-- the strict UI audit, with each mark inside the map, at phone and tablet sizes
+-- on the Campaign and Draft screens.
 
 local Config = require("@sim/Config")
 local Explain = require("@ui/Explain")
@@ -16,6 +17,7 @@ local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
 local StateData = require("@sim/StateData")
 local Test = require("@testlib/Test")
+local Words = require("@ui/Words/Campaign")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 local check = Rig.check
@@ -125,17 +127,20 @@ end
 
 describe("Map lenses", function()
 	it(
-		"starts on EV: each state shows its EV, a battleground adds B, tags keep only the event's *",
+		"starts on Votes: each state shows its votes, orange on a battleground, tags keep only the event's *",
 		function()
 			local world, peer = Rig.fixture("Plan")
+			local _, Kit = modules(world, peer)
 			local view = Fixtures.payload(C, "Plan").view
 			expect(selected(peer, "Campaign")):toEqual({ "EV" })
 			for _, s in view.states do
-				local want = { tostring(StateData.byId[s.id].ev) }
+				expect(pills(peer, "Campaign", s.id)):toEqual({ tostring(StateData.byId[s.id].ev) })
+				local color = pill(peer, "Campaign", s.id, 1).TextColor3
 				if s.battleground then
-					table.insert(want, "B")
+					check(same(color, Kit.colors.warn), `{s.id}: a battleground's number is not orange`)
+				else
+					check(same(color, Kit.colors.text), `{s.id}: the number is not the text color`)
 				end
-				expect(pills(peer, "Campaign", s.id)):toEqual(want)
 			end
 			-- The old crowded tags ("H B G3 *") and the momentum arrows are gone from the default map.
 			local map = mapOf(peer, "Campaign")
@@ -148,8 +153,14 @@ describe("Map lenses", function()
 				local arrow = node:FindFirstChild("Arrow")
 				check(arrow == nil or arrow.Visible == false, `{node.Name} still shows a momentum arrow`)
 			end
-			local Lens = modules(world, peer)
-			expect(Rig.textOf(peer, "Campaign", "Caption")):toBe(Lens.legend(C, "EV"))
+			-- No legend line over the map: a "Map key" button opens a sheet.
+			check(Rig.findIn(peer, "Campaign", "Caption") == nil, "a caption line over the map")
+			check(not Rig.shown(Rig.need(peer, "Campaign", "MapKeySheet"), "Campaign"), "the key starts open")
+			Rig.tap(world, peer, "Campaign", "MapKey")
+			check(Rig.shown(Rig.need(peer, "Campaign", "MapKeySheet"), "Campaign"), "the key did not open")
+			for k, line in Words.key("EV") do
+				expect(Rig.textOf(peer, "Campaign", `KeyLine{k}`)):toBe(line)
+			end
 			Rig.noErrors(world)
 		end
 	)
@@ -161,15 +172,17 @@ describe("Map lenses", function()
 			Rig.tap(world, peer, "Campaign", `Lens{id}`)
 			expect(selected(peer, "Campaign")):toEqual({ id })
 			expect(Lens.current()):toBe(id)
-			expect(Rig.textOf(peer, "Campaign", "Caption")):toBe(Lens.legend(C, id :: any))
+			expect(Rig.textOf(peer, "Campaign", "KeyLine3")):toBe(Words.key(id)[3])
+			check(Lens.legend(C, id :: any) ~= "", `no legend for {id}`)
 		end
+		expect(Rig.textOf(peer, "Campaign", "LensEV")):toBe("Votes")
 		local chip = Rig.need(peer, "Campaign", "LensMoney")
-		expect(chip.Text):toBe("$")
+		expect(chip.Text):toBe("Money")
 		check(chip.AbsoluteSize.X >= 44 and chip.AbsoluteSize.Y >= 44, "a lens chip is under 44 px")
 		Rig.noErrors(world)
 	end)
 
-	it("Issues: the state's top issues as codes, yours filled in your color", function()
+	it("Issues: the state's top issue as a code, one of yours filled in your color", function()
 		local world, peer = Rig.fixture("Plan")
 		local Lens, Kit = modules(world, peer)
 		Rig.tap(world, peer, "Campaign", "LensIssues")
@@ -183,22 +196,23 @@ describe("Map lenses", function()
 			if table.concat(issues, ",") ~= table.concat(StateData.byId[s.id].flavor, ",") then
 				drawnSeen += 1
 			end
-			local want = {}
+			local shownIssue = issues[1]
 			for _, issue in issues do
-				table.insert(want, Lens.issueCode(issue))
-			end
-			expect(pills(peer, "Campaign", s.id)):toEqual(want)
-			for k, issue in issues do
-				local part = pill(peer, "Campaign", s.id, k)
 				if table.find(platform, issue) then
-					filledSeen += 1
-					check(
-						same(part.BackgroundColor3, mine),
-						`{s.id}: {issue} is on your platform but not filled`
-					)
-				else
-					check(same(part.BackgroundColor3, Kit.colors.background), `{s.id}: {issue} is filled`)
+					shownIssue = issue
+					break
 				end
+			end
+			expect(pills(peer, "Campaign", s.id)):toEqual({ Lens.issueCode(shownIssue) })
+			local part = pill(peer, "Campaign", s.id, 1)
+			if table.find(platform, shownIssue) then
+				filledSeen += 1
+				check(
+					same(part.BackgroundColor3, mine),
+					`{s.id}: {shownIssue} is on your platform but not filled`
+				)
+			else
+				check(same(part.BackgroundColor3, Kit.colors.background), `{s.id}: {shownIssue} is filled`)
 			end
 		end
 		check(filledSeen > 0, "no state shares an issue with your platform")
@@ -219,92 +233,60 @@ describe("Map lenses", function()
 		expect(Lens.issuesOf(fake, view.states[1])):toEqual({ "Transit", "Farms" })
 	end)
 
-	it(
-		"Polls: the public lead in the leader's color, your internal poll as i, ground game, and the detail hook",
-		function()
-			local world, peer = Rig.fixture("Plan")
-			local Lens, Kit = modules(world, peer)
-			local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
-			local view = payload.view
-			local you = view.you
-			local them = if you == 1 then 2 else 1
-			-- An internal poll in OH that has you well ahead, and two ground-game units in PA.
-			local support = table.create(#view.players, 0)
-			support[you], support[them] = 52, 40
-			view.internalPolls = {
-				{
-					state = "OH",
-					support = support,
-					undecided = 8,
-					momentum = { 0, 0 },
-					gotv = table.create(#view.players, 0),
-				},
-			}
-			local pa = 0
-			for i, s in view.states do
-				if s.id == "PA" then
-					pa = i
-				end
+	it("Polls: the public lead in the leader's color, the lean before a poll, nothing else", function()
+		local world, peer = Rig.fixture("Plan")
+		local _, Kit = modules(world, peer)
+		local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
+		local view = payload.view
+		local you = view.you
+		local them = if you == 1 then 2 else 1
+		-- An internal poll in OH and ground game in PA: on the state card, not the map.
+		local support = table.create(#view.players, 0)
+		support[you], support[them] = 52, 40
+		view.internalPolls = {
+			{
+				state = "OH",
+				support = support,
+				undecided = 8,
+				momentum = { 0, 0 },
+				gotv = table.create(#view.players, 0),
+			},
+		}
+		for _, s in view.states do
+			if s.id == "PA" then
+				s.gotv = 2
 			end
-			view.states[pa].gotv = 2
-			-- Your poll of MI saw three of their units (D-049); WI saw none.
-			local seen, none = table.create(#view.players, 0), table.create(#view.players, 0)
-			seen[them] = 3
-			view.scouted = {
-				{ state = "MI", week = view.week - 1, gotv = seen },
-				{ state = "WI", week = view.week - 1, gotv = none },
-			}
-			Rig.push(world, peer, payload)
-			Rig.tap(world, peer, "Campaign", "LensPolls")
-
-			for _, s in view.states do
-				local got = pills(peer, "Campaign", s.id)
-				if s.poll then
-					local text, leader = leadText(s.poll.support, "")
-					expect(got[1]):toBe(text)
-					if leader then
-						check(
-							same(pill(peer, "Campaign", s.id, 1).TextColor3, Kit.playerColor(view, leader)),
-							`{s.id}'s lead is not in the leader's color`
-						)
-					end
-				end
-			end
-			check(
-				table.find(pills(peer, "Campaign", "OH"), "i+12") ~= nil,
-				table.concat(pills(peer, "Campaign", "OH"), " ")
-			)
-			check(
-				table.find(pills(peer, "Campaign", "PA"), "G2") ~= nil,
-				table.concat(pills(peer, "Campaign", "PA"), " ")
-			)
-
-			local mi = pills(peer, "Campaign", "MI")
-			expect(mi[#mi]):toBe("opp G3")
-			check(
-				same(pill(peer, "Campaign", "MI", #mi).TextColor3, Kit.playerColor(view, them)),
-				"opp G3 is not in their color"
-			)
-			for _, text in pills(peer, "Campaign", "WI") do
-				check(string.sub(text, 1, 3) ~= "opp", "WI: a poll that saw no units shows a tag")
-			end
-			-- Not on the default map: the EV lens has no ground game.
-			Rig.tap(world, peer, "Campaign", "LensEV")
-			check(table.find(pills(peer, "Campaign", "MI"), "opp G3") == nil, "opp G3 in the EV lens")
-			Rig.tap(world, peer, "Campaign", "LensPolls")
-
-			-- The hook another feature uses for one more pill per state (e.g. their ground game).
-			table.insert(Lens.pollDetails, function(_ctx: any, s: any): any
-				return if s.id == "OH" then { text = "T3" } else nil
-			end)
-			Rig.tap(world, peer, "Campaign", "LensEV")
-			Rig.tap(world, peer, "Campaign", "LensPolls")
-			local oh = pills(peer, "Campaign", "OH")
-			expect(oh[#oh]):toBe("T3")
-			table.remove(Lens.pollDetails)
-			Rig.noErrors(world)
 		end
-	)
+		Rig.push(world, peer, payload)
+		Rig.tap(world, peer, "Campaign", "LensPolls")
+		for _, s in view.states do
+			local got = pills(peer, "Campaign", s.id)
+			check(#got <= 1, `{s.id} shows {#got} marks`)
+			if s.poll then
+				local text, leader = leadText(s.poll.support, "")
+				expect(got):toEqual({ text })
+				if leader then
+					check(
+						same(pill(peer, "Campaign", s.id, 1).TextColor3, Kit.playerColor(view, leader)),
+						`{s.id}'s lead is not in the leader's color`
+					)
+				end
+			elseif s.leanTo and s.lean > 0 then
+				expect(got):toEqual({ `~+{math.floor(s.lean + 0.5)}` })
+			end
+		end
+		Rig.tap(world, peer, "Campaign", "OH")
+		check(
+			Rig.contains(Rig.textOf(peer, "Campaign", "CardInternal"), "52.0"),
+			"the internal poll is not on the card"
+		)
+		Rig.tap(world, peer, "Campaign", "PA")
+		check(
+			Rig.contains(Rig.textOf(peer, "Campaign", "CardGround"), "2 /"),
+			"the ground game is not on the card"
+		)
+		Rig.noErrors(world)
+	end)
 
 	it("Money: Explain's fundraiser number per state, dimmed once your plan empties the pool", function()
 		local world, peer = Rig.fixture("Plan")
@@ -348,7 +330,16 @@ describe("Map lenses", function()
 		m:setLens({ OH = { parts = { { text = "$0.0" } }, dim = true } })
 		expect(node.Circle.BackgroundTransparency > 0):toBe(true)
 		expect(node.Lens.Visible):toBe(true)
-		check(label.Position.Y.Scale < y0, "the label does not move up over the lens row")
+		check(label.Position.Y.Scale < y0, "the label does not move up over the lens value")
+		-- The value sits inside the circle, under the code.
+		local circle, row = node.Circle, node.Lens
+		local cy = circle.AbsolutePosition.Y + circle.AbsoluteSize.Y / 2
+		check(row.AbsolutePosition.Y + row.AbsoluteSize.Y / 2 > cy, "the value is not under the middle")
+		check(
+			row.AbsolutePosition.Y + row.AbsoluteSize.Y
+				<= circle.AbsolutePosition.Y + circle.AbsoluteSize.Y + 1,
+			"the value pokes out under the circle"
+		)
 		m:setLens({ OH = { parts = { { text = "17" } } } })
 		expect(node.Circle.BackgroundTransparency):toBe(0)
 		expect(node.Lens.Part1.Text):toBe("17")

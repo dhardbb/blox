@@ -1,0 +1,146 @@
+--!strict
+-- The Campaign and Decision screens' short copy (src/shared/UI/Words/Campaign.luau,
+-- docs/UI-STYLE.md §4.4-4.6), pure: the now line in at most eight words, the
+-- action buttons' effects match Explain's numbers, no multipliers, plain units.
+
+local Config = require("@sim/Config")
+local Explain = require("@ui/Explain")
+local Fixtures = require("@ui/Fixtures")
+local Numbers = require("@ui/Numbers")
+local PlanDraft = require("@ui/PlanDraft")
+local Swing = require("@ui/Swing")
+local Test = require("@testlib/Test")
+local Words = require("@ui/Words/Campaign")
+
+local describe, it, expect = Test.describe, Test.it, Test.expect
+
+local C = Config.defaults
+
+local function check(condition: boolean, message: string)
+	if not condition then
+		error(message, 0)
+	end
+end
+
+local function words(text: string): number
+	local n = 0
+	for _ in string.gmatch(text, "%S+") do
+		n += 1
+	end
+	return n
+end
+
+describe("Words.Campaign", function()
+	it("says what to do now in at most eight words", function()
+		local base: Words.NowInput = {
+			locked = false,
+			opponent = "Rex",
+			problem = false,
+			actionsLeft = 3,
+			planned = 0,
+			selected = nil,
+		}
+		local function now(changes: { [string]: any }): string
+			local input = table.clone(base) :: any
+			for key, value in changes do
+				input[key] = value
+			end
+			local text = Words.planNow(input)
+			check(words(text) <= 8, `"{text}" has {words(text)} words`)
+			return text
+		end
+		expect(now({})):toBe("Tap a state on the map")
+		expect(now({ selected = "Ohio" })):toBe("Pick an action in Ohio")
+		expect(now({ planned = 1, actionsLeft = 2 })):toBe("Tap another state, or Lock in")
+		expect(now({ actionsLeft = 0, planned = 3, selected = "Ohio" })):toBe("All set? Press Lock in")
+		expect(now({ problem = true, selected = "Ohio" })):toBe("Change the plan, then Lock in")
+		expect(now({ locked = true })):toBe("Waiting for Rex…")
+	end)
+
+	it("counts actions and money in words, money never rounded up", function()
+		expect(Words.budget(3, 4.96)):toBe("3 actions left · $4.9")
+		expect(Words.budget(1, 0)):toBe("1 action left · $0.0")
+		expect(Words.budget(-1, 2)):toBe("0 actions left · $2.0")
+	end)
+
+	it("gives each action's effect from Explain's numbers, without multipliers", function()
+		local view = Fixtures.payload(C, "Plan").view
+		local draft = PlanDraft.new()
+		local issue = PlanDraft.bestIssue(C, view, "OH")
+		local rally = Explain.action(C, view, draft, "OH", "Rally", issue)
+		expect(Words.effect(C, view, draft, "OH", "Rally", issue, "Rex")):toBe(
+			`{Numbers.signed(rally.you or 0)} support`
+		)
+		local ad = Explain.action(C, view, draft, "OH", "Media", issue)
+		expect(Words.effect(C, view, draft, "OH", "Ad", issue, "Rex")):toBe(
+			`{Numbers.signed(ad.you or 0)} support`
+		)
+		local fund = Explain.action(C, view, draft, "OH", "Fundraise")
+		expect(Words.effect(C, view, draft, "OH", "Fundraise", nil, "Rex")):toBe(
+			`+{Numbers.money(fund.money or 0)}`
+		)
+		local attack = Explain.action(C, view, draft, "OH", "Attack")
+		expect(Words.effect(C, view, draft, "OH", "Attack", nil, "Rex")):toBe(
+			`Rex {Numbers.signed(attack.them or 0)}`
+		)
+		expect(Words.effect(C, view, draft, "OH", "Gotv", nil, "Rex")):toBe(
+			`+{Numbers.points(C.GOTV_PER_UNIT)} on election day`
+		)
+		for _, entry in Words.ACTIONS do
+			local text = Words.effect(C, view, draft, "OH", entry.name, issue, "Rex")
+			check(string.find(text, "×", 1, true) == nil, `{entry.name}: "{text}" shows a multiplier`)
+			check(words(text) <= 4, `{entry.name}: "{text}" is long`)
+		end
+	end)
+
+	it("prices an action in plain words", function()
+		expect(Words.cost(3, false)):toBe("$3.0")
+		expect(Words.cost(2, true)):toBe("fly $2.0")
+		expect(Words.cost(0, false, true)):toBe("free")
+		expect(Words.cost(0, false)):toBe(nil)
+		expect(Words.reason("NotEnoughMoney")):toBe("Not enough money")
+		expect(Words.reason("Something new")):toBe("Not now")
+	end)
+
+	it("writes the plan on one line", function()
+		local plan: { any } = {
+			{ kind = "Rally", state = "OH", issue = "Jobs" },
+			{ kind = "Media", state = "PA", issue = "Jobs" },
+			{ kind = "Gotv", state = "OH", units = 2 },
+			{ kind = "RegionPoll", region = "Pacific" },
+		}
+		local line = Words.planLine(plan)
+		check(string.find(line, "Rally OH · Ad PA · Ground game OH ×2 · Poll ", 1, true) == 1, line)
+		expect(Words.planLine({})):toBe("")
+	end)
+
+	it("sums up a stance and a debate topic in a few words", function()
+		local stance = Fixtures.payload(C, "Stance").view
+		local preview = Swing.stance(C, stance, "A")
+		local text = Words.stanceEffect(preview)
+		if #preview.gains > 0 then
+			check(string.find(text, `+{#preview.gains} state`, 1, true) ~= nil, text)
+		end
+		expect(Words.stanceEffect({ gains = {}, losses = {} })):toBe("No change")
+		expect(Words.stanceEffect({ gains = { "OH" }, losses = { "PA", "MI" } })):toBe(
+			"+1 state · −2 states"
+		)
+		local focus = Fixtures.payload(C, "Focus").view
+		local info = Swing.focus(C, focus, focus.nextDebate.topics[1])
+		check(
+			string.find(Words.focusHead(C, focus, info), `· {#info.states} states`, 1, true) ~= nil,
+			"no state count"
+		)
+		expect(Words.focusOdds({ win = 0.814 })):toBe("You win 81%")
+	end)
+
+	it("explains every lens in a few short sentences", function()
+		for _, id in { "EV", "Issues", "Polls", "Money" } do
+			local lines = Words.key(id)
+			check(#lines >= 3 and #lines <= 6, `{id}: {#lines} lines`)
+			for _, line in lines do
+				check(words(line) <= 14, `{id}: "{line}" is long`)
+			end
+		end
+	end)
+end)

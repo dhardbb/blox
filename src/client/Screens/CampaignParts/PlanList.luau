@@ -1,8 +1,10 @@
 --!strict
--- The week's plan as a list (UI overhaul §3.4): a title row "Your plan · 2 of
--- 3 AP" with a two-tap Clear (the first tap asks "Clear? tap again" for
+-- The week's plan as a list (docs/UI-STYLE.md §4.5): a title row "Your plan ·
+-- 2 of 3 actions" with a two-tap Clear (the first tap asks "Clear? tap again" for
 -- PlanList.CONFIRM_SECONDS), then one row per action with a × to remove it. The
--- cost line lives in the action bar's status. Shown only while planning.
+-- plan in one line lives in the action bar's status (so a phone sees it without
+-- scrolling); the actions and money left are on the header's now line. Shown
+-- only while planning.
 --
 --   local plan = PlanList.new(parent, model, order)
 --   plan:render(p) · plan:tick(now) · plan.root (Frame "PlanList")
@@ -31,14 +33,7 @@ export type PlanList = {
 
 function PlanList.new(parent: Instance, model: Model.Model, order: number): PlanList
 	local config = model.config
-	local root = Kit.panel({
-		Name = "PlanList",
-		LayoutOrder = order,
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Parent = parent,
-	})
-	Kit.list("Vertical", Kit.space.xs).Parent = root
+	local root = Kit.card({ Name = "PlanList", LayoutOrder = order, Parent = parent })
 
 	local titleRow = Kit.box({
 		Name = "PlanTitleRow",
@@ -46,10 +41,12 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = root,
 	})
-	local title = Kit.heading("", {
+	local title = Kit.text("", {
 		Name = "PlanTitle",
 		Size = UDim2.new(1, -(CLEAR_W + Kit.space.sm), 1, 0),
+		Font = Kit.font.bold,
 		TextScaled = true,
+		TextWrapped = false,
 		Parent = titleRow,
 	})
 	local armedUntil: number? = nil
@@ -101,6 +98,7 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 			armedUntil = nil
 		end
 		clear.Text = if armed then "Clear? tap again" else "Clear"
+		clear.Visible = #model.draft.actions > 0
 		Kit.setEnabled(clear, canEdit and #model.draft.actions > 0)
 	end
 
@@ -117,7 +115,7 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 			local canEdit = Model.editable(model, p)
 			local cost = PlanDraft.cost(config, view, model.draft)
 			local profile = PlanDraft.profile(config, view)
-			title.Text = `Your plan · {cost.ap} of {profile.apPerWeek} AP`
+			title.Text = `Your plan · {cost.ap} of {profile.apPerWeek} actions`
 			local flights: { [number]: boolean } = {}
 			for _, stop in PlanDraft.route(view, model.draft) do
 				flights[stop.index] = stop.flight

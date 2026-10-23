@@ -85,8 +85,9 @@ local function readonly(kind: string, fields: { [string]: any }, text: string): 
 	})
 end
 
-local function vector2(x: number, y: number): any
-	return readonly("Vector2", { X = x, Y = y }, `{x}, {y}`)
+local function vector2(x: number?, y: number?): any
+	-- Vector2.new() is (0, 0), as in Roblox.
+	return readonly("Vector2", { X = x or 0, Y = y or 0 }, `{x or 0}, {y or 0}`)
 end
 
 local function udim(scale: number?, offset: number?): any

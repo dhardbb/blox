@@ -94,8 +94,6 @@ export type CheckOptions = {
 Audit.PENDING = {
 	-- Style v2 (docs/UI-STYLE.md §6). WP-A: Select, Draft. WP-B: Decision,
 	-- Campaign. WP-C: Election, Results.
-	Decision = { labelWords = true, wallOfText = true }, -- WP-B: focus topic labels and notes
-	Campaign = { wallOfText = true }, -- WP-B: state card momentum note; WP-C: debate swing lines
 } :: { [string]: { [Rule]: boolean } }
 
 -- The rules in the order they are reported.

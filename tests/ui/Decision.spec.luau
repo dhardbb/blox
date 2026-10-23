@@ -11,6 +11,7 @@ local Numbers = require("@ui/Numbers")
 local Rig = require("./Rig")
 local Swing = require("@ui/Swing")
 local Test = require("@testlib/Test")
+local Words = require("@ui/Words/Campaign")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -77,6 +78,22 @@ describe("Decision screen: on its own", function()
 					shown(need(peer, if moment == "Focus" then "FocusPanel" else "ChoiceRow")),
 					"no choices"
 				)
+				expect(textOf(peer, "NowText")):toBe(
+					if moment == "Focus" then "Pick one debate topic" else "Pick a side: A, B or C"
+				)
+				-- Every option is on the first screen, above the pinned bar (UI-STYLE §4.4).
+				local names = if moment == "Focus"
+					then { "FocusTopic1", "FocusTopic2", "FocusTopic3" }
+					else { "ChoiceA", "ChoiceB", "ChoiceC" }
+				local barTop = need(peer, "ActionBar").AbsolutePosition.Y
+				for _, name in names do
+					local option = need(peer, name)
+					check(shown(option), `{name} is hidden`)
+					check(
+						option.AbsolutePosition.Y + option.AbsoluteSize.Y <= barTop + 0.5,
+						`{name} ends at {option.AbsolutePosition.Y + option.AbsoluteSize.Y}, under the bar at {barTop}`
+					)
+				end
 				Rig.noErrors(world)
 			end)
 		end
@@ -92,7 +109,8 @@ describe("Decision screen: the debate focus", function()
 		for t, topic in topics do
 			local info = Swing.focus(C, view, topic)
 			local button = need(peer, `FocusTopic{t}`)
-			expect(button.Text):toBe(info.head)
+			expect(button.Text):toBe(Words.focusHead(C, view, info))
+			expect(textOf(peer, `FocusChance{t}`)):toBe(Words.focusOdds(info))
 			check(button.AbsoluteSize.Y >= 44 - 0.5, `FocusTopic{t} is {button.AbsoluteSize.Y}px tall`)
 			expect(textOf(peer, `FocusNeed{t}`)):toBe(info.needLine)
 			expect(textOf(peer, `FocusOdds{t}`)):toBe(info.oddsLine)
@@ -127,10 +145,19 @@ describe("Decision screen: the debate focus", function()
 		local topic = view.nextDebate.topics[1]
 		tap(world, peer, "FocusTopic1")
 		local info = Swing.focus(C, view, topic)
+		-- Every state of the topic glows; only the biggest few carry a badge (UI-STYLE §4.6).
+		local badges = 0
 		for _, id in info.states do
-			expect(badgeOf(peer, id)):toBe(Numbers.signed(C.DEBATE_TOPIC_WIN))
+			local hit = need(peer, "NodeMap").Nodes:FindFirstChild(id)
+			check(hit:FindFirstChild("Halo").Visible == true, `{id} does not glow`)
+			local badge = badgeOf(peer, id)
+			if badge ~= nil then
+				badges += 1
+				expect(badge):toBe(Numbers.signed(C.DEBATE_TOPIC_WIN))
+			end
 		end
-		check(Rig.contains(textOf(peer, "Caption"), "win"), textOf(peer, "Caption"))
+		check(badges > 0 and badges <= 5 + #info.flips, `{badges} badges on the map`)
+		check(Rig.contains(textOf(peer, "GainText"), "win"), textOf(peer, "GainText"))
 		Rig.noErrors(world)
 	end)
 end)
@@ -139,6 +166,7 @@ describe("Decision screen: a Choice stance", function()
 	it("starts on the hedge, sends the tapped stance, and nothing else", function()
 		local world, peer = Rig.fixture("Stance", nil)
 		check(need(peer, "ChoiceC"):GetAttribute("Selected") == true, "C is not preselected")
+		tap(world, peer, "WhyToggle")
 		check(shown(need(peer, "ChoiceNeed")), "no states-you-need line")
 		check(shown(need(peer, "ChoiceSummary")), "no summary of the stance on the map")
 		tap(world, peer, "ChoiceB")

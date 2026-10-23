@@ -1,14 +1,16 @@
 --!strict
--- Map lenses (D-046): what the map shows under each state's label, one layer at
--- a time, so the default map stays quiet (who leads by fill color, EV) and the
--- details live one tap away. The fill by public-poll leader is the same in
--- every lens; screens keep their event and stance badges (the Tags layer).
+-- Map lenses (D-046, docs/UI-STYLE.md §4.6): what the map shows inside each
+-- state's circle, under its code, one layer at a time and one mark per state, so
+-- the map stays quiet (who leads by fill color) and the details live in the
+-- state card. The fill by public-poll leader is the same in every lens; screens
+-- keep their event and stance badges (the Tags layer).
 --
---   EV      electoral votes; "B" on a battleground
---   Issues  the state's top issues as short codes; yours (your platform) filled
---   Polls   the public-poll lead in the leader's color; "i+5" your internal poll
---           there; a momentum arrow; then Lens.pollDetails (your ground game "G2",
---           theirs where your polls saw it, "opp G3")
+--   EV      "Votes": the state's electoral votes; orange on a battleground
+--   Issues  the state's top issue as a short code: the first one on your
+--           platform (filled in your color), else its first top issue
+--   Polls   the public-poll lead ("+3") in the leader's color, "tie", or the
+--           lean before the first poll ("~+2"). Your internal polls, momentum
+--           and ground game are on the state card (Details)
 --   Money   what one more fundraiser there would raise this week, from
 --           Explain.action (the state card's number); dim when your plan
 --           already empties the pool
@@ -46,16 +48,13 @@ export type Context = {
 	draft: PlanDraft.Draft?,
 }
 
--- An extra pill for a state in the Polls lens, or nil for none.
-export type Detail = (ctx: Context, s: StateView) -> Part?
-
 local Lens = {}
 
 Lens.ORDER = table.freeze({ "EV", "Issues", "Polls", "Money" } :: { Id })
-Lens.LABEL = table.freeze({ EV = "EV", Issues = "Issues", Polls = "Polls", Money = "$" } :: { [Id]: string })
+Lens.LABEL =
+	table.freeze({ EV = "Votes", Issues = "Issues", Polls = "Polls", Money = "Money" } :: { [Id]: string })
 
 -- Display only (UI numbers, not gameplay).
-Lens.MOMENTUM_ARROW = 0.5 -- momentum lead that earns the leader a ▲ (as the map had before D-046)
 Lens.TIE = 0.5 -- a public-poll lead under this many points reads "tie"
 Lens.DRAINED = 0.05 -- $ a fundraiser would still raise: under this, the pool is spent
 
@@ -85,16 +84,17 @@ function Lens.set(id: Id)
 	end
 end
 
--- One short caption line on how to read the lens (fits beside the chips on a phone).
-function Lens.legend(config: ConfigModule.Config, id: Id): string
+-- One short line on how to read the lens, in plain words (fits beside the
+-- chips on a phone). The Campaign screen's "Map key" sheet says more.
+function Lens.legend(_config: ConfigModule.Config, id: Id): string
 	if id == "Issues" then
-		return "Top issues · filled = on your platform"
+		return "Top issue · filled = one of yours"
 	elseif id == "Polls" then
-		return "Poll lead · i = your poll · ▲ momentum · G / opp G = ground game"
+		return "Who leads the poll, by how much"
 	elseif id == "Money" then
-		return "One more fundraiser there this week · dim = pool used up"
+		return "What one more fundraiser raises"
 	end
-	return `Number = electoral votes · B = battleground (×{config.BATTLEGROUND_MULT})`
+	return "Votes · orange = battleground"
 end
 
 -- ---------------------------------------------------------------- helpers
@@ -142,104 +142,41 @@ end
 
 local function evLine(_ctx: Context, s: StateView): Line
 	local record = StateData.byId[s.id]
-	local parts: { Part } = { { text = if record then tostring(record.ev) else "?" } }
-	if s.battleground then
-		table.insert(parts, { text = "B", color = Kit.colors.accent })
-	end
-	return { parts = parts }
+	return {
+		parts = {
+			{
+				text = if record then tostring(record.ev) else "?",
+				color = if s.battleground then Kit.colors.warn else nil,
+			},
+		},
+	}
 end
 
+-- The state's top issue to show: the first one on your platform, else its first.
 local function issuesLine(ctx: Context, s: StateView): Line
 	local view = ctx.view
 	local platform = view.players[view.you].platform or {}
-	local mine = colorOf(view, view.you)
-	local parts: { Part } = {}
-	for _, issue in Lens.issuesOf(view, s) do
-		local ours = table.find(platform, issue :: any) ~= nil
-		table.insert(parts, {
-			text = Lens.issueCode(issue),
-			color = if ours then mine else Kit.colors.text,
-			filled = ours,
-		})
-	end
-	return { parts = parts }
-end
-
-local function internalOf(view: View, id: string): { number }?
-	for _, poll in view.internalPolls do
-		if poll.state == id then
-			return poll.support
+	local issues = Lens.issuesOf(view, s)
+	for _, issue in issues do
+		if table.find(platform, issue :: any) ~= nil then
+			return {
+				parts = { { text = Lens.issueCode(issue), color = colorOf(view, view.you), filled = true } },
+			}
 		end
 	end
-	return nil
+	local first = issues[1]
+	return { parts = if first then { { text = Lens.issueCode(first) } } else {} }
 end
-
-local function momentumPart(view: View, s: StateView): Part?
-	local leader, lead = leaderOf(s.momentum)
-	if leader == nil or lead < Lens.MOMENTUM_ARROW then
-		return nil
-	end
-	return { text = "▲", color = colorOf(view, leader) }
-end
-
--- Your ground game here: placed units plus the ones in the plan you are drafting.
-local function groundGame(ctx: Context, s: StateView): Part?
-	local units = s.gotv
-	local draft = ctx.draft
-	if draft then
-		for _, action in draft.actions do
-			if action.kind == "Gotv" and action.state == s.id then
-				units += action.units or 0
-			end
-		end
-	end
-	return if units > 0 then { text = `G{units}`, color = colorOf(ctx.view, ctx.view.you) } else nil
-end
-
--- Their ground game here, as your latest internal poll of the state saw it
--- (D-049): "opp G3" in their color. Nothing where you never polled or saw none.
-local function theirGroundGame(ctx: Context, s: StateView): Part?
-	local view = ctx.view
-	local scout = Explain.scoutOf(view, s.id)
-	if scout == nil then
-		return nil
-	end
-	for p in view.players do
-		local units = scout.gotv[p] or 0
-		if p ~= view.you and units > 0 then
-			return { text = `opp G{units}`, color = colorOf(view, p) }
-		end
-	end
-	return nil
-end
-
--- Extra pills for the Polls lens, in order. Add one to show more per state.
-Lens.pollDetails = { groundGame, theirGroundGame } :: { Detail }
 
 local function pollsLine(ctx: Context, s: StateView): Line
 	local view = ctx.view
-	local parts: { Part } = {}
 	if s.poll then
-		table.insert(parts, leadPart(view, s.poll.support, ""))
+		return { parts = { leadPart(view, s.poll.support, "") } }
 	elseif s.leanTo and s.lean > 0 then
 		-- Before the first poll: the lean, marked "~".
-		table.insert(parts, { text = `~+{math.floor(s.lean + 0.5)}`, color = colorOf(view, s.leanTo) })
+		return { parts = { { text = `~+{math.floor(s.lean + 0.5)}`, color = colorOf(view, s.leanTo) } } }
 	end
-	local internal = internalOf(view, s.id)
-	if internal then
-		table.insert(parts, leadPart(view, internal, "i"))
-	end
-	local arrow = momentumPart(view, s)
-	if arrow then
-		table.insert(parts, arrow)
-	end
-	for _, detail in Lens.pollDetails do
-		local part = detail(ctx, s)
-		if part then
-			table.insert(parts, part)
-		end
-	end
-	return { parts = parts }
+	return { parts = {} }
 end
 
 -- What one more fundraiser here would raise (Explain's number), from the plan so far.
