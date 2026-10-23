@@ -9,6 +9,14 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 - Harness: stances now change the winner in 14.6% of matches (was 5.1%); the bot that reads the card beats random stances 66–34 (was 61–39).
 - Test in Studio: in a Choice week, your home and strongholds should show the biggest badges; selecting C should show red badges only on your own base states that have the issue.
 
+## Unreleased: map lenses (D-044)
+
+- **The map shows one thing at a time.** Four chips over the map, **EV / Issues / Polls / $**, switch what each state shows under its name: its electoral votes (default, "B" on a battleground); its two top issues, yours filled in your color; the public poll lead in the leader's color with your internal poll ("i+5"), momentum ▲ and ground game ("G2"); or what one more fundraiser there would raise this week (dim once your plan empties the pool). Works on the Campaign and Draft screens and stays picked for the session.
+- **Less on the default map.** The "H B G3" tags and the momentum arrows are gone from the campaign map; the tag above a state now appears only when it matters (the week's event *, stance previews, reveals, draft picks). The fill by poll leader and the owner rings are unchanged.
+- The line over the campaign map explains the current lens. New specs `tests/ui/Lens.spec` (each lens's text per state, switching, session memory, strict UI audit at 390x844, 844x390, 768x1024, 1024x768 and 1280x720).
+
+**To test:** `docs/TESTING.md`, "Map lenses". Nothing needed from the humans.
+
 ## Unreleased: map tags
 
 - Map badges and FLIP markers now share one solid tag on each circle's top edge, drawn above every state, so they no longer cover neighboring states' names. A flip fills the tag in its color ("+0.5 FLIP").
