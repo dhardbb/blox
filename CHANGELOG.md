@@ -6,13 +6,15 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ### Color Pass colors are claimed, first come, first served (D-061)
 
-Sim, server and payload (no client changes yet; no Config changes). Studio checklist: `docs/TESTING.md`, "Claiming colors".
+Sim, server, payload and the Select screen (no Config changes). Studio checklist: `docs/TESTING.md`, "Claiming colors".
 
 - **Two Color Pass owners who want the same color:** whoever claims it first gets it; the other sees it taken and picks any other free color. They are no longer stuck with red or blue (D-055's tie rule is gone).
 - **Your saved color is claimed for you as Select opens.** If you both saved the same one, a fair coin flip decides and the other player is told to pick another.
 - Owners may change color until Select ends; a new color frees the old one. Players without the pass are still dealt red or blue, and colors never repeat.
 - Wire: new request `ClaimColor { matchId, step, color }`; reasons `ColorTaken`, `NoColorPass`, `UnknownColor`; notice `ColorTaken`; View fields `colorClaims` and `canPickColor`.
-- Still to come: the color picker on the Select screen (the server side is ready).
+- **Select gets a color picker for pass owners:** six round swatches under "Your color"; yours outlined in white, your opponent's dimmed and marked "Taken"; tap another to switch. Everyone else sees the color line as before.
+- New notice: "Rex took Crimson first. Pick another color." Debug: `color Teal`.
+- Fixed four client type errors (no behavior change).
 
 ### Front-page panels: Lobby, Select, Draft, stances, Campaign, Help (WP-2)
 
