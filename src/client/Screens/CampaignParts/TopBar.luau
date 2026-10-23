@@ -1,28 +1,37 @@
 --!strict
--- The Campaign header (UI overhaul §3.4, move 3): one Kit.HEADER_H row on 16:9,
--- two rows on phones. The Decision screen (D-044) uses it too: the stage says
--- "Debate focus" or "Take a stance", and money and AP are left out.
+-- The Campaign header (docs/UI-STYLE.md §4.5): the standard Header with its
+-- "what to do now" line, on every screen size the same two rows. The Decision
+-- screen (D-044) uses it too: the title names the decision, and the actions
+-- and money are left out.
 --
---   16:9      Week 3 of 12 · Plan your week   Dana Okafor 261 ▬▬  ▬▬ 251 Rex Calloway  $4.5  3 AP   0:28
---   portrait  Week 3 of 12 · Plan your week                                          0:28
---             Dana 261 ▬▬  ▬▬ 251 Rex                                      $4.5  3 AP   (28 px)
+--   wide      Week 3 of 12      Dana Okafor 310 ━━━━━━━|━━━━ 189 Rex Calloway      ?  0:48
+--             ▌Pick an action in Ohio                           2 actions left · $4.0
+--   phone     Week 3   Dana 310 ━━━|━━ 189 Rex     ?  0:48
+--             ▌Tap a state on the map         3 actions left · $4.0
+--   Decision  Week 7 · Clinic walkout                    ?  0:18   (phone: no score)
+--             ▌Pick a side: A, B or C
 --
--- Under the names, a two-segment bar shows each side's projected EV out of the
--- whole map. The disconnect notice adds a 24 px row. The opponent's lock status
--- lives in the action bar and their money bracket in the week card.
+-- The score is each side's projected votes over a two-segment bar with a tick
+-- at the halfway mark (270 of 538). The time bar under the first row shows the
+-- step's time left. The disconnect notice adds a 24 px row under the now line.
+-- The step's name ("Plan your week", "Results", "Debate", "Locked in", "Debate
+-- focus", "Take a stance") is kept on the hidden StageLabel: the now line says
+-- the same thing as an instruction.
 --
 --   local top = TopBar.new(parent, model)
 --   top:place(portrait)      -- lays the rows out; returns the height
 --   top:render(now) -> bool  -- true when the height changed (the notice came or went)
 --   top.root   Frame "TopBar"
---   Elements: WeekLabel, StageLabel, Countdown (the header), YouLabel, ThemLabel,
---   EvBar (YouBar, ThemBar), MoneyLabel, APLabel, OpponentNotice.
+--   Elements: WeekLabel, StageLabel (hidden), Countdown, HelpButton, NowText,
+--   Score (YouLabel, ThemLabel, EvBar with YouBar, ThemBar, Mid), APLabel,
+--   MoneyLabel, OpponentNotice.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlanDraft = require(ReplicatedStorage.Shared.UI.PlanDraft)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
+local Words = require(ReplicatedStorage.Shared.UI.Words.Campaign)
 
 local Header = require(script.Parent.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
@@ -30,13 +39,13 @@ local Model = require(script.Parent.Model)
 
 local TopBar = {}
 
-local SCORE_H = 28 -- px, the phone's second row
 local NOTICE_H = 24 -- px, the disconnected notice
-local NAMES_H = 26 -- px, the names line in the 16:9 score strip
-local BAR_H = 6 -- px, the EV bar in the 16:9 strip
-local PORTRAIT_NAMES_H = 20 -- px, the names line in the phone score row
-local PORTRAIT_BAR_H = 4 -- px
-local SCORE_START = 0.36 -- share of the 16:9 row where the score strip starts
+local NAMES_H = 22 -- px, the names line in the score strip
+local BAR_H = 6 -- px, the vote bar under the names
+local SCORE_START = 0.24 -- share of the row where the score strip starts (wide)
+local PORTRAIT_SCORE_START = 0.25 -- ... on a phone, after the short "Week 3"
+local BUDGET_SHARE = 0.44 -- share of the now line the actions and money take
+local MID_W = 2 -- px, the halfway tick on the vote bar
 
 local TOTAL_EV = 0
 for _, record in StateData.list do
@@ -51,44 +60,42 @@ export type TopBar = {
 
 function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	local config = model.config
-	local root = Kit.box({ Name = "TopBar", Size = UDim2.new(1, 0, 0, Kit.HEADER_H) })
+	local root = Kit.box({ Name = "TopBar", Size = UDim2.new(1, 0, 0, Kit.HEADER_H + Kit.NOW_H) })
 
-	local header =
-		Header.new(root, { title = "Week", subtitle = "", name = "Header", onHelp = model.ctx.help })
+	local header = Header.new(root, { title = "Week", name = "Header", onHelp = model.ctx.help, now = true })
 	header.title.Name = "WeekLabel"
 	header.subtitle.Name = "StageLabel"
 	header.timer.Name = "Countdown"
 	local left = header.root:FindFirstChild("Left") :: Frame
-	local leftFull = left.Size
-	local timerW = header.rightWidth -- the timer and the help button
+	local rightW = header.rightWidth -- the timer and the help button
 
-	-- The score strip: names and EV over a two-segment bar, then money and AP.
-	local score = Kit.box({ Name = "Score", Parent = root })
-	local function label(name: string, props: { [string]: any }): TextLabel
-		local base: { [string]: any } = {
-			Name = name,
+	-- The score strip: names and projected votes over a two-segment bar.
+	local score = Kit.box({ Name = "Score", Parent = header.root })
+	Kit.dataColor(score)
+	local function name(labelName: string, align: Enum.TextXAlignment): TextLabel
+		return Kit.text("", {
+			Name = labelName,
+			Size = UDim2.new(0.5, -Kit.space.xs, 0, NAMES_H),
 			Font = Kit.font.bold,
 			TextScaled = true,
-			TextSize = Kit.size.heading,
+			TextSize = Kit.size.body,
+			TextXAlignment = align,
 			Parent = score,
-		}
-		for key, value in props do
-			base[key] = value
-		end
-		return Kit.text("", base)
+		})
 	end
-	local you = label("YouLabel", { TextXAlignment = Enum.TextXAlignment.Right })
-	local them = label("ThemLabel", {})
-	local moneyLabel =
-		label("MoneyLabel", { TextColor3 = Kit.colors.good, TextXAlignment = Enum.TextXAlignment.Right })
-	local apLabel = label("APLabel", { TextXAlignment = Enum.TextXAlignment.Right })
+	local you = name("YouLabel", Enum.TextXAlignment.Left)
+	local them = name("ThemLabel", Enum.TextXAlignment.Right)
+	them.AnchorPoint = Vector2.new(1, 0)
+	them.Position = UDim2.fromScale(1, 0)
 	local bar = Kit.new("Frame", {
 		Name = "EvBar",
+		Position = UDim2.fromOffset(0, NAMES_H + 4),
+		Size = UDim2.new(1, 0, 0, BAR_H),
 		BackgroundColor3 = Kit.colors.raised,
 		BorderSizePixel = 0,
 		Parent = score,
 	}) :: Frame
-	Kit.corner(Kit.radius.pill).Parent = bar
+	Kit.corner(BAR_H // 2).Parent = bar
 	local youBar = Kit.new("Frame", {
 		Name = "YouBar",
 		BorderSizePixel = 0,
@@ -103,10 +110,52 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		Size = UDim2.fromScale(0, 1),
 		Parent = bar,
 	}) :: Frame
+	-- The halfway tick: whoever crosses it has a majority.
+	Kit.new("Frame", {
+		Name = "Mid",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.new(0, MID_W, 1, 0),
+		BackgroundColor3 = Kit.colors.text,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+		Parent = bar,
+	})
+
+	-- The actions left and the money, at the right end of the now line.
+	local nowLine = header.root:FindFirstChild("Now") :: Frame
+	local nowText = header.now :: TextLabel
+	nowText.Size = UDim2.new(1 - BUDGET_SHARE, -Kit.space.md, 1, 0)
+	local budget = Kit.box({
+		Name = "Budget",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(BUDGET_SHARE, 1),
+		Parent = nowLine,
+	})
+	local budgetList = Kit.list("Horizontal", Kit.space.sm)
+	budgetList.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	budgetList.VerticalAlignment = Enum.VerticalAlignment.Center
+	budgetList.Parent = budget
+	local function budgetLabel(labelName: string, order: number): TextLabel
+		return Kit.text("", {
+			Name = labelName,
+			LayoutOrder = order,
+			Size = UDim2.fromOffset(0, Kit.NOW_H),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Font = Kit.font.medium,
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = budget,
+		})
+	end
+	local apLabel = budgetLabel("APLabel", 1)
+	local moneyLabel = budgetLabel("MoneyLabel", 2)
 
 	local notice = Kit.text("", {
 		Name = "OpponentNotice",
 		Size = UDim2.new(1, 0, 0, NOTICE_H),
+		Position = UDim2.fromOffset(0, header.height),
 		TextSize = Kit.size.caption,
 		TextScaled = true,
 		TextColor3 = Kit.colors.danger,
@@ -115,46 +164,51 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	})
 
 	local portrait = false
-	local rows = Kit.HEADER_H
+	local scoreShown = true
 
 	local function height(): number
-		return rows + (if notice.Visible then NOTICE_H else 0)
+		return header.height + (if notice.Visible then NOTICE_H else 0)
 	end
 
 	local function layout()
-		if portrait then
-			left.Size = leftFull
-			score.Position = UDim2.fromOffset(0, Kit.HEADER_H)
-			score.Size = UDim2.new(1, 0, 0, SCORE_H)
-			you.Position = UDim2.fromScale(0, 0)
-			you.Size = UDim2.new(0.3, 0, 0, PORTRAIT_NAMES_H)
-			them.Position = UDim2.fromScale(0.34, 0)
-			them.Size = UDim2.new(0.3, 0, 0, PORTRAIT_NAMES_H)
-			bar.Position = UDim2.fromOffset(0, PORTRAIT_NAMES_H + 2)
-			bar.Size = UDim2.new(0.64, 0, 0, PORTRAIT_BAR_H)
-			moneyLabel.Position = UDim2.fromScale(0.66, 0)
-			moneyLabel.Size = UDim2.new(0.17, 0, 0, PORTRAIT_NAMES_H)
-			apLabel.Position = UDim2.fromScale(0.83, 0)
-			apLabel.Size = UDim2.new(0.17, 0, 0, PORTRAIT_NAMES_H)
-			rows = Kit.HEADER_H + SCORE_H
+		local start = if portrait then PORTRAIT_SCORE_START else SCORE_START
+		if scoreShown then
+			left.Size = UDim2.new(start, -Kit.space.sm, 0, Kit.HEADER_H)
 		else
-			left.Size = UDim2.new(SCORE_START, -Kit.space.sm, 1, 0)
-			score.Position = UDim2.fromScale(SCORE_START, 0)
-			score.Size = UDim2.new(1 - SCORE_START, -(timerW + Kit.space.sm), 0, Kit.HEADER_H)
-			you.Position = UDim2.fromOffset(0, 4)
-			you.Size = UDim2.new(0.37, 0, 0, NAMES_H)
-			them.Position = UDim2.new(0.41, 0, 0, 4)
-			them.Size = UDim2.new(0.37, 0, 0, NAMES_H)
-			bar.Position = UDim2.fromOffset(0, NAMES_H + 8)
-			bar.Size = UDim2.new(0.78, 0, 0, BAR_H)
-			moneyLabel.Position = UDim2.fromScale(0.8, 0)
-			moneyLabel.Size = UDim2.fromScale(0.1, 1)
-			apLabel.Position = UDim2.fromScale(0.9, 0)
-			apLabel.Size = UDim2.fromScale(0.1, 1)
-			rows = Kit.HEADER_H
+			left.Size = UDim2.new(1, -(rightW + Kit.space.sm), 0, Kit.HEADER_H)
 		end
-		notice.Position = UDim2.fromOffset(0, rows)
+		score.Visible = scoreShown
+		score.Position = UDim2.new(start, 0, 0, (Kit.HEADER_H - (NAMES_H + 4 + BAR_H)) // 2)
+		score.Size = UDim2.new(1 - start, -(rightW + Kit.space.lg), 0, NAMES_H + 4 + BAR_H)
 		root.Size = UDim2.new(1, 0, 0, height())
+	end
+
+	-- The now line for this moment.
+	local function nowFor(p: Model.Payload, theirName: string): string
+		local deciding = Model.deciding(p)
+		if deciding ~= nil then
+			if Model.isLocked(model, p) then
+				return `Waiting for {theirName}…`
+			end
+			return if deciding == "Focus" then "Pick one debate topic" else "Pick a side: A, B or C"
+		elseif p.reveal == "Resolve" then
+			return model.caption or "Here's what happened this week"
+		elseif p.reveal == "Debate" then
+			return model.caption or "Debate! Watch each topic"
+		elseif not Model.planning(p) then
+			return ""
+		end
+		local view = p.view
+		local ap = PlanDraft.remaining(config, view, model.draft)
+		local selected = model.selected
+		return Words.planNow({
+			locked = Model.isLocked(model, p),
+			opponent = theirName,
+			problem = PlanDraft.problem(config, view, model.draft) ~= nil,
+			actionsLeft = ap,
+			planned = #model.draft.actions,
+			selected = if selected then Model.stateName(selected) else nil,
+		})
 	end
 
 	local top: TopBar = {
@@ -189,27 +243,46 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			elseif Model.isLocked(model, p) then
 				stage = "Locked in"
 			end
-			header:setTitle(`Week {math.clamp(week, 1, config.WEEKS)} of {config.WEEKS}`)
+			week = math.clamp(week, 1, config.WEEKS)
+			local title = if portrait then `Week {week}` else `Week {week} of {config.WEEKS}`
+			if deciding == "Stance" and view.event then
+				title = `Week {week} · {view.event.name}`
+			elseif deciding == "Focus" then
+				title = `Week {week} · Debate prep`
+			end
+			header:setTitle(title)
 			header:setSubtitle(stage)
+			header.subtitle.Visible = false
 			-- Only an open input step warns: reveals end on their own.
-			header:setTimer(p.deadline - now, if p.stage == "Input" then Kit.TIMER_WARN else 0)
+			header:setTimer(
+				p.deadline - now,
+				if p.stage == "Input" then Kit.TIMER_WARN else 0,
+				p.deadline - p.stageStart
+			)
+			local theirFirst = Model.firstName(config, view, rival)
+			header:setNow(nowFor(p, theirFirst))
 
-			moneyLabel.Visible = deciding == nil
-			apLabel.Visible = deciding == nil
+			local planning = Model.planning(p)
+			budget.Visible = planning
 			local ap, cash = PlanDraft.remaining(config, view, model.draft)
+			local n = math.max(0, ap)
+			apLabel.Text = `{n} {if n == 1 then "action" else "actions"} left`
+			apLabel.TextColor3 = if ap < 0 then Kit.colors.danger else Kit.colors.text
 			moneyLabel.Text = Model.money(cash)
 			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.danger else Kit.colors.good
-			apLabel.Text = `{ap} AP`
-			apLabel.TextColor3 = if ap < 0 then Kit.colors.danger else Kit.colors.text
 
+			-- The score: on a phone the Decision title needs the whole row.
+			local wantScore = not (portrait and deciding ~= nil)
+			if wantScore ~= scoreShown then
+				scoreShown = wantScore
+				layout()
+			end
 			local ev = view.projectedEV
 			local mine, theirs = ev[me] or 0, ev[rival] or 0
 			local myName = if portrait
 				then Model.firstName(config, view, me)
 				else Model.candidateName(config, view, me)
-			local theirName = if portrait
-				then Model.firstName(config, view, rival)
-				else Model.candidateName(config, view, rival)
+			local theirName = if portrait then theirFirst else Model.candidateName(config, view, rival)
 			you.Text = `{myName} {mine}`
 			them.Text = `{theirs} {theirName}`
 			local myColor, theirColor = Kit.playerColor(view, me), Kit.playerColor(view, rival)

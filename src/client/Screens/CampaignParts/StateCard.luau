@@ -1,36 +1,40 @@
 --!strict
--- The selected state's card (UI overhaul §3.4): the state's name and tags, its
--- numbers as a 2x2 grid of stats, the message chips, the 3x3 action grid (or
--- the pivot chooser in its place), and the full state list behind a title row.
+-- The selected state's card (docs/UI-STYLE.md §4.5): compact, so its actions
+-- are on the first screen on a phone. It shows only once the player taps a
+-- state; × (or tapping the state again) closes it.
 --
---   Ohio · 17 EV   [Battleground] [You are here]
---   Public poll                 Lean
---   you 35 – 37 them · 28 und.  +3 them
---   Momentum                    Ground game
---   ▲ you 2.0 · them 1.0        0 / 4 · pool size $8.9
---   You lead momentum: about +0.3 support drifts to you next week. Drift: ...
---   Your attack backlash here: 1 of 3. ...           (only with backlash)
---   Top issues: Jobs, Schools
---   Message for rallies and ads
---   [Jobs ×1.5] [Schools ×1.2] [Health ×1.0] [More +]
---   [Rally] [Fundraise] [Ad $3.0] / [Attack ad] [Poll] [Ground game +1] / [Region poll] [Pivot]
---   What each action does here –
---     Rally: about +3.9 you, -1.2 them here (Jobs ×1.5); +2 momentum; 1 AP
---     ... one line per action button (Shared/UI/Explain) ...
---   All states · sorted closest
+--   Ohio · 17 votes                                  [×]
+--   <Battleground> <Your stronghold> <You are here>          at most 3 pills
+--   Dana 36 ━━━━━━━━━━━░░░░░░━━━━━━━━━ 35 Rex                the public poll
+--   [ Rally        ] [ Fundraise    ] [ Ad           ]       big buttons: what
+--   [ +3.9 support ] [ +$2.4        ] [ +2.1 support ]       each does, in words
+--   Message  (Jobs) (Health) (More +)                        rallies and ads talk about
+--   ( More actions + )                ( Details + )
 --
--- During a reveal the card stays up read-only (numbers, no actions), so a player
--- can inspect a state while the results play.
+-- A phone shows Rally, Fundraise and Ad; a wide screen also Attack ad, Poll and
+-- Ground game. "More actions" adds the rest (Region poll, Pivot). Pivot opens
+-- its chooser in place of the buttons. "Details" opens the numbers: the polls,
+-- momentum and its drift, ground game, top issues, and one line per action with
+-- the full math (Shared/UI/Explain), a details area.
 --
---   local card = StateCard.new(parent, model, order)
+-- During a reveal the card stays up read-only (title, poll, Details), so a
+-- player can inspect a state while the results play.
+--
+-- The full state list ("All states", sortable) is a separate collapsible panel
+-- in the same column, at `listOrder`.
+--
+--   local card = StateCard.new(parent, model, order, listOrder)
 --   card:render(p) · card:closeList() · card.root (Frame "StateCard")
 --
--- Element names (tests and agents use them): CardTitle, CardTags, CardPoll,
+-- Element names (tests and agents use them): CardTitle, CloseCard, CardTags,
+-- CardLead (LeadYou, LeadThem, LeadBar, LeadNote), Actions, ActionGrid, Rally,
+-- Fundraise, Ad, Attack, Poll, Gotv, RegionPoll, PivotButton (each with
+-- <name>Label and <name>Effect), MessageRow, MessageChips, Issue<issue>,
+-- MessageMore, MoreIssues, MoreActions, DetailsToggle, ActionHint, PivotChooser,
+-- PivotDrop<issue>, PivotAdd<issue>, PivotCancel, CardDetails, CardPoll,
 -- CardLean, CardMomentum, CardMomentumNote, CardBacklash, CardGround,
--- CardInternal, CardIssues, ActionPreview (PreviewToggle, Preview<button name>), Issue<issue>
--- (message chips), MessageMore, Rally, Fundraise, Ad, Attack, Poll, Gotv,
--- RegionPoll, PivotButton, PivotDrop<issue>, PivotAdd<issue>, PivotCancel,
--- ActionHint, StatesToggle, StatePicker, Sort_<mode>, Row_<id>.
+-- CardInternal, CardScout, CardIssues, Preview<button name>; StateList,
+-- StatesToggle, StatePicker, Sort_<mode>, Row_<id>.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -40,12 +44,12 @@ local IssueMap = require(SharedFolder.Sim.IssueMap)
 local Issues = require(SharedFolder.Sim.Issues)
 local Plan = require(SharedFolder.Sim.Plan)
 local PlanDraft = require(SharedFolder.UI.PlanDraft)
-local Resolve = require(SharedFolder.Sim.Resolve)
 local SimState = require(SharedFolder.Sim.State)
 local StateData = require(SharedFolder.Sim.StateData)
 local StateOrder = require(SharedFolder.UI.StateOrder)
 local SharedTypes = require(SharedFolder.Types)
 local ViewModule = require(SharedFolder.Sim.View)
+local Words = require(SharedFolder.UI.Words.Campaign)
 
 local Collapsible = require(script.Parent.Parent.Parent.UI.Collapsible)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
@@ -60,31 +64,14 @@ type Payload = Model.Payload
 local StateCard = {}
 
 local GAP = Kit.space.sm
-local TAG_H = 22 -- px, a tag pill
-local MAX_TAGS = 4
-local COLUMNS = 3 -- message chips, actions and pivot choices per row
-
--- The action grid in reading order: button name and player-facing label.
-local ACTIONS: { { name: string, label: string } } = {
-	{ name = "Rally", label = "Rally" },
-	{ name = "Fundraise", label = "Fundraise" },
-	{ name = "Ad", label = "Ad" },
-	{ name = "Attack", label = "Attack ad" },
-	{ name = "Poll", label = "Poll" },
-	{ name = "Gotv", label = "Ground game +1" },
-	{ name = "RegionPoll", label = "Region poll" },
-	{ name = "PivotButton", label = "Pivot" },
-}
-
--- Short reasons shown on a greyed-out action button.
-local SHORT_REASON: { [string]: string } = {
-	NotEnoughAP = "no AP",
-	NotEnoughMoney = "no $",
-	GotvCap = "max",
-	DuplicatePoll = "polled",
-	PivotUsed = "used",
-	TooManyActions = "full",
-}
+local MAX_PILLS = 3
+local COLUMNS = 3 -- action buttons, message chips and pivot choices per row
+local ACTION_H = 64 -- px, one action button: its name over what it does
+local MAIN_PHONE = 3 -- action buttons a phone shows before "More actions"
+local MAIN_WIDE = 6 -- ... a wide screen
+local LEAD_NAMES_H = 18 -- px, the names over the poll bar
+local LEAD_BAR_H = 8 -- px, the poll bar
+local MESSAGE_LABEL_W = 76 -- px, "Message" before the chips
 
 export type StateCard = {
 	root: Frame,
@@ -101,78 +88,264 @@ local function grid(parent: Instance, name: string, order: number, height: numbe
 	return frame, layout.CellSize
 end
 
--- A box that grows with its stacked contents.
-local function stack(parent: Instance, order: number, name: string, gap: number): Frame
-	local frame = Kit.box({
-		Name = name,
-		LayoutOrder = order,
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Parent = parent,
-	})
-	Kit.list("Vertical", gap).Parent = frame
-	return frame
-end
-
-function StateCard.new(parent: Instance, model: Model.Model, order: number): StateCard
+function StateCard.new(parent: Instance, model: Model.Model, order: number, listOrder: number?): StateCard
 	local config = model.config
 
-	local root = Kit.panel({
-		Name = "StateCard",
-		LayoutOrder = order,
-		Size = UDim2.fromScale(1, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Parent = parent,
-	})
-	Kit.list("Vertical", GAP).Parent = root
+	local root = Kit.card({ Name = "StateCard", LayoutOrder = order, Visible = false, Parent = parent })
 
-	-- ------------------------------------------------------------ title and tags
+	-- ------------------------------------------------------------ title, pills, poll
 
-	local title = Kit.heading("", { Name = "CardTitle", LayoutOrder = 1, Parent = root })
-	local tagRow = Kit.box({
-		Name = "CardTags",
-		LayoutOrder = 2,
-		Size = UDim2.new(1, 0, 0, TAG_H),
-		AutomaticSize = Enum.AutomaticSize.Y,
+	local titleRow = Kit.box({
+		Name = "CardTitleRow",
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = root,
 	})
-	local tagList = Kit.list("Horizontal", Kit.space.xs)
-	tagList.Wraps = true
-	tagList.Parent = tagRow
-	local tags: { TextLabel } = {}
-	for k = 1, MAX_TAGS do
-		local tag = Kit.text("", {
-			Name = `Tag{k}`,
-			LayoutOrder = k,
-			Size = UDim2.fromOffset(0, TAG_H),
-			AutomaticSize = Enum.AutomaticSize.X,
-			BackgroundTransparency = 0,
-			BackgroundColor3 = Kit.colors.raised,
-			TextSize = Kit.size.caption,
-			Visible = false,
-			Parent = tagRow,
-		})
-		Kit.corner(Kit.radius.pill).Parent = tag
-		Kit.new("UIPadding", {
-			PaddingLeft = UDim.new(0, Kit.space.sm),
-			PaddingRight = UDim.new(0, Kit.space.sm),
-			Parent = tag,
-		})
-		tags[k] = tag
+	local title = Kit.heading("", {
+		Name = "CardTitle",
+		Size = UDim2.new(1, -(Kit.MIN_TOUCH + Kit.space.sm), 1, 0),
+		TextScaled = true,
+		Parent = titleRow,
+	})
+	Kit.iconButton(Kit.glyph.close, function()
+		local id = model.selected
+		if id then
+			model.selectState(id) -- tapping the selected state again closes the card
+		end
+	end, {
+		Name = "CloseCard",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Parent = titleRow,
+	})
+
+	local tagRow =
+		Kit.stack({ Name = "CardTags", LayoutOrder = 2, Parent = root }, "Horizontal", Kit.space.xs)
+	local pills: { TextLabel } = {}
+	for k = 1, MAX_PILLS do
+		pills[k] =
+			Kit.pill("", "text", { Name = `Pill{k}`, LayoutOrder = k, Visible = false, Parent = tagRow })
 	end
 
-	-- ------------------------------------------------------------ stats
-
-	local details = stack(root, 3, "CardDetails", Kit.space.xs)
-	local function statRow(k: number): Frame
-		local frame = Kit.box({
-			Name = `StatRow{k}`,
-			LayoutOrder = k,
-			Size = UDim2.fromScale(1, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = details,
+	-- Who leads the public poll: names and numbers over one bar.
+	local leadBox = Kit.box({
+		Name = "CardLead",
+		LayoutOrder = 3,
+		Size = UDim2.new(1, 0, 0, LEAD_NAMES_H + Kit.space.xs + LEAD_BAR_H),
+		Parent = root,
+	})
+	Kit.dataColor(leadBox)
+	local function leadName(name: string, align: Enum.TextXAlignment): TextLabel
+		return Kit.text("", {
+			Name = name,
+			Size = UDim2.new(0.5, -Kit.space.xs, 0, LEAD_NAMES_H),
+			TextSize = Kit.size.caption,
+			TextScaled = true,
+			Font = Kit.font.bold,
+			TextXAlignment = align,
+			Parent = leadBox,
 		})
-		Kit.list("Horizontal", GAP).Parent = frame
+	end
+	local leadYou = leadName("LeadYou", Enum.TextXAlignment.Left)
+	local leadThem = leadName("LeadThem", Enum.TextXAlignment.Right)
+	leadThem.AnchorPoint = Vector2.new(1, 0)
+	leadThem.Position = UDim2.fromScale(1, 0)
+	local leadBar = Kit.new("Frame", {
+		Name = "LeadBar",
+		Position = UDim2.fromOffset(0, LEAD_NAMES_H + Kit.space.xs),
+		Size = UDim2.new(1, 0, 0, LEAD_BAR_H),
+		BackgroundColor3 = Kit.colors.raised,
+		BorderSizePixel = 0,
+		Parent = leadBox,
+	}) :: Frame
+	Kit.corner(LEAD_BAR_H // 2).Parent = leadBar
+	local leadYouBar = Kit.new("Frame", {
+		Name = "YouShare",
+		Size = UDim2.fromScale(0, 1),
+		BorderSizePixel = 0,
+		Parent = leadBar,
+	}) :: Frame
+	local leadThemBar = Kit.new("Frame", {
+		Name = "ThemShare",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0, 1),
+		BorderSizePixel = 0,
+		Parent = leadBar,
+	}) :: Frame
+	local leadNote = Kit.text("", {
+		Name = "LeadNote",
+		Size = UDim2.fromScale(1, 1),
+		TextSize = Kit.size.caption,
+		TextScaled = true,
+		TextColor3 = Kit.colors.muted,
+		Visible = false,
+		Parent = leadBox,
+	})
+
+	-- ------------------------------------------------------------ actions
+
+	local actionsBox = Kit.stack({ Name = "Actions", LayoutOrder = 4, Parent = root }, "Vertical", GAP)
+	local actionGrid, actionSize = grid(actionsBox, "ActionGrid", 1, ACTION_H)
+	local addAction: (name: string) -> ()
+	local pivotOpen: () -> ()
+	type ActionButton = { button: TextButton, label: TextLabel, effect: TextLabel }
+	local actionButtons: { [string]: ActionButton } = {}
+	for k, entry in Words.ACTIONS do
+		local button: TextButton
+		button = Kit.button("", function()
+			if button.Active == false then
+				return
+			end
+			if entry.name == "PivotButton" then
+				pivotOpen()
+			else
+				addAction(entry.name)
+			end
+		end, {
+			variant = "secondary",
+			Name = entry.name,
+			LayoutOrder = k,
+			Size = actionSize,
+			TextScaled = false,
+		})
+		local list = Kit.list("Vertical", 2)
+		list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		list.VerticalAlignment = Enum.VerticalAlignment.Center
+		list.Parent = button
+		local label = Kit.text(entry.label, {
+			Name = `{entry.name}Label`,
+			LayoutOrder = 1,
+			Size = UDim2.new(1, 0, 0, Kit.size.body + 4),
+			Font = Kit.font.bold,
+			TextScaled = true,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Parent = button,
+		})
+		local effect = Kit.caption("", {
+			Name = `{entry.name}Effect`,
+			LayoutOrder = 2,
+			TextColor3 = Kit.colors.text,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Parent = button,
+		})
+		button.Parent = actionGrid
+		actionButtons[entry.name] = { button = button, label = label, effect = effect }
+	end
+
+	-- The pivot chooser takes the buttons' place: drop an issue, then add one.
+	local pivotPanel =
+		Kit.stack({ Name = "PivotChooser", LayoutOrder = 2, Parent = actionsBox }, "Vertical", GAP)
+	local pivotTitle = Kit.text("", {
+		Name = "PivotTitle",
+		LayoutOrder = 1,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = pivotPanel,
+	})
+	local pivotChoices, pivotSize = grid(pivotPanel, "PivotChoices", 2, Kit.MIN_TOUCH)
+	Kit.button("Cancel", function()
+		model.pivotStage = nil
+		model.pivotDrop = nil
+		model.render()
+	end, { variant = "secondary", Name = "PivotCancel", LayoutOrder = 3, Parent = pivotPanel })
+
+	-- The message for rallies and ads: the best ones as chips, the rest behind More.
+	local messageRow = Kit.box({
+		Name = "MessageRow",
+		LayoutOrder = 3,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = actionsBox,
+	})
+	Kit.text("Message", {
+		Name = "MessageLabel",
+		Size = UDim2.fromOffset(MESSAGE_LABEL_W, Kit.MIN_TOUCH),
+		TextSize = Kit.size.caption,
+		TextColor3 = Kit.colors.muted,
+		Parent = messageRow,
+	})
+	local chipsBox = Kit.stack({
+		Name = "MessageBox",
+		Position = UDim2.fromOffset(MESSAGE_LABEL_W, 0),
+		Size = UDim2.new(1, -MESSAGE_LABEL_W, 0, 0),
+		Parent = messageRow,
+	}, "Vertical", GAP)
+	local chipGrid, chipSize = grid(chipsBox, "MessageChips", 1, Kit.MIN_TOUCH)
+	local moreGrid = grid(chipsBox, "MoreIssues", 2, Kit.MIN_TOUCH)
+	local issueChips: { [string]: TextButton } = {}
+	for k = 1, #Issues.list do
+		local issue: Issue = Issues.list[k]
+		local button: TextButton
+		button = Kit.chip(Model.issueName(issue), function()
+			if button.Active == false then
+				return
+			end
+			model.chosenIssue = issue
+			model.render()
+		end, {
+			Name = `Issue{issue}`,
+			LayoutOrder = k,
+			Size = chipSize,
+			TextWrapped = true,
+			Parent = chipGrid,
+		})
+		issueChips[issue] = button
+	end
+	local moreChip: TextButton
+	moreChip = Kit.chip("More +", function()
+		if moreChip.Active == false then
+			return
+		end
+		model.moreIssues = not model.moreIssues
+		model.render()
+	end, { Name = "MessageMore", LayoutOrder = 100, Size = chipSize, Parent = chipGrid })
+
+	local hint =
+		Kit.caption("", { Name = "ActionHint", LayoutOrder = 4, Visible = false, Parent = actionsBox })
+
+	-- ------------------------------------------------------------ toggles
+
+	local toggles = Kit.box({
+		Name = "CardToggles",
+		LayoutOrder = 5,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Parent = root,
+	})
+	local moreActions = Kit.button("More actions +", function()
+		model.moreActions = not model.moreActions
+		model.render()
+	end, {
+		variant = "ghost",
+		Name = "MoreActions",
+		Size = UDim2.new(0.5, -Kit.space.xs, 1, 0),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = toggles,
+	})
+	local detailsToggle = Kit.button("Details +", function()
+		model.details = not model.details
+		model.render()
+	end, {
+		variant = "ghost",
+		Name = "DetailsToggle",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.new(0.5, -Kit.space.xs, 1, 0),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = toggles,
+	})
+
+	-- ------------------------------------------------------------ details
+
+	local details = Kit.stack(
+		{ Name = "CardDetails", LayoutOrder = 6, Visible = false, Parent = root },
+		"Vertical",
+		Kit.space.xs
+	)
+	Kit.details(details)
+	Kit.divider({ LayoutOrder = 0, Parent = details })
+	local function statRow(k: number): Frame
+		local frame = Kit.stack({ Name = `StatRow{k}`, LayoutOrder = k, Parent = details }, "Horizontal", GAP)
 		return frame
 	end
 	local function stat(row: Frame, k: number, label: string, name: string): TextLabel
@@ -202,117 +375,32 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	-- Their ground game, as your polls saw it (D-049), or the hint that a poll shows it.
 	local scoutNote = Kit.caption("", { Name = "CardScout", LayoutOrder = 6, Parent = details })
 	local issuesLine = Kit.caption("", { Name = "CardIssues", LayoutOrder = 7, Parent = details })
-
-	-- ------------------------------------------------------------ message chips
-
-	local actionsBox = stack(root, 4, "Actions", GAP)
-	Kit.caption(
-		"Message for rallies and ads",
-		{ Name = "MessageLabel", LayoutOrder = 1, Parent = actionsBox }
-	)
-	local chipGrid, chipSize = grid(actionsBox, "MessageChips", 2, Kit.MIN_TOUCH)
-	local moreGrid = grid(actionsBox, "MoreIssues", 3, Kit.MIN_TOUCH)
-	local issueChips: { [string]: TextButton } = {}
-	for k = 1, #Issues.list do
-		local issue: Issue = Issues.list[k]
-		local button: TextButton
-		button = Kit.button(Model.issueName(issue), function()
-			if button.Active == false then
-				return
-			end
-			model.chosenIssue = issue
-			model.render()
-		end, {
-			variant = "chip",
-			Name = `Issue{issue}`,
-			LayoutOrder = k,
-			Size = chipSize,
-			TextWrapped = true,
-			Parent = chipGrid,
-		})
-		issueChips[issue] = button
-	end
-	local moreChip: TextButton
-	moreChip = Kit.button("More +", function()
-		if moreChip.Active == false then
-			return
-		end
-		model.moreIssues = not model.moreIssues
-		model.render()
-	end, { variant = "chip", Name = "MessageMore", LayoutOrder = 100, Size = chipSize, Parent = chipGrid })
-
-	-- ------------------------------------------------------------ action grid
-
-	local actionGrid, actionSize = grid(actionsBox, "ActionGrid", 4, Kit.MIN_TOUCH)
-	local addAction: (name: string) -> ()
-	local pivotOpen: () -> ()
-	local actionButtons: { [string]: TextButton } = {}
-	for k, entry in ACTIONS do
-		local button: TextButton
-		button = Kit.button(entry.label, function()
-			if button.Active == false then
-				return
-			end
-			if entry.name == "PivotButton" then
-				pivotOpen()
-			else
-				addAction(entry.name)
-			end
-		end, {
-			Name = entry.name,
-			LayoutOrder = k,
-			Size = actionSize,
-			TextWrapped = true,
-			Parent = actionGrid,
-		})
-		actionButtons[entry.name] = button
-	end
-
-	-- The pivot chooser takes the action grid's place: drop an issue, then add one.
-	local pivotPanel = stack(actionsBox, 5, "PivotChooser", GAP)
-	local pivotTitle = Kit.caption("", {
-		Name = "PivotTitle",
-		LayoutOrder = 1,
-		TextColor3 = Kit.colors.text,
-		Parent = pivotPanel,
-	})
-	local pivotChoices, pivotSize = grid(pivotPanel, "PivotChoices", 2, Kit.MIN_TOUCH)
-	Kit.button("Cancel", function()
-		model.pivotStage = nil
-		model.pivotDrop = nil
-		model.render()
-	end, { variant = "secondary", Name = "PivotCancel", LayoutOrder = 3, Parent = pivotPanel })
-
-	local hint = Kit.caption("", { Name = "ActionHint", LayoutOrder = 6, Parent = actionsBox })
-
 	-- What each button would do here, worked out by Shared/UI/Explain: one line
-	-- per button, so it works on touch (no hover needed).
-	local preview = Collapsible.new(actionsBox, {
-		title = "What each action does here",
-		name = "ActionPreview",
-		order = 7,
-		expanded = true,
-		onToggle = function()
-			model.render()
-		end,
+	-- per button, the full math.
+	local preview =
+		Kit.stack({ Name = "ActionPreview", LayoutOrder = 8, Parent = details }, "Vertical", Kit.space.xs)
+	Kit.text("What each action does here", {
+		Name = "PreviewTitle",
+		LayoutOrder = 0,
+		Font = Kit.font.bold,
+		Parent = preview,
 	})
-	preview.toggle.Name = "PreviewToggle"
 	local previewLines: { [string]: TextLabel } = {}
-	for k, entry in ACTIONS do
+	for k, entry in Words.ACTIONS do
 		previewLines[entry.name] = Kit.caption("", {
 			Name = `Preview{entry.name}`,
 			LayoutOrder = k,
 			TextColor3 = Kit.colors.text,
-			Parent = preview.body,
+			Parent = preview,
 		})
 	end
 
 	-- ------------------------------------------------------------ state list
 
-	local list = Collapsible.new(root, {
+	local list = Collapsible.new(parent, {
 		title = "All states",
 		name = "StateList",
-		order = 5,
+		order = listOrder or order + 10,
 		onToggle = function()
 			model.render()
 		end,
@@ -323,13 +411,14 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	local sortChips: { [string]: TextButton } = {}
 	for k = 1, #StateOrder.MODES do
 		local mode: StateOrder.Mode = StateOrder.MODES[k]
-		local button = Kit.button(StateOrder.label(mode), function()
+		local button = Kit.chip(StateOrder.label(mode), function()
 			model.sortMode = mode
 			model.render()
-		end, { variant = "chip", Name = `Sort_{mode}`, LayoutOrder = k, Size = sortSize, Parent = sortGrid })
+		end, { Name = `Sort_{mode}`, LayoutOrder = k, Size = sortSize, Parent = sortGrid })
 		sortChips[mode] = button
 	end
-	local rowsBox = stack(list.body, 1, "StateRows", Kit.space.xs)
+	local rowsBox =
+		Kit.stack({ Name = "StateRows", LayoutOrder = 1, Parent = list.body }, "Vertical", Kit.space.xs)
 
 	type PickerRow = {
 		index: number,
@@ -341,10 +430,14 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	local pickerRows: { [string]: PickerRow } = {}
 	for index, record in StateData.list do
 		local id = record.id
-		local button = Kit.button("", function()
-			model.selectState(id)
+		local button = Kit.chip("", function()
+			if model.selected ~= id then
+				model.selectState(id)
+			elseif model.portrait then
+				list:setExpanded(false)
+				model.render()
+			end
 		end, {
-			variant = "chip",
 			Name = `Row_{id}`,
 			LayoutOrder = index,
 			Parent = rowsBox,
@@ -365,23 +458,24 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		end
 		local code = cell("Code", 0, 0.1, { Font = Kit.font.bold })
 		cell("Name", 0.1, 0.36, {}).Text = record.name
-		cell("EV", 0.46, 0.12, { TextXAlignment = Enum.TextXAlignment.Center }).Text = `{record.ev} EV`
-		local margin = cell("Margin", 0.58, 0.24, {
+		cell("EV", 0.46, 0.14, { TextXAlignment = Enum.TextXAlignment.Center }).Text = `{record.ev} votes`
+		local margin = cell("Margin", 0.6, 0.24, {
 			Font = Kit.font.medium,
 			TextXAlignment = Enum.TextXAlignment.Center,
 		})
-		local momentum = cell("Momentum", 0.82, 0.18, {
+		local momentum = cell("Momentum", 0.84, 0.16, {
 			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.muted,
 			TextXAlignment = Enum.TextXAlignment.Right,
 		})
 		code.Text = id
+		Kit.dataColor(button)
 		pickerRows[id] = { index = index, button = button, code = code, margin = margin, momentum = momentum }
 	end
 
 	-- ------------------------------------------------------------ plan logic
 
-	-- The action a grid button adds for state `id`.
+	-- The action a button adds for state `id`.
 	local function actionFor(view: View, name: string, id: string): Action
 		if name == "Rally" then
 			return { kind = "Rally", state = id, issue = Model.messageIssue(model, view, id) }
@@ -485,7 +579,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		local choices: { Issue } = {}
 		local dropping = model.pivotStage == "drop"
 		if dropping then
-			pivotTitle.Text = "Pivot (1 AP, once per match, costs national support). Drop which issue?"
+			pivotTitle.Text = "Pivot: drop which issue?"
 			for k = 1, #platform do
 				table.insert(choices, platform[k])
 			end
@@ -500,7 +594,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		end
 		for k = 1, #choices do
 			local issue: Issue = choices[k]
-			Kit.button(Model.issueName(issue), function()
+			Kit.chip(Model.issueName(issue), function()
 				if model.pivotStage == "drop" then
 					model.pivotDrop = issue
 					model.pivotStage = "add"
@@ -514,7 +608,6 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 				end
 				model.render()
 			end, {
-				variant = "chip",
 				Name = if dropping then `PivotDrop{issue}` else `PivotAdd{issue}`,
 				LayoutOrder = k,
 				Size = pivotSize,
@@ -525,36 +618,42 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 	end
 
 	local function renderMessages(view: View, id: string, canEdit: boolean)
-		local platform: { Issue } = view.players[view.you].platform or {}
 		local message = Model.messageIssue(model, view, id)
 		local choices = PlanDraft.messageChoices(config, view, id)
 		local offered: { [string]: number } = {}
 		for k, choice in choices do
-			offered[choice.issue] = k
+			if k < COLUMNS then
+				offered[choice.issue] = k
+			end
+		end
+		-- A picked message from "More" joins the row, so the choice stays in sight.
+		if offered[message] == nil and not model.moreIssues then
+			offered[message] = COLUMNS - 1
+			for issue, k in offered do
+				if k == COLUMNS - 1 and issue ~= message then
+					offered[issue] = nil
+				end
+			end
 		end
 		local extra = 0
 		for k = 1, #Issues.list do
 			local issue: Issue = Issues.list[k]
 			local button = issueChips[issue]
-			local m =
-				Resolve.issueMult(config, platform, IssueMap.of(view.issueMap, id), issue, view.platformMults)
-			button.Text = `{Model.issueName(issue)} {Model.mult(m)}`
 			local at = offered[issue]
 			if at then
 				button.Parent = chipGrid
 				button.LayoutOrder = at
-				button.Visible = true
 			else
 				extra += 1
 				button.Parent = moreGrid
 				button.LayoutOrder = k
-				button.Visible = true
 			end
+			button.Visible = true
 			Kit.setSelected(button, issue == message)
 			Kit.setEnabled(button, canEdit)
 		end
 		moreChip.Visible = extra > 0
-		moreChip.Text = if model.moreIssues then "Fewer –" else "More +"
+		moreChip.Text = if model.moreIssues then `Fewer {Kit.glyph.minus}` else "More +"
 		Kit.setEnabled(moreChip, canEdit)
 		moreGrid.Visible = model.moreIssues and extra > 0
 	end
@@ -564,8 +663,11 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		local hintText: string? = nil
 		local from = PlanDraft.location(view, model.draft)
 		local pivotWhy = pivotProblem(view)
-		for _, entry in ACTIONS do
-			local button = actionButtons[entry.name]
+		local message: Issue = Model.messageIssue(model, view, id)
+		local opponent = Model.firstName(config, view, Model.opponentOf(view))
+		local main = if model.portrait then MAIN_PHONE else MAIN_WIDE
+		for k, entry in Words.ACTIONS do
+			local parts = actionButtons[entry.name]
 			local problem: string?
 			local extra = 0
 			if entry.name == "PivotButton" then
@@ -575,9 +677,12 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 				problem = problemOf(view, action)
 				extra = Model.extraCash(model, view, action)
 			end
+			local shown = k <= main or model.moreActions
+			parts.button.Visible = shown
+			local enabled = canEdit and problem == nil
 			if problem then
-				button.Text = `{entry.label} ({SHORT_REASON[problem] or "no"})`
-				if hintText == nil then
+				parts.effect.Text = Words.reason(problem)
+				if hintText == nil and shown then
 					if entry.name == "RegionPoll" and problem == Plan.Reason.DuplicatePoll then
 						hintText =
 							`Greyed out: you already poll the {Model.regionName(PlanDraft.regionOf(id))} this week.`
@@ -586,24 +691,27 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 					end
 				end
 			else
+				local issue: Issue? = if entry.name == "Rally" or entry.name == "Ad" then message else nil
 				local moves = entry.name == "Rally" or entry.name == "Fundraise"
 				local flight = moves and not Plan.isAdjacent(from, id)
-				if flight then
-					button.Text = `{entry.label} ✈ {Model.money(extra)}`
-				elseif extra > 1e-9 then
-					button.Text = `{entry.label} {Model.money(extra)}`
-				else
-					button.Text = entry.label
-				end
+				local effect = Words.effect(config, view, model.draft, id, entry.name, issue, opponent)
+				local cost = Words.cost(extra, flight, entry.name == "Poll")
+				parts.effect.Text = if cost then `{effect}\n{cost}` else effect
 			end
-			Kit.setEnabled(button, canEdit and problem == nil)
+			Kit.setEnabled(parts.button, enabled)
+			parts.label.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
+			parts.effect.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
 		end
+		local hidden = #Words.ACTIONS - main
+		moreActions.Visible = hidden > 0
+		moreActions.Text = if model.moreActions then `Fewer actions {Kit.glyph.minus}` else "More actions +"
 		if model.pivotStage ~= nil and (not canEdit or pivotWhy ~= nil) then
 			model.pivotStage = nil
 		end
 		local choosing = model.pivotStage ~= nil
 		actionGrid.Visible = not choosing
 		pivotPanel.Visible = choosing
+		messageRow.Visible = not choosing
 		if choosing then
 			renderPivot(view)
 		else
@@ -612,10 +720,9 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		if not canEdit then
 			hintText = "Your plan is locked in."
 		end
-		hint.Text = hintText
-			or "Rally and Fundraise move your candidate (1 AP each). Ads, polls and ground game cost money."
-		if preview:isExpanded() then
-			local message: Issue = Model.messageIssue(model, view, id)
+		hint.Text = hintText or ""
+		hint.Visible = hintText ~= nil
+		do
 			for _, entry in Explain.previews(config, view, model.draft, id, message) do
 				local line = previewLines[entry.name]
 				if line then
@@ -627,7 +734,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 
 	local function renderList(p: Payload)
 		local view = p.view
-		list:setTitle(`All states · sorted {string.lower(StateOrder.label(model.sortMode))}`)
+		list:setTitle(`All states · {string.lower(StateOrder.label(model.sortMode))}`)
 		if not list:isExpanded() then
 			return
 		end
@@ -653,6 +760,134 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		end
 	end
 
+	-- The pills: at most three, the most useful first.
+	local function renderPills(view: View, s: ViewModule.StateView, id: string)
+		local me, rival = view.you, Model.opponentOf(view)
+		local theirName = Model.firstName(config, view, rival)
+		local items: { { text: string, tone: Kit.Tone } } = {}
+		if s.battleground then
+			table.insert(items, { text = "Battleground", tone = "warn" })
+		end
+		if s.owner then
+			local whose = if s.owner == me then "Your" else `{theirName}'s`
+			if s.battleground and not s.isHome then
+				-- Nominated: the stronghold bonus is gone (playtest 1).
+				table.insert(
+					items,
+					{ text = `Was {if s.owner == me then "your" else whose} stronghold`, tone = "muted" }
+				)
+			else
+				table.insert(
+					items,
+					{ text = `{whose} {if s.isHome then "home" else "stronghold"}`, tone = "text" }
+				)
+			end
+		end
+		if view.players[me].location == id then
+			table.insert(items, { text = "You are here", tone = "good" })
+		elseif view.players[rival].location == id then
+			table.insert(items, { text = `{theirName} is here`, tone = "muted" })
+		end
+		local platform: { Issue } = view.players[me].platform or {}
+		for _, issue in IssueMap.of(view.issueMap, id) do
+			if table.find(platform, issue) then
+				table.insert(items, { text = "Your issue", tone = "good" })
+				break
+			end
+		end
+		for k, pill in pills do
+			local item = items[k]
+			pill.Visible = item ~= nil
+			if item then
+				pill.Text = item.text
+				pill.TextColor3 = Kit.tone(item.tone)
+			end
+		end
+		tagRow.Visible = #items > 0
+	end
+
+	-- The lead bar: the public poll, or the lean before the first poll.
+	local function renderLead(view: View, s: ViewModule.StateView)
+		local me, rival = view.you, Model.opponentOf(view)
+		local poll = s.poll
+		local myColor, theirColor = Kit.playerColor(view, me), Kit.playerColor(view, rival)
+		leadYou.Visible = poll ~= nil
+		leadThem.Visible = poll ~= nil
+		leadBar.Visible = poll ~= nil
+		leadNote.Visible = poll == nil
+		if poll == nil then
+			local lean = math.floor(s.lean + 0.5)
+			leadNote.Text = if s.leanTo and lean > 0
+				then `No poll yet · leans {if s.leanTo == me
+					then "your way"
+					else Model.firstName(config, view, rival)} +{lean}`
+				else "No poll yet · no lean"
+			return
+		end
+		local mine, theirs = poll.support[me] or 0, poll.support[rival] or 0
+		leadYou.Text = `{Model.firstName(config, view, me)} {mine}`
+		leadThem.Text = `{theirs} {Model.firstName(config, view, rival)}`
+		leadYou.TextColor3 = myColor
+		leadThem.TextColor3 = theirColor
+		leadYouBar.BackgroundColor3 = myColor
+		leadThemBar.BackgroundColor3 = theirColor
+		leadYouBar.Size = UDim2.fromScale(math.clamp(mine / 100, 0, 1), 1)
+		leadThemBar.Size = UDim2.fromScale(math.clamp(theirs / 100, 0, 1), 1)
+	end
+
+	local function renderDetails(view: View, s: ViewModule.StateView, id: string)
+		local me, rival = view.you, Model.opponentOf(view)
+		local theirName = Model.firstName(config, view, rival)
+		local poll = s.poll
+		pollValue.Text = if poll
+			then `you {poll.support[me] or 0} – {poll.support[rival] or 0} {theirName} · {poll.undecided} undecided`
+			else "No public poll yet"
+		leanValue.Text = Explain.leanText(view, s)
+		local mine, theirs = s.momentum[me] or 0, s.momentum[rival] or 0
+		local lead = mine - theirs
+		local glyph = if math.abs(lead) >= 0.05 then `{Kit.glyph.up} ` else ""
+		momentumValue.Text = string.format("%syou %.1f · %s %.1f", glyph, mine, theirName, theirs)
+		momentumValue.TextColor3 = if lead >= 0.05
+			then Kit.playerColor(view, me)
+			elseif lead <= -0.05 then Kit.playerColor(view, rival)
+			else Kit.colors.text
+		momentumNote.Text = Explain.momentumNote(config, view, s)
+		local backlash = Explain.backlashNote(config, view, s)
+		backlashNote.Text = backlash or ""
+		backlashNote.Visible = backlash ~= nil
+		local profile = PlanDraft.profile(config, view)
+		local planned = Model.plannedUnits(model, id)
+		groundValue.Text = `{s.gotv} / {profile.gotvMaxUnits}`
+			.. (if planned > 0 then ` (+{planned} planned)` else "")
+			.. ` · pool size {Model.money(s.capacity)}`
+		local internal = nil
+		for _, result in view.internalPolls do
+			if result.state == id then
+				internal = result
+			end
+		end
+		if internal then
+			internalValue.Text = string.format(
+				"you %.1f – %.1f %s · %.1f undecided",
+				internal.support[me] or 0,
+				internal.support[rival] or 0,
+				theirName,
+				internal.undecided
+			)
+		end
+		internalCell.Visible = internal ~= nil
+		scoutNote.Text = Explain.scoutNote(config, view, id)
+		local scout = Explain.scoutOf(view, id)
+		scoutNote.TextColor3 = if scout and (scout.gotv[rival] or 0) > 0
+			then Kit.colors.danger
+			else Kit.colors.muted
+		local issueNames: { string } = {}
+		for _, issue in IssueMap.of(view.issueMap, id) do
+			table.insert(issueNames, Model.issueName(issue))
+		end
+		issuesLine.Text = `Top issues: {table.concat(issueNames, ", ")}`
+	end
+
 	local card: StateCard = {
 		root = root,
 		closeList = function(_self: StateCard)
@@ -661,103 +896,32 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number): Sta
 		render = function(_self: StateCard, p: Payload)
 			local view = p.view
 			renderList(p)
+			list.root.Visible = Model.planning(p) or p.reveal == "Resolve"
 			local id = model.selected
 			local index = if id then SimState.indexOf[id] else nil
 			if id == nil or index == nil then
-				title.Text = "Tap a state on the map"
-				tagRow.Visible = false
-				details.Visible = false
-				actionsBox.Visible = false
+				root.Visible = false
 				return
 			end
+			root.Visible = true
 			local planning = Model.planning(p)
 			local canEdit = Model.editable(model, p)
-			details.Visible = true
-			actionsBox.Visible = planning
-			local me, rival = view.you, Model.opponentOf(view)
 			local s = view.states[index]
 			local record: SharedTypes.StateRecord = StateData.byId[id]
-			title.Text = `{record.name} · {record.ev} EV`
-
-			local tagTexts: { string } = {}
-			if s.battleground then
-				table.insert(tagTexts, "Battleground")
+			title.Text = `{record.name} · {record.ev} votes`
+			renderPills(view, s, id)
+			renderLead(view, s)
+			actionsBox.Visible = planning
+			moreActions.Visible = planning
+			detailsToggle.Text = if model.details then `Details {Kit.glyph.minus}` else "Details +"
+			details.Visible = model.details
+			preview.Visible = planning
+			-- Filled in even while closed, so opening Details shows them at once.
+			renderDetails(view, s, id)
+			if planning then
+				renderMessages(view, id, canEdit)
+				renderActions(p, id, canEdit)
 			end
-			if s.owner then
-				local whose = if s.owner == me then "Your" else "Their"
-				if s.battleground and not s.isHome then
-					-- Nominated: the stronghold bonus is gone (playtest 1).
-					table.insert(tagTexts, `Was {string.lower(whose)} stronghold`)
-				else
-					table.insert(tagTexts, `{whose} {if s.isHome then "home state" else "stronghold"}`)
-				end
-			end
-			if view.players[me].location == id then
-				table.insert(tagTexts, "You are here")
-			end
-			if view.players[rival].location == id then
-				table.insert(tagTexts, "Opponent is here")
-			end
-			for k, tag in tags do
-				tag.Text = tagTexts[k] or ""
-				tag.Visible = tagTexts[k] ~= nil
-			end
-			tagRow.Visible = #tagTexts > 0
-
-			local poll = s.poll
-			pollValue.Text = if poll
-				then `you {poll.support[me] or 0} – {poll.support[rival] or 0} them · {poll.undecided} undecided`
-				else "No public poll yet"
-			leanValue.Text = Explain.leanText(view, s)
-			local mine, theirs = s.momentum[me] or 0, s.momentum[rival] or 0
-			local lead = mine - theirs
-			local glyph = if math.abs(lead) >= 0.05 then "▲ " else ""
-			momentumValue.Text = string.format("%syou %.1f · them %.1f", glyph, mine, theirs)
-			momentumValue.TextColor3 = if lead >= 0.05
-				then Kit.playerColor(view, me)
-				elseif lead <= -0.05 then Kit.playerColor(view, rival)
-				else Kit.colors.text
-			momentumNote.Text = Explain.momentumNote(config, view, s)
-			local backlash = Explain.backlashNote(config, view, s)
-			backlashNote.Text = backlash or ""
-			backlashNote.Visible = backlash ~= nil
-			local profile = PlanDraft.profile(config, view)
-			local planned = Model.plannedUnits(model, id)
-			groundValue.Text = `{s.gotv} / {profile.gotvMaxUnits}`
-				.. (if planned > 0 then ` (+{planned} planned)` else "")
-				.. ` · pool size {Model.money(s.capacity)}`
-
-			local internal = nil
-			for _, result in view.internalPolls do
-				if result.state == id then
-					internal = result
-				end
-			end
-			if internal then
-				internalValue.Text = string.format(
-					"you %.1f – %.1f them · %.1f undecided",
-					internal.support[me] or 0,
-					internal.support[rival] or 0,
-					internal.undecided
-				)
-			end
-			internalCell.Visible = internal ~= nil
-			scoutNote.Text = Explain.scoutNote(config, view, id)
-			local scout = Explain.scoutOf(view, id)
-			scoutNote.TextColor3 = if scout and (scout.gotv[rival] or 0) > 0
-				then Kit.colors.danger
-				else Kit.colors.muted
-			local issueNames: { string } = {}
-			for _, issue in IssueMap.of(view.issueMap, record.id) do
-				table.insert(issueNames, Model.issueName(issue))
-			end
-			issuesLine.Text = `Top issues: {table.concat(issueNames, ", ")}`
-
-			if not planning then
-				return
-			end
-			renderMessages(view, id, canEdit)
-			renderActions(p, id, canEdit)
 		end,
 	}
 	return card

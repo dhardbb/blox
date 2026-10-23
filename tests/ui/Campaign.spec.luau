@@ -22,7 +22,9 @@ local Session = require("@net/Session")
 local StateData = require("@sim/StateData")
 local StateOrder = require("@ui/StateOrder")
 local Support = require("../e2e/Support")
+local Swing = require("@ui/Swing")
 local Test = require("@testlib/Test")
+local Words = require("@ui/Words/Campaign")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -138,7 +140,9 @@ describe("Campaign screen", function()
 			check(string.find(text(peer, "WeekLabel"), "of 12", 1, true) ~= nil, "no week label")
 			if moment == "Plan" or moment == "ChoiceWeek" then
 				check(shown(find(peer, "LockIn")), "Lock in is hidden while planning")
-				check(shown(find(peer, "StateCard")), "the state card is hidden while planning")
+				-- The week starts on the map: no card until a state is tapped (UI-STYLE §4.5).
+				check(not shown(find(peer, "StateCard")), "the state card shows before a state is tapped")
+				expect(text(peer, "NowText")):toBe("Tap a state on the map")
 				check(
 					text(peer, "StageLabel") == "Plan your week",
 					"stage label: " .. text(peer, "StageLabel")
@@ -169,9 +173,12 @@ describe("Campaign screen", function()
 		local home = view.players[view.you].location :: string
 
 		press(world, peer, home)
-		check(string.find(text(peer, "CardTitle"), "EV", 1, true) ~= nil, "the state card shows no state")
+		check(shown(find(peer, "StateCard")), "the state card did not open")
+		check(string.find(text(peer, "CardTitle"), "votes", 1, true) ~= nil, "the state card shows no state")
 		local before = text(peer, "BarStatus")
-		check(string.find(before, "AP 0/3", 1, true) ~= nil, "empty plan status: " .. before)
+		expect(before):toBe("Nothing planned yet")
+		-- An empty plan still locks in with one tap: the button says it skips the week.
+		expect(text(peer, "LockIn")):toBe("Skip this week")
 
 		-- Change the rally message (one tap, opening "More" if Health is not a
 		-- chip here), then rally, fundraise and run an ad.
@@ -201,9 +208,10 @@ describe("Campaign screen", function()
 		)
 		local after = text(peer, "BarStatus")
 		check(after ~= before, "the plan status did not change")
-		check(string.find(after, "AP 2/3", 1, true) ~= nil, "plan status: " .. after)
-		check(text(peer, "APLabel") == "1 AP", "header AP: " .. text(peer, "APLabel"))
-		check(string.find(text(peer, "PlanTitle"), "2 of 3 AP", 1, true) ~= nil, text(peer, "PlanTitle"))
+		check(string.find(after, "Plan: Rally", 1, true) ~= nil, "plan status: " .. after)
+		expect(text(peer, "LockIn")):toBe("Lock in")
+		check(text(peer, "APLabel") == "1 action left", "header actions: " .. text(peer, "APLabel"))
+		check(string.find(text(peer, "PlanTitle"), "2 of 3 actions", 1, true) ~= nil, text(peer, "PlanTitle"))
 
 		-- Removing an item renumbers the tray.
 		press(world, peer, "RemoveItem2")
@@ -287,6 +295,9 @@ describe("Campaign screen", function()
 				other = issue
 			end
 		end
+		press(world, peer, view.players[view.you].location :: string)
+		press(world, peer, "MoreActions")
+		check(shown(find(peer, "PivotButton")), "More actions does not show Pivot")
 		press(world, peer, "PivotButton")
 		press(world, peer, `PivotDrop{platform[1]}`)
 		press(world, peer, `PivotAdd{other}`)
@@ -313,10 +324,11 @@ describe("Campaign screen", function()
 		local world, peer = fixture("Resolve")
 		check(text(peer, "StageLabel") == "Results", "stage label: " .. text(peer, "StageLabel"))
 		check(text(peer, "RevealLine1") ~= "", "no event lines")
-		local first = text(peer, "Caption")
+		-- The reveal's latest line is the header's now line.
+		local first = text(peer, "NowText")
 		FakeRoblox.run(world, 7)
-		check(text(peer, "Caption") ~= "" and text(peer, "RevealSummary") ~= "", "the reveal never finished")
-		check(first ~= "", "no caption over the map")
+		check(text(peer, "NowText") ~= "" and text(peer, "RevealSummary") ~= "", "the reveal never finished")
+		check(first ~= "", "no now line during the reveal")
 		press(world, peer, "SkipButton")
 		check(said(peer, "[270] DEBUG_UI skip"), "Skip sent nothing")
 		check(
@@ -344,7 +356,7 @@ describe("Campaign screen", function()
 		noErrors(world)
 	end)
 
-	it("shows the week's event above everything else, with its effect in plain words", function()
+	it("shows the week's event under the plan, with its effect in plain words", function()
 		-- The Plan fixture is a Windfall week.
 		local _, peer = mountsCleanly("Plan")
 		local event = Fixtures.payload(C, "Plan").view.event
@@ -367,11 +379,8 @@ describe("Campaign screen", function()
 		check(not shown(find(peer, "ChoiceNote")), "the Choice note shows in a Windfall week")
 		check(not shown(find(peer, "EventMapNote")), "a Windfall marks no states")
 		local card, plan = find(peer, "StateCard"), find(peer, "PlanList")
-		check(
-			card.LayoutOrder < banner.LayoutOrder,
-			"the state card is not above the event outside Choice weeks"
-		)
-		check(banner.LayoutOrder < plan.LayoutOrder, "the event card is not above the plan")
+		check(card.LayoutOrder < plan.LayoutOrder, "the state card is not above the plan")
+		check(plan.LayoutOrder < banner.LayoutOrder, "the plan is not above the event card")
 	end)
 
 	it("hides the banner during the resolve reveal, which carries next week's view", function()
@@ -413,6 +422,11 @@ describe("Campaign screen", function()
 			expect(find(peer, "EventCard"):GetAttribute("EventName")):toBe(event.name)
 			check(find(peer, "EventToggle"):GetAttribute("Expanded") == true, "the Choice card is collapsed")
 			expect(text(peer, "EventEffect")):toBe(PlanDraft.eventEffect(C, event))
+			-- The header names the event; the card has no title row of its own.
+			check(string.find(text(peer, "WeekLabel"), event.name, 1, true) ~= nil, text(peer, "WeekLabel"))
+			check(not shown(find(peer, "EventToggle")), "the stance card still has a title row")
+			check(not shown(find(peer, "ChoiceNote")), "the tradeoff note is not behind Why?")
+			press(world, peer, "WhyToggle")
 			check(shown(find(peer, "ChoiceNote")), "no tradeoff note")
 			check(
 				string.find(text(peer, "ChoiceNote"), "top issue", 1, true) ~= nil,
@@ -426,6 +440,8 @@ describe("Campaign screen", function()
 			end
 			local stanceA = event.stances[1]
 			expect(text(peer, "ChoiceA")):toBe(`A · {stanceA.name}`)
+			local view = Fixtures.payload(C, "Stance").view
+			expect(text(peer, "ChoiceAEffect")):toBe(Words.stanceEffect(Swing.stance(C, view, "A")))
 			-- The hedge (C) starts selected: it alone looks different.
 			check(attack.BackgroundColor3 == defend.BackgroundColor3, "attack and defend differ")
 			check(ignore.BackgroundColor3 ~= defend.BackgroundColor3, "Ignore is not selected by default")
@@ -531,6 +547,8 @@ describe("Campaign screen", function()
 		end
 		check(revealed, "the reveal never captioned your answer: " .. table.concat(lines, " | "))
 		local feedLine = text(peer, "FeedEvent")
+		check(not shown(find(peer, "FeedEvent")), "the News card is not collapsed by default")
+		Support.press(rig, peer, "WeekToggle")
 		check(shown(find(peer, "FeedEvent")), "the week card shows no event")
 		check(
 			string.find(feedLine, `Last week's event: {event.name}.\nYou took A · `, 1, true) ~= nil,
@@ -726,7 +744,7 @@ describe("Campaign state list", function()
 		Rig.tap(world, peer, "Campaign", "StatesToggle")
 		Rig.tap(world, peer, "Campaign", "Row_WY")
 		check(Rig.contains(Rig.textOf(peer, "Campaign", "CardTitle"), "Wyoming"), "Wyoming was not selected")
-		check(Rig.contains(Rig.textOf(peer, "Campaign", "Fundraise"), "Fundraise"), "no action buttons")
+		check(Rig.contains(Rig.textOf(peer, "Campaign", "FundraiseLabel"), "Fundraise"), "no action buttons")
 		Rig.tap(world, peer, "Campaign", "Fundraise")
 		check(
 			Rig.contains(Rig.textOf(peer, "Campaign", "PlanItem1"), "Wyoming"),
@@ -746,7 +764,7 @@ describe("Campaign state list", function()
 			end
 		end
 		local all = table.concat(texts, " | ")
-		check(Rig.contains(all, "OH") and Rig.contains(all, "EV"), `row text: {all}`)
+		check(Rig.contains(all, "OH") and Rig.contains(all, "votes"), `row text: {all}`)
 		check(Rig.contains(all, "Mom"), `no momentum in the row: {all}`)
 		check(
 			Rig.need(peer, "Campaign", "Sort_Closest"):GetAttribute("Selected") == true,

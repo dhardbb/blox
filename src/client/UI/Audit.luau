@@ -96,8 +96,6 @@ Audit.PENDING = {
 	-- Campaign. WP-C: Election, Results.
 	Select = { wallOfText = true }, -- WP-A: the platform hint
 	Draft = { tokenColor = true, wallOfText = true }, -- WP-A: legend swatches, "how it works"
-	Decision = { labelWords = true, wallOfText = true }, -- WP-B: focus topic labels and notes
-	Campaign = { wallOfText = true }, -- WP-B: state card momentum note; WP-C: debate swing lines
 	Election = { tokenColor = true }, -- WP-C: player-tinted feed rows (mark them Kit.dataColor)
 	Results = { textSizes = true }, -- WP-C: five sizes (hero, title, heading, body, caption)
 } :: { [string]: { [Rule]: boolean } }

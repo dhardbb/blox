@@ -1,16 +1,18 @@
 --!strict
--- The campaign screen, where most of a match is played (UI overhaul §3.4). The
--- header runs across the top; the map fills the main area (left on 16:9, top on
--- phones); beside it (below on phones) a scrolling side column and, pinned under
+-- The campaign screen, where most of a match is played (docs/UI-STYLE.md §4.5).
+-- The header runs across the top with the "what to do now" line; the map is the
+-- hero (left on 16:9, top on phones) with the lens chips and a "Map key" button
+-- over it; beside it (below on phones) a scrolling side column and, pinned under
 -- it, the action bar with Lock in. The same screen plays the resolve reveal and
 -- the debate reveal.
 --
--- Side column, top to bottom: the reveal panel (during reveals), the state
--- card, the event card, the plan list, the week card. The debate focus and a
--- Choice stance are not here: they have their own Decision screen before the
--- plan (Screens/Decision, D-044); the event card repeats the stance you took in
--- one line. The parts live in Screens/CampaignParts; this file owns the model,
--- the layout, the map, the action bar, and the routing between moments.
+-- Side column, top to bottom: the reveal panel (during reveals), a first-match
+-- coach tip, the state card (only once a state is tapped), the plan list, the
+-- event card, the week card, the full state list. The debate focus and a Choice
+-- stance are not here: they have their own Decision screen before the plan
+-- (Screens/Decision, D-044); the event card repeats the stance you took in one
+-- line. The parts live in Screens/CampaignParts; this file owns the model, the
+-- layout, the map, the action bar, and the routing between moments.
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net.
 -- The plan is previewed with Shared/UI/PlanDraft, which mirrors the server's
@@ -28,6 +30,7 @@ local ViewModule = require(Shared.Sim.View)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local AutoLock = require(script.Parent.Common.AutoLock)
+local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Lens = require(script.Parent.Parent.Map.Lens)
@@ -39,9 +42,11 @@ local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local PlanList = require(script.Parent.CampaignParts.PlanList)
 local Reveal = require(script.Parent.CampaignParts.Reveal)
 local StateCard = require(script.Parent.CampaignParts.StateCard)
+local Sheet = require(script.Parent.Parent.UI.Sheet)
 local SwingMarks = require(script.Parent.CampaignParts.SwingMarks)
 local TopBar = require(script.Parent.CampaignParts.TopBar)
 local Types = require(script.Parent.Types)
+local Words = require(Shared.UI.Words.Campaign)
 
 type View = ViewModule.View
 type Payload = Session.StatePayload
@@ -49,7 +54,7 @@ type Payload = Session.StatePayload
 local Screen = {}
 
 local GAP = Kit.space.sm -- px between the big blocks
-local CAPTION_H = LensToggle.HEIGHT -- px, the caption and the lens chips above the map
+local LENS_H = LensToggle.HEIGHT -- px, the "Map key" button and the lens chips above the map
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
 local PORTRAIT_MAP_MAX = 0.42 -- most of the body height the map may take on phones
 local BACK_SECONDS = 4 -- how long "Opponent: back" shows after a reconnect
@@ -57,10 +62,13 @@ local BACK_SECONDS = 4 -- how long "Opponent: back" shows after a reconnect
 -- LayoutOrder of each side-column panel.
 local ORDER = {
 	reveal = 0,
-	card = 3,
-	event = 4,
-	plan = 5,
+	tip = 1, -- a coach tip before anything is picked
+	card = 2,
+	tipAfter = 3, -- a coach tip once the plan has an action
+	plan = 4,
+	event = 5,
 	week = 6,
+	list = 7,
 }
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
@@ -88,6 +96,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		peekFocus = nil,
 		stanceMap = false,
 		revealSwing = nil,
+		caption = nil,
+		moreActions = false,
+		details = false,
 		messages = {},
 		render = function() end,
 		selectState = function(_id: string) end,
@@ -107,20 +118,25 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local body = Kit.box({ Name = "Body", Parent = parent })
 
-	-- Map area: a caption beside the lens chips, then the map.
+	-- Map area: the "Map key" button beside the lens chips, then the map.
 	local mapArea = Kit.box({ Name = "MapArea", Parent = body })
-	local caption = Kit.text("", {
-		Name = "Caption",
-		Size = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.sm), 0, CAPTION_H),
-		TextSize = Kit.size.caption,
-		TextScaled = true,
-		TextColor3 = Kit.colors.muted,
+	local keySheet: Sheet.Sheet? = nil
+	local keyButton = Kit.button("Map key", function()
+		local sheet = keySheet
+		if sheet then
+			sheet:open()
+		end
+	end, {
+		variant = "ghost",
+		Name = "MapKey",
+		Size = UDim2.fromOffset(96, LENS_H),
+		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = mapArea,
 	})
 	local mapHolder = Kit.box({
 		Name = "MapHolder",
-		Position = UDim2.fromOffset(0, CAPTION_H + Kit.space.xs),
-		Size = UDim2.new(1, 0, 1, -(CAPTION_H + Kit.space.xs)),
+		Position = UDim2.fromOffset(0, LENS_H + Kit.space.xs),
+		Size = UDim2.new(1, 0, 1, -(LENS_H + Kit.space.xs)),
 		Parent = mapArea,
 	})
 	local map: MapInterface.Map = NodeMap.new()
@@ -148,10 +164,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local paintMapFor: (view: View, shown: View) -> ()
 
 	local lensToggle = LensToggle.new(mapArea, function()
+		CoachTip.markSeen("campaign.lens")
 		model.render()
 	end)
 	lensToggle.root.AnchorPoint = Vector2.new(1, 0)
 	lensToggle.root.Position = UDim2.fromScale(1, 0)
+	keyButton.Size = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.sm), 0, LENS_H)
 
 	-- Sends the plan as drafted (the Lock in button, or the timer about to end).
 	local function lockPlan()
@@ -164,13 +182,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.pivotStage = nil
 		autoLock:spent(current)
 		ctx.net.submit(PlanDraft.payload(model.draft))
+		CoachTip.markSeen("campaign.actions")
 		model.render()
 	end
 
 	local bar = ActionBar.new(sideColumn, {
 		primary = "Lock in",
 		onPrimary = function() end,
-		secondary = "Bank",
+		secondary = "+15 s",
 		onSecondary = function() end,
 		primaryName = "LockIn",
 		secondaryName = "BankButton",
@@ -197,9 +216,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end)
 
 	local reveal = Reveal.new(side, model, ORDER.reveal, {
+		-- The reveal's latest line becomes the header's now line.
 		caption = function(text: string)
-			caption.Text = text
-			caption.TextColor3 = Kit.colors.text
+			model.caption = text
+			top:render(ctx.now())
 		end,
 		paint = function(view: View)
 			local p = model.payload
@@ -215,9 +235,65 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end,
 	})
 	local eventCard = EventCard.new(side, model)
-	local card = StateCard.new(side, model, ORDER.card)
+	local card = StateCard.new(side, model, ORDER.card, ORDER.list)
 	local planList = PlanList.new(side, model, ORDER.plan)
 	local weekCard = EventCard.week(side, model, ORDER.week)
+
+	-- How to read the map: one tap away, never a caption line over it.
+	local key = Sheet.new(parent, { title = "How to read the map", name = "MapKeySheet", height = 0.6 })
+	local keyLines: { TextLabel } = {}
+	for k = 1, 6 do
+		keyLines[k] = Kit.text("", {
+			Name = `KeyLine{k}`,
+			LayoutOrder = k,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = key.body,
+		})
+	end
+	keySheet = key
+	local function renderKey()
+		local lines = Words.key(Lens.current())
+		for k, label in keyLines do
+			label.Text = lines[k] or ""
+			label.Visible = lines[k] ~= nil
+		end
+	end
+
+	-- First-match coach tips (UI/CoachTip), one at a time at the top of the column.
+	local tip: CoachTip.Tip? = nil
+	local tipId: string? = nil
+	local function renderTip(p: Payload)
+		local want: string? = nil
+		if Model.planning(p) and Model.editable(model, p) then
+			-- The map first; once there is a plan, how to finish it; the lenses
+			-- from week 2, when nothing is picked. Never over the state's actions.
+			local order: { string } = if #model.draft.actions > 0
+				then { "campaign.actions" }
+				elseif model.selected then {}
+				else { "campaign.map", "campaign.lens" }
+			for _, id in order do
+				if not CoachTip.seen(id) and (id ~= "campaign.lens" or p.view.week >= 2) then
+					want = id
+					break
+				end
+			end
+		end
+		local current = tip
+		if current and (tipId ~= want or current.root.Parent == nil) then
+			if current.root.Parent ~= nil then
+				current.root:Destroy()
+			end
+			tip, tipId = nil, nil
+		end
+		if want and tip == nil then
+			tip = CoachTip.show(side, {
+				id = want,
+				order = if want == "campaign.actions" then ORDER.tipAfter else ORDER.tip,
+			})
+			tipId = if tip then want else nil
+		end
+	end
 
 	-- ------------------------------------------------------------ layout
 
@@ -228,7 +304,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
 			local mapHeight = math.floor(math.min(width / MapLayout.ASPECT, height * PORTRAIT_MAP_MAX))
-			local areaHeight = mapHeight + CAPTION_H + Kit.space.xs
+			local areaHeight = mapHeight + LENS_H + Kit.space.xs
 			mapArea.Size = UDim2.new(1, 0, 0, areaHeight)
 			sideColumn.Position = UDim2.fromOffset(0, areaHeight + GAP)
 			sideColumn.Size = UDim2.new(1, 0, 1, -(areaHeight + GAP))
@@ -327,15 +403,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return "Opponent: watching"
 	end
 
-	local function planStatus(p: Payload): string
-		local view = p.view
-		local cost = PlanDraft.cost(config, view, model.draft)
-		local profile = PlanDraft.profile(config, view)
-		local _, cash = PlanDraft.remaining(config, view, model.draft)
-		return `AP {cost.ap}/{profile.apPerWeek} · {Model.money(cash)} left · {Model.plural(
-			cost.flights,
-			"flight"
-		)}`
+	-- The plan in one line, so a phone sees it without scrolling.
+	local function planStatus(): string
+		local actions = model.draft.actions
+		if #actions == 0 then
+			return "Nothing planned yet"
+		end
+		return `Plan: {Words.planLine(actions)}`
 	end
 
 	-- Why the plan can't lock in. Money problems say what the plan costs and what
@@ -362,19 +436,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				bar:setPrimary(PlanDraft.shortProblem(problem), false)
 				bar:setStatus(problemText(p, problem), "bad")
 			else
-				bar:setPrimary("Lock in", true)
+				-- An empty plan still locks in with one tap: it skips the week.
+				bar:setPrimary(if #model.draft.actions == 0 then "Skip this week" else "Lock in", true)
 				local turnedDown = rejection
 				if turnedDown and turnedDown.step == p.step then
 					bar:setStatus(turnedDown.text, "bad")
 				else
-					bar:setStatus(planStatus(p), "muted")
+					bar:setStatus(planStatus(), "muted")
 				end
 			end
 			local seat = p.seats[p.you]
 			local bank = if seat then seat.bank else 0
 			local chunk = config.TIME_BANK_CHUNK
 			if canEdit and bank >= chunk then
-				bar:setSecondary(`Bank +{chunk}s`, true)
+				bar:setSecondary(`+{chunk} s`, true)
 			else
 				bar:setSecondary(nil, false)
 			end
@@ -396,18 +471,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		parent:SetAttribute("PrimaryOptional", not primary.Visible)
 	end
 
-	local function renderCaption(p: Payload)
-		if p.reveal ~= nil then
-			return
-		end
-		caption.TextColor3 = Kit.colors.muted
-		if Model.planning(p) and Model.isLocked(model, p) then
-			caption.Text = "Locked in · waiting for opponent"
-		else
-			caption.Text = Lens.legend(config, Lens.current())
-		end
-	end
-
 	-- ------------------------------------------------------------ render
 
 	local function render()
@@ -419,6 +482,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local now = ctx.now()
 		if p.reveal == nil then
 			model.revealSwing = nil
+			model.caption = nil
 		end
 		reveal:render(p)
 		card:render(p)
@@ -430,11 +494,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		paintRoute(p)
 		planList:render(p)
 		weekCard:render(p)
+		renderTip(p)
+		renderKey()
+		lensToggle.refresh()
 		renderBar(p, now)
 		if top:render(now) then
 			relayout(true)
 		end
-		renderCaption(p)
 	end
 	model.render = render
 
@@ -447,28 +513,30 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.moreIssues = false
 		model.pivotStage = nil
 		model.pivotDrop = nil
-		local view = p.view
-		if model.selected == nil then
-			model.selected = view.players[view.you].location
-		end
+		-- Each week starts on the map: no card until a state is tapped.
+		model.selected = nil
+		model.moreActions = false
 	end
 
+	-- Tapping a state opens its card; tapping the selected state again closes it.
 	model.selectState = function(id: string)
 		if not alive then
 			return
 		end
-		if model.selected ~= id then
-			model.chosenIssue = nil
-			model.moreIssues = false
-			model.pivotStage = nil
-		end
-		model.selected = id
+		local p = model.payload
+		local planning = p ~= nil and Model.planning(p)
+		local closing = model.selected == id and (planning or p == nil)
+		model.chosenIssue = nil
+		model.moreIssues = false
+		model.pivotStage = nil
+		model.selected = if closing then nil else id
+		CoachTip.markSeen("campaign.map")
 		-- On a phone the list covers the card: close it. On 16:9 it stays open.
 		if model.portrait then
 			card:closeList()
 		end
 		render()
-		map:select(id)
+		map:select(model.selected)
 	end
 
 	map:onSelect(function(id: string)

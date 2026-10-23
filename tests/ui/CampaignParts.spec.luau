@@ -127,7 +127,7 @@ describe("Campaign parts: the pinned action bar", function()
 		check(Rig.contains(status, "you have $0.0 (1 ad $"), status)
 		local Kit = kitOf(world, peer)
 		check(same(need(peer, "BarStatus").TextColor3, Kit.colors.danger), "the problem is not in danger")
-		check(Rig.contains(textOf(peer, "Ad"), "no $"), textOf(peer, "Ad"))
+		check(Rig.contains(textOf(peer, "AdEffect"), "Not enough money"), textOf(peer, "AdEffect"))
 		Rig.noErrors(world)
 	end)
 
@@ -165,11 +165,21 @@ describe("Campaign parts: the action grid", function()
 		tap(world, peer, "OH")
 		local region = PlanDraft.regionOf("OH") :: string
 		local cost = string.format("$%.1f", C.REGION_POLL_COST)
-		check(Rig.contains(textOf(peer, "RegionPoll"), cost), "label: " .. textOf(peer, "RegionPoll"))
+		-- Region poll is one of the extra actions, behind "More actions".
+		check(not shown(need(peer, "RegionPoll")), "Region poll shows before More actions")
+		tap(world, peer, "MoreActions")
+		check(shown(need(peer, "RegionPoll")), "More actions did not show Region poll")
+		check(
+			Rig.contains(textOf(peer, "RegionPollEffect"), cost),
+			"label: " .. textOf(peer, "RegionPollEffect")
+		)
 		tap(world, peer, "RegionPoll")
 		expect(textOf(peer, "PlanItem1")):toBe(`1. Region poll · {Issues.regionName[region]}`)
 		check(need(peer, "RegionPoll").Active == false, "the same region can be polled twice")
-		check(Rig.contains(textOf(peer, "RegionPoll"), "polled"), textOf(peer, "RegionPoll"))
+		check(
+			Rig.contains(textOf(peer, "RegionPollEffect"), "Already polled"),
+			textOf(peer, "RegionPollEffect")
+		)
 		Rig.noErrors(world)
 	end)
 
@@ -225,6 +235,8 @@ describe("Campaign parts: the action grid", function()
 
 	it("opens the pivot chooser in place of the grid and cancels it", function()
 		local world, peer = Rig.fixture("Plan", nil)
+		tap(world, peer, "OH")
+		tap(world, peer, "MoreActions")
 		tap(world, peer, "PivotButton")
 		check(not shown(need(peer, "ActionGrid")), "the grid stays up under the pivot chooser")
 		check(shown(need(peer, "PivotChooser")), "no pivot chooser")
@@ -256,10 +268,12 @@ describe("Campaign parts: the resolve reveal", function()
 	it("keeps the state card up, read-only, and lets the player inspect states", function()
 		local world, peer = Rig.fixture("Resolve", nil)
 		expect(textOf(peer, "SkipButton")):toBe("Skip")
+		tap(world, peer, "TX")
 		check(shown(need(peer, "StateCard")), "the state card is hidden during the reveal")
 		check(not shown(need(peer, "Actions")), "action buttons show during the reveal")
-		tap(world, peer, "TX")
 		check(Rig.contains(textOf(peer, "CardTitle"), "Texas"), textOf(peer, "CardTitle"))
+		tap(world, peer, "DetailsToggle")
+		check(shown(need(peer, "CardPoll")), "Details do not open during the reveal")
 		check(
 			need(peer, "RevealPanel").LayoutOrder < need(peer, "StateCard").LayoutOrder,
 			"reveal is not first"
@@ -271,18 +285,39 @@ describe("Campaign parts: the resolve reveal", function()
 end)
 
 describe("Campaign parts: the header", function()
-	it("is one 44 px row on 16:9 and two rows on a phone", function()
-		local _, wide = Rig.fixture("Plan", WIDE)
-		expect(need(wide, "TopBar").AbsoluteSize.Y):toBe(44)
-		local score = need(wide, "Score")
-		check(
-			score.AbsolutePosition.Y + score.AbsoluteSize.Y <= 44,
-			"the 16:9 score strip is not in the header row"
-		)
-		local _, phone = Rig.fixture("Plan", Rig.PHONE)
-		expect(need(phone, "TopBar").AbsoluteSize.Y):toBe(72)
-		expect(need(phone, "Score").AbsolutePosition.Y):toBe(44)
-		check(Rig.contains(textOf(phone, "YouLabel"), " "), textOf(phone, "YouLabel"))
+	it("is one 44 px row and the now line, on 16:9 and on a phone", function()
+		for _, size in SIZES do
+			local _, peer = Rig.fixture("Plan", size.screen)
+			local top = need(peer, "TopBar")
+			expect(top.AbsoluteSize.Y):toBe(44 + 32)
+			local score = need(peer, "Score")
+			check(shown(score), `{size.name}: no score`)
+			check(
+				score.AbsolutePosition.Y + score.AbsoluteSize.Y <= top.AbsolutePosition.Y + 44,
+				`{size.name}: the score strip is not in the header row`
+			)
+			check(Rig.contains(textOf(peer, "YouLabel"), " "), textOf(peer, "YouLabel"))
+			expect(textOf(peer, "NowText")):toBe("Tap a state on the map")
+			expect(textOf(peer, "APLabel")):toBe("3 actions left")
+			check(Rig.contains(textOf(peer, "MoneyLabel"), "$"), textOf(peer, "MoneyLabel"))
+		end
+	end)
+
+	it("says what to do now as the plan grows", function()
+		local world, peer = Rig.fixture("Plan", WIDE)
+		tap(world, peer, "OH")
+		expect(textOf(peer, "NowText")):toBe("Pick an action in Ohio")
+		for _ = 1, 3 do
+			tap(world, peer, "Rally")
+		end
+		expect(textOf(peer, "NowText")):toBe("All set? Press Lock in")
+		expect(textOf(peer, "APLabel")):toBe("0 actions left")
+		-- Tapping the selected state again closes its card.
+		tap(world, peer, "OH")
+		check(not shown(need(peer, "StateCard")), "the card stays open on a second tap")
+		tap(world, peer, "LockIn")
+		check(Rig.contains(textOf(peer, "NowText"), "Waiting for"), textOf(peer, "NowText"))
+		Rig.noErrors(world)
 	end)
 
 	it("turns the timer danger-colored under ten seconds", function()

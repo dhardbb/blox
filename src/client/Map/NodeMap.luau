@@ -1,9 +1,11 @@
 --!strict
 -- The MVP map: one circle per state from Shared/UI/MapLayout, built from plain
--- frames (no art assets). Fill blends toward the public-poll leader's color; the
--- grey ring's thickness shows the undecided share; thin lines are land borders.
--- The nine small Northeast states stand in a ladder at the right edge
--- (MapLayout.LADDER), each with a thin leader line to where it really is.
+-- frames (no art assets). Fill blends toward the public-poll leader's color; a
+-- thin grey ring outlines it (an owner's ring in their color, the selected
+-- state's in the accent); thin lines are land borders. The nine small Northeast
+-- states stand in a ladder at the right edge (MapLayout.LADDER), each with a
+-- thin leader line to where it really is. The circle is drawn a little inside
+-- its layout radius so rings never touch a neighbor's (docs/UI-STYLE.md §4.6).
 --
 -- A screen's marks can add a badge in any color ("+1.5" in a player's color),
 -- a word ("FLIP") and a glow behind the circle: the Choice preview and the
@@ -11,9 +13,11 @@
 -- solid tag on the circle's top edge, drawn in the Tags layer above every node,
 -- so no neighbor's circle hides it and it never sits on another state's label.
 --
--- The lens row (Map/Lens, D-046) sits at the bottom of the tap target, under
--- the label: a few short pills ("17", "JOB HLT", "+3", "$2.4"), each on a dark
--- backing so it reads on any fill. While a row shows, the label moves up.
+-- The lens value (Map/Lens, D-046) sits inside the circle, under the state's
+-- code: one short pill ("17", "JOB", "+3", "$2.4") on a dark backing so it reads
+-- on any fill. Nothing pokes out of the circle into a neighbor. A circle too
+-- small for two lines (under TWO_LINES px across, e.g. the small states on a
+-- phone) shows only its code; its card has the numbers.
 --
 -- Each state is one invisible tap target (a TextButton named by the state id)
 -- at least Kit.MAP_NODE_MIN px in both directions. Everything drawn for the
@@ -35,7 +39,11 @@ local MIN_TAP = Kit.MAP_NODE_MIN -- px, smallest tap target per state
 local LINE_PX = 2
 local LEADER_PX = 1
 local ROUTE_PX = 4
-local MAX_RING_PX = 5 -- ring width at 30+ undecided
+local RING_PX = 2 -- the grey outline
+local OWNER_RING_PX = 3 -- a home state's or stronghold's ring
+local SELECTED_RING_PX = 3 -- the selected state's accent ring
+local CIRCLE_SHARE = 0.88 -- the drawn circle's share of its layout diameter (room for the ring)
+local TWO_LINES = 30 -- px, the smallest circle that shows its code and a lens value
 local LABEL_H = 0.4 -- label band height, share of the tap target
 local BAND_H = 0.3 -- arrow band (bottom), share of the tap target
 local TAG_H = Kit.size.caption + 5 -- px, the tag's height
@@ -46,15 +54,18 @@ local ARROWS = { up = "▲", down = "▼" }
 local HALO_SCALE = 1.45 -- the glow's diameter, share of the circle's (at most the tap target)
 local HALO_SOFT = 0.6 -- glow transparency for a state that moves
 local HALO_STRONG = 0.2 -- glow transparency for a state whose poll leader changes
-local PART_H = Kit.size.caption + 7 -- px, a lens pill's height
+local PART_H = Kit.size.caption + 5 -- px, a lens pill's height
 local PART_PAD = 3 -- px, a lens pill's side padding
 local PART_GAP = 2 -- px, between two lens pills
 local LABEL_Y = 0.5 -- the label's center, share of the tap target
-local LABEL_Y_LENS = 0.34 -- ... while a lens row shows under it
-local EDGE = 0.15 -- nodes this close to a side of the map align their lens row to it
+local LABEL_UP = 0.2 -- with a lens value: the label's center above the middle, share of the circle
+local VALUE_DOWN = 0.2 -- ... the value's center below the middle, share of the circle
+local LABEL_H_LENS = 0.36 -- ... the label's height, share of the circle
 
 type Node = {
 	id: string,
+	r: number, -- layout radius, box widths
+	k: number, -- the drawn circle's share of the tap target
 	hit: TextButton,
 	circle: Frame,
 	halo: Frame,
@@ -93,24 +104,20 @@ local function segment(
 	})
 end
 
--- The lens row along the bottom of a tap target; near a side of the map the
--- pills line up with that side, so a long row grows inward.
-local function newLensRow(hit: Instance, x: number): Frame
+-- The lens value's row inside the circle, under the code, centered.
+local function newLensRow(hit: Instance, k: number): Frame
 	local row = Kit.new("Frame", {
 		Name = "Lens",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 1),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5 + VALUE_DOWN * k),
 		Size = UDim2.new(1, 0, 0, PART_H),
 		ZIndex = 6,
 		Visible = false,
 		Parent = hit,
 	})
 	local list = Kit.list("Horizontal", PART_GAP)
-	list.HorizontalAlignment = if x < EDGE
-		then Enum.HorizontalAlignment.Left
-		elseif x > 1 - EDGE then Enum.HorizontalAlignment.Right
-		else Enum.HorizontalAlignment.Center
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	list.VerticalAlignment = Enum.VerticalAlignment.Center
 	list.Parent = row
 	return row
@@ -141,9 +148,10 @@ local function newPart(row: Frame, k: number): TextLabel
 	return part
 end
 
--- Fills a node's lens row from `line` (nil or no parts: hidden).
-local function paintLens(node: Node, line: MapInterface.LensLine?)
-	local parts: { MapInterface.LensPart } = if line then line.parts else {}
+-- Fills a node's lens row from `line` (nil or no parts, or a circle too small
+-- for two lines: hidden).
+local function paintLens(node: Node, line: MapInterface.LensLine?, roomy: boolean)
+	local parts: { MapInterface.LensPart } = if line and roomy then line.parts else {}
 	for k, spec in parts do
 		if k > #node.parts then
 			table.insert(node.parts, newPart(node.lensRow, k))
@@ -160,7 +168,9 @@ local function paintLens(node: Node, line: MapInterface.LensLine?)
 	end
 	local shown = #parts > 0
 	node.lensRow.Visible = shown
-	node.label.Position = UDim2.fromScale(0.5, if shown then LABEL_Y_LENS else LABEL_Y)
+	local k = node.k
+	node.label.Position = UDim2.fromScale(0.5, if shown then 0.5 - LABEL_UP * k else LABEL_Y)
+	node.label.Size = UDim2.fromScale(MapLayout.LABEL_SCALE * k, if shown then LABEL_H_LENS * k else LABEL_H)
 end
 
 function NodeMap.new(): MapInterface.Map
@@ -212,7 +222,7 @@ function NodeMap.new(): MapInterface.Map
 	for _, i in order do
 		local n = layout[i]
 		local h = MapLayout.hitRadius(n)
-		local k = n.r / h -- the circle's share of the tap target
+		local k = n.r / h * CIRCLE_SHARE -- the drawn circle's share of the tap target
 		-- Centered on the node; on a map so small that MIN_TAP clamps the target,
 		-- the anchor (the node's place in its free range) makes it grow inward,
 		-- so it never pokes out of the map.
@@ -259,7 +269,7 @@ function NodeMap.new(): MapInterface.Map
 		})
 		Kit.new("UIAspectRatioConstraint", { AspectRatio = 1, Parent = circle })
 		Kit.round().Parent = circle
-		local ring = Kit.stroke(Kit.color(Colors.undecided), 2)
+		local ring = Kit.stroke(Kit.color(Colors.undecided), RING_PX)
 		ring.Parent = circle
 		local label = Kit.text(n.id, {
 			Name = "Label",
@@ -321,6 +331,8 @@ function NodeMap.new(): MapInterface.Map
 		})
 		local node: Node = {
 			id = n.id,
+			r = n.r,
+			k = k,
 			hit = hit,
 			circle = circle,
 			halo = halo,
@@ -329,7 +341,7 @@ function NodeMap.new(): MapInterface.Map
 			badge = badge,
 			badgeStroke = badgeStroke,
 			arrow = arrow,
-			lensRow = newLensRow(hit, n.x),
+			lensRow = newLensRow(hit, k),
 			parts = {},
 		}
 		nodes[i] = node
@@ -344,7 +356,13 @@ function NodeMap.new(): MapInterface.Map
 	local marks: { [string]: MapInterface.Mark } = {}
 	local lens: { [string]: MapInterface.LensLine } = {}
 	local fills: { [string]: Color3 } = {}
-	local rings: { [string]: number } = {}
+
+	-- Is this node's circle big enough on screen for its code and a lens value?
+	-- (Before the first layout the size is unknown: assume it is.)
+	local function roomy(node: Node): boolean
+		local width = root.AbsoluteSize.X
+		return width <= 0 or 2 * node.r * CIRCLE_SHARE * width >= TWO_LINES
+	end
 
 	local function paint(node: Node)
 		local mark = marks[node.id]
@@ -354,16 +372,16 @@ function NodeMap.new(): MapInterface.Map
 		node.circle.BackgroundColor3 = fills[node.id] or Kit.color(Colors.neutral)
 		node.circle.BackgroundTransparency = if dim then DIM_FILL else 0
 		node.label.TextTransparency = if dim then DIM_TEXT else 0
-		paintLens(node, line)
+		paintLens(node, line, roomy(node))
 		if isSelected then
 			node.ring.Color = Kit.colors.accent
-			node.ring.Thickness = 4
+			node.ring.Thickness = SELECTED_RING_PX
 		elseif mark and mark.ring then
 			node.ring.Color = mark.ring
-			node.ring.Thickness = 3
+			node.ring.Thickness = OWNER_RING_PX
 		else
 			node.ring.Color = Kit.color(Colors.undecided)
-			node.ring.Thickness = rings[node.id] or 1
+			node.ring.Thickness = RING_PX
 		end
 		-- One tag holds the badge and the word: "+1.5", "FLIP" or "+1.5 FLIP".
 		-- A word fills the tag in its color, so a flip reads at a glance.
@@ -398,22 +416,29 @@ function NodeMap.new(): MapInterface.Map
 	local map = {} :: any
 	map.root = root
 
+	-- Repaint when the map's size changes: a circle may gain or lose room for
+	-- its lens value. (The headless test engine has no property signals.)
+	pcall(function()
+		(root :: any):GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			for _, node in nodes do
+				paint(node)
+			end
+		end)
+	end)
+
 	function map.setView(_self: any, view: View.View, colors: { Colors.RGB })
 		for i, s in view.states do
 			local id = s.id
 			local fill: Colors.RGB
 			if s.poll then
 				fill = Colors.stateFill(s.poll.support, colors)
-				rings[id] = math.clamp(s.poll.undecided / 30 * MAX_RING_PX, 1, MAX_RING_PX)
 			elseif s.leanTo then
 				-- Before the first poll, show the lean (a lean of L is a margin of L).
 				local support = table.create(#colors, 0)
 				support[s.leanTo] = s.lean
 				fill = Colors.stateFill(support, colors)
-				rings[id] = MAX_RING_PX
 			else
 				fill = Colors.neutral
-				rings[id] = MAX_RING_PX
 			end
 			fills[id] = Kit.color(fill)
 			local node = nodes[i]

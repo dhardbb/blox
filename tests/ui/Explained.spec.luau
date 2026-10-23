@@ -58,6 +58,7 @@ describe("Explained: the state card", function()
 	it("previews every action in the selected state, as Explain computes it", function()
 		local world, peer = Rig.fixture("Plan", nil)
 		tap(world, peer, "Campaign", "OH")
+		tap(world, peer, "Campaign", "DetailsToggle")
 		local view = Rig.payloadOf(world, peer).view
 		local message = PlanDraft.bestIssue(C, view, "OH")
 		for _, entry in Explain.previews(C, view, PlanDraft.new(), "OH", message) do
@@ -90,6 +91,7 @@ describe("Explained: the state card", function()
 		s.momentum[payload.view.you] = 2
 		Rig.push(world, peer, payload)
 		tap(world, peer, "Campaign", "OH")
+		tap(world, peer, "Campaign", "DetailsToggle")
 		expect(textOf(peer, "CardLean")):toBe("leans you +3")
 		expect(textOf(peer, "CardMomentumNote")):toBe(Explain.momentumNote(C, payload.view, s))
 		expect(textOf(peer, "CardBacklash")):toBe(Explain.backlashNote(C, payload.view, s))
@@ -102,6 +104,7 @@ describe("Explained: the state card", function()
 		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
 		payload.view.players[payload.view.you].underdogTier = 1
 		Rig.push(world, peer, payload)
+		tap(world, peer, "Campaign", "WeekToggle")
 		local text = textOf(peer, "FeedUnderdog")
 		expect(text):toBe(Explain.underdogText(C, payload.view, payload.view.you))
 		check(Rig.shown(need(peer, "FeedUnderdog"), "Campaign"), "the underdog line is hidden")
@@ -168,6 +171,7 @@ describe("Explained: events and debates", function()
 	it("shows where each stance of the week's Choice event moves support", function()
 		local world, peer = Rig.fixture("Stance", nil)
 		local view = Rig.payloadOf(world, peer).view
+		tap(world, peer, "Decision", "WhyToggle")
 		for k, line in
 			Explain.choiceLines(
 				C,

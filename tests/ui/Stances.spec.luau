@@ -135,7 +135,7 @@ describe("Stances: the Choice week", function()
 			local text = textOf(peer, `Choice{stance.id}`)
 			check(Rig.contains(text, `{stance.id} · {stance.name}`), text)
 		end
-		check(Rig.contains(textOf(peer, "ChoiceC"), "hedge, default"), textOf(peer, "ChoiceC"))
+		check(Rig.contains(textOf(peer, "ChoiceC"), "(safe)"), textOf(peer, "ChoiceC"))
 		check(need(peer, "ChoiceC"):GetAttribute("Selected") == true, "C is not preselected")
 		expect(textOf(peer, "ChoiceNeed")):toBe(Swing.needText(C, view))
 		expect(textOf(peer, "ChoiceSummary")):toBe(Swing.stanceSummary(C, view, Swing.stance(C, view, "C")))
@@ -151,16 +151,27 @@ describe("Stances: the Choice week", function()
 		expect(textOf(peer, "ChoiceSummary")):toBe(Swing.stanceSummary(C, view, preview))
 		check(#preview.gains > 0 and #preview.losses > 0, "stance A moves no state both ways")
 		local mine = Kit.playerColor(view, view.you)
+		-- Every moved state glows; only the biggest moves (and flips) carry a badge.
+		local badges = 0
+		local function look(id: string, color: Color3, what: string)
+			local halo = nodePart(peer, id, "Halo")
+			check(halo.Visible == true, `{id} does not glow`)
+			check(same(halo.BackgroundColor3, color), `{id} does not glow {what}`)
+			local badge = badgeOf(peer, id)
+			if badge ~= nil then
+				badges += 1
+				expect(badge):toBe(Numbers.signed(preview.effects[id]))
+				check(same(tagColor(peer, id), color), `{id}'s badge is not {what}`)
+			end
+		end
 		for _, id in preview.gains do
-			expect(badgeOf(peer, id)):toBe(Numbers.signed(preview.effects[id]))
-			check(same(tagColor(peer, id), mine), `{id}'s badge is not in your color`)
-			check(nodePart(peer, id, "Halo").Visible == true, `{id} does not glow`)
+			look(id, mine, "in your color")
 		end
 		for _, id in preview.losses do
-			expect(badgeOf(peer, id)):toBe(Numbers.signed(preview.effects[id]))
-			check(same(tagColor(peer, id), Kit.colors.danger), `{id}'s badge is not red`)
+			look(id, Kit.colors.danger, "red")
 		end
-		check(Rig.contains(textOf(peer, "Caption"), "stance A"), textOf(peer, "Caption"))
+		check(badges > 0 and badges <= 5 + #preview.flips, `{badges} badges on the map`)
+		check(Rig.contains(textOf(peer, "GainText"), "Helps you"), textOf(peer, "GainText"))
 		Rig.noErrors(world)
 	end)
 
@@ -203,15 +214,13 @@ describe("Stances: the Choice week", function()
 		Rig.noErrors(world)
 	end)
 
-	it("gives the normal map back when the event card is collapsed", function()
-		local world, peer = open("Stance", nil)
+	it("previews only on the Decision screen: the plan screen's map is back to normal", function()
+		local world, peer = open("ChoiceWeek", nil)
 		local view = viewOf(world, peer)
-		tap(world, peer, "ChoiceA")
 		local preview = Swing.stance(C, view, "A")
-		local id = preview.losses[1]
-		check(badgeOf(peer, id) ~= nil, "no preview badge to start with")
-		tap(world, peer, "EventToggle")
-		check(badgeOf(peer, id) ~= Numbers.signed(preview.effects[id]), `{id} still shows the preview`)
+		for _, id in preview.losses do
+			check(badgeOf(peer, id) ~= Numbers.signed(preview.effects[id]), `{id} still shows the preview`)
+		end
 		Rig.noErrors(world)
 	end)
 end)
@@ -240,10 +249,16 @@ describe("Stances: the debate reveal", function()
 			if entry.winner ~= 0 then
 				-- The badge is the net over all topics; a state where two topics'
 				-- points cancel has none, so check the first state that kept some.
+				-- Only the biggest moves carry a badge; every moved state glows (UI-STYLE §4.6).
 				local net = Swing.debateNet(C, view, result, #result.topics)
 				for _, id in entry.states do
-					if net[id] ~= nil then
-						expect(badgeOf(peer, id)):toBe(Numbers.signed(net[id]))
+					if net[id] ~= nil and net[id] ~= 0 then
+						local badge = badgeOf(peer, id)
+						if badge ~= nil then
+							expect(badge):toBe(Numbers.signed(net[id]))
+						else
+							check(nodePart(peer, id, "Halo").Visible == true, `{id} moved but does not glow`)
+						end
 						break
 					end
 				end
@@ -282,7 +297,12 @@ describe("Stances: the resolve reveal after a Choice week", function()
 		expect(label.Text):toBe(table.concat(lines, "\n"))
 		check(shown(label), "the stance lines are hidden")
 		for id, net in Swing.net(entry.moves, view) do
-			expect(badgeOf(peer, id)):toBe(Numbers.signed(net))
+			local badge = badgeOf(peer, id)
+			if badge ~= nil then
+				expect(badge):toBe(Numbers.signed(net))
+			elseif net ~= 0 then
+				check(nodePart(peer, id, "Halo").Visible == true, `{id} moved but does not glow`)
+			end
 		end
 		check(Rig.contains(textOf(peer, "FeedEvent"), lines[1]), textOf(peer, "FeedEvent"))
 		Rig.noErrors(world)
