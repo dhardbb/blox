@@ -621,7 +621,7 @@ In Studio, a Practice match on the Mac, then the same on the iPad. Turn the volu
 
 **Send back:** screenshots from 1 and 9, which sounds you heard in 10, and anything that felt slow or got in the way of a tap.
 
-**Icon images.** Twelve Lucide icons, 256x256, white on transparent, are in `assets/icons/` (see "Polish: setup, help, settings and icons" below for the upload).
+**Icon images.** Twelve Lucide icons, 256x256, white on transparent, are in `assets/icons/`, uploaded; their ids are in `assets/icons/README.md`.
 
 ## Polish WP-1: board and map (unreleased, D-053)
 
@@ -630,7 +630,7 @@ Agents: `lune run tests "board motion"`, `lune run tests "Lens motion"`, `lune r
 In Studio, a Practice match on the Mac, then the same on the iPad, sound on.
 
 1. **Map colors.** **Expect:** states are grey (toss-up) or one of three strengths of a player's color, not a smooth blend; each circle is a touch lighter at the top, and the border lines between states are fainter than before. Tap **Map key**: four rows (Toss-up, Leans, Likely, Safe) with your dot and your opponent's dot. Send a screenshot of the map and of the key.
-2. **Tap Ohio.** **Expect:** a soft click, Ohio's pink ring draws in quickly, the Ohio card fades in and its action buttons pop in one after another. Each action button starts with a small icon (a glyph like ! or $ until the icon images are uploaded) before its word.
+2. **Tap Ohio.** **Expect:** a soft click, Ohio's pink ring draws in quickly, the Ohio card fades in and its action buttons pop in one after another. Each action button starts with a small pink icon (a megaphone for Rally, coins for Fundraise) before its word.
 3. **Hold Rally** (press and keep your finger down). **Expect:** a see-through tag over Ohio on the map saying what the rally would do ("+4.1"); it goes when you let go.
 4. **Add Rally.** **Expect:** the button pops, a pop sound, a small icon badge appears at Ohio's top-right on the map, the plan row slides in, and the money at the top right counts down with a small "-$2.0" that rises and fades.
 5. **Remove it** (× on the plan row). **Expect:** the row fades out, a soft "delete" sound, and Ohio's badge fades away.
@@ -668,7 +668,7 @@ In Studio, a Practice match (Autoplay off) on the Mac, then the same on the iPad
 
 Agents: `lune run tests Lobby`, `lune run tests Select`, `lune run tests Draft`, `lune run tests Help`, `lune run tests CoachTip`, `lune run tests Icons`, then `lune run tests/ui/snap.luau -- lobby`, `-- select`, `-- draft`, `-- help` (0 audit findings in every shot at all three sizes).
 
-**Icon upload (before step 7).** The lead uploads the twelve PNGs in `assets/icons/` with the Studio MCP `upload_image`; if that is not possible, upload them in Creator Hub (Create → Development items → Images), naming each after its file (`megaphone`, `coins`, `tv`, `zap`, `search`, `footprints`, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles`, `plane`), and send back the 12 image ids by name. `assets/icons/README.md` has the table to fill in; the ids go into `src/client/UI/Icons.luau`.
+**Icons.** The twelve PNGs in `assets/icons/` are uploaded; `assets/icons/README.md` lists each image id by name, and `src/client/UI/Icons.luau` holds them.
 
 In Studio, a Practice match on the Mac, then the Lobby, Select and Draft again on the iPad. Volume up.
 
@@ -678,7 +678,22 @@ In Studio, a Practice match on the Mac, then the Lobby, Select and Draft again o
 4. **Select.** **Expect:** the eight candidate cards pop in one after another; tapping one pops it and outlines it with a click. After Next, the issue cards pop in the same way, and the issues tip appears with a soft pip. The candidate tip that greets you is silent.
 5. **Draft.** Tap a state in the list or on the map. **Expect:** it pops into the 1st slot, the state bumps on the map, and a soft pop plays; tapping it again takes it back with a lower sound. Tap a state you can't pick: **expect** the reason under the map shakes briefly, with a bonk. After the round, **expect** both "You got / Rex got" cards to pop in, each state rings in its player's color, and a whoosh.
 6. **Toasts.** In the Lobby, Play a friend → type `AB1` → Join. **Expect:** the message box at the top appears in place, shakes, and bonks; after a few seconds it fades out. A notice (not an error) slides down a little instead.
-7. **Icons.** Once the ids are filled in: the header ♪ button, the settings chips and the Help pictures show the drawn icons, never grey boxes, on the Mac and on the iPad.
+7. **Icons.** The header ♪ button, the settings chips and the Help pictures show the drawn icons, never grey boxes, on the Mac and on the iPad.
 8. **Reduce motion** (Roblox Settings or the chip). Repeat 1, 4 and 5. **Expect:** no pops, shakes or rings; everything still ends in the same place and sounds still play.
 
-**Send back:** the 12 image ids by name (if you uploaded them), a screenshot of the Lobby and of **?** → How to win on the iPad, and anything that felt slow, noisy or got in the way of a tap.
+**Send back:** a screenshot of the Lobby and of **?** → How to win on the iPad, and anything that felt slow, noisy or got in the way of a tap.
+
+## Polish: the whole flow (v0.10.0, D-053, D-054)
+
+Agents: `lune run tests`, then `lune run tests/ui/snap.luau` (every shot at 390x844, 1024x768, 1280x720) and read `build/snaps/`; `build/snaps/audit.txt` lists 0 findings for every shot.
+
+In Studio, one Practice match from the lobby to the results with sound on, once on the Mac and once on the iPad. Then the four polish checklists above for detail.
+
+1. **Icons, not boxes.** **Expect:** the ♪ button, the Lobby's Sound and Reduce motion chips, every action button on a state card, the badges on planned states and **?** → Actions show drawn white or pink icons. A grey box or a missing picture anywhere: send a screenshot and say where.
+2. **Plan badges on a small state.** On the iPad (and a phone if you have one), plan an action in a small state (Ohio, New Jersey). **Expect:** the badge sits on the circle's top-right rim and the state's letters stay readable.
+3. **One bonk.** In a match, add actions until Lock in turns grey, then tap it: one bonk, the bar shakes. (A plan the server refuses shows a red message at the top and shakes the bar, still with one bonk.)
+4. **The full arc.** Lobby fades in → Select cards pop → draft picks pop and ring → weeks: tap, add, lock in, "Both plans are in", the actions land, the polls flip → election night speeds up, slows for the last states, flashes 270 → Results: confetti and the stinger on a win; on a loss a quiet sound and a "Try next time" line. **Expect:** no sound plays twice on top of itself and nothing waits on an animation before you can tap.
+5. **Reduce motion** (the Lobby chip): repeat 4 quickly. **Expect:** no pops, rings, shakes or confetti; every number, badge and sound still arrives.
+6. Output: send back any line starting with `WARN [270] audio` or `WARN [270] UI audit`.
+
+**Send back:** the screenshots from 1 and 2, anything that sounded harsh or too loud, and whether a full match still fits in about 15 minutes.

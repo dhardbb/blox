@@ -2,14 +2,21 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.10.0: Polish: motion and sound (Oct 23, 2026)
+
+The polish foundation (D-053) and its three packages (the board and the map; reveals, election night and results; setup, help, settings and icons) merged together, the twelve icon images uploaded, then one pass over every snapshot at all three sizes (D-054). No rule, sim, server or payload changes; no Config numbers changed. Studio checklists: `docs/TESTING.md`, "Polish: the whole flow" first, then one section per package below.
+
+- **Icons are images now.** The twelve Lucide icons are uploaded; action buttons, plan badges, the ♪ button, the settings chips and the Help pictures draw them (the glyphs stay as the fallback).
+- **Plan badges sit on the circle's rim** instead of inside its corner, so the state's letters stay readable on a phone.
+- **One "bonk" per refusal.** A plan the server turns down shows the red toast and shakes the action bar, with one error sound between them.
+- **Results reasons:** a winner with fewer states reads "Dana won the bigger states (20 to 31)", not "carried 20 states to 31".
 
 ### Polish WP-1: the board and the map (D-053)
 
 Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish WP-1: board and map".
 
 - **Map colors in four steps.** A state is grey when it's a toss-up (closer than 3 points), then leans, likely or safe (3, 8, 15 points) in the leader's color, instead of a smooth blend. **Map key** shows the four steps with both players' dots. Circles are lit a little from the top; border lines are fainter so the states stand out.
-- **Tapping a state** clicks, draws its pink ring in, and fades its card in; the action buttons pop in one after another and each starts with its icon (a glyph until the icon images are uploaded).
+- **Tapping a state** clicks, draws its pink ring in, and fades its card in; the action buttons pop in one after another and each starts with its icon.
 - **Planning shows on the map.** Holding an action button shows what it would do over the state ("+4.1"); each planned state wears its action's icon badge; removing the action fades the badge.
 - **Adding and removing** an action pops its button, slides the plan row in (or fades it out) and plays a pop (or delete) sound, once per change.
 - **Numbers count.** The projected votes and the money left count to their new values; the vote bars slide; a small "+12" / "-$2.0" chip rises and fades.
@@ -40,8 +47,7 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - **Coach tips** pop in with a soft pip (the match's very first tip, on the candidate screen, stays quiet).
 - **Toasts** slide in and fade out; a rejection (a bad code, a refused plan) shakes in place with a bonk.
 - **Help pictures:** Actions and Polls show each action's icon beside its name.
-- **Icons.** The twelve Lucide icons are in `assets/icons/` as 256x256 white PNGs (sources in `assets/icons/src/`, license in `docs/CREDITS.md`). Until they are uploaded and their ids filled in, the game shows the glyphs.
-- **Needed from the humans (or the lead):** upload the 12 PNGs and send back the ids by file name (`assets/icons/README.md`).
+- **Icons.** The twelve Lucide icons are in `assets/icons/` as 256x256 white PNGs (sources in `assets/icons/src/`, license in `docs/CREDITS.md`), uploaded, with their ids in `assets/icons/README.md` and `UI/Icons.luau`. An icon without an id shows its glyph.
 
 ### Polish foundation: motion, sound, type and depth (D-053)
 
@@ -53,8 +59,8 @@ The base the polish packages build on. Client only: no rule, sim, server, payloa
 - **Screens fade in** and slide up a few pixels; you can tap them straight away.
 - **Reduce motion.** Roblox's Reduce Motion setting turns off every press, pop, ring and slide; values still update and screens still fade (briefly).
 - **Type and depth.** Builder Sans for text, Fredoka One for big numbers, titles and the primary button; captions 14 px (from 13). Cards and buttons get a faint top-light gradient and a thin outline; the primary a darker pink edge. On big screens (iPad Pro, a large Mac window) the whole board scales up to 1.35×.
-- **For the next packages:** `UI/Motion` (tweens, pops, enter/exit, stagger, count-ups, flashes, rings, shake, confetti, typewriter), `UI/Audio` (cues, mute, volume), `UI/Icons` + `Kit.icon` (glyphs until the 12 Lucide images are uploaded), map bands (`Colors.band`), `map:pulse/ring/badge/wipe`, `bar:setProgress`. How to use them: `docs/UI-STYLE.md` §2.7.1. Credits: `docs/CREDITS.md`.
-- **Needed from the humans:** listen to the cues on a non-owner account (TESTING step 10); later, the 12 icon image ids.
+- **For the next packages:** `UI/Motion` (tweens, pops, enter/exit, stagger, count-ups, flashes, rings, shake, confetti, typewriter), `UI/Audio` (cues, mute, volume), `UI/Icons` + `Kit.icon` (the 12 Lucide images, glyphs as the fallback), map bands (`Colors.band`), `map:pulse/ring/badge/wipe`, `bar:setProgress`. How to use them: `docs/UI-STYLE.md` §2.7.1. Credits: `docs/CREDITS.md`.
+- **Needed from the humans:** listen to the cues on a non-owner account (TESTING step 10).
 
 ## 0.9.0: UI overhaul (Oct 23, 2026)
 

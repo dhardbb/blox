@@ -164,7 +164,7 @@ Labels: a verb or a noun, at most 8 words (`labelWords`), no numbers the player 
 
 No emoji. Glyphs: only those in `Kit.glyph` (`·` `•` `×` `+` `−` `▲` `▼` `→` `…` `✓` `✈` `♪`); not `▾` `▴` (boxes in Studio). They are WGL4 or Latin-1 characters, the set Gotham and Builder Sans cover. Player identity is a filled circle frame (`Kit.round()`), not a glyph.
 
-Icons (D-053): twelve Lucide icons (ISC, `docs/CREDITS.md`) in `UI/Icons.luau` (`megaphone` Rally, `coins` Fundraise, `tv` Ad, `zap` Attack ad, `search` Poll, `footprints` Ground game, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles` reduce motion, `plane` flight). `Kit.icon(name, size?, color?)` draws the uploaded image tinted with `ImageColor3`, or the icon's glyph while its id is "" (before the upload, headless, or moderated). `Kit.actionIcon(kind)` names the icon for a plan action. An icon never carries meaning alone: an action chip keeps its word.
+Icons (D-053): twelve Lucide icons (ISC, `docs/CREDITS.md`) in `UI/Icons.luau` (`megaphone` Rally, `coins` Fundraise, `tv` Ad, `zap` Attack ad, `search` Poll, `footprints` Ground game, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles` reduce motion, `plane` flight). `Kit.icon(name, size?, color?)` draws the uploaded image tinted with `ImageColor3`, or the icon's glyph while its id is "" (all twelve are uploaded; the glyph stays for a replaced or moderated image). `Kit.actionIcon(kind)` names the icon for a plan action. An icon never carries meaning alone: an action chip keeps its word.
 
 ### 2.7 Motion and sound (`UI/Motion`, `UI/Audio`; D-053)
 
