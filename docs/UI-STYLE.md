@@ -90,7 +90,7 @@ One dark theme. Use the token, never a literal (`tests/ui/Tokens.spec.luau` and 
 | `line` | 64, 70, 86 | dividers, sheet outline, map edges |
 | `text` | 234, 236, 242 | everything a player must read |
 | `muted` | 150, 156, 172 | secondary text only (never an instruction) |
-| `accent` | 255, 214, 102 | **the primary action only**: its fill, the selection outline, the timer, the "now" mark |
+| `accent` | 255, 128, 214 (pink, D-051) | **the primary action only**: its fill, the selection outline, the timer, the "now" mark |
 | `onAccent` | = background | text on the accent |
 | `good` | 92, 200, 128 | a gain, "you lead", success |
 | `bad` (= `danger`) | 232, 84, 84 | a loss, an error, a destructive button, an urgent timer |
@@ -100,7 +100,7 @@ One dark theme. Use the token, never a literal (`tests/ui/Tokens.spec.luau` and 
 
 Rules: one accent-filled thing per screen (the primary button). Selection is an accent outline, never a fill. Player colors only mark that player. Data colors (map fills, feed-row tints, EV bars) come from `Colors.stateFill` / `Colors.tint` / `Kit.playerColor` and their container is marked `Kit.dataColor(inst)`. Green is not "neutral info": status lines are `muted` unless they report a gain or a problem.
 
-Known issue for the designers: Amber (232, 164, 40) sits close to the accent. Where a player color shows as big text next to the primary (Results, Election), put it on a dot or a bar, not on 28 px text (§4.9).
+Amber (232, 164, 40) used to sit close to the old yellow accent; the accent is now pink (D-051), clearly apart from all six player colors and from good, bad and warn. Still keep player colors on dots and bars rather than 28 px text next to the primary (§4.9).
 
 ### 2.2 Type (`Kit.size`, `Kit.text/caption/heading/title`)
 
@@ -452,5 +452,5 @@ Any order; the packages do not share files. If two packages both need the same n
 
 1. Lock in with an empty plan: keep it one tap (today) or require a confirm?
 2. "Votes" instead of "EV" in sentences, keeping "EV" on the map numbers: OK?
-3. Amber vs the accent: keep Amber as a player color (and avoid big Amber text, as specced), or swap the accent to a white/cyan primary?
+3. Amber vs the accent: keep Amber as a player color (and avoid big Amber text, as specced), or swap the accent to a white/cyan primary? *Decided: keep Amber; the accent is pink (D-051), since cyan sits next to Teal.*
 4. Coach tips across sessions need the saved profile (a server change): worth it after playtest 5?

@@ -55,6 +55,46 @@ describe("Colors", function()
 		expect(field.r > Colors.background.r and field.r < Colors.surface.r):toBe(true)
 	end)
 
+	it("keeps the accent apart from every player color and status color (D-051)", function()
+		-- Hue in degrees, 0 to 360.
+		local function hue(c: Colors.RGB): number
+			local r, g, b = c.r / 255, c.g / 255, c.b / 255
+			local hi, lo = math.max(r, g, b), math.min(r, g, b)
+			local d = hi - lo
+			if d == 0 then
+				return 0
+			end
+			local h = if hi == r
+				then ((g - b) / d) % 6
+				elseif hi == g then (b - r) / d + 2
+				else (r - g) / d + 4
+			return h * 60
+		end
+		local function gap(a: number, b: number): number
+			local d = math.abs(a - b) % 360
+			return math.min(d, 360 - d)
+		end
+		local others: { [string]: Colors.RGB } =
+			{ good = Colors.good, bad = Colors.danger, warn = Colors.warn }
+		for name, c in Colors.player do
+			others[name] = c
+		end
+		for name, c in others do
+			local d = gap(hue(Colors.accent), hue(c))
+			check(d >= 30, `the accent is only {math.floor(d)} degrees of hue from {name}`)
+		end
+		-- WCAG contrast of the primary's label (onAccent) on the accent fill.
+		local function lum(c: Colors.RGB): number
+			local function lin(v: number): number
+				local s = v / 255
+				return if s <= 0.04045 then s / 12.92 else ((s + 0.055) / 1.055) ^ 2.4
+			end
+			return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)
+		end
+		local ratio = (lum(Colors.accent) + 0.05) / (lum(Colors.onAccent) + 0.05)
+		check(ratio >= 4.5, `primary label contrast is {ratio}:1`)
+	end)
+
 	it("tints toward a color, clamped, and keeps mix as the same function", function()
 		expect(Colors.mix):toBe(Colors.tint)
 		local base, color = Colors.raised, Colors.player.Crimson

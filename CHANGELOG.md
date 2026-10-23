@@ -4,6 +4,10 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### The primary color is pink (D-051)
+
+- The primary button, the selection outline, the timer and the coach-tip outline are pink instead of yellow, so the Amber player's name and states no longer look like a button. Test in Studio: `docs/TESTING.md`, "UI overhaul: the whole flow".
+
 ### UI style v2: Lobby, Select, map reveal and draft (WP-A)
 
 - **Lobby.** "270", one short line ("Win the race to 270 votes."), then Play vs Bot. Find match and Play a friend sit side by side under it; Play a friend opens a small sheet with "Make a code" and the code box + Join. A "How to play" link opens the help. While hosting, the code says "Waiting for your friend…" under it.
