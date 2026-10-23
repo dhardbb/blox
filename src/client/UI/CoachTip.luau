@@ -15,15 +15,22 @@
 --   CoachTip.useStore(store)           -- persist "seen" elsewhere (e.g. the
 --                                         saved profile, a later package)
 --
+-- Arrival (docs/UI-STYLE.md §2.7.1): a tip pops in from 0.9 and fades in, with
+-- a soft "pip" (the "select" cue, pitched up) unless `quiet` is set. Under
+-- reduced motion it only fades; nothing waits on it.
+--
 -- Placement: in a list layout pass `order` (LayoutOrder); anywhere else pass
 -- `position` and `anchorPoint` (and `width`, default the parent's width, at
 -- most 360 px). Keep tips off the map's nodes and off the action bar.
 
+local Audio = require(script.Parent.Audio)
 local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
 
 local CoachTip = {}
 
 local MAX_W = 360 -- px, widest a tip gets
+local PIP_PITCH = 1.2 -- the "select" cue, pitched up, as a tip appears
 
 -- The copy for every tip, by id: plain words, at most 12 words (KitStyle.spec),
 -- one per key moment of the first match (docs/UI-STYLE.md §3.4).
@@ -53,6 +60,7 @@ export type Options = {
 	position: UDim2?,
 	anchorPoint: Vector2?,
 	width: number?, -- px
+	quiet: boolean?, -- no pip (a tip that comes up with its screen, right after a tap)
 }
 
 export type Tip = {
@@ -152,6 +160,11 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 		end,
 	}
 	root.Parent = parent
+	Motion.pop(root, Motion.POP_FROM)
+	Motion.enter(root)
+	if not options.quiet then
+		Audio.play("select", { pitch = PIP_PITCH })
+	end
 	return tip
 end
 

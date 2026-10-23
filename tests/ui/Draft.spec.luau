@@ -855,3 +855,69 @@ describe("Draft screen: style v2", function()
 		end
 	end)
 end)
+
+-- WP-3 polish: picks pop and sound, reveals ring and whoosh; nothing changes
+-- what the screen ends up showing, with or without reduced motion.
+describe("Draft screen: motion and sound", function()
+	local function count(list: { string }, name: string): number
+		local n = 0
+		for _, item in list do
+			if item == name then
+				n += 1
+			end
+		end
+		return n
+	end
+
+	local function scaleOf(inst: any): number
+		local scale = inst:FindFirstChild("MotionScale")
+		return if scale then scale.Scale else 1
+	end
+
+	it("plays planAdd for a pick, planRemove for an un-pick, error for a refusal", function()
+		local world, peer = mount("Draft")
+		local a, b, taken = sampleStates(draftPayload())
+		tap(world, peer, `Row_{a}`)
+		tap(world, peer, `Row_{b}`)
+		expect(count(Rig.sounds(peer), "planAdd")):toBe(2)
+		expect(scaleOf(need(peer, "Choice1"))):toBe(1)
+		expect(scaleOf(need(peer, "Choice2"))):toBe(1)
+		tap(world, peer, `Row_{b}`)
+		expect(count(Rig.sounds(peer), "planRemove")):toBe(1)
+		local status = need(peer, "BarStatus")
+		local before = status.Position
+		tap(world, peer, `Row_{taken}`)
+		expect(count(Rig.sounds(peer), "error")):toBe(1)
+		expect(status.Position):toEqual(before)
+		noErrors(world)
+	end)
+
+	it("whooshes once when a round's picks are revealed", function()
+		local world, peer = mount("Draft")
+		local base = draftPayload()
+		local a, b = sampleStates(base)
+		local reveal = revealOf(base, a, b)
+		push(world, peer, reveal)
+		push(world, peer, deepCopy(reveal))
+		expect(count(Rig.sounds(peer), "whoosh")):toBe(1)
+		expect(scaleOf(need(peer, "YouPick"))):toBe(1)
+		expect(scaleOf(need(peer, "ThemPick"))):toBe(1)
+		noErrors(world)
+	end)
+
+	it("ends in the same state under reduced motion", function()
+		local world, peer = Rig.fixture("Draft", nil, { reducedMotion = true })
+		local a, b = sampleStates(draftPayload())
+		tap(world, peer, `Row_{a}`)
+		tap(world, peer, `Row_{b}`)
+		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
+		expect(textOf(peer, "Choice2")):toBe(`2nd: {b}`)
+		expect(count(Rig.sounds(peer), "planAdd")):toBe(2)
+		for _, inst in need(peer, "DraftRoot"):GetDescendants() do
+			if inst.Name == "MotionScale" then
+				check(inst.Scale == 1, `{inst.Parent.Name} is scaled {inst.Scale}`)
+			end
+		end
+		noErrors(world)
+	end)
+end)

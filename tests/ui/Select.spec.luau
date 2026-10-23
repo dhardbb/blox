@@ -3,7 +3,9 @@
 -- (auto-submit before the timer ends, the pre-pick, retrying a rejected lock-in,
 -- the pinned footer) and the UI overhaul (WP2, docs/UI-OVERHAUL.md §3.2): picks
 -- above the pinned action bar, the bar's wording, the swap hint, and B4 (a
--- rejected lock-in says why).
+-- rejected lock-in says why). Polish (WP-3): each step's cards pop in and a
+-- picked card pops, ending at full size with or without reduced motion; the
+-- match's first tip is quiet.
 
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
@@ -438,5 +440,48 @@ describe("Select style v2: details one tap away", function()
 		expect(dot.AbsoluteSize.X):toBe(16)
 		expect(dot:GetAttribute("DataColor")):toBe(true)
 		expect(Rig.findIn(peer, "Select", "ColorSwatch")):toBe(nil)
+	end)
+end)
+
+describe("Select polish", function()
+	local function settled(peer: FakeRoblox.Peer)
+		for _, inst in Rig.need(peer, "Screens", "Select"):GetDescendants() do
+			if inst.Name == "MotionScale" then
+				check(inst.Scale == 1, `{inst.Parent.Name} is scaled {inst.Scale}`)
+			end
+		end
+	end
+
+	for _, reduced in { false, true } do
+		local label = if reduced then "under reduced motion" else "with full motion"
+		it(`ends both steps with every card at full size {label}`, function()
+			local world, peer = Rig.fixture("Select", nil, { reducedMotion = reduced })
+			settled(peer)
+			Rig.claim(world, peer)
+			settled(peer)
+			Rig.tap(world, peer, "Select", "Issue_Jobs")
+			Rig.tap(world, peer, "Select", "Issue_Health")
+			settled(peer)
+			expect(Rig.need(peer, "Select", "Issue_Jobs"):GetAttribute("Selected")):toBe(true)
+			Rig.noErrors(world)
+		end)
+	end
+
+	it("opens on one quiet tip and selects with the chip cue", function()
+		local world, peer = Rig.fixture("Select", nil)
+		local function count(name: string): number
+			local n = 0
+			for _, cue in Rig.sounds(peer) do
+				if cue == name then
+					n += 1
+				end
+			end
+			return n
+		end
+		check(Rig.findIn(peer, "Select", "CoachTip") ~= nil, "no candidate tip")
+		expect(count("select")):toBe(0)
+		Rig.tap(world, peer, "Select", `Candidate_{Rig.freeCandidate(world, peer)}`)
+		expect(count("select")):toBe(1)
+		Rig.noErrors(world)
 	end)
 end)

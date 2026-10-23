@@ -3,7 +3,9 @@
 -- explicit zero Position and AnchorPoint, so the headless engine and the UI
 -- audit can lay it out (an empty Vector2 crashed the audit's rect math), and a
 -- tip placed by `position` keeps what it was given. The copy rules are in
--- KitStyle.spec.
+-- KitStyle.spec. Arrival (WP-3): a tip pops in and fades in to its resting
+-- look, with a "select" pip unless it is quiet; under reduced motion it only
+-- fades, and lands the same.
 
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Rig = require("./Rig")
@@ -59,6 +61,64 @@ describe("CoachTip placement", function()
 		check(tip ~= nil, "the tip did not show")
 		expect(tip.root.AnchorPoint.X):toBe(1)
 		expect(tip.root.Position.X.Offset):toBe(-8)
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("CoachTip arrival", function()
+	local function selects(peer: FakeRoblox.Peer): number
+		local n = 0
+		for _, cue in Rig.sounds(peer) do
+			if cue == "select" then
+				n += 1
+			end
+		end
+		return n
+	end
+
+	local function show(
+		world: FakeRoblox.World,
+		peer: FakeRoblox.Peer,
+		CoachTip: any,
+		stage: any,
+		options: any
+	): any
+		world.current = peer
+		local tip = CoachTip.show(stage, options)
+		world.current = nil
+		FakeRoblox.run(world, 0.5)
+		return tip
+	end
+
+	it("pops and fades in to its resting look with one pip", function()
+		local world, peer, CoachTip, stage = setup()
+		local before = selects(peer)
+		local tip = show(world, peer, CoachTip, stage, { id = "reveal.week", order = 1 })
+		check(tip ~= nil, "the tip did not show")
+		expect(selects(peer)):toBe(before + 1)
+		expect(tip.root.BackgroundTransparency):toBe(0)
+		local scale = tip.root:FindFirstChild("MotionScale")
+		check(scale == nil or scale.Scale == 1, "the tip is still popping")
+		Rig.noErrors(world)
+	end)
+
+	it("stays silent when quiet", function()
+		local world, peer, CoachTip, stage = setup()
+		local before = selects(peer)
+		local tip = show(world, peer, CoachTip, stage, { id = "reveal.week", order = 1, quiet = true })
+		check(tip ~= nil, "the tip did not show")
+		expect(selects(peer)):toBe(before)
+		Rig.noErrors(world)
+	end)
+
+	it("lands the same under reduced motion", function()
+		local world, peer, CoachTip, stage = setup()
+		FakeRoblox.setReducedMotion(world, true)
+		local tip = show(world, peer, CoachTip, stage, { id = "election.night", order = 1 })
+		check(tip ~= nil, "the tip did not show")
+		expect(tip.root.BackgroundTransparency):toBe(0)
+		local scale = tip.root:FindFirstChild("MotionScale")
+		check(scale == nil or scale.Scale == 1, "the tip popped under reduced motion")
 		Rig.noErrors(world)
 	end)
 end)

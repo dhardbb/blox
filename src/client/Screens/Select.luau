@@ -22,6 +22,10 @@
 -- numbers are in a sheet ("About Dana"), and "How issues work" explains votes
 -- and boost.
 --
+-- Motion (docs/UI-STYLE.md §2.7.1): each step's cards pop in one after another
+-- when it opens (Motion.stagger), and a card pops as it is picked; the outline
+-- and the "select" cue come from Kit. Nothing waits on an animation.
+--
 -- Stable names: Candidate_<id> (with Name, Archetype, Perk, Drawback, Taken),
 -- Issue_<issue> (with IssueName, IssueLine), Candidates, Issues, ColorRow,
 -- ColorDot, ColorLine, Details, CandidateSheet, IssuesHelp, IssuesSheet, LockIn,
@@ -44,6 +48,7 @@ local Header = require(script.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
 local Messages = require(script.Parent.Common.Messages)
+local Motion = require(script.Parent.Parent.UI.Motion)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
 local Types = require(script.Parent.Types)
 
@@ -59,11 +64,15 @@ local DETAILS_W = 180 -- px, the ghost button beside the color line
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
 local PICKED = Kit.glyph.bullet .. " " -- before a picked issue's name
 local TAKEN_FADE = 0.5 -- a taken card's fill and text transparency
+local ARRIVE_FROM = 0.92 -- scale a card pops in from when its step opens
+local PICK_FROM = 0.95 -- scale a card pops from when it is picked
 
 -- A coach tip in a list (CoachTip.show), with an explicit zero Position and
 -- AnchorPoint: the headless test engine reads UDim2.new() and Vector2.new() as empty.
-local function showTip(parent: Instance, id: string, order: number): CoachTip.Tip?
-	local tip = CoachTip.show(parent, { id = id, order = order })
+-- `quiet`: no pip (the match's first tip comes up with the screen, right after
+-- the Play tap, so the match opens on one sound).
+local function showTip(parent: Instance, id: string, order: number, quiet: boolean?): CoachTip.Tip?
+	local tip = CoachTip.show(parent, { id = id, order = order, quiet = quiet })
 	if tip then
 		tip.root.Position = UDim2.fromOffset(0, 0)
 		tip.root.AnchorPoint = Vector2.new(0, 0)
@@ -220,7 +229,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ step 1: candidates
 
-	local candidateTip = showTip(content, "select.candidate", 1)
+	local candidateTip = showTip(content, "select.candidate", 1, true)
 	local candidateGrid, candidateLayout = Layout.grid(content, "Candidates", 2)
 	local cards: { [string]: TextButton } = {}
 	type CardParts = {
@@ -240,6 +249,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				return
 			end
 			changed()
+			if candidate ~= id then
+				Motion.pop(cards[id], PICK_FROM)
+			end
 			candidate = id
 			if candidateTip then
 				candidateTip:dismiss()
@@ -303,6 +315,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			elseif #platform < platformSize then
 				changed()
 				table.insert(platform, issue)
+				Motion.pop(chips[issue], PICK_FROM)
 			else
 				-- Full: say how to swap instead of doing nothing.
 				swapHintUntil = ctx.now() + SWAP_HINT_SECONDS
@@ -374,16 +387,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local profile = Candidates.profile(ctx.config, id)
 		candidateSheet:setTitle(profile.name)
 		for k, line in Words.candidateDetails(ctx.config, id) do
-			local label = detailLines[k]
-			if label == nil then
-				label = Kit.text("", {
+			local found: TextLabel? = detailLines[k]
+			local label: TextLabel = if found
+				then found
+				else Kit.text("", {
 					Name = `DetailLine{k}`,
 					LayoutOrder = k,
 					AutomaticSize = Enum.AutomaticSize.Y,
 					Parent = candidateSheet.body,
 				})
-				detailLines[k] = label
-			end
+			detailLines[k] = label
 			label.Text = line
 			label.TextColor3 = if k == 1 then Kit.colors.muted else Kit.colors.text
 		end
@@ -539,12 +552,32 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 	end
 
+	-- A step's cards pop in one after another, in reading order.
+	local function arrive(current: number)
+		local list: { TextButton } = {}
+		if current == 1 then
+			for _, id in Candidates.ids do
+				table.insert(list, cards[id])
+			end
+		else
+			for _, issue in issueList do
+				table.insert(list, chips[issue])
+			end
+		end
+		Motion.stagger(list, function(card, _index, delay)
+			Motion.pop(card, ARRIVE_FROM, delay)
+		end)
+	end
+
 	-- Lays the page out again when the orientation or the step changed; says so.
 	local function relayout(): boolean
 		local portrait = ctx.portrait()
 		local current = step()
 		if portrait == lastPortrait and current == lastStep then
 			return false
+		end
+		if current ~= lastStep then
+			arrive(current)
 		end
 		lastPortrait, lastStep = portrait, current
 		page.setPortrait(portrait)
