@@ -749,7 +749,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		setSpotLabel(if count == #results then "Last call" else "Just called", Kit.colors.muted)
 		if count == tipping and latest.winner > 0 then
-			setSpotLabel(`{shortNames[latest.winner]} reaches {need}!`, Kit.colors.accent)
+			setSpotLabel(`{shortNames[latest.winner]} reaches {need}!`, Kit.colors.text)
 		end
 		spotState.Text = Words.stateLine(latest.state)
 		if latest.winner > 0 then
@@ -828,6 +828,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		task.delay(FLASH_270, function()
 			Motion.flash(goal, Kit.colors.accent, FLASH_270)
 		end)
+		-- D-058: the accent is white like the tick, so the tick blinks dim and back
+		-- (race:cross() keeps its glow pulse; its color tween is replaced).
+		Motion.cancel(race.tick)
+		for k = 0, 3 do
+			task.delay(k * FLASH_270, function()
+				race.tick.BackgroundColor3 = if k % 2 == 0 then Kit.colors.line else Kit.colors.text
+			end)
+		end
 		task.delay(CROSS_STAMP, function()
 			stampGoal(true)
 		end)

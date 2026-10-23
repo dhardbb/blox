@@ -93,10 +93,10 @@ One dark theme: a navy stage (front-page foundation, D-056). Use the token, neve
 | `line` | 70, 80, 112 | hairlines (at 0.5), dividers, sheet outline, map edges |
 | `text` | 240, 243, 250 | everything a player must read (14.9:1 on surface) |
 | `muted` | 158, 168, 194 | secondary text only (7.0:1 on surface) |
-| `accent` | 255, 128, 214 (pink, D-051) | **press here / selected**: the primary's fill, the selection outline, the timer, the "now" mark |
-| `accentEdge` | 214, 96, 178 | the primary's 2 px edge |
-| `accentLip` | 158, 58, 126 | the lip under the primary |
-| `onAccent` | = background | text on the accent (8.3:1) |
+| `accent` | 244, 246, 252 (white, D-058; was pink, D-051) | **press here / selected**: the primary's face, the selection outline, the timer, the "now" mark |
+| `accentEdge` | 196, 204, 224 | the primary's 2 px edge (cool light grey) |
+| `accentLip` | 110, 122, 158 | the slate lip under the primary; the wordmark's outline |
+| `onAccent` | = background | text on the accent (17.4:1) |
 | `good` / `goodEdge` | 92, 200, 128 / 64, 136, 94 | a gain, "you lead", success; the edge of a filled good pill |
 | `loss` / `lossEdge` | **255, 122, 40** / 196, 84, 20 | anything against you: a loss, a negative number, an error, a destructive button, the timer under 10 s; the edge of a filled loss tag |
 | `onLoss` | = background | text on a loss fill (7.2:1) |
@@ -105,9 +105,9 @@ One dark theme: a navy stage (front-page foundation, D-056). Use the token, neve
 | `neutral`, `undecided` | | map only |
 | player colors | Crimson, Cobalt, Emerald, Amber (240, 186, 36), Violet, Teal | that player's things: map fill, dots, bars, rings, monograms |
 
-**Color means one thing (D-056).** Team colors mark ownership. Green marks a gain. Orange marks a loss or a warning: anything against you. Pink marks "press here / selected". White marks "special" (a battleground, the 270 line). **Red never means bad**: red and blue are the default player colors. A player's color as *text* goes through `Kit.playerText(view, p)` (`Colors.textOn`: a quarter of the way to `text`, so Crimson text is 4.7:1 on surface); fills, dots, bars and rings keep the base color.
+**Color means one thing (D-056).** Team colors mark ownership. Green marks a gain. Orange marks a loss or a warning: anything against you. White marks "press here / selected" (D-058). A battleground is marked by a ★ and a white outline, never a white fill, so it never looks like the primary or a selection; the 270 line is a plain white tick. **Red never means bad**: red and blue are the default player colors. A player's color as *text* goes through `Kit.playerText(view, p)` (`Colors.textOn`: a quarter of the way to `text`, so Crimson text is 4.7:1 on surface); fills, dots, bars and rings keep the base color.
 
-**Orange never carries meaning alone** (audit rule `lossText`): an orange tag or number of one or two words carries a sign ("−", "▼", "lost", "behind") or sits under attribute `Warn` (the status line's warn and bad tones, the timer, a danger button). A battleground is good news: a white tag, never orange.
+**Orange never carries meaning alone** (audit rule `lossText`): an orange tag or number of one or two words carries a sign ("−", "▼", "lost", "behind") or sits under attribute `Warn` (the status line's warn and bad tones, the timer, a danger button). A battleground is good news: an outlined ★ tag, never orange.
 
 Rules: one accent-filled thing per screen (the primary button). Selection is an accent outline, never a fill. Data colors (map fills, feed-row tints, EV bars) come from `Colors.stateFill` / `Colors.tint` / `Kit.playerColor` and their container is marked `Kit.dataColor(inst)`. Status lines are `muted` unless they report a gain or a problem.
 
@@ -145,7 +145,7 @@ Five tokens plus the Lobby's wordmark; **a screen shows at most four** (`Kit.MAX
 
 | Level | Kit | Look | Use |
 |---|---|---|---|
-| Primary | `variant = "primary"` in the `ActionBar` | accent face, 56 px, Fredoka 20 label, 2 px lit edge, 4 px `accentLip` below; pinned bottom; a light band sweeps it every 4.5 s | the one thing to do next: "Lock in", "Next", "Skip", "Play again". Disabled = says what is missing |
+| Primary | `variant = "primary"` in the `ActionBar` | solid white (accent) face, navy Fredoka 20 label, 2 px lit grey edge, 4 px slate `accentLip` below; pinned bottom; a light band sweeps it every 4.5 s | the one thing to do next: "Lock in", "Next", "Skip", "Play again". Disabled = says what is missing |
 | Secondary | `variant = "secondary"` | raised face, 44 px, lit hairline, 3 px `raisedLip` | a real alternative: "+15 s", "Back to lobby", "Find match" |
 | Tertiary | `variant = "ghost"` | no fill, text color, 44 px | "More", "Why?", "Show all states", "Got it" |
 | Destructive | `variant = "danger"` | `loss` label and 1 px `loss` outline, no lip (attribute `Warn`) | "Cancel", "Clear", "Leave match" |
@@ -160,14 +160,14 @@ Labels: a verb or a noun, at most 8 words (`labelWords`), no numbers the player 
 ### 2.5 Containers and small parts
 
 - **Card** (`Kit.card`): the one container style. Surface gradient, bevel, 12 px corner, 14 px padding, vertical list, grows with its content. No cards inside cards.
-- **Pill** (`Kit.pill(text, tone, props)`): a 24 px read-only tag. Tone colors the text on a raised fill. `props.filled = true` fills it in the tone with readable text and a 1 px edge (a loss tag "−0.5", a verdict "You win"); `props.fill = color` fills it with a data color (marked `dataColor`); tone `"white"` is always filled: a text-colored tag with dark text (the battleground mark). `Kit.paintPill(pill, tone, filled?, fill?)` re-tones a pill that changes meaning. At most 3 pills in a row unless the row wraps.
+- **Pill** (`Kit.pill(text, tone, props)`): a 24 px read-only tag. Tone colors the text on a raised fill. `props.filled = true` fills it in the tone with readable text and a 1 px edge (a loss tag "−0.5", a verdict "You win"); `props.fill = color` fills it with a data color (marked `dataColor`); tone `"white"` is the battleground mark (D-058): "★ Battleground", a `field` fill with a 1.5 px `text` outline (`Kit.MARK_STROKE`) and bold white text; `paintPill` adds the ★ (`Kit.STAR`) to the text and removes it for other tones. The map's vote tag does the same ("★13", `LensPart.outlined`). `Kit.paintPill(pill, tone, filled?, fill?)` re-tones a pill that changes meaning. At most 3 pills in a row unless the row wraps.
 - **Stack** (`Kit.stack`): a transparent list that grows; use it instead of hand-positioning rows.
 - **Expander** (`UI/Collapsible`): a card-lit panel whose 44 px title row ("Why? +" / "Why? −") shows a details body. Collapsed by default unless it holds the screen's main decision.
 - **Sheet** (`UI/Sheet`): bottom sheet on a phone (with a 36 x 4 drag handle), centered panel (≤ 560 px) on wide screens that scales in from 0.96; radius 16, lit 1 px line, shadow, scrim 0.3, × to close. Never holds the primary action.
-- **Coach tip** (`UI/CoachTip`): §3.4. Raised, 2 px accent outline (its only stroke), md padding; a positioned tip casts a shadow.
-- **Header** (`UI/Header`): title, short subtitle, sound button, `?` (both lipped icon buttons, 8 px apart), timer (Fredoka); `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 4 px rounded time bar under the title, stopping short of the buttons, with a glowing accent dot at its end. The timer is accent, `loss` under 10 s (attribute `Warn`), with a pop and a "tick" each second under 5 s; the bar turns `loss` under 5 s.
+- **Coach tip** (`UI/CoachTip`): §3.4. Raised, 2 px `muted` outline (its only stroke; white would read as selected), md padding, "Got it" a lipless secondary button; a positioned tip casts a shadow.
+- **Header** (`UI/Header`): title, short subtitle, sound button, `?` (both lipped icon buttons, 8 px apart), timer (Fredoka); `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 4 px rounded time bar under the title, stopping short of the buttons, with a glowing white (accent) dot at its end. The timer is white (accent), `loss` under 10 s (attribute `Warn`), with a pop and a "tick" each second under 5 s; the bar turns `loss` under 5 s.
 - **Action bar** (`UI/ActionBar`): a lit `surface` plate ("Plate", decor) reaching 8 px past the bar left, right and up, with a shadow cast upward: the one persistent bottom bar. Status (left), opponent (right), secondary + primary. `bar:setProgress(fraction?)` shows the time left as a veil inside the primary; a primary that becomes a disabled "Locked in…" flashes and plays `lockIn`.
-- **Toast** (`UI/Toast`): raised, 2 px stroke (`loss` for a rejection, accent for a notice), shadow.
+- **Toast** (`UI/Toast`): raised, 2 px stroke (`loss` for a rejection, `muted` for a notice), shadow.
 
 ### 2.5.1 Front-page parts (D-056)
 
@@ -178,7 +178,7 @@ Every one is in the `00-kit` snap. Signatures in the header of `Kit.luau`.
 - `Kit.stamp(text, color, { size })`: the big moments only (CALLED, 270!, You won / You lost, the debate headline). A plate of `color` tilted −6°, Fredoka label in its readable color with an outline, 2 px edge, glow; `Overhang`. `Motion.stamp` lands it from 1.6.
 - `Kit.monogram(name, color, px)`: initials on a lit circle (gradient, darker edge, sheen): 56 on Select cards, 64 on Results, 24 inline, 36 in the color sheet (the player's own initial in each color).
 - `Kit.raceBar(parent, { h, mark, caption })`: the race to 270: a raised track, each player's segment from their end, the tick (3 px, overhanging 4 px each way) and an optional caption. `bar:set(l, r)`, `bar:setColors(l, r)`, `bar:cross()` (tick flash + glow pulse).
-- `Kit.wordmark(px?)`: "270" in Fredoka, lit from the top, 3 px `accentEdge` outline, 6 px `accentLip` drop, accent glow.
+- `Kit.wordmark(px?)`: "270" in Fredoka, lit from the top, 3 px slate `accentLip` outline, 6 px `line` drop, a soft white glow.
 - `Kit.iconPlate(name, px?)`: an icon in a round `field` plate (state-card actions, help rows, settings chips).
 - `Kit.eyebrow`, `Kit.bevel`, `Kit.paintPill`, `Kit.playerText`, `Kit.textColor`, `Kit.outer`: above.
 

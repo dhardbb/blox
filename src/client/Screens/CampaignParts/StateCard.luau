@@ -233,7 +233,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local iconName = Kit.actionIcon(entry.kind)
 		local icon: GuiObject? = nil
 		if iconName then
-			local made = Kit.icon(iconName, ICON_PX, Kit.colors.accent)
+			local made = Kit.icon(iconName, ICON_PX, Kit.colors.text)
 			made.AnchorPoint = Vector2.new(0, 0.5)
 			made.Position = UDim2.fromScale(0, 0.5)
 			made.Parent = head
@@ -750,7 +750,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			Kit.setEnabled(parts.button, enabled)
 			parts.label.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
 			local icon: any = parts.icon
-			local tint = if enabled then Kit.colors.accent else Kit.colors.disabledText
+			local tint = if enabled then Kit.colors.text else Kit.colors.disabledText
 			if icon and icon:IsA("ImageLabel") then
 				icon.ImageColor3 = tint
 			elseif icon then

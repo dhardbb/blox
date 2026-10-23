@@ -55,35 +55,11 @@ describe("Colors", function()
 		expect(field.r > Colors.background.r and field.r < Colors.surface.r):toBe(true)
 	end)
 
-	it("keeps the accent apart from every player color and status color (D-051)", function()
-		-- Hue in degrees, 0 to 360.
-		local function hue(c: Colors.RGB): number
-			local r, g, b = c.r / 255, c.g / 255, c.b / 255
-			local hi, lo = math.max(r, g, b), math.min(r, g, b)
-			local d = hi - lo
-			if d == 0 then
-				return 0
-			end
-			local h = if hi == r
-				then ((g - b) / d) % 6
-				elseif hi == g then (b - r) / d + 2
-				else (r - g) / d + 4
-			return h * 60
-		end
-		local function gap(a: number, b: number): number
-			local d = math.abs(a - b) % 360
-			return math.min(d, 360 - d)
-		end
-		local others: { [string]: Colors.RGB } =
-			{ good = Colors.good, bad = Colors.danger, warn = Colors.warn }
-		for name, c in Colors.player do
-			others[name] = c
-		end
-		for name, c in others do
-			local d = gap(hue(Colors.accent), hue(c))
-			check(d >= 30, `the accent is only {math.floor(d)} degrees of hue from {name}`)
-		end
-		-- WCAG contrast of the primary's label (onAccent) on the accent fill.
+	it("keeps the white accent apart from every player color and status color (D-058)", function()
+		-- D-051 checked a hue gap for the pink accent. White has no hue to speak
+		-- of, so the check is now: the accent is a neutral (no color of its own,
+		-- color is kept for meaning), clearly lighter than every player and status
+		-- color, its label reads at 7:1 and its slate lip shows on the stage.
 		local function lum(c: Colors.RGB): number
 			local function lin(v: number): number
 				local s = v / 255
@@ -91,8 +67,31 @@ describe("Colors", function()
 			end
 			return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)
 		end
-		local ratio = (lum(Colors.accent) + 0.05) / (lum(Colors.onAccent) + 0.05)
-		check(ratio >= 4.5, `primary label contrast is {ratio}:1`)
+		local function contrast(a: Colors.RGB, b: Colors.RGB): number
+			local x, y = lum(a), lum(b)
+			return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05)
+		end
+		local a = Colors.accent
+		local spread = math.max(a.r, a.g, a.b) - math.min(a.r, a.g, a.b)
+		check(spread <= 12, `the accent is tinted ({spread} between its channels)`)
+		local others: { [string]: Colors.RGB } =
+			{ good = Colors.good, bad = Colors.danger, warn = Colors.warn }
+		for name, c in Colors.player do
+			others[name] = c
+		end
+		for name, c in others do
+			check(lum(a) > lum(c), `the accent is not lighter than {name}`)
+			local ratio = contrast(a, c)
+			check(ratio >= 1.5, `the accent is only {ratio}:1 from {name}`)
+		end
+		-- WCAG contrast of the primary's label (onAccent) on the accent fill.
+		local label = contrast(a, Colors.onAccent)
+		check(label >= 7, `primary label contrast is {label}:1`)
+		-- The lip under the white face shows on the stage and on a card.
+		for _, ground in { Colors.background, Colors.surface } do
+			local lip = contrast(Colors.accentLip, ground)
+			check(lip >= 3, `the primary's lip is only {lip}:1 on the stage`)
+		end
 	end)
 
 	it("tints toward a color, clamped, and keeps mix as the same function", function()

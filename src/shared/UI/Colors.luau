@@ -39,11 +39,13 @@ Colors.muted = rgb(158, 168, 194) -- 7.0:1 on surface, 5.7:1 on raised
 Colors.neutral = rgb(118, 124, 142) -- a state nobody leads
 Colors.undecided = rgb(190, 196, 210) -- the undecided ring
 
--- Accent (D-051): pink, "press here / selected"; far from every player color.
-Colors.accent = rgb(255, 128, 214) -- the primary button, selection outline, timer
-Colors.accentEdge = rgb(214, 96, 178) -- the primary button's 2 px edge
-Colors.accentLip = rgb(158, 58, 126) -- the lip under the primary button (clearly darker than the face's shaded bottom)
-Colors.onAccent = Colors.background -- text on an accent fill (8.3:1)
+-- Accent (D-058, was pink in D-051): white, "press here / selected". Color is
+-- kept for meaning (players, gains, losses); the accent is a near-white, lighter
+-- than every player and status color and a touch brighter than `text`.
+Colors.accent = rgb(244, 246, 252) -- the primary button's face, selection outline, timer
+Colors.accentEdge = rgb(196, 204, 224) -- the primary button's 2 px edge (cool light grey)
+Colors.accentLip = rgb(110, 122, 158) -- the slate lip under the primary (2.4:1 on its shaded face, 3.9:1 on surface)
+Colors.onAccent = Colors.background -- text on an accent fill (17.4:1)
 
 -- Status (D-056): green is a gain; orange is anything against you. Red is a
 -- player color, so it never means "bad".

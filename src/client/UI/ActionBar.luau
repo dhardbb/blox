@@ -232,7 +232,8 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		lockFlash = function(self: ActionBar, pitch: number?)
 			timeFill.Visible = false
 			local resting = self.primary.BackgroundColor3
-			self.primary.BackgroundColor3 = Kit.colors.text
+			-- The face is white (D-058), so the flash dips to its grey edge and back.
+			self.primary.BackgroundColor3 = Kit.colors.accentEdge
 			Motion.tween(self.primary, { BackgroundColor3 = resting }, Motion.t.base)
 			Audio.play("lockIn", if pitch then { pitch = pitch } else nil)
 		end,

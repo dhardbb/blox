@@ -439,7 +439,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					Name = "NextTime",
 					LayoutOrder = #reasons + 1,
 					Font = Kit.font.medium,
-					TextColor3 = Kit.colors.accent,
+					TextColor3 = Kit.colors.text,
 				})
 			end
 		end
