@@ -55,11 +55,13 @@ local Types = require(script.Parent.Types)
 local Screen = {}
 
 local MAX_WIDTH = 1000 -- px
-local CARD_H = 112 -- px, a candidate card: name, kind, strength, weakness
-local CARD_H_PORTRAIT = 104 -- px, the same on a phone (tighter padding)
+local CARD_H = 128 -- px, a candidate card: the monogram beside name and kind, then strength and weakness
+local CARD_H_PORTRAIT = 100 -- px, the same on a phone (tighter padding, a smaller monogram)
+local MONO = 48 -- px, a candidate's monogram (Kit.monogram) on a wide screen
+local MONO_PORTRAIT = 36 -- px, on a phone
 local ISSUE_H = 68 -- px, an issue chip: the name over "154 votes · +41% boost"
 local ISSUE_H_PORTRAIT = 86 -- px, on a phone the votes and the boost take a line each
-local DOT = 16 -- px, the color dot
+local DOT = 24 -- px, the color line's monogram (your candidate's initials in your color)
 local DETAILS_W = 180 -- px, the ghost button beside the color line
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
 local PICKED = Kit.glyph.bullet .. " " -- before a picked issue's name
@@ -238,6 +240,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		perk: TextLabel,
 		drawback: TextLabel,
 		taken: TextLabel,
+		top: Frame,
+		who: Frame,
 	}
 	local parts: { [string]: CardParts } = {}
 
@@ -264,19 +268,52 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			AutomaticSize = Enum.AutomaticSize.None, -- the grid sizes it
 			Parent = candidateGrid,
 		})
+		-- The top row: the candidate's monogram (painted in renderMonograms)
+		-- beside the name over the kind.
+		local top = Kit.box({
+			Name = "Top",
+			LayoutOrder = 1,
+			Size = UDim2.new(1, 0, 0, MONO),
+			Parent = card,
+		})
+		local who = Kit.box({
+			Name = "Who",
+			Position = UDim2.fromOffset(MONO + Kit.space.sm, 0),
+			Size = UDim2.new(1, -(MONO + Kit.space.sm), 1, 0),
+			Parent = top,
+		})
+		local whoList = Kit.list("Vertical", 0)
+		whoList.VerticalAlignment = Enum.VerticalAlignment.Center
+		whoList.Parent = who
 		local name = Kit.text(profile.name, {
 			Name = "Name",
 			LayoutOrder = 1,
 			Font = Kit.font.bold,
 			TextScaled = true,
 			TextWrapped = false,
-			Parent = card,
+			Parent = who,
 		})
-		local archetype =
-			Kit.caption(profile.archetype, { Name = "Archetype", LayoutOrder = 2, Parent = card })
+		local archetype = Kit.caption(profile.archetype, {
+			Name = "Archetype",
+			LayoutOrder = 2,
+			AutomaticSize = Enum.AutomaticSize.None,
+			Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
+			TextScaled = true,
+			TextWrapped = false,
+			Parent = who,
+		})
+		-- One line each, shrinking to fit a phone's narrow card.
+		local line = {
+			AutomaticSize = Enum.AutomaticSize.None,
+			TextScaled = true,
+			TextWrapped = false,
+		}
 		local perk = Kit.caption(`+ {short.strength}`, {
 			Name = "Perk",
 			LayoutOrder = 3,
+			AutomaticSize = line.AutomaticSize,
+			TextScaled = line.TextScaled,
+			TextWrapped = line.TextWrapped,
 			TextColor3 = Kit.colors.good,
 			Parent = card,
 		})
@@ -284,13 +321,24 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local drawback = Kit.caption(`{Kit.glyph.minus} {short.weakness}`, {
 			Name = "Drawback",
 			LayoutOrder = 4,
+			AutomaticSize = line.AutomaticSize,
+			TextScaled = line.TextScaled,
+			TextWrapped = line.TextWrapped,
 			TextColor3 = if none then Kit.colors.muted else Kit.colors.bad,
 			Parent = card,
 		})
 		local taken =
 			Kit.pill("Taken", "muted", { Name = "Taken", LayoutOrder = 5, Visible = false, Parent = card })
 		cards[id] = card
-		parts[id] = { name = name, archetype = archetype, perk = perk, drawback = drawback, taken = taken }
+		parts[id] = {
+			name = name,
+			archetype = archetype,
+			perk = perk,
+			drawback = drawback,
+			taken = taken,
+			top = top,
+			who = who,
+		}
 	end
 
 	-- ------------------------------------------------------------ step 2: platform
@@ -354,16 +402,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = content,
 	})
-	local dot = Kit.dataColor(Kit.new("Frame", {
-		Name = "ColorDot",
+	-- Your candidate's initials in your color (Kit.monogram), repainted when
+	-- either changes (renderColor).
+	local dotSlot = Kit.box({
+		Name = "ColorSlot",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, Kit.space.xs, 0.5, 0),
 		Size = UDim2.fromOffset(DOT, DOT),
-		BackgroundColor3 = Kit.colors.neutral,
-		BorderSizePixel = 0,
 		Parent = colorRow,
-	}))
-	Kit.round().Parent = dot
+	})
 	local colorLine = Kit.text("", {
 		Name = "ColorLine",
 		Position = UDim2.fromOffset(DOT + Kit.space.md, 0),
@@ -421,16 +468,59 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = colorRow,
 	})
 
-	local shownColor: string? = nil
+	-- A monogram in `slot` for candidate `id` (or "?" before a pick) in
+	-- `color`, rebuilt only when what it shows changed.
+	local function paintMonogram(slot: Instance, name: string, label: string, color: Color3, px: number)
+		local key = `{label}|{px}|{color.R},{color.G},{color.B}`
+		if slot:GetAttribute("Painted") == key then
+			return
+		end
+		slot:SetAttribute("Painted", key)
+		local old = slot:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+		local mono = Kit.monogram(label, color, px)
+		mono.Name = name
+		mono.Parent = slot
+	end
+
+	-- Each card's monogram: in your color (the face you'd play), the taken
+	-- one in your opponent's; grey until colors are dealt.
+	local function renderMonograms()
+		local current = payload
+		local mine = Kit.colors.neutral
+		local theirs = Kit.colors.neutral
+		if current then
+			mine = Kit.playerColor(current.view, current.you)
+			local other = Data.opponent(current)
+			if current.view.players[other] then
+				theirs = Kit.playerColor(current.view, other)
+			end
+		end
+		local px = if lastPortrait then MONO_PORTRAIT else MONO
+		for id, p in parts do
+			local profile = Candidates.profile(ctx.config, id)
+			paintMonogram(
+				p.top,
+				"Monogram",
+				profile.name,
+				if holder(id) == "theirs" then theirs else mine,
+				px
+			)
+			p.top.Size = UDim2.new(1, 0, 0, px)
+			p.who.Position = UDim2.fromOffset(px + Kit.space.sm, 0)
+			p.who.Size = UDim2.new(1, -(px + Kit.space.sm), 1, 0)
+		end
+	end
+
 	local function renderColor()
 		local current = payload
 		local me = if current then current.view.players[current.you] else nil
 		local name = if me then me.color else nil
-		if name == shownColor then
-			return
-		end
-		shownColor = name
-		dot.BackgroundColor3 = Kit.color(Colors.of(name))
+		local id = candidate
+		local label = if id then Candidates.profile(ctx.config, id).name else "?"
+		paintMonogram(dotSlot, "ColorDot", label, Kit.color(Colors.of(name)), DOT)
 		colorLine.Text = if name then `Your color: {name}` else "Your color: red or blue"
 	end
 
@@ -611,6 +701,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			p.archetype.TextTransparency = if taken then TAKEN_FADE else 0
 		end
 		renderColor()
+		renderMonograms()
 		local full = #platform >= platformSize
 		for issue, chip in chips do
 			local picked = table.find(platform, issue) ~= nil
