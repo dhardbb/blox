@@ -49,6 +49,12 @@ export type Record = {
 	noiseSpread: number, -- sd of player 1's EV from election noise alone
 	debateTopicsWon: { number },
 	debateTopicsPlayed: number,
+	draftRounds: number, -- blind draft rounds played
+	draftClashes: number, -- rounds where both players' first choices were the same state
+	homeClash: boolean, -- both players' first choice for home was the same state
+	homes: { string }, -- each player's home
+	strongholds: { { string } }, -- each player's strongholds (drafted or assigned), before nominations strip any
+	strongholdEV: { number }, -- EV of each player's strongholds
 	match: State.MatchState,
 }
 
@@ -101,6 +107,7 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	local gotvSpend = { 0, 0 }
 	local raised = { 0, 0 }
 	local raisedByWeek = table.create(config.WEEKS, 0)
+	local draftRounds, draftClashes, homeClash = 0, 0, false
 
 	while match.phase ~= "Done" do
 		local inputs = {}
@@ -123,6 +130,16 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 			end
 		end
 		local before = match.phase
+		if before == "Draft" then
+			draftRounds += 1
+			local a, b = inputs[1].choices[1], inputs[2].choices[1]
+			if a ~= nil and a == b then
+				draftClashes += 1
+				if match.draftRound == 0 then
+					homeClash = true
+				end
+			end
+		end
 		match = Match.advance(config, match, inputs)
 
 		if before == "Draft" and match.phase ~= "Draft" then
@@ -204,6 +221,16 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		end
 	end
 
+	local homes, strongholds, strongholdEV = {}, {}, {}
+	for p, player in match.players do
+		homes[p] = player.home or ""
+		strongholds[p] = table.clone(player.strongholds)
+		strongholdEV[p] = 0
+		for _, id in player.strongholds do
+			strongholdEV[p] += StateData.byId[id].ev
+		end
+	end
+
 	return {
 		seed = seed,
 		candidates = candidates,
@@ -237,6 +264,12 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		noiseSpread = spread,
 		debateTopicsWon = topicsWon,
 		debateTopicsPlayed = topicsPlayed,
+		draftRounds = draftRounds,
+		draftClashes = draftClashes,
+		homeClash = homeClash,
+		homes = homes,
+		strongholds = strongholds,
+		strongholdEV = strongholdEV,
 		match = match,
 	}
 end
