@@ -128,6 +128,8 @@ Session.Reason = table.freeze({
 
 -- Notice sent to a player whose claim lost a same-step coin flip (D-048).
 Session.CANDIDATE_TAKEN = "CandidateTaken"
+-- Notice sent to the others when a player leaves the match (D-056).
+Session.OPPONENT_FORFEITED = "OpponentForfeited"
 
 local function isBot(seat: Seat): boolean
 	return seat.kind == "Bot"
@@ -703,6 +705,21 @@ function Session.reconnect(session: Session, p: number, now: number)
 	notify(session, p, "OpponentReconnected")
 	broadcast(session)
 	Session.update(session, now)
+end
+
+-- A player chose to leave (D-056): the match ends at once as a forfeit, won by
+-- the other seat, the same result as missing FORFEIT_MISSED_WEEKS weeks. The
+-- others are told why. Returns (false, "Over") once the match has ended, so a
+-- repeated request changes nothing.
+function Session.forfeit(session: Session, p: number, now: number): (boolean, string?)
+	if session.stage == "Over" then
+		return false, Session.Reason.Over
+	end
+	local winner = if p == 1 then 2 else 1
+	finish(session, now, { winner = winner, reason = "Forfeit" })
+	notify(session, p, Session.OPPONENT_FORFEITED)
+	broadcast(session)
+	return true, nil
 end
 
 -- Ends the match as abandoned, whatever state it is in. The server calls this

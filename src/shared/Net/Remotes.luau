@@ -4,6 +4,7 @@
 -- (server messages). Every request is one table with an `op`; every server
 -- message is one table with a `kind`. Net/Schemas validates requests at runtime.
 
+local Leaderboard = require("./Leaderboard")
 local Lobby = require("./Lobby")
 local Profile = require("./Profile")
 local Session = require("./Session")
@@ -28,6 +29,8 @@ export type Op =
 	| "Bank" -- take 15 s of time bank: { matchId, step }
 	| "Skip" -- skip the resolve animation or election night: { matchId, step }
 	| "Resync" -- ask for the current state again
+	| "Leaderboard" -- ask for the global leaderboard (D-056); answered with a "Leaderboard" message
+	| "Forfeit" -- leave the match in progress and lose it (D-056): { matchId }
 
 export type Request = {
 	op: Op,
@@ -67,11 +70,12 @@ export type RatingChange = {
 
 -- Server -> client messages.
 export type Message = {
-	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected",
+	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard",
 	lobby: LobbyStatus?,
 	state: Session.StatePayload?,
 	notice: string?, -- e.g. "OpponentDisconnected"
 	rating: RatingChange?, -- Rating: sent once when a rated match ends
+	leaderboard: Leaderboard.Board?, -- Leaderboard: the top list and where this player stands
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

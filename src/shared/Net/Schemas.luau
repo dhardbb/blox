@@ -25,6 +25,8 @@ local OPS: { [string]: boolean } = {
 	Bank = true,
 	Skip = true,
 	Resync = true,
+	Leaderboard = true,
+	Forfeit = true,
 }
 
 -- True if `value` is plain data within the size limits: only tables, strings,
@@ -106,6 +108,12 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			end
 			request.color = raw.color
 		end
+	elseif op == "Forfeit" then
+		-- The match being left: a stale request can never end a newer match.
+		if type(raw.matchId) ~= "string" then
+			return false, "BadShape", nil
+		end
+		request.matchId = raw.matchId
 	elseif op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
 		local matchId, step = raw.matchId, raw.step
 		if type(matchId) ~= "string" or type(step) ~= "number" or step ~= math.floor(step) then
