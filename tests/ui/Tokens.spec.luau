@@ -97,6 +97,60 @@ describe("Design tokens in screens and the map", function()
 	end)
 end)
 
+-- Polish (docs/DESIGN.md D-053): fonts come from Kit.font, tweens from
+-- UI/Motion and sounds from UI/Audio, so the reduced-motion setting, the mute
+-- button and a one-line font swap reach everything.
+local OWNERS: { [string]: boolean } = {
+	["src/client/UI/Kit.luau"] = true,
+	["src/client/UI/Motion.luau"] = true,
+	["src/client/UI/Audio.luau"] = true,
+}
+
+local PRESENTATION: { { name: string, pattern: string } } = {
+	{ name = "an Enum.Font literal (use Kit.font)", pattern = "Enum%.Font%." },
+	{ name = "TweenService (use Motion)", pattern = "TweenService" },
+	{ name = "a Sound (use Audio)", pattern = 'Instance%.new%(%s*"Sound"' },
+	{ name = "PlayLocalSound (use Audio)", pattern = "PlayLocalSound" },
+}
+
+describe("Fonts, tweens and sounds go through Kit, Motion and Audio", function()
+	it("has no font literals, TweenService or Sounds in screens, the map and UI modules", function()
+		local files: { string } = {}
+		for _, folder in { "src/client/Screens", "src/client/Map", "src/client/UI" } do
+			luauFiles(folder, files)
+		end
+		table.insert(files, "src/client/Router.luau")
+		table.insert(files, "src/client/App.client.luau")
+		local problems = {}
+		for _, path in files do
+			if OWNERS[path] then
+				continue
+			end
+			local n = 0
+			for line in string.gmatch(fs.readFile(path) .. "\n", "([^\n]*)\n") do
+				n += 1
+				for _, rule in PRESENTATION do
+					if string.find(line, rule.pattern) then
+						table.insert(problems, `{path}:{n}: {rule.name}`)
+					end
+				end
+			end
+		end
+		if #problems > 0 then
+			error(table.concat(problems, "\n"), 0)
+		end
+	end)
+
+	it("keeps presentation timings out of Sim/Config", function()
+		local config = fs.readFile("src/shared/Sim/Config.luau")
+		for _, word in { "Tween", "Motion", "Audio", "SoundId", "rbxassetid" } do
+			if string.find(config, word, 1, true) then
+				error(`Sim/Config mentions {word}`, 0)
+			end
+		end
+	end)
+end)
+
 describe("Old Kit size names", function()
 	it("are gone from the whole client", function()
 		local files: { string } = {}

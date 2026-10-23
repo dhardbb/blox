@@ -40,6 +40,9 @@ Colors.onAccent = Colors.background -- text on an accent fill
 Colors.field = rgb(22, 25, 33) -- text boxes and read-only wells (between background and surface)
 Colors.warn = rgb(255, 150, 64) -- warning text and icons, never a fill (docs/UI-STYLE.md); not the accent, so "careful" never looks like "press here"
 Colors.disabledText = Colors.muted -- labels of disabled buttons
+Colors.surfaceTop = rgb(34, 38, 48) -- top stop of a card's top-light gradient (bottom: surface)
+Colors.raisedTop = rgb(48, 53, 66) -- top stop of a raised panel's gradient (bottom: raised)
+Colors.accentEdge = rgb(214, 96, 178) -- the primary button's 2 px edge, a darker accent
 
 -- Linear blend from `base` toward `color`, t in [0, 1]. Used for map fills, the
 -- Election feed rows (0.35) and the draft board legend (0.6).
@@ -91,6 +94,54 @@ function Colors.stateFill(support: { number }?, colors: { RGB }): RGB
 		return Colors.neutral
 	end
 	return Colors.tint(Colors.neutral, colors[leader] or Colors.neutral, (best - second) / Colors.FULL_MARGIN)
+end
+
+-- Map bands (display only, docs/DESIGN.md D-053): a state's fill steps by its
+-- poll margin in points instead of blending. `below` is the band's upper bound
+-- (exclusive); `share` is how far from neutral toward the leader's color.
+export type Band = {
+	name: string, -- "tossup" | "lean" | "likely" | "safe"
+	below: number,
+	share: number,
+}
+
+Colors.BANDS = table.freeze({
+	table.freeze({ name = "tossup", below = 3, share = 0 }),
+	table.freeze({ name = "lean", below = 8, share = 0.45 }),
+	table.freeze({ name = "likely", below = 15, share = 0.75 }),
+	table.freeze({ name = "safe", below = math.huge, share = 1 }),
+} :: { Band })
+
+-- The band for a poll margin in points (the leader's share minus the runner-up's).
+function Colors.band(margin: number): Band
+	local m = math.abs(margin)
+	for _, band in Colors.BANDS do
+		if m < band.below then
+			return band
+		end
+	end
+	return Colors.BANDS[#Colors.BANDS]
+end
+
+-- Banded fill for a state from its public poll: neutral for a toss-up, then
+-- 45 / 75 / 100 % of the leader's color. Same inputs as stateFill.
+function Colors.bandFill(support: { number }?, colors: { RGB }): RGB
+	if support == nil or #support < 2 then
+		return Colors.neutral
+	end
+	local best, second, leader = -math.huge, -math.huge, 0
+	for p, share in support do
+		if share > best then
+			second, best, leader = best, share, p
+		elseif share > second then
+			second = share
+		end
+	end
+	if best == second or leader == 0 then
+		return Colors.neutral
+	end
+	local band = Colors.band(best - second)
+	return Colors.tint(Colors.neutral, colors[leader] or Colors.neutral, band.share)
 end
 
 return table.freeze(Colors)

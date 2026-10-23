@@ -49,6 +49,15 @@ export type Map = {
 	-- The candidate's planned route, in order; `flights[k]` marks a flown hop into stop k.
 	setRoute: (self: Map, stops: { string }, flights: { boolean }) -> (),
 	select: (self: Map, id: string?) -> (),
+	-- Motion (UI/Motion; decorative ones do nothing under reduced motion):
+	-- pulse: the circle bumps 1.15 -> 1 (and rings in `color` if given);
+	-- ring: a ring in `color` grows out of the circle and fades;
+	-- badge: a 16 px icon (UI/Icons name) at the node's top-right, nil removes it;
+	-- wipe: the circle's fill turns to `color` (0.4 s) with a ring (an election call).
+	pulse: (self: Map, id: string, color: Color3?) -> (),
+	ring: (self: Map, id: string, color: Color3) -> (),
+	badge: (self: Map, id: string, icon: string?) -> (),
+	wipe: (self: Map, id: string, color: Color3) -> (),
 	onSelect: (self: Map, handler: (id: string) -> ()) -> (),
 	destroy: (self: Map) -> (),
 }

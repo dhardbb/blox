@@ -14,6 +14,11 @@
 --   bar:setSecondary(text?, enabled)     -- nil hides it; primary takes the full width
 --   bar:setStatus(text, tone)            -- tone: "muted" | "ok" | "warn" | "bad"
 --   bar:setOpponent(text?)               -- "Opponent: thinking" | ... ; nil hides it
+--   bar:setProgress(fraction?)           -- time left (0..1) as a fill inside the
+--                                        -- primary, shrinking from the right; nil hides it
+--   bar:lockFlash(pitch?)                -- the lock-in moment: the primary flashes
+--                                        -- light and settles into its disabled look,
+--                                        -- with the "lockIn" cue (pitch 0.8 for time's up)
 --   bar.root       Frame "ActionBar": Size (1, 0, 0, BAR_H), AnchorPoint (0, 1), Position (0, 0, 1, 0)
 --   bar.primary    TextButton (default Name "Primary"), attribute PrimaryAction = true
 --   bar.secondary  TextButton (default Name "Secondary")
@@ -27,14 +32,23 @@
 -- state"); status after locking "Locked in · waiting for opponent" (tone ok);
 -- opponent "Opponent: thinking" / "locked in" / "skipped" / "disconnected" /
 -- "back"; reveal skip "Skip" then "Waiting for opponent…" (disabled).
+--
+-- Lock-in flash (docs/DESIGN.md D-053): setPrimary runs lockFlash by itself
+-- when an enabled primary becomes a disabled "Locked in…", so every screen that
+-- already says "Locked in" gets the flash and the cue. The first setPrimary
+-- after new() never flashes (a screen that mounts already locked in).
 
+local Audio = require(script.Parent.Audio)
 local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
 
 local ActionBar = {}
 
 local STATUS_H = 20 -- px, the status line
 local GAP = Kit.space.xs -- px, between the status line and the buttons, and below them
 local SECONDARY_SHARE = 0.3 -- the secondary's share of the width
+local PROGRESS_TRANSPARENCY = 0.8 -- the time fill over the primary: a light veil, the label stays readable
+local LOCKED = "Locked in" -- a primary label starting with this is the lock-in moment
 
 export type Tone = "muted" | "ok" | "warn" | "bad"
 
@@ -65,6 +79,8 @@ export type ActionBar = {
 	setSecondary: (self: ActionBar, text: string?, enabled: boolean) -> (),
 	setStatus: (self: ActionBar, text: string, tone: Tone) -> (),
 	setOpponent: (self: ActionBar, text: string?) -> (),
+	setProgress: (self: ActionBar, fraction: number?) -> (),
+	lockFlash: (self: ActionBar, pitch: number?) -> (),
 }
 
 function ActionBar.new(parent: Instance, options: Options): ActionBar
@@ -119,6 +135,19 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		Parent = root,
 	})
 	primary:SetAttribute("PrimaryAction", true)
+	-- The time left, as a veil over the primary from the left (setProgress).
+	local timeFill = Kit.new("Frame", {
+		Name = "TimeFill",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Kit.colors.raisedHover,
+		BackgroundTransparency = PROGRESS_TRANSPARENCY,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = primary,
+	})
+	Kit.corner(Kit.radius.control).Parent = timeFill
+	local armed = false -- set by the first setPrimary: later changes may flash
+	local wasEnabled = false
 
 	local function layout()
 		-- The status line gives way to the opponent's line; the primary to the secondary.
@@ -138,8 +167,14 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		status = status,
 		opponent = opponent,
 		setPrimary = function(self: ActionBar, text: string, enabled: boolean)
+			local lockingIn = armed and wasEnabled and not enabled and string.sub(text, 1, #LOCKED) == LOCKED
 			self.primary.Text = text
 			Kit.setEnabled(self.primary, enabled)
+			armed = true
+			wasEnabled = enabled
+			if lockingIn then
+				self:lockFlash()
+			end
 		end,
 		setSecondary = function(self: ActionBar, text: string?, enabled: boolean)
 			if text == nil then
@@ -159,6 +194,22 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 			self.opponent.Text = text or ""
 			self.opponent.Visible = (text or "") ~= ""
 			layout()
+		end,
+		setProgress = function(_self: ActionBar, fraction: number?)
+			if fraction == nil then
+				timeFill.Visible = false
+				return
+			end
+			local k = math.clamp(fraction, 0, 1)
+			timeFill.Visible = k > 0
+			timeFill.Size = UDim2.fromScale(k, 1)
+		end,
+		lockFlash = function(self: ActionBar, pitch: number?)
+			timeFill.Visible = false
+			local resting = self.primary.BackgroundColor3
+			self.primary.BackgroundColor3 = Kit.colors.text
+			Motion.tween(self.primary, { BackgroundColor3 = resting }, Motion.t.base)
+			Audio.play("lockIn", if pitch then { pitch = pitch } else nil)
 		end,
 	}
 	root.Parent = parent

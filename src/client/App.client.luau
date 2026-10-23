@@ -19,6 +19,7 @@ local Config = require(Shared.Sim.Config)
 local Fixtures = require(Shared.UI.Fixtures)
 
 local _DebugPanel = require(script.Parent.DebugPanel) -- builds the hidden debug panel
+local Audio = require(script.Parent.UI.Audio)
 local Kit = require(script.Parent.UI.Kit)
 local Help = require(script.Parent.UI.Help)
 local Net = require(script.Parent.Net)
@@ -56,6 +57,38 @@ local gui = Kit.new("ScreenGui", {
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 })
 local background = Kit.box({ Name = "Background", Parent = gui })
+
+-- Big screens (an iPad Pro, a large Mac window) scale the whole board up, so
+-- text and buttons don't look tiny: min(width / 1024, height / 768), between
+-- 1 and BOARD_SCALE_MAX. Phones, a 1024x768 iPad and 1280x720 stay at 1. The
+-- board is drawn 1/scale its size and scaled back up, so it still fills the
+-- screen exactly (a UIScale multiplies AbsoluteSize).
+local BOARD_SCALE_MAX = 1.35
+local BOARD_BASE = Vector2.new(1024, 768) -- px, the size the layout is designed at
+local boardScale = Kit.new("UIScale", { Name = "BoardScale", Scale = 1, Parent = background })
+local function viewport(): Vector2?
+	local camera = workspace.CurrentCamera
+	if camera then
+		return camera.ViewportSize
+	end
+	return nil
+end
+local function fitBoard()
+	local size = viewport()
+	if size == nil or size.X <= 0 or size.Y <= 0 then
+		return
+	end
+	local scale = math.clamp(math.min(size.X / BOARD_BASE.X, size.Y / BOARD_BASE.Y), 1, BOARD_SCALE_MAX)
+	boardScale.Scale = scale
+	background.Size = UDim2.fromScale(1 / scale, 1 / scale)
+end
+fitBoard()
+pcall(function()
+	local camera = workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(fitBoard)
+	end
+end)
 local container = Kit.box({ Name = "Screens", Parent = background })
 Kit.pad(10).Parent = container
 -- One toast layer above every screen (rejections and notices), so no screen
@@ -138,5 +171,8 @@ if type(fixture) == "string" then
 else
 	Net.start()
 end
+
+-- Load the sound cues in the background (never waits).
+Audio.preload()
 
 Router.start(container, ctx, Store.subscribe)

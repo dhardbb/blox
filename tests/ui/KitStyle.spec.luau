@@ -149,7 +149,7 @@ describe("Header now line and time bar", function()
 		expect(header.timer.AbsoluteSize.Y):toBe(c.Kit.HEADER_H)
 	end)
 
-	it("shows a time bar only with a total, danger under the warning", function()
+	it("shows a time bar only with a total, danger under 5 s", function()
 		local c = client()
 		local Header = load(c, "Header")
 		local header = Header.new(c.stage, { title = "Week 3" })
@@ -160,8 +160,10 @@ describe("Header now line and time bar", function()
 		expect(bar.Visible):toBe(true)
 		expect(bar.Fill.Size.X.Scale):toBe(0.5)
 		check(same(bar.Fill.BackgroundColor3, c.Kit.colors.accent), "the bar is not accent")
-		header:setTimer(5, nil, 50)
-		check(same(bar.Fill.BackgroundColor3, c.Kit.colors.danger), "the bar is not danger under 10 s")
+		header:setTimer(7, nil, 50)
+		check(same(bar.Fill.BackgroundColor3, c.Kit.colors.accent), "the bar fills warn (warn is text only)")
+		header:setTimer(4, nil, 50)
+		check(same(bar.Fill.BackgroundColor3, c.Kit.colors.danger), "the bar is not danger under 5 s")
 		header:setTimer(nil)
 		expect(bar.Visible):toBe(false)
 	end)
@@ -356,5 +358,146 @@ describe("UI audit style rules", function()
 		t.Audit.PENDING["Brand new screen"] = { wallOfText = true }
 		expect(t.Audit.run(t.root, "Brand new screen", { strict = true })):toBe(0)
 		t.Audit.PENDING["Brand new screen"] = nil
+	end)
+end)
+
+-- ------------------------------------------------------------------ polish (docs/DESIGN.md D-053)
+
+describe("ActionBar time fill and lock-in flash", function()
+	it("shows the time left inside the primary", function()
+		local c = client()
+		local ActionBar = load(c, "ActionBar")
+		local bar = ActionBar.new(c.stage, { primary = "Lock in", onPrimary = noop })
+		local fill = bar.primary:FindFirstChild("TimeFill")
+		expect(fill.Visible):toBe(false)
+		bar:setProgress(0.5)
+		expect(fill.Visible):toBe(true)
+		expect(fill.Size.X.Scale):toBe(0.5)
+		bar:setProgress(0)
+		expect(fill.Visible):toBe(false)
+		bar:setProgress(nil)
+		expect(fill.Visible):toBe(false)
+	end)
+
+	it("flashes and plays lockIn when an enabled primary becomes Locked in", function()
+		local c = client()
+		c.world.current = c.peer
+		local ActionBar = load(c, "ActionBar")
+		local bar = ActionBar.new(c.stage, { primary = "Lock in", onPrimary = noop })
+		-- The first call never flashes (a screen that mounts already locked in).
+		bar:setPrimary("Locked in", false)
+		bar:setPrimary("Lock in", true)
+		bar:setProgress(0.4)
+		bar:setPrimary("Locked in", false)
+		c.world.current = nil
+		FakeRoblox.run(c.world, 0.3)
+		local played = Rig.sounds(c.peer)
+		local locks = 0
+		for _, name in played do
+			if name == "lockIn" then
+				locks += 1
+			end
+		end
+		expect(locks):toBe(1)
+		check(same(bar.primary.BackgroundColor3, c.Kit.colors.raised), "the flash did not settle on disabled")
+		expect(bar.primary:FindFirstChild("TimeFill").Visible):toBe(false)
+		-- Re-enabled the next week: the accent comes back at once.
+		bar:setPrimary("Lock in", true)
+		FakeRoblox.run(c.world, 0.3)
+		check(same(bar.primary.BackgroundColor3, c.Kit.colors.accent), "the primary is not accent again")
+		Rig.noErrors(c.world)
+	end)
+end)
+
+describe("Header urgency and sound button", function()
+	it("pops and ticks once a second under five seconds", function()
+		local c = client()
+		local Header = load(c, "Header")
+		local header = Header.new(c.stage, { title = "Week 3" })
+		-- Shown: 7, 6, 5, 5, 4, 3. Under 5 each new second ticks: 4 and 3.
+		for _, left in { 6.5, 5.5, 4.5, 4.2, 3.5, 2.5 } do
+			c.world.current = c.peer
+			header:setTimer(left)
+			c.world.current = nil
+			FakeRoblox.run(c.world, 1)
+		end
+		local ticks = 0
+		for _, name in Rig.sounds(c.peer) do
+			if name == "tick" then
+				ticks += 1
+			end
+		end
+		expect(ticks):toBe(2)
+		check(header.timer:FindFirstChild("MotionScale") ~= nil, "the timer never popped")
+	end)
+
+	it("places the sound button left of help, both inside the row", function()
+		local c = client({ x = 390, y = 844 })
+		local Header = load(c, "Header")
+		local header = Header.new(c.stage, { title = "Week 3", onHelp = noop })
+		local sound, help = header.sound, header.help
+		check(sound ~= nil and help ~= nil, "missing buttons")
+		expect(sound.AbsoluteSize.X):toBe(44)
+		check(sound.AbsolutePosition.X < help.AbsolutePosition.X, "sound is not left of help")
+		expect(header.rightWidth):toBe(72 + 2 * (44 + 8))
+		-- A labeled timer on a phone: the sound button steps aside for the title.
+		header:setTimerLabel("Results in")
+		expect(sound.Visible):toBe(false)
+		expect(header.rightWidth):toBe(150 + 44 + 8)
+		header:setTimerLabel(nil)
+		expect(sound.Visible):toBe(true)
+		-- ... and for a long title.
+		header:setTitle("Week 7 · Clinic walkout")
+		expect(sound.Visible):toBe(false)
+		header:setTitle("Week 7")
+		expect(sound.Visible):toBe(true)
+		local Audit = load(c, "Audit")
+		header.root:SetAttribute("PrimaryOptional", true)
+		local findings = Audit.check(header.root, { style = true })
+		check(#findings == 0, `audit: {findings[1] and findings[1].message}`)
+	end)
+end)
+
+describe("Colors bands and the audit's motion rules", function()
+	it("steps a state's fill by poll margin", function()
+		local c = client()
+		local Colors = require("@ui/Colors")
+		expect(Colors.band(0).name):toBe("tossup")
+		expect(Colors.band(2.9).name):toBe("tossup")
+		expect(Colors.band(3).name):toBe("lean")
+		expect(Colors.band(-7.9).name):toBe("lean")
+		expect(Colors.band(8).name):toBe("likely")
+		expect(Colors.band(15).name):toBe("safe")
+		local red = Colors.player.Crimson
+		local blue = Colors.player.Cobalt
+		local colors = { red, blue }
+		local function same3(a: any, b: any): boolean
+			return a.r == b.r and a.g == b.g and a.b == b.b
+		end
+		check(same3(Colors.bandFill({ 51, 49 }, colors), Colors.neutral), "a toss-up is not neutral")
+		check(same3(Colors.bandFill({ 40, 60 }, colors), blue), "a safe state is not the full color")
+		check(
+			same3(Colors.bandFill({ 52, 47 }, colors), Colors.tint(Colors.neutral, red, 0.45)),
+			"lean is not 45%"
+		)
+		check(same3(Colors.bandFill(nil, colors), Colors.neutral), "no poll is not neutral")
+		expect(c.Kit.colors.surfaceTop ~= nil):toBe(true)
+	end)
+
+	it("skips decor and judges a pressed button at rest", function()
+		local c = client()
+		local Audit = load(c, "Audit")
+		local root = c.Kit.box({ Name = "Root", Parent = c.stage })
+		root:SetAttribute("PrimaryOptional", true)
+		local button = c.Kit.button("Go", noop, { variant = "secondary", Parent = root })
+		button.Size = UDim2.fromOffset(120, 44)
+		local scale = c.Kit.new("UIScale", { Name = "MotionScale", Scale = 0.96, Parent = button })
+		-- The fake engine does not apply UIScale: shrink the box as Roblox would.
+		button.Size = UDim2.fromOffset(120 * 0.96, 44 * 0.96)
+		local decor = c.Kit.box({ Name = "Ring", Parent = root, Size = UDim2.fromOffset(5000, 5000) })
+		decor:SetAttribute("Decor", true)
+		local findings = Audit.check(root, { style = true })
+		check(#findings == 0, `audit: {findings[1] and findings[1].message}`)
+		expect(scale.Scale):toBe(0.96)
 	end)
 end)

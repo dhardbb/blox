@@ -38,6 +38,13 @@
 --                 area (attribute Details = true: Kit.details, Sheet and
 --                 Collapsible bodies, the Help overlay)
 --
+-- Motion (docs/DESIGN.md D-053): decorative effects (UI/Motion's Ring and
+-- Confetti frames, attribute Decor = true, and everything inside them) are
+-- skipped, and a "MotionScale" UIScale on an object or its ancestors (a button
+-- held down, a card popping in) is divided out of the sizes checked, so an audit
+-- that lands mid-animation judges the resting layout. The palette includes the
+-- gradient and edge tokens (surfaceTop, raisedTop, accentEdge) through Kit.colors.
+--
 -- Transition (UI overhaul v0.4.0): the screens are redesigned one work package
 -- at a time, so findings a screen is known to have are reported as "pending"
 -- (printed, not counted, no WARN) until its package lands. Audit.PENDING lists,
@@ -242,13 +249,29 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 	local sizes: { [number]: boolean } = {}
 	local accents: { string } = {}
 
+	-- The product of the MotionScale UIScales on `inst` and its ancestors.
+	local function motionScale(inst: Instance): number
+		local k = 1
+		local node: Instance? = inst
+		while node and node ~= root do
+			local scale = node:FindFirstChild("MotionScale")
+			if scale and scale:IsA("UIScale") and (scale :: UIScale).Scale > 0 then
+				k *= (scale :: UIScale).Scale
+			end
+			node = node.Parent
+		end
+		return k
+	end
+
 	for _, inst in root:GetDescendants() do
-		if not inst:IsA("GuiObject") or not visible(inst) then
+		if not inst:IsA("GuiObject") or not visible(inst) or marked(inst, "Decor") then
 			continue
 		end
 		local gui = inst :: GuiObject
 		local onMap = inst:FindFirstAncestor("NodeMap") ~= nil or inst.Name == "NodeMap"
-		local size = gui.AbsoluteSize
+		local k = motionScale(inst)
+		local raw = gui.AbsoluteSize
+		local size = if k == 1 then raw else Vector2.new(raw.X / k, raw.Y / k)
 
 		if inst:IsA("GuiButton") then
 			local button = inst :: GuiButton

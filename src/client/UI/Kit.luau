@@ -4,16 +4,20 @@
 -- screen uses (docs/DESIGN.md D-030). Buttons never go under 44 px.
 --
 -- Tokens
---   Kit.size     caption 13 · body 16 · heading 20 · title 28 · hero 48. Nothing
+--   Kit.size     caption 14 · body 16 · heading 20 · title 28 · hero 48. Nothing
 --                else: screens never write a TextSize literal (tests/ui/Tokens.spec).
 --   Kit.space    xs 4 · sm 8 · md 12 · lg 16 · xl 24 (px)
 --   Kit.radius   control 8 · panel 12 · pill 999 (Kit.round() stays for circles)
 --   Kit.MIN_TOUCH 44, Kit.PRIMARY_H 56, Kit.BAR_H 84, Kit.HEADER_H 44,
 --   Kit.MIN_TEXT 12 (floor of every UITextSizeConstraint), Kit.MAP_NODE_MIN 36,
---   Kit.TIMER_WARN 10 (seconds; timers turn danger below it).
+--   Kit.TIMER_WARN 10 (seconds; timers turn warn below it), Kit.TIMER_CRITICAL 5
+--   (danger, a pop and a tick each second below it).
 --   Kit.colors   every Colors token as a Color3 (background, surface, raised,
 --                raisedHover, line, text, muted, neutral, undecided, accent,
---                danger, good, onAccent, field, warn, disabledText).
+--                danger, good, onAccent, field, warn, disabledText, surfaceTop,
+--                raisedTop, accentEdge).
+--   Kit.font     body · medium · bold (Builder Sans, Gotham fallback) · display
+--                (Fredoka One: hero, title numbers, the primary's label) · mono
 --
 -- Components
 --   Kit.new(className, props?, children?) -> Instance
@@ -48,12 +52,13 @@
 --       primaryName?, secondaryName?, name? }) -> bar
 --     bar:setPrimary(text, enabled) · bar:setSecondary(text?, enabled)
 --     bar:setStatus(text, "muted" | "ok" | "warn" | "bad") · bar:setOpponent(text?)
+--     bar:setProgress(fraction?) · bar:lockFlash(pitch?)
 --     bar.root (BAR_H, pinned to the bottom) · bar.primary (attribute PrimaryAction)
 --     bar.secondary · bar.status · bar.opponent
 --   Header.new(parent, { title, subtitle?, name? }) -> header
 --     header:setTitle(text) · header:setSubtitle(text?)
 --     header:setTimer(secondsLeft?, warnBelow?) · header:setTimerLabel(label?)
---     header.root (HEADER_H) · header.title · header.subtitle · header.timer
+--     header.root (HEADER_H) · header.title · header.subtitle · header.timer · header.sound
 --   Toast.mount(parent, store) -> { root, frame, label, destroy }   (App.client only)
 --   Collapsible.new(parent, { title, expanded?, name?, order?, onToggle? }) -> card
 --     card:setTitle(text) · card:setExpanded(expanded) · card:isExpanded()
@@ -83,12 +88,22 @@
 --   Kit.dataColor(inst) -> inst                   marks a data-colored element (map
 --                                                 fills, feed tints): any color OK
 --   Kit.words(text) -> number
---   Kit.tween(inst, goals, duration?)             TweenService (Quad Out), or set
---                                                 at once where there is none
+--   Kit.tween(inst, goals, duration?)             Motion.tween (Quad Out): instant
+--                                                 under reduced motion or headless
 --   Variant "ghost": no fill, text color, for tertiary actions ("More", "Back").
 --   New modules: UI/Sheet (bottom sheet on phones, centered panel on wide screens),
 --   UI/CoachTip (first-match tips, shown once), Header option `now` (the "what to do
 --   now" line) and a timer bar (setTimer's third argument).
+--
+-- Polish (docs/DESIGN.md D-053; UI/Motion, UI/Audio, UI/Icons):
+--   Every Kit.button shrinks while held (Motion.press) and plays a cue when
+--   activated: "tap", or "select" for a chip. Primary, secondary and chip
+--   buttons get a top-light UIGradient "Depth"; primary a 2 px accentEdge
+--   UIStroke "Edge", secondary a 1 px line hairline "Edge" (0.5 transparent).
+--   Kit.card gets the surfaceTop -> surface gradient and the hairline.
+--   Kit.depth(inst, top, base)  fill `top` fading to `base` at the bottom
+--   Kit.icon(name, size?, color?) -> ImageLabel | TextLabel   (UI/Icons)
+--   Kit.actionIcon(kind) -> string?   the icon name for a plan action kind
 --
 -- A button made without `props.variant` keeps the v0.3 behavior: setEnabled
 -- only fades it (transparency) and never touches its colors, because legacy
@@ -97,7 +112,10 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Audio = require(script.Parent.Audio)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
+local Icons = require(script.Parent.Icons)
+local Motion = require(script.Parent.Motion)
 
 local Kit = {}
 
@@ -110,7 +128,8 @@ Kit.BAR_H = 84 -- px, action bar: 20 status + 4 gap + 56 buttons + 4
 Kit.HEADER_H = 44 -- px, the standard one-row header
 Kit.MIN_TEXT = 12 -- px, floor for every UITextSizeConstraint
 Kit.MAP_NODE_MIN = 36 -- px, smallest map tap target
-Kit.TIMER_WARN = 10 -- s, timers turn danger below this
+Kit.TIMER_WARN = 10 -- s, timers turn warn below this
+Kit.TIMER_CRITICAL = 5 -- s, timers turn danger and tick below this
 Kit.MAX_TEXT_SIZES = 4 -- distinct text sizes one screen may show (UI audit textSizes)
 Kit.MAX_LABEL_WORDS = 8 -- words on one button label (UI audit labelWords)
 Kit.MAX_TEXT_WORDS = 30 -- words in one text outside a details area (UI audit wallOfText)
@@ -139,18 +158,35 @@ Kit.glyph = {
 	more = "…",
 	check = "✓",
 	flight = "✈",
+	sound = "♪",
 }
 
+-- The first of `names` this engine knows (an unknown Enum item errors in Roblox).
+local function firstFont(names: { string }): Enum.Font
+	for _, name in names do
+		local ok, font = pcall(function()
+			return (Enum.Font :: any)[name]
+		end)
+		if ok and font ~= nil then
+			return font
+		end
+	end
+	return Enum.Font.Gotham
+end
+
+-- Builder Sans for everything, Fredoka One for display; each with a fallback.
+-- To go back to one family, set display to { "BuilderSansExtraBold", "GothamBlack" }.
 Kit.font = {
-	body = Enum.Font.Gotham,
-	bold = Enum.Font.GothamBold,
-	medium = Enum.Font.GothamMedium,
+	body = firstFont({ "BuilderSans", "Gotham" }),
+	medium = firstFont({ "BuilderSansMedium", "GothamMedium" }),
+	bold = firstFont({ "BuilderSansBold", "GothamBold" }),
+	display = firstFont({ "FredokaOne", "BuilderSansExtraBold", "GothamBlack" }),
 	mono = Enum.Font.Code,
 }
 
 -- The type scale: the only text sizes a screen may use.
 Kit.size = {
-	caption = 13, -- stat lines, tags, hints, legend, feed rows
+	caption = 14, -- stat lines, tags, hints, legend, feed rows
 	body = 16, -- buttons, sentences, list rows
 	heading = 20, -- panel titles, state name, timer
 	title = 28, -- screen titles, EV counters
@@ -192,6 +228,9 @@ Kit.colors = {
 	field = Kit.color(Colors.field),
 	warn = Kit.color(Colors.warn),
 	disabledText = Kit.color(Colors.disabledText),
+	surfaceTop = Kit.color(Colors.surfaceTop),
+	raisedTop = Kit.color(Colors.raisedTop),
+	accentEdge = Kit.color(Colors.accentEdge),
 }
 Kit.colors.bad = Kit.colors.danger -- the semantic name for a loss or an error
 
@@ -442,6 +481,49 @@ local function strokeOf(button: Instance): UIStroke?
 	return if stroke then stroke :: UIStroke else nil
 end
 
+local HAIRLINE_TRANSPARENCY = 0.5 -- a card's or secondary button's 1 px line edge
+
+-- A top-light gradient that keeps the fill's token: the top shows the fill as
+-- set, the bottom BUTTON_SHADE of it. UIGradient multiplies its parent's colors
+-- (text included, so the shade stays light), and setEnabled/setSelected keep
+-- changing BackgroundColor3 under it.
+local BUTTON_SHADE = 0.86
+
+local function shade(inst: Instance)
+	local k = BUTTON_SHADE
+	Kit.new("UIGradient", {
+		Name = "Depth",
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(k, k, k)),
+		Parent = inst,
+	})
+end
+
+-- Fills `inst` with `top` and adds a vertical UIGradient "Depth" that brings it
+-- down to `base` at the bottom (cards: surfaceTop -> surface; elevated panels
+-- such as the election spotlight: raisedTop -> raised). Returns `inst`.
+function Kit.depth<T>(inst: T, top: Color3, base: Color3): T
+	local target = inst :: any
+	target.BackgroundColor3 = top
+	local old = target:FindFirstChild("Depth")
+	if old then
+		old:Destroy()
+	end
+	local function ratio(b: number, t: number): number
+		return if t > 0 then math.clamp(b / t, 0, 1) else 1
+	end
+	Kit.new("UIGradient", {
+		Name = "Depth",
+		Rotation = 90,
+		Color = ColorSequence.new(
+			Color3.new(1, 1, 1),
+			Color3.new(ratio(base.R, top.R), ratio(base.G, top.G), ratio(base.B, top.B))
+		),
+		Parent = target,
+	})
+	return inst
+end
+
 -- A button with a label that shrinks to fit, at least MIN_TOUCH px both ways.
 -- `props.variant` picks the look (see the header); other props are set on the
 -- TextButton as usual and win over the variant's defaults.
@@ -464,7 +546,7 @@ function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }
 		BorderSizePixel = 0,
 		AutoButtonColor = true,
 		Size = UDim2.new(1, 0, 0, if variant == "primary" then Kit.PRIMARY_H else Kit.MIN_TOUCH),
-		Font = if variant == "primary" then Kit.font.bold else Kit.font.medium,
+		Font = if variant == "primary" then Kit.font.display else Kit.font.medium,
 		TextSize = Kit.size.body,
 		TextColor3 = look.text,
 		TextScaled = true,
@@ -499,6 +581,24 @@ function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }
 			Parent = button,
 		})
 	end
+	if variant == "primary" or variant == "secondary" then
+		Kit.new("UIStroke", {
+			Name = "Edge",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Color = if variant == "primary" then Kit.colors.accentEdge else Kit.colors.line,
+			Thickness = if variant == "primary" then 2 else 1,
+			Transparency = if variant == "primary" then 0 else HAIRLINE_TRANSPARENCY,
+			Parent = button,
+		})
+	end
+	if variant == "primary" or variant == "secondary" or variant == "chip" then
+		shade(button)
+	end
+	Motion.press(button)
+	local cue = if variant == "chip" then "select" else "tap"
+	button.Activated:Connect(function()
+		Audio.play(cue)
+	end)
 	button.Activated:Connect(onActivate)
 	return button
 end
@@ -529,6 +629,9 @@ function Kit.setEnabled(button: TextButton, enabled: boolean)
 		return
 	end
 	local look = LOOKS[variant]
+	-- A color tween still running (ActionBar's lock-in flash) would land on the
+	-- old look after this: stop it first.
+	Motion.cancel(button)
 	button.TextColor3 = if enabled then look.text else look.disabledText
 	if variant == "chip" then
 		-- A chip's background shows selection; enabling never clears it.
@@ -540,6 +643,14 @@ function Kit.setEnabled(button: TextButton, enabled: boolean)
 	local stroke = strokeOf(button)
 	if stroke and variant == "danger" then
 		stroke.Color = if enabled then look.stroke :: Color3 else look.disabledStroke :: Color3
+	end
+	local edge = button:FindFirstChild("Edge")
+	if edge and variant == "primary" then
+		-- A disabled primary wears the secondary's hairline, not the accent edge.
+		local e = edge :: UIStroke
+		e.Color = if enabled then Kit.colors.accentEdge else Kit.colors.line
+		e.Thickness = if enabled then 2 else 1
+		e.Transparency = if enabled then 0 else HAIRLINE_TRANSPARENCY
 	end
 end
 
@@ -553,7 +664,16 @@ function Kit.setSelected(button: TextButton, selected: boolean)
 	button.BackgroundColor3 = if selected then Kit.colors.raisedHover else CHIP.bg
 	local stroke = strokeOf(button)
 	if stroke then
+		local was = stroke.Enabled
 		stroke.Enabled = selected
+		if selected and not was then
+			-- The outline draws in (0 -> 2 px); instant under reduced motion.
+			stroke.Thickness = 0
+			Motion.tween(stroke, { Thickness = 2 }, Motion.t.fast)
+		elseif not selected then
+			Motion.cancel(stroke)
+			stroke.Thickness = 2
+		end
 	end
 end
 
@@ -565,7 +685,7 @@ function Kit.title(text: string, props: { [string]: any }?): TextLabel
 		text,
 		merged({
 			Size = UDim2.new(1, 0, 0, Kit.size.title + 8),
-			Font = Kit.font.bold,
+			Font = Kit.font.display,
 			TextSize = Kit.size.title,
 		}, props)
 	)
@@ -591,6 +711,18 @@ function Kit.card(props: { [string]: any }?, children: { Instance }?): Frame
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 	}, props))
+	-- Depth on the plain surface card only: a caller's own fill stays flat.
+	if props == nil or props.BackgroundColor3 == nil then
+		Kit.depth(frame, Kit.colors.surfaceTop, Kit.colors.surface)
+	end
+	Kit.new("UIStroke", {
+		Name = "Edge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = Kit.colors.line,
+		Thickness = 1,
+		Transparency = HAIRLINE_TRANSPARENCY,
+		Parent = frame,
+	})
 	Kit.list("Vertical", Kit.space.sm).Parent = frame
 	if children then
 		for _, child in children do
@@ -698,25 +830,70 @@ function Kit.words(text: string): number
 	return n
 end
 
-local tweenService: any = nil
-do
-	local ok, service = pcall(function()
-		return game:GetService("TweenService")
-	end)
-	tweenService = if ok then service else nil
+-- Tweens `inst` to `goals` over `duration` (default Kit.motion.base), Quad Out,
+-- through Motion.tween: instant under reduced motion or without a TweenService.
+function Kit.tween(inst: Instance, goals: { [string]: any }, duration: number?)
+	Motion.tween(inst, goals, duration or Kit.motion.base, Motion.ease.out)
 end
 
--- Tweens `inst` to `goals` over `duration` (default Kit.motion.base), Quad Out.
--- Without a TweenService (the headless test engine) the goals apply at once.
-function Kit.tween(inst: Instance, goals: { [string]: any }, duration: number?)
-	if tweenService == nil then
-		for key, value in goals do
-			(inst :: any)[key] = value
+-- The largest Kit.size token that fits in `px` (caption at least).
+local function sizeFor(px: number): number
+	local best = Kit.size.caption
+	for _, token in { Kit.size.body, Kit.size.heading, Kit.size.title, Kit.size.hero } do
+		if token <= px then
+			best = token
 		end
-		return
 	end
-	local info = TweenInfo.new(duration or Kit.motion.base, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	tweenService:Create(inst, info, goals):Play()
+	return best
+end
+
+-- An icon from UI/Icons, `size` px square (default 20), tinted `color` (default
+-- text): an ImageLabel when the icon has an uploaded id, else its glyph as a
+-- TextLabel (scaled, never under Kit.MIN_TEXT). Named "Icon", attribute Icon = name.
+function Kit.icon(name: string, size: number?, color: Color3?): GuiObject
+	local icon = Icons[name]
+	local px = size or 20
+	local tint = color or Kit.colors.text
+	local inst: GuiObject
+	if icon and icon.id ~= "" then
+		inst = Kit.new("ImageLabel", {
+			Name = "Icon",
+			Size = UDim2.fromOffset(px, px),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Image = icon.id,
+			ImageColor3 = tint,
+			ScaleType = Enum.ScaleType.Fit,
+		})
+	else
+		inst = Kit.text(if icon then icon.glyph else "?", {
+			Name = "Icon",
+			Size = UDim2.fromOffset(px, px),
+			Font = Kit.font.bold,
+			TextSize = sizeFor(px),
+			TextScaled = true,
+			TextWrapped = false,
+			TextColor3 = tint,
+			TextXAlignment = Enum.TextXAlignment.Center,
+		})
+	end
+	inst:SetAttribute("Icon", name)
+	return inst
+end
+
+-- The icon for a plan action kind (Sim/Plan.Kind), nil for one without.
+local ACTION_ICONS: { [string]: string } = {
+	Rally = "megaphone",
+	Fundraise = "coins",
+	Media = "tv",
+	Attack = "zap",
+	Poll = "search",
+	RegionPoll = "search",
+	Gotv = "footprints",
+}
+
+function Kit.actionIcon(kind: string): string?
+	return ACTION_ICONS[kind]
 end
 
 -- Seconds left as "0:34".

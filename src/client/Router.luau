@@ -3,10 +3,17 @@
 -- the DEBUG_UI layout audit (UI/Audit) 0.5 s after a screen appears and again
 -- after the orientation flips. The audit only runs in Studio or when the
 -- workspace attribute DebugScreen or DebugText is set, never on a live server.
+--
+-- Screen change (docs/DESIGN.md D-053): the old screen goes at once (its logic
+-- and its UI: two live screens would share element names), and the new one
+-- fades in and slides up (Motion.enter) inside a CanvasGroup "ScreenFade" that
+-- exists only for the transition; when it ends the screen moves back under the
+-- container. Under reduced motion it is a 0.1 s fade; headless, instant.
 
 local RunService = game:GetService("RunService")
 
 local Audit = require(script.Parent.UI.Audit)
+local Motion = require(script.Parent.UI.Motion)
 local Types = require(script.Parent.Screens.Types)
 
 local AUDIT_DELAY = 0.5 -- s after a mount or an orientation flip, so the layout has settled
@@ -81,6 +88,38 @@ function Router.start(
 		end)
 	end
 
+	-- Fades a freshly mounted screen in. Input is never blocked: the screen is
+	-- live from the first frame, only its look is still arriving.
+	local fade: CanvasGroup? = nil
+	local function fadeIn(frame: Frame)
+		if fade then
+			fade:Destroy()
+			fade = nil
+		end
+		if Motion.headless then
+			return
+		end
+		local group = Instance.new("CanvasGroup")
+		group.Name = "ScreenFade"
+		group.Size = UDim2.fromScale(1, 1)
+		group.BackgroundTransparency = 1
+		group.BorderSizePixel = 0
+		group.GroupTransparency = 0
+		group.Parent = container
+		frame.Parent = group
+		fade = group
+		Motion.enter(group, Motion.ENTER_DY)
+		task.delay(if Motion.reduced() then Motion.REDUCED_FADE else Motion.t.enter, function()
+			if fade == group then
+				if frame.Parent == group then
+					frame.Parent = container
+				end
+				group:Destroy()
+				fade = nil
+			end
+		end)
+	end
+
 	local function show(state: Types.State)
 		local name: Name = Router.pick(state)
 		if name ~= currentName then
@@ -98,6 +137,7 @@ function Router.start(
 			holder = frame
 			current = SCREENS[name].mount(frame, ctx)
 			currentName = name
+			fadeIn(frame)
 			scheduleAudit(frame, name)
 		end
 		if current then

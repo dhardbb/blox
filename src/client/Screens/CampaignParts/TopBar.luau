@@ -67,7 +67,9 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	header.subtitle.Name = "StageLabel"
 	header.timer.Name = "Countdown"
 	local left = header.root:FindFirstChild("Left") :: Frame
-	local rightW = header.rightWidth -- the timer and the help button
+	-- The timer and the buttons at the right: header.rightWidth, read at each
+	-- layout (the sound button steps aside when a long title needs the room).
+	local laidOutRight = header.rightWidth
 
 	-- The score strip: names and projected votes over a two-segment bar.
 	local score = Kit.box({ Name = "Score", Parent = header.root })
@@ -172,6 +174,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 
 	local function layout()
 		local start = if portrait then PORTRAIT_SCORE_START else SCORE_START
+		local rightW = header.rightWidth
+		laidOutRight = rightW
 		if scoreShown then
 			left.Size = UDim2.new(start, -Kit.space.sm, 0, Kit.HEADER_H)
 		else
@@ -273,7 +277,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 
 			-- The score: on a phone the Decision title needs the whole row.
 			local wantScore = not (portrait and deciding ~= nil)
-			if wantScore ~= scoreShown then
+			if wantScore ~= scoreShown or header.rightWidth ~= laidOutRight then
 				scoreShown = wantScore
 				layout()
 			end

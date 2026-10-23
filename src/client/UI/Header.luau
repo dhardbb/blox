@@ -1,9 +1,16 @@
 --!strict
 -- The standard screen header (docs/DESIGN.md D-030, docs/UI-STYLE.md): one
 -- Kit.HEADER_H (44 px) row with a bold title, a muted subtitle after it, and the
--- countdown at the right; optionally a time bar and a "what to do now" line. The timer is accent, danger once fewer than Kit.TIMER_WARN seconds are
--- left, and hidden when there is no deadline. With `onHelp`, a 44 px "?" button
--- (HelpButton) sits just left of the timer and opens the "How it works" overlay.
+-- countdown at the right; optionally a time bar and a "what to do now" line.
+-- The timer is accent, warn once fewer than Kit.TIMER_WARN (10) seconds are
+-- left, and danger under Kit.TIMER_CRITICAL (5), where each new second pops the
+-- number and plays the "tick" cue; it is hidden when there is no deadline. A
+-- 44 px sound button (SoundButton, ♪ or the volume icon) mutes and unmutes
+-- every cue (UI/Audio, session only); it steps aside (hidden) when the title
+-- would not fit beside it (or keep less than 170 px), e.g. a phone with a long
+-- title or a labeled timer. With `onHelp`,
+-- a 44 px "?" button (HelpButton) sits between them and opens the "How it
+-- works" overlay. Right to left: timer, ?, sound.
 --
 --   local header = Header.new(parent, { title = "Choose your campaign" })
 --   header:setTitle(text)
@@ -19,19 +26,25 @@
 --                  content starts
 --   header.now     TextLabel "NowText" or nil
 --   header.title   TextLabel "Title"; header.subtitle "Subtitle"; header.timer "Timer"
---   header.help    TextButton "HelpButton" or nil; header.rightWidth: px the timer
---                  (and help button) take at the right, for owners that lay out beside
---                  them (setTimerLabel widens the timer and updates it)
+--   header.help    TextButton "HelpButton" or nil; header.sound TextButton
+--                  "SoundButton"; header.rightWidth: px the timer and the buttons
+--                  take at the right, for owners that lay out beside them
+--                  (setTimerLabel widens the timer and updates it)
 --
 -- The owner positions `root` (it starts at the top-left of `parent`).
 
+local Audio = require(script.Parent.Audio)
 local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
 
 local Header = {}
 
 local TIMER_W = 72 -- px, room for "10:00" at heading size
 local LABELED_TIMER_W = 150 -- px, room for "Results in 0:32" (after setTimerLabel)
 local TIMER_BAR_H = 3 -- px, the time bar under the row
+local TICK_POP = 1.15 -- the timer's scale on each new second under Kit.TIMER_CRITICAL
+local ICON_PX = 22 -- px, the sound button's icon
+local MIN_TITLE_W = 170 -- px the title keeps before the sound button steps aside
 
 export type Options = {
 	title: string,
@@ -47,6 +60,7 @@ export type Header = {
 	subtitle: TextLabel,
 	timer: TextLabel,
 	help: TextButton?,
+	sound: TextButton,
 	now: TextLabel?,
 	height: number,
 	rightWidth: number,
@@ -119,6 +133,62 @@ function Header.new(parent: Instance, options: Options): Header
 		})
 	end
 
+	-- The sound toggle: the volume icon (or ♪ with a slash while muted).
+	local sound = Kit.iconButton("", function()
+		Audio.setMuted(not Audio.muted())
+		if not Audio.muted() then
+			Audio.play("select")
+		end
+	end, {
+		Name = "SoundButton",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Parent = root,
+	})
+	local function paintSound()
+		local old = sound:FindFirstChild("Icon")
+		if old then
+			old:Destroy()
+		end
+		local slash = sound:FindFirstChild("Slash")
+		if slash then
+			slash:Destroy()
+		end
+		local muted = Audio.muted()
+		local icon = Kit.icon(
+			if muted then "volume-x" else "volume-2",
+			ICON_PX,
+			if muted then Kit.colors.muted else Kit.colors.text
+		)
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.fromScale(0.5, 0.5)
+		icon.Parent = sound
+		if muted and icon:IsA("TextLabel") then
+			-- The glyph has no "off" form: strike it through.
+			Kit.new("Frame", {
+				Name = "Slash",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromOffset(ICON_PX, 2),
+				Rotation = -45,
+				BackgroundColor3 = Kit.colors.muted,
+				BorderSizePixel = 0,
+				Parent = sound,
+			})
+		end
+		sound:SetAttribute("Muted", muted)
+	end
+	paintSound()
+	-- Follow mutes from anywhere (the Help settings too). A destroyed header's
+	-- button has no parent: the first mute after that drops the connection.
+	local soundConnection: any = nil
+	soundConnection = Audio.changed:Connect(function()
+		if sound.Parent == nil then
+			soundConnection:Disconnect()
+			return
+		end
+		paintSound()
+	end)
+
 	-- The time bar: a track and a fill along the bottom of the row.
 	local track = Kit.new("Frame", {
 		Name = "TimerBar",
@@ -165,16 +235,46 @@ function Header.new(parent: Instance, options: Options): Header
 	end
 
 	local timerLabel: string? = nil
+	local lastShown: number? = nil -- the whole seconds shown last (for the tick)
 
 	-- Lays the right side out for a timer `width` px wide; returns rightWidth.
-	local function place(width: number): number
+	-- The sound button steps aside when the title would not fit beside it
+	-- (a phone with a long title, or a labeled timer: "Results in 0:32").
+	-- The title row ("Left") is resized only while Header still owns its size:
+	-- an owner that lays the row out itself (CampaignParts/TopBar) keeps its
+	-- layout and reads header.rightWidth instead. `force` resizes it anyway.
+	local timerWidth = TIMER_W
+	local ownLeft: UDim2? = nil -- the row size Header set last
+	-- The title's width in px: its TextBounds, or an estimate where the engine
+	-- has none yet (the headless tests).
+	local function titleWidth(): number
+		local bounds = (title :: any).TextBounds
+		if bounds ~= nil and bounds.X > 0 then
+			return bounds.X
+		end
+		local text = tostring(title.Text)
+		return (utf8.len(text) or #text) * title.TextSize * 0.55
+	end
+	local function place(width: number, force: boolean?): number
+		timerWidth = width
 		timer.Size = UDim2.fromOffset(width, Kit.HEADER_H)
 		local right = width
 		if help then
-			help.Position = UDim2.new(1, -(width + Kit.space.sm), 0, Kit.HEADER_H / 2)
+			help.Position = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H / 2)
 			right += Kit.MIN_TOUCH + Kit.space.sm
 		end
-		left.Size = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H)
+		local rowWidth = root.AbsoluteSize.X
+		local room = rowWidth - (right + 2 * Kit.space.sm + Kit.MIN_TOUCH)
+		sound.Visible = rowWidth <= 0 or room >= math.max(MIN_TITLE_W, titleWidth())
+		if sound.Visible then
+			sound.Position = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H / 2)
+			right += Kit.MIN_TOUCH + Kit.space.sm
+		end
+		if force or ownLeft == nil or left.Size == ownLeft then
+			local size = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H)
+			left.Size = size
+			ownLeft = size
+		end
 		return right
 	end
 	local rightWidth = place(TIMER_W)
@@ -185,11 +285,13 @@ function Header.new(parent: Instance, options: Options): Header
 		subtitle = subtitle,
 		timer = timer,
 		help = help,
+		sound = sound,
 		now = now,
 		height = height,
 		rightWidth = rightWidth,
 		setTitle = function(self: Header, text: string)
 			self.title.Text = text
+			self.rightWidth = place(timerWidth)
 		end,
 		setSubtitle = function(self: Header, text: string?)
 			self.subtitle.Text = text or ""
@@ -199,24 +301,37 @@ function Header.new(parent: Instance, options: Options): Header
 			if secondsLeft == nil then
 				self.timer.Visible = false
 				track.Visible = false
+				lastShown = nil
 				return
 			end
 			-- Compare what the player reads: Kit.clock rounds up.
 			local shown = math.max(0, math.ceil(secondsLeft))
 			local clock = Kit.clock(secondsLeft)
 			self.timer.Text = if timerLabel then `{timerLabel} {clock}` else clock
-			local urgent = shown < (warnBelow or Kit.TIMER_WARN)
-			self.timer.TextColor3 = if urgent then Kit.colors.danger else Kit.colors.accent
+			local warnAt = warnBelow or Kit.TIMER_WARN
+			local urgent = shown < warnAt
+			local critical = shown < math.min(warnAt, Kit.TIMER_CRITICAL)
+			self.timer.TextColor3 = if critical
+				then Kit.colors.danger
+				elseif urgent then Kit.colors.warn
+				else Kit.colors.accent
 			self.timer.Visible = true
 			track.Visible = total ~= nil and total > 0
 			if total and total > 0 then
 				fill.Size = UDim2.fromScale(math.clamp(secondsLeft / total, 0, 1), 1)
-				fill.BackgroundColor3 = if urgent then Kit.colors.danger else Kit.colors.accent
+				-- Warn is a text color, never a fill: the bar goes straight to danger.
+				fill.BackgroundColor3 = if critical then Kit.colors.danger else Kit.colors.accent
 			end
+			-- Each new second under the critical mark: a pop and a tick.
+			if critical and shown > 0 and lastShown ~= nil and shown < lastShown then
+				Motion.pop(self.timer, TICK_POP)
+				Audio.play("tick")
+			end
+			lastShown = shown
 		end,
 		setTimerLabel = function(self: Header, label: string?)
 			timerLabel = if label == "" then nil else label
-			self.rightWidth = place(if timerLabel then LABELED_TIMER_W else TIMER_W)
+			self.rightWidth = place(if timerLabel then LABELED_TIMER_W else TIMER_W, true)
 		end,
 		setNow = function(self: Header, text: string?)
 			local label = self.now
@@ -226,6 +341,17 @@ function Header.new(parent: Instance, options: Options): Header
 		end,
 	}
 	root.Parent = parent
+	-- Now that the row has a width, check the sound button's room again (and
+	-- whenever the screen turns or resizes).
+	header.rightWidth = place(timerWidth)
+	pcall(function()
+		root:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			header.rightWidth = place(timerWidth)
+		end)
+		title:GetPropertyChangedSignal("TextBounds"):Connect(function()
+			header.rightWidth = place(timerWidth)
+		end)
+	end)
 	return header
 end
 

@@ -24,6 +24,12 @@
 -- state lives inside it except its tag: the circle with its label, then the
 -- momentum arrow band at the bottom. Smaller states are created last, so where two
 -- tap targets overlap the smaller state gets the tap.
+--
+-- Motion API (UI/Motion, docs/DESIGN.md D-053): map:pulse(id, color?) bumps a
+-- circle, map:ring(id, color) sends a ring out of it, map:badge(id, icon?) pins
+-- a 16 px action icon at the node's top-right ("PlanBadge"; nil removes it),
+-- map:wipe(id, color) turns a circle's fill (an election call; it holds until
+-- the next setView). The drawing above is unchanged by them.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -31,6 +37,7 @@ local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local MapInterface = require(script.Parent.MapInterface)
 local MapLayout = require(ReplicatedStorage.Shared.UI.MapLayout)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local Motion = require(script.Parent.Parent.UI.Motion)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 
 local NodeMap = {}
@@ -61,6 +68,8 @@ local LABEL_Y = 0.5 -- the label's center, share of the tap target
 local LABEL_UP = 0.2 -- with a lens value: the label's center above the middle, share of the circle
 local VALUE_DOWN = 0.2 -- ... the value's center below the middle, share of the circle
 local LABEL_H_LENS = 0.36 -- ... the label's height, share of the circle
+local PULSE_FROM = 1.15 -- a pulse's starting scale (it settles to 1)
+local PLAN_BADGE_PX = 16 -- px, the planned-action badge
 
 type Node = {
 	id: string,
@@ -499,6 +508,64 @@ function NodeMap.new(): MapInterface.Map
 
 	function map.onSelect(_self: any, handler: (string) -> ())
 		table.insert(handlers, handler)
+	end
+
+	function map.pulse(_self: any, id: string, color: Color3?)
+		local node = byId[id]
+		if node == nil then
+			return
+		end
+		Motion.pop(node.circle, PULSE_FROM)
+		if color then
+			Motion.ring(node.circle, color)
+		end
+	end
+
+	function map.ring(_self: any, id: string, color: Color3)
+		local node = byId[id]
+		if node then
+			Motion.ring(node.circle, color)
+		end
+	end
+
+	function map.badge(_self: any, id: string, icon: string?)
+		local node = byId[id]
+		if node == nil then
+			return
+		end
+		local old = node.hit:FindFirstChild("PlanBadge")
+		if old then
+			old:Destroy()
+		end
+		if icon == nil then
+			return
+		end
+		local badge = Kit.new("Frame", {
+			Name = "PlanBadge",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(1, 0),
+			Size = UDim2.fromOffset(PLAN_BADGE_PX, PLAN_BADGE_PX),
+			BackgroundColor3 = Kit.colors.background,
+			BorderSizePixel = 0,
+			ZIndex = 7,
+			Parent = node.hit,
+		})
+		Kit.round().Parent = badge
+		local glyph = Kit.icon(icon, PLAN_BADGE_PX, Kit.colors.accent)
+		glyph.Size = UDim2.fromScale(1, 1)
+		glyph.ZIndex = 8
+		glyph.Parent = badge
+		Motion.pop(badge, 0.6)
+	end
+
+	function map.wipe(_self: any, id: string, color: Color3)
+		local node = byId[id]
+		if node == nil then
+			return
+		end
+		fills[id] = color
+		Motion.tween(node.circle, { BackgroundColor3 = color }, Motion.t.call, Motion.ease.soft)
+		Motion.ring(node.circle, color)
 	end
 
 	function map.destroy(_self: any)
