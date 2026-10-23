@@ -4,6 +4,16 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### UI style v2: Lobby, Select, map reveal and draft (WP-A)
+
+- **Lobby.** "270", one short line ("Win the race to 270 votes."), then Play vs Bot. Find match and Play a friend sit side by side under it; Play a friend opens a small sheet with "Make a code" and the code box + Join. A "How to play" link opens the help. While hosting, the code says "Waiting for your friend…" under it.
+- **Select, step 1.** Each candidate card shows a one-line strength and weakness ("+ 4 actions a week", "− Weaker rallies"), so no card clips. The opponent's candidate is dimmed with a "Taken" pill. "About Dana" (under the cards) opens the exact numbers. Your color is a small dot and a line, not a square that looks like a button.
+- **Select, step 2.** Issue chips say "154 votes · +41% boost" (two lines on a phone) instead of "154 EV · ×1.41"; "How issues work" explains both in a sheet.
+- **Map reveal.** No rules wall: a "Strongholds" card (your dot, your five states; the same for the opponent, by name), who wins ties in round 1, the two-color legend, and "How the draft works" for the rules.
+- **Draft rounds.** The header says the round, a line under it says what to do ("Pick a battleground", then "Add a backup, or Lock in", then "Waiting for Rex…"). The list shows the 8 best picks with a lean pill ("+2 you", "+2 Rex", "Even"); "Show all states" shows the rest. The battleground rule moved into "How the draft works" ("+50% more", not "×1.5"). On wide screens the legend sits beside the lens buttons.
+- **Everywhere:** the "what to do now" line, a time bar under the timer, first-match coach tips on Select and the draft, the opponent called by name instead of "them", "votes" instead of "EV" in sentences.
+- Test in Studio: `docs/TESTING.md`, "UI style v2: Lobby, Select, map reveal and draft". Nothing needed from the humans.
+
 ### UI style v2, phase 1: foundation (D-050)
 
 - **Screenshots without Studio.** `lune run tests/ui/snap.luau` renders every screen and state (lobby, both Select steps, map reveal, draft, stance, focus, plan, state card, each lens, resolve, debate, election night, results, help) at phone, iPad and desktop sizes into `build/snaps/` as SVG and PNG, with each shot's UI audit in `build/snaps/audit.txt`. `00-kit` shows every component.

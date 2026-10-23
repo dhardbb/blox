@@ -5,9 +5,12 @@
 -- above the pinned action bar, the bar's wording, the swap hint, and B4 (a
 -- rejected lock-in says why).
 
+local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Rig = require("./Rig")
+local Snapshot = require("@testlib/Snapshot")
 local Test = require("@testlib/Test")
+local Words = require("@ui/Words/Setup")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 local check = Rig.check
@@ -119,6 +122,20 @@ local function status(peer: FakeRoblox.Peer): string
 	return Rig.textOf(peer, "Select", "BarStatus")
 end
 
+local function now(peer: FakeRoblox.Peer): string
+	return Rig.textOf(peer, "Select", "NowText")
+end
+
+-- The most a scroll area hides below its bottom edge, laid out the way Roblox
+-- would (tests/lib/Snapshot runs the list and grid layouts the fake engine skips).
+local function hiddenBelow(peer: FakeRoblox.Peer): number
+	local most = 0
+	for n in string.gmatch(Snapshot.svg(peer), "%+(%d+) px below") do
+		most = math.max(most, tonumber(n) or 0)
+	end
+	return most
+end
+
 local function bottom(inst: any): number
 	return inst.AbsolutePosition.Y + inst.AbsoluteSize.Y
 end
@@ -166,48 +183,40 @@ describe("Select rejections say why (B4)", function()
 		for _, name in { "Candidate_hale", "Issue_Jobs", "Issue_Schools", "LockIn" } do
 			check(not Rig.enabled(peer, "Select", name), `{name} is enabled while locked`)
 		end
-		expect(status(peer)):toBe("Locked in · waiting for opponent")
+		expect(status(peer)):toBe("Locked in")
+		-- The fixture's opponent holds Rex Calloway.
+		expect(now(peer)):toBe("Waiting for Rex…")
 		Rig.noErrors(world)
 	end)
 end)
 
 describe("Select fits above the pinned bar", function()
-	it("needs no scrolling at 1280x720, in either step", function()
-		local world, peer = Rig.fixture("Select", nil)
-		local cards = Rig.need(peer, "Select", "Candidates")
-		check(
-			bottom(cards) <= bottom(Rig.need(peer, "Select", "Scroll")),
-			`the candidates end at {bottom(cards)}`
-		)
-		expect(strictAudit(world, peer)):toBe(0)
-		Rig.claim(world, peer)
-		local issues = Rig.need(peer, "Select", "Issues")
-		local scroll = Rig.need(peer, "Select", "Scroll")
-		expect(issues.AutomaticSize.Name):toBe("None")
-		check(
-			bottom(issues) <= bottom(scroll),
-			`issues end at {bottom(issues)}, the scroll at {bottom(scroll)}`
-		)
-		check(not Rig.contains(status(peer), "(scroll down)"), `status points below the fold: {status(peer)}`)
-		expect(strictAudit(world, peer)):toBe(0)
-		Rig.noErrors(world)
+	it("needs no scrolling at 1280x720 and 1024x768, in either step", function()
+		for _, screen in { { x = 1280, y = 720 }, { x = 1024, y = 768 } } do
+			local world, peer = Rig.fixture("Select", screen)
+			check(Rig.findIn(peer, "Select", "CoachTip") ~= nil, "no coach tip on the first visit")
+			expect(hiddenBelow(peer)):toBe(0)
+			expect(strictAudit(world, peer)):toBe(0)
+			Rig.claim(world, peer)
+			expect(hiddenBelow(peer)):toBe(0)
+			expect(strictAudit(world, peer)):toBe(0)
+			Rig.noErrors(world)
+		end
 	end)
 
-	it("pins Lock in on a phone; step 2 fits the issues without scrolling", function()
+	it("pins Lock in on a phone; both steps fit without scrolling", function()
 		local world, peer = Rig.fixture("Select", Rig.PHONE)
 		expect(strictAudit(world, peer)):toBe(0)
+		-- Step 1 fits even with its coach tip showing.
+		check(Rig.findIn(peer, "Select", "CoachTip") ~= nil, "no coach tip on the first visit")
+		expect(hiddenBelow(peer)):toBe(0)
 		Rig.claim(world, peer)
 		local lockIn = Rig.need(peer, "Select", "LockIn")
 		check(not inScroll(lockIn), "Lock in scrolls")
 		check(bottom(lockIn) <= Rig.PHONE.y, `Lock in ends at {bottom(lockIn)}`)
 		check(lockIn:GetAttribute("PrimaryAction") == true, "Lock in is not the primary action")
-		local issues = Rig.need(peer, "Select", "Issues")
-		check(bottom(issues) <= bottom(Rig.need(peer, "Select", "Scroll")), "the issues run below the fold")
-		local text = status(peer)
-		check(
-			Rig.contains(text, "Still to pick:") and not Rig.contains(text, "(scroll down)"),
-			`status line: {text}`
-		)
+		expect(hiddenBelow(peer)):toBe(0)
+		expect(now(peer)):toBe("Pick 3 issues")
 		expect(strictAudit(world, peer)):toBe(0)
 		Rig.noErrors(world)
 	end)
@@ -230,7 +239,7 @@ describe("Select fits above the pinned bar", function()
 end)
 
 describe("Select in two steps (D-048)", function()
-	it("shows candidates first, then the issues with this match's EV and multiplier", function()
+	it("shows candidates first, then the issues with this match's votes and boost", function()
 		local world, peer = Rig.fixture("Select", nil)
 		check(Rig.shown(Rig.need(peer, "Select", "Candidates"), "Select"), "no candidates in step 1")
 		check(not Rig.shown(Rig.need(peer, "Select", "Issues"), "Select"), "issues shown in step 1")
@@ -240,12 +249,13 @@ describe("Select in two steps (D-048)", function()
 		local view = Rig.payloadOf(world, peer).view
 		local IssueMap = require("@sim/IssueMap")
 		local ev = IssueMap.evByIssue(view.issueMap).Farms
-		local text = Rig.textOf(peer, "Select", "Issue_Farms")
-		check(Rig.contains(text, `{ev} EV`), `no EV on the chip: {text}`)
+		local text = tostring(Rig.need(peer, "Select", "Issue_Farms"):FindFirstChild("IssueLine").Text)
+		check(Rig.contains(text, `{ev} votes`), `no votes on the chip: {text}`)
 		check(
-			Rig.contains(text, string.format("×%.2f", view.platformMults.Farms)),
-			`no multiplier on the chip: {text}`
+			Rig.contains(text, `{Words.boost(view.platformMults.Farms)} boost`),
+			`no boost on the chip: {text}`
 		)
+		check(not Rig.contains(text, "×") and not Rig.contains(text, "EV"), `jargon on the chip: {text}`)
 		Rig.noErrors(world)
 	end)
 
@@ -281,10 +291,7 @@ describe("Select in two steps (D-048)", function()
 		expect(bots):toBe(1)
 		local id = Rig.claim(world, peer)
 		check(Rig.shown(Rig.need(peer, "Select", "Issues"), "Select"), "no step 2 after the claim")
-		check(
-			Rig.contains(Rig.textOf(peer, "Select", "PlatformHeading"), "Issues for"),
-			"heading misses the candidate"
-		)
+		expect(now(peer)):toBe("Pick 3 issues")
 		expect(Rig.payloadOf(world, peer).view.claims[id]):toBe(view.you)
 		Rig.noErrors(world)
 	end)
@@ -298,23 +305,25 @@ describe("Select action bar", function()
 		end
 		expect(lockText()):toBe("Pick a candidate")
 		check(not Rig.enabled(peer, "Select", "LockIn"), "Lock in is enabled with nothing picked")
-		expect(status(peer)):toBe("Step 1 of 2 · Still to pick: a candidate")
+		expect(status(peer)):toBe("Step 1 of 2")
+		expect(now(peer)):toBe("Pick your candidate")
 		Rig.tap(world, peer, "Select", "Candidate_hale")
 		expect(lockText()):toBe("Next: issues")
-		expect(status(peer)):toBe("Step 1 of 2 · Next: your issues")
+		expect(Rig.textOf(peer, "Select", "Details")):toBe("About Marcus")
 		Rig.tap(world, peer, "Select", "LockIn")
 		expect(lockText()):toBe("Pick 3 more issues")
-		expect(status(peer)):toBe("Step 2 of 2 · Still to pick: 3 issues")
+		expect(status(peer)):toBe("Step 2 of 2")
+		expect(now(peer)):toBe("Pick 3 issues")
 		Rig.tap(world, peer, "Select", "Issue_Jobs")
 		Rig.tap(world, peer, "Select", "Issue_Health")
 		expect(lockText()):toBe("Pick 1 more issue")
-		expect(status(peer)):toBe("Step 2 of 2 · Still to pick: 1 issue")
+		expect(now(peer)):toBe("Pick 1 more issue")
 		Rig.tap(world, peer, "Select", "Issue_Farms")
 		expect(lockText()):toBe("Lock in")
-		expect(status(peer)):toBe("Ready")
+		expect(now(peer)):toBe("All set? Lock in")
 		check(Rig.enabled(peer, "Select", "LockIn"), "Lock in is disabled with a full pick")
-		-- The fixture's opponent has locked already.
-		expect(Rig.textOf(peer, "Select", "BarOpponent")):toBe("Opponent: locked in")
+		-- The fixture's opponent (Rex Calloway) has locked already.
+		expect(Rig.textOf(peer, "Select", "BarOpponent")):toBe("Rex: locked in")
 		Rig.noErrors(world)
 	end)
 
@@ -324,7 +333,7 @@ describe("Select action bar", function()
 		Rig.tap(world, peer, "Select", "Issue_Safety")
 		expect(status(peer)):toBe("You already have 3; tap one to swap it")
 		FakeRoblox.run(world, 3.5)
-		expect(status(peer)):toBe("Ready")
+		expect(status(peer)):toBe("Step 2 of 2")
 		Rig.noErrors(world)
 	end)
 
@@ -333,11 +342,12 @@ describe("Select action bar", function()
 		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 		Rig.pickAll(world, peer)
 		local chip = Rig.need(peer, "Select", "Issue_Jobs")
-		check(string.sub(tostring(chip.Text), 1, 3) == "•", `picked chip reads {chip.Text}`)
-		check(
-			Rig.contains(tostring(chip.Text), "EV") and Rig.contains(tostring(chip.Text), "×"),
-			`chip reads {chip.Text}`
-		)
+		local name = tostring(chip:FindFirstChild("IssueName").Text)
+		local line = tostring(chip:FindFirstChild("IssueLine").Text)
+		check(string.sub(name, 1, 3) == "•", `picked chip reads {name}`)
+		check(Rig.contains(line, "votes") and Rig.contains(line, "boost"), `chip reads {line}`)
+		local other = tostring(Rig.need(peer, "Select", "Issue_Safety"):FindFirstChild("IssueName").Text)
+		expect(other):toBe("Safety")
 		check(not same(chip.BackgroundColor3, Kit.colors.accent), "a picked chip is filled with the accent")
 		expect(chip:GetAttribute("Selected")):toBe(true)
 		expect(Rig.need(peer, "Select", "Candidate_hale"):GetAttribute("Selected")):toBe(true)
@@ -354,10 +364,11 @@ describe("Select action bar", function()
 		expect(Rig.need(peer, "Select", "Candidate_hale"):GetAttribute("Selected")):toBe(true)
 		expect(Rig.textOf(peer, "Select", "LockIn")):toBe("Next: issues")
 		Rig.tap(world, peer, "Select", "LockIn")
-		expect(status(peer)):toBe("Your last pick is loaded · Lock in or change it")
+		expect(status(peer)):toBe("Your last pick is loaded")
 		expect(Rig.textOf(peer, "Select", "LockIn")):toBe("Lock in")
 		Rig.tap(world, peer, "Select", "Issue_Jobs")
-		expect(status(peer)):toBe("Step 2 of 2 · Still to pick: 1 issue")
+		expect(status(peer)):toBe("Step 2 of 2")
+		expect(now(peer)):toBe("Pick 1 more issue")
 		Rig.noErrors(world)
 	end)
 
@@ -370,5 +381,58 @@ describe("Select action bar", function()
 		local timer = Rig.need(peer, "Select", "Timer")
 		check(same(timer.TextColor3, Kit.colors.danger), "the timer is not danger under 10 s")
 		Rig.noErrors(world)
+	end)
+end)
+
+-- ------------------------------------------------------------------ style v2 (WP-A, docs/UI-STYLE.md §4.2)
+
+describe("Select style v2: details one tap away", function()
+	it("opens the picked candidate's numbers from About <name>", function()
+		local world, peer = Rig.fixture("Select", Rig.PHONE)
+		check(not Rig.shown(Rig.need(peer, "Select", "Details"), "Select"), "About shows with no candidate")
+		Rig.tap(world, peer, "Select", "Candidate_calloway")
+		-- Rex is taken by the fixture's bot: nothing to read about yet.
+		check(not Rig.shown(Rig.need(peer, "Select", "Details"), "Select"), "About shows for a taken card")
+		Rig.tap(world, peer, "Select", "Candidate_venkat")
+		Rig.tap(world, peer, "Select", "Details")
+		local sheet = Rig.need(peer, "Select", "CandidateSheet")
+		check(sheet.Visible == true, "the candidate sheet did not open")
+		local lines = Words.candidateDetails(Config.defaults, "venkat")
+		for k, line in lines do
+			expect(tostring(sheet:FindFirstChild(`DetailLine{k}`, true).Text)):toBe(line)
+		end
+		expect(lines[4]):toBe("Actions each week: 3")
+		local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
+		expect(Audit.run(Rig.need(peer, "Screens", "Select"), "Select", { strict = true })):toBe(0)
+		Rig.noErrors(world)
+	end)
+
+	it("explains votes and boost in a sheet, not on the screen", function()
+		local world, peer = Rig.fixture("Select", nil)
+		Rig.claim(world, peer)
+		expect(Rig.textOf(peer, "Select", "Details")):toBe("How issues work")
+		Rig.tap(world, peer, "Select", "Details")
+		local sheet = Rig.need(peer, "Select", "IssuesSheet")
+		check(sheet.Visible == true, "the issues sheet did not open")
+		expect(tostring(sheet:FindFirstChild("HelpLine2", true).Text)):toBe(Words.ISSUES_HELP[2])
+		Rig.noErrors(world)
+	end)
+
+	it("dims the taken card behind a Taken pill and hides its lines", function()
+		local _world, peer = Rig.fixture("Select", nil)
+		local card = Rig.need(peer, "Select", "Candidate_calloway")
+		local pill = card:FindFirstChild("Taken")
+		check(Rig.shown(pill, "Select"), "no Taken pill")
+		expect(tostring(pill.Text)):toBe("Taken")
+		expect(card:FindFirstChild("Perk").Visible):toBe(false)
+		check(card.BackgroundTransparency > 0, "the taken card is not dimmed")
+	end)
+
+	it("shows the drawn color as a dot, not a filled square button", function()
+		local _world, peer = Rig.fixture("Select", nil)
+		local dot = Rig.need(peer, "Select", "ColorDot")
+		expect(dot.AbsoluteSize.X):toBe(16)
+		expect(dot:GetAttribute("DataColor")):toBe(true)
+		expect(Rig.findIn(peer, "Select", "ColorSwatch")):toBe(nil)
 	end)
 end)

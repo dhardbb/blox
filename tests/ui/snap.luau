@@ -145,6 +145,15 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		name = "02b-lobby-friend",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "PlayFriend")
+		end,
+	},
+	{ name = "03a-select-start", moment = "Select", screen = "Select" },
+	{
 		name = "03-select-candidate",
 		moment = "Select",
 		screen = "Select",
@@ -171,6 +180,41 @@ local SHOTS: { Shot } = {
 		steps = function(world, peer)
 			local id = Rig.safeState(Rig.payloadOf(world, peer).view)
 			tapIf(world, peer, "Draft", `Row_{id}`)
+		end,
+	},
+	{ name = "06a-draft-start", moment = "Draft", screen = "Draft" },
+	{
+		name = "06b-draft-reveal",
+		moment = "Draft",
+		screen = "Draft",
+		steps = function(world, peer)
+			-- The fixture's round, revealed: you got your pick, they got the next free state.
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			local mine = Rig.safeState(payload.view)
+			tapIf(world, peer, "Draft", `Row_{mine}`)
+			tapIf(world, peer, "Draft", "LockIn")
+			local theirs = "OH"
+			payload.step += 1
+			payload.stage = "Reveal"
+			payload.reveal = "Draft"
+			local round = payload.view.draftRound
+			payload.events = {
+				{ kind = "Pick", player = payload.you, state = mine, issue = "Nominate" },
+				{ kind = "Pick", player = 3 - payload.you, state = theirs, issue = "Nominate" },
+			}
+			for _, pick in payload.events do
+				table.insert(
+					payload.view.draftLog,
+					{ round = round, player = pick.player, state = pick.state, kind = "Nominate" }
+				)
+				table.insert(payload.view.players[pick.player].nominations, pick.state)
+				for _, sv in payload.view.states do
+					if sv.id == pick.state then
+						sv.battleground = true
+					end
+				end
+			end
+			Rig.push(world, peer, payload)
 		end,
 	},
 	{ name = "07-decision-stance", moment = "Stance", screen = "Decision" },

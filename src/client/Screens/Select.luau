@@ -3,23 +3,29 @@
 --
 --   Step 1: pick one of eight candidates and press "Next: issues". That claims
 --   the candidate on the server (Net.claim): first come, first served, so two
---   players never share one. A candidate the opponent holds shows "Taken" and
---   cannot be picked. A claim that loses a same-moment coin flip comes back
---   with a notice and the player picks again.
+--   players never share one. A candidate the opponent holds shows a "Taken"
+--   pill, is dimmed and cannot be picked. A claim that loses a same-moment coin
+--   flip comes back with a notice and the player picks again.
 --   Step 2: pick exactly three of the eight platform issues and lock in. Each
---   chip shows what the issue is worth this match: the EV of the states where it
---   is a top issue (drawn per match, View.issueMap) and the multiplier a rally
---   or ad on it earns there when it is on your platform (View.platformMults:
---   niche issues hit harder, D-047).
+--   chip shows what the issue is worth this match in plain words: the votes of
+--   the states where it is a top issue (drawn per match, View.issueMap) and its
+--   boost, what a rally or ad on it earns there once it is on your platform
+--   (View.platformMults: niche issues hit harder, D-047).
 --
--- Your color is drawn from the match seed (D-047) and shown as a line in both
--- steps. The opponent's platform stays hidden until both have locked.
+-- Your color is drawn from the match seed (D-047) and shown as a dot and a line
+-- in both steps. The opponent's platform stays hidden until both have locked.
 --
--- Layout (docs/UI-OVERHAUL.md §3.2): the standard Header with the timer, a
--- scroll area, and the pinned ActionBar. The scroll content is stacked with
--- explicit pixel positions (no list layout), so the fake engine can measure it
--- and the status line knows when the issues are below the fold ("Still to pick:
--- 2 issues (scroll down)").
+-- Layout (docs/UI-STYLE.md §4.2): the standard Header with the "what to do now"
+-- line and the timer, a scroll area (a coach tip, the cards or chips, then the
+-- color line with one ghost button for details), and the pinned ActionBar. Each
+-- card shows a short strength and weakness (Shared/UI/Words/Setup); the exact
+-- numbers are in a sheet ("About Dana"), and "How issues work" explains votes
+-- and boost.
+--
+-- Stable names: Candidate_<id> (with Name, Archetype, Perk, Drawback, Taken),
+-- Issue_<issue> (with IssueName, IssueLine), Candidates, Issues, ColorRow,
+-- ColorDot, ColorLine, Details, CandidateSheet, IssuesHelp, IssuesSheet, LockIn,
+-- BarStatus, BarOpponent, NowText, Timer.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -28,50 +34,56 @@ local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local IssueMap = require(ReplicatedStorage.Shared.Sim.IssueMap)
 local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
+local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local AutoLock = require(script.Parent.Common.AutoLock)
+local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local Data = require(script.Parent.Common.Data)
 local Header = require(script.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
 local Messages = require(script.Parent.Common.Messages)
+local Sheet = require(script.Parent.Parent.UI.Sheet)
 local Types = require(script.Parent.Types)
 
 local Screen = {}
 
 local MAX_WIDTH = 1000 -- px
-local HEADING_H = 26 -- px, a section heading (Layout.heading)
-local CARD_H = 112 -- px, a candidate card on 16:9
-local CARD_H_PORTRAIT = 124 -- px, a candidate card on a phone
-local ISSUE_H = 56 -- px, an issue chip: the name over its EV and multiplier
-local COLOR_H = 28 -- px, the drawn-color line
-local HINT_H = 34 -- px, the platform hint (two lines)
-local HINT_H_PORTRAIT = 64 -- px, the platform hint wrapped on a phone
-local SELECTED_STROKE = 3 -- px, the outline of the picked card
-local SWATCH_W = 44 -- px, the color chip on the drawn-color line
+local CARD_H = 112 -- px, a candidate card: name, kind, strength, weakness
+local CARD_H_PORTRAIT = 104 -- px, the same on a phone (tighter padding)
+local ISSUE_H = 68 -- px, an issue chip: the name over "154 votes · +41% boost"
+local ISSUE_H_PORTRAIT = 86 -- px, on a phone the votes and the boost take a line each
+local DOT = 16 -- px, the drawn-color dot
+local DETAILS_W = 180 -- px, the ghost button beside the color line
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
-local CHECK = "• " -- the Gotham font has no ✓
+local PICKED = Kit.glyph.bullet .. " " -- before a picked issue's name
+local TAKEN_FADE = 0.5 -- a taken card's fill and text transparency
 
--- Where each block of the scroll content sits, for one orientation and step.
-type Stack = {
-	total: number, -- content height
-	issuesTop: number,
-	issuesBottom: number,
-}
+-- A coach tip in a list (CoachTip.show), with an explicit zero Position and
+-- AnchorPoint: the headless test engine reads UDim2.new() and Vector2.new() as empty.
+local function showTip(parent: Instance, id: string, order: number): CoachTip.Tip?
+	local tip = CoachTip.show(parent, { id = id, order = order })
+	if tip then
+		tip.root.Position = UDim2.fromOffset(0, 0)
+		tip.root.AnchorPoint = Vector2.new(0, 0)
+	end
+	return tip
+end
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local platformSize = ctx.config.PLATFORM_SIZE
-	local page = Layout.page(parent, { maxWidth = MAX_WIDTH, header = Kit.HEADER_H, footer = Kit.BAR_H })
+	local page = Layout.page(parent, {
+		maxWidth = MAX_WIDTH,
+		header = Kit.HEADER_H + Kit.NOW_H,
+		footer = Kit.BAR_H,
+	})
 	local content = page.content
-	local scroll = page.scroll
-	-- Explicit positions instead of the page's list layout (see the header comment).
-	local pageList = content:FindFirstChildOfClass("UIListLayout")
-	if pageList then
-		pageList:Destroy()
+	-- Tighter than the page's default gap, so step 1 fits a phone with its tip.
+	local contentList = content:FindFirstChildOfClass("UIListLayout")
+	if contentList then
+		contentList.Padding = UDim.new(0, Kit.space.sm)
 	end
-	content.AutomaticSize = Enum.AutomaticSize.None
-	scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
 
 	-- What the player has picked so far.
 	local candidate: string? = nil
@@ -90,7 +102,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local payload: Session.StatePayload? = nil
 	local lastPortrait: boolean? = nil
 	local lastStep = 0
-	local stack: Stack = { total = 0, issuesTop = 0, issuesBottom = 0 }
 
 	local function seats(): (Session.SeatInfo?, Session.SeatInfo?)
 		local current = payload
@@ -127,6 +138,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 		return nil
+	end
+
+	-- The opponent's first name once they hold a candidate, else "your opponent".
+	local function opponentName(): string
+		for _, id in Candidates.ids do
+			if holder(id) == "theirs" then
+				return Words.firstName(Candidates.profile(ctx.config, id).name)
+			end
+		end
+		return "your opponent"
 	end
 
 	-- Step 2 once the server confirms the claim.
@@ -177,7 +198,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ header and bar
 
-	local header = Header.new(page.header :: Frame, { title = "Choose your campaign", onHelp = ctx.help })
+	local header = Header.new(page.header :: Frame, {
+		title = "Your candidate",
+		now = true,
+		onHelp = ctx.help,
+	})
 	local refresh: () -> ()
 	local lockPick: () -> ()
 	local claimPick: () -> ()
@@ -195,123 +220,79 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ step 1: candidates
 
-	local candidateHeading = Layout.heading(content, "1. Pick your candidate", 1, "CandidateHeading")
+	local candidateTip = showTip(content, "select.candidate", 1)
 	local candidateGrid, candidateLayout = Layout.grid(content, "Candidates", 2)
 	local cards: { [string]: TextButton } = {}
-	local takenTags: { [string]: TextLabel } = {}
+	type CardParts = {
+		name: TextLabel,
+		archetype: TextLabel,
+		perk: TextLabel,
+		drawback: TextLabel,
+		taken: TextLabel,
+	}
+	local parts: { [string]: CardParts } = {}
 
 	for index, id in Candidates.ids do
 		local profile = Candidates.profile(ctx.config, id)
-		local card = Kit.button("", function()
+		local short = Words.candidate(ctx.config, id)
+		local card = Kit.cardButton(function()
 			if isLocked() or step() ~= 1 or claiming ~= nil or holder(id) == "theirs" then
 				return
 			end
 			changed()
 			candidate = id
+			if candidateTip then
+				candidateTip:dismiss()
+				candidateTip = nil
+			end
 			refresh()
 		end, {
-			variant = "chip",
 			Name = `Candidate_{id}`,
 			LayoutOrder = index,
-			Text = "",
-			TextScaled = false,
-			ClipsDescendants = true,
+			AutomaticSize = Enum.AutomaticSize.None, -- the grid sizes it
 			Parent = candidateGrid,
-		}) :: TextButton
-		local pad = card:FindFirstChildOfClass("UIPadding")
-		if pad then
-			pad.PaddingTop = UDim.new(0, Kit.space.sm)
-			pad.PaddingBottom = UDim.new(0, Kit.space.sm)
-		end
-		Kit.list("Vertical", 0).Parent = card
-		Kit.text(profile.name, {
+		})
+		local name = Kit.text(profile.name, {
 			Name = "Name",
 			LayoutOrder = 1,
-			Size = UDim2.new(1, 0, 0, Kit.size.heading + 2),
 			Font = Kit.font.bold,
-			TextSize = Kit.size.heading,
 			TextScaled = true,
+			TextWrapped = false,
 			Parent = card,
 		})
-		takenTags[id] = Kit.caption("Taken by your opponent", {
-			Name = "Taken",
-			LayoutOrder = 2,
-			Font = Kit.font.bold,
-			TextColor3 = Kit.colors.danger,
-			Visible = false,
-			Parent = card,
-		})
-		Kit.caption(profile.archetype, { Name = "Archetype", LayoutOrder = 3, Parent = card })
-		Kit.caption(`+ {profile.perk}`, {
+		local archetype =
+			Kit.caption(profile.archetype, { Name = "Archetype", LayoutOrder = 2, Parent = card })
+		local perk = Kit.caption(`+ {short.strength}`, {
 			Name = "Perk",
-			LayoutOrder = 4,
+			LayoutOrder = 3,
 			TextColor3 = Kit.colors.good,
 			Parent = card,
 		})
-		Kit.caption(`− {profile.drawback}`, {
+		local none = short.weakness == Words.NO_WEAKNESS
+		local drawback = Kit.caption(`{Kit.glyph.minus} {short.weakness}`, {
 			Name = "Drawback",
-			LayoutOrder = 5,
-			TextColor3 = Kit.colors.danger,
+			LayoutOrder = 4,
+			TextColor3 = if none then Kit.colors.muted else Kit.colors.bad,
 			Parent = card,
 		})
+		local taken =
+			Kit.pill("Taken", "bad", { Name = "Taken", LayoutOrder = 5, Visible = false, Parent = card })
 		cards[id] = card
-	end
-
-	-- ------------------------------------------------------------ color (drawn)
-
-	-- Colors are drawn from the match seed (D-047): a line, not a choice.
-	local colorRow = Kit.box({ Name = "ColorRow", LayoutOrder = 3, Parent = content })
-	local swatch = Kit.box({
-		Name = "ColorSwatch",
-		Size = UDim2.new(0, SWATCH_W, 1, 0),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.neutral,
-		Parent = colorRow,
-	})
-	Kit.corner(Kit.radius.control).Parent = swatch
-	local colorLine = Kit.caption("", {
-		Name = "ColorLine",
-		Position = UDim2.fromOffset(SWATCH_W + Kit.space.sm, 0),
-		Size = UDim2.new(1, -(SWATCH_W + Kit.space.sm), 1, 0),
-		AutomaticSize = Enum.AutomaticSize.None,
-		Parent = colorRow,
-	})
-	local shownColor: string? = nil
-	local function renderColor()
-		local current = payload
-		local me = if current then current.view.players[current.you] else nil
-		local name = if me then me.color else nil
-		if name == shownColor then
-			return
-		end
-		shownColor = name
-		swatch.BackgroundColor3 = Kit.color(Colors.of(name))
-		colorLine.Text = if name
-			then `Your color this match: {name} (drawn at random)`
-			else "Your color is drawn at random"
+		parts[id] = { name = name, archetype = archetype, perk = perk, drawback = drawback, taken = taken }
 	end
 
 	-- ------------------------------------------------------------ step 2: platform
 
-	local platformHeading = Layout.heading(content, "2. Pick three issues", 5, "PlatformHeading")
-	local platformHint = Kit.caption(
-		"Top issues are drawn new each match. EV: votes in the states where it is a top issue. ×: what a rally or ad on it earns there once it is on your platform. Niche issues hit harder.",
-		{ Name = "PlatformHint", LayoutOrder = 6, AutomaticSize = Enum.AutomaticSize.None, Parent = content }
-	)
-	local issueGrid, issueLayout = Layout.grid(content, "Issues", 7)
+	local issuesTip: CoachTip.Tip? = nil
+	local issueGrid, issueLayout = Layout.grid(content, "Issues", 5)
 	local chips: { [string]: TextButton } = {}
+	local chipNames: { [string]: TextLabel } = {}
+	local chipLines: { [string]: TextLabel } = {}
 	local issueList: { string } = Issues.list :: any
-	local coverage: { [string]: number } = {} -- EV per issue on this match's map
+	local coverage: { [string]: number } = {} -- votes per issue on this match's map
 	local mults: { [string]: number } = {} -- platform multiplier per issue this match
-	local function chipLabel(issue: string): string
-		local ev, mult = coverage[issue], mults[issue]
-		if ev == nil or mult == nil then
-			return Data.issueName(issue)
-		end
-		return `{Data.issueName(issue)}\n{ev} EV · ×{string.format("%.2f", mult)}`
-	end
 	for index, issue in issueList do
-		local chip = Kit.button(chipLabel(issue), function()
+		local chip = Kit.cardButton(function()
 			if isLocked() then
 				return
 			end
@@ -326,70 +307,140 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				-- Full: say how to swap instead of doing nothing.
 				swapHintUntil = ctx.now() + SWAP_HINT_SECONDS
 			end
+			local tip = issuesTip
+			if tip then
+				tip:dismiss()
+				issuesTip = nil
+			end
 			refresh()
 		end, {
-			variant = "chip",
 			Name = `Issue_{issue}`,
 			LayoutOrder = index,
+			AutomaticSize = Enum.AutomaticSize.None, -- the grid sizes it
 			Parent = issueGrid,
-		}) :: TextButton
+		})
+		chipNames[issue] = Kit.text(Data.issueName(issue), {
+			Name = "IssueName",
+			LayoutOrder = 1,
+			Font = Kit.font.medium,
+			TextScaled = true,
+			TextWrapped = false,
+			Parent = chip,
+		})
+		chipLines[issue] = Kit.caption("", { Name = "IssueLine", LayoutOrder = 2, Parent = chip })
 		chips[issue] = chip
+	end
+
+	-- ------------------------------------------------------------ color and details
+
+	-- Colors are drawn from the match seed (D-047): a dot and a line, not a choice.
+	local colorRow = Kit.box({
+		Name = "ColorRow",
+		LayoutOrder = 9,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Parent = content,
+	})
+	local dot = Kit.dataColor(Kit.new("Frame", {
+		Name = "ColorDot",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, Kit.space.xs, 0.5, 0),
+		Size = UDim2.fromOffset(DOT, DOT),
+		BackgroundColor3 = Kit.colors.neutral,
+		BorderSizePixel = 0,
+		Parent = colorRow,
+	}))
+	Kit.round().Parent = dot
+	local colorLine = Kit.text("", {
+		Name = "ColorLine",
+		Position = UDim2.fromOffset(DOT + Kit.space.md, 0),
+		Size = UDim2.new(1, -(DOT + Kit.space.md + DETAILS_W), 1, 0),
+		Parent = colorRow,
+	})
+
+	-- One ghost at the right of the color line: the picked candidate's numbers
+	-- (step 1) or how issues work (step 2), each in a sheet.
+	local candidateSheet = Sheet.new(parent, { title = "", name = "CandidateSheet", height = 0.5 })
+	local issuesSheet = Sheet.new(parent, { title = "How issues work", name = "IssuesSheet", height = 0.6 })
+	for k, line in Words.ISSUES_HELP do
+		Kit.text(line, {
+			Name = `HelpLine{k}`,
+			LayoutOrder = k,
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = issuesSheet.body,
+		})
+	end
+	local detailLines: { TextLabel } = {}
+	local function openCandidate(id: string)
+		local profile = Candidates.profile(ctx.config, id)
+		candidateSheet:setTitle(profile.name)
+		for k, line in Words.candidateDetails(ctx.config, id) do
+			local label = detailLines[k]
+			if label == nil then
+				label = Kit.text("", {
+					Name = `DetailLine{k}`,
+					LayoutOrder = k,
+					AutomaticSize = Enum.AutomaticSize.Y,
+					Parent = candidateSheet.body,
+				})
+				detailLines[k] = label
+			end
+			label.Text = line
+			label.TextColor3 = if k == 1 then Kit.colors.muted else Kit.colors.text
+		end
+		candidateSheet:open()
+	end
+	local details = Kit.button("", function()
+		if step() == 1 then
+			local id = candidate
+			if id ~= nil then
+				openCandidate(id)
+			end
+		else
+			issuesSheet:open()
+		end
+	end, {
+		variant = "ghost",
+		Name = "Details",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.new(0, DETAILS_W, 1, 0),
+		Parent = colorRow,
+	})
+
+	local shownColor: string? = nil
+	local function renderColor()
+		local current = payload
+		local me = if current then current.view.players[current.you] else nil
+		local name = if me then me.color else nil
+		if name == shownColor then
+			return
+		end
+		shownColor = name
+		dot.BackgroundColor3 = Kit.color(Colors.of(name))
+		colorLine.Text = if name then `Your color: {name}` else "Your color is drawn at random"
 	end
 
 	-- ------------------------------------------------------------ layout
 
-	-- Stacks the current step's blocks top to bottom and sizes the scroll canvas.
+	-- Shows the current step's blocks and sizes the grids for the orientation.
 	local function placeBlocks(portrait: boolean, current: number)
-		local cardColumns = if portrait then 2 else 4
-		local cardH = if portrait then CARD_H_PORTRAIT else CARD_H
-		local cardRows = math.ceil(#Candidates.ids / cardColumns)
-		local issueColumns = if portrait then 2 else 4
-		local issueRows = math.ceil(#issueList / issueColumns)
-		local gap = Layout.GAP
-		Layout.setGrid(candidateLayout, cardColumns, cardH)
-		Layout.setGrid(issueLayout, issueColumns, ISSUE_H)
-
+		local columns = if portrait then 2 else 4
+		Layout.setGrid(candidateLayout, columns, if portrait then CARD_H_PORTRAIT else CARD_H)
+		Layout.setGrid(issueLayout, columns, if portrait then ISSUE_H_PORTRAIT else ISSUE_H)
+		local inset = if portrait then Kit.space.sm else Kit.space.md
+		for _, card in cards do
+			local pad = card:FindFirstChildOfClass("UIPadding")
+			if pad then
+				pad.PaddingTop = UDim.new(0, inset)
+				pad.PaddingBottom = UDim.new(0, inset)
+			end
+		end
 		local first = current == 1
-		for _, block in { candidateHeading, candidateGrid } :: { GuiObject } do
-			block.Visible = first
+		candidateGrid.Visible = first
+		issueGrid.Visible = not first
+		if not first and issuesTip == nil and not isLocked() then
+			issuesTip = showTip(content, "select.issues", 4)
 		end
-		for _, block in { platformHeading, platformHint, issueGrid } :: { GuiObject } do
-			block.Visible = not first
-		end
-
-		local y = 0
-		local function place(block: GuiObject, height: number, after: number)
-			block.Position = UDim2.fromOffset(0, y)
-			block.Size = UDim2.new(1, 0, 0, height)
-			block.AutomaticSize = Enum.AutomaticSize.None
-			y += height + after
-		end
-		local issuesTop = 0
-		if first then
-			place(candidateHeading, HEADING_H, Kit.space.xs)
-			place(candidateGrid, cardRows * cardH + (cardRows - 1) * gap, gap)
-			place(colorRow, COLOR_H, 0)
-			issuesTop = y
-		else
-			place(colorRow, COLOR_H, gap)
-			place(platformHeading, HEADING_H, 0)
-			place(platformHint, if portrait then HINT_H_PORTRAIT else HINT_H, Kit.space.xs)
-			issuesTop = y
-			place(issueGrid, issueRows * ISSUE_H + (issueRows - 1) * gap, 0)
-		end
-		stack = { total = y, issuesTop = issuesTop, issuesBottom = y }
-		content.Size = UDim2.new(1, 0, 0, y)
-		scroll.CanvasSize = UDim2.fromOffset(0, y + Kit.space.md)
-	end
-
-	-- Part of the issue grid is under the bottom edge of the scroll area.
-	local function issuesBelowFold(): boolean
-		if step() ~= 2 then
-			return false
-		end
-		local canvas = (scroll :: any).CanvasPosition
-		local top = if canvas then canvas.Y else 0
-		return stack.issuesBottom > top + scroll.AbsoluteSize.Y + 1
 	end
 
 	-- ------------------------------------------------------------ behavior
@@ -460,44 +511,45 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return if n == 1 then `{n} {word}` else `{n} {word}s`
 	end
 
-	-- The status line, which also depends on the clock (swap hint) and the scroll.
+	-- The status line, which also depends on the clock (swap hint).
 	local function renderStatus()
-		local missingIssues = platformSize - #platform
 		if isLocked() then
-			bar:setStatus("Locked in · waiting for opponent", "ok")
+			bar:setStatus("Locked in", "muted")
 		elseif ctx.now() < swapHintUntil then
 			bar:setStatus(`You already have {platformSize}; tap one to swap it`, "warn")
 		elseif rejection then
 			bar:setStatus(rejection, "bad")
 		elseif step() == 1 then
-			if claiming ~= nil then
-				bar:setStatus("Claiming your candidate…", "muted")
-			elseif candidate == nil then
-				bar:setStatus("Step 1 of 2 · Still to pick: a candidate", "muted")
-			else
-				bar:setStatus("Step 1 of 2 · Next: your issues", "ok")
-			end
-		elseif isReady() then
-			if prePickLoaded then
-				bar:setStatus("Your last pick is loaded · Lock in or change it", "ok")
-			else
-				bar:setStatus("Ready", "ok")
-			end
+			bar:setStatus(if claiming ~= nil then "Saving your pick…" else "Step 1 of 2", "muted")
+		elseif isReady() and prePickLoaded then
+			bar:setStatus("Your last pick is loaded", "muted")
 		else
-			local below = if missingIssues > 0 and issuesBelowFold() then " (scroll down)" else ""
-			bar:setStatus(`Step 2 of 2 · Still to pick: {plural(missingIssues, "issue")}{below}`, "muted")
+			bar:setStatus("Step 2 of 2", "muted")
 		end
 	end
 
-	local function relayout()
+	-- The "what to do now" line under the header.
+	local function renderNow()
+		if isLocked() then
+			header:setNow(Words.nowWaiting(opponentName()))
+		elseif step() == 1 then
+			header:setNow(if claiming ~= nil then Words.NOW_CLAIMING else Words.NOW_CANDIDATE)
+		else
+			header:setNow(Words.nowIssues(#platform, platformSize))
+		end
+	end
+
+	-- Lays the page out again when the orientation or the step changed; says so.
+	local function relayout(): boolean
 		local portrait = ctx.portrait()
 		local current = step()
 		if portrait == lastPortrait and current == lastStep then
-			return
+			return false
 		end
 		lastPortrait, lastStep = portrait, current
 		page.setPortrait(portrait)
 		placeBlocks(portrait, current)
+		return true
 	end
 
 	refresh = function()
@@ -516,37 +568,50 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			Kit.setSelected(card, id == candidate)
 			Kit.setEnabled(card, not locked and first and claiming == nil and not taken)
-			card.BackgroundTransparency = if taken then 0.5 else 0
-			takenTags[id].Visible = taken
-			local stroke = card:FindFirstChild("VariantStroke") :: UIStroke?
-			if stroke then
-				stroke.Thickness = SELECTED_STROKE
-			end
+			card.BackgroundTransparency = if taken then TAKEN_FADE else 0
+			local p = parts[id]
+			p.taken.Visible = taken
+			p.perk.Visible = not taken
+			p.drawback.Visible = not taken
+			p.name.TextTransparency = if taken then TAKEN_FADE else 0
+			p.archetype.TextTransparency = if taken then TAKEN_FADE else 0
 		end
 		renderColor()
 		local full = #platform >= platformSize
 		for issue, chip in chips do
 			local picked = table.find(platform, issue) ~= nil
-			chip.Text = if picked then CHECK .. chipLabel(issue) else chipLabel(issue)
+			local name = Data.issueName(issue)
+			chipNames[issue].Text = if picked then PICKED .. name else name
+			chipLines[issue].Text = Words.issueLine(coverage[issue], mults[issue], lastPortrait == true)
 			Kit.setSelected(chip, picked)
 			Kit.setEnabled(chip, not locked)
 			-- Full: the others look quieter but stay tappable (for the swap hint).
-			if not locked and full and not picked then
-				chip.TextColor3 = Kit.colors.muted
-			end
+			local quiet = locked or (full and not picked)
+			chipNames[issue].TextColor3 = if quiet then Kit.colors.muted else Kit.colors.text
 		end
-		local name = if mine then Candidates.profile(ctx.config, mine).name else nil
-		platformHeading.Text = if name
-			then `2. Issues for {name} ({#platform}/{platformSize})`
-			else `2. Pick three issues ({#platform}/{platformSize})`
+
+		if first then
+			header:setTitle("Your candidate")
+			local id = candidate
+			details.Visible = id ~= nil
+			details.Text = if id
+				then `About {Words.firstName(Candidates.profile(ctx.config, id).name)}`
+				else ""
+		else
+			header:setTitle("Your issues")
+			details.Visible = true
+			details.Text = "How issues work"
+		end
 
 		local _, theirs = seats()
-		local opponentText = "Opponent: thinking"
+		local who = opponentName()
+		local label = if who == "your opponent" then "Opponent" else who
+		local opponentText = `{label}: picking`
 		if theirs then
 			if not theirs.connected then
-				opponentText = "Opponent: disconnected"
+				opponentText = `{label}: disconnected`
 			elseif theirs.locked then
-				opponentText = "Opponent: locked in"
+				opponentText = `{label}: locked in`
 			end
 		end
 		bar:setOpponent(opponentText)
@@ -555,7 +620,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setPrimary("Locked in", false)
 		elseif first then
 			if claiming ~= nil then
-				bar:setPrimary("Claiming…", false)
+				bar:setPrimary("Saving…", false)
 			elseif candidate == nil then
 				bar:setPrimary("Pick a candidate", false)
 			else
@@ -567,6 +632,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setPrimary("Lock in", true)
 		end
 		renderStatus()
+		renderNow()
 	end
 
 	local function updateTimer(now: number)
@@ -575,7 +641,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			header:setTimer(nil)
 			return
 		end
-		header:setTimer(current.deadline - now)
+		header:setTimer(current.deadline - now, nil, ctx.config.TIMER_SELECT)
 	end
 
 	relayout()
@@ -621,7 +687,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			updateTimer(ctx.now())
 		end,
 		tick = function(now: number)
-			relayout()
+			if relayout() then
+				refresh() -- rotated: the chips' lines depend on the width
+			end
 			updateTimer(now)
 			renderStatus()
 			-- The timer is about to end with a complete pick that was never locked.

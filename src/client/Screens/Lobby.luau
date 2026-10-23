@@ -1,24 +1,34 @@
 --!strict
--- Lobby: play the bot, find a public match, host a private match or join one by
--- its 5-character code. While queued or hosting it shows what is happening and a
--- Cancel button. Everything is built once; update() only flips Visible and text,
--- so a half-typed code survives server messages.
+-- Lobby: play the bot, find a public match, or play a friend (host a private
+-- match or join one by its 5-character code). While queued or hosting it shows
+-- what is happening and a Cancel button. Everything is built once; update() only
+-- flips Visible and text, so a half-typed code survives server messages.
 --
--- Layout (docs/UI-OVERHAUL.md §3.1): one centered column, at most 560 px wide,
--- that does not scroll (so "Play vs Bot", the one primary, is never in a scroll
--- area). Messages (rejections, notices, a bad code) go to the global toast.
+-- Layout (docs/UI-STYLE.md §4.1): one centered column, at most 480 px wide, that
+-- does not scroll: the "270" hero, a one-line tagline, the record, then Play vs
+-- Bot (the one primary), "Find match" and "Play a friend" side by side, and a
+-- ghost "How to play" (the Help sheet). "Play a friend" opens a sheet with
+-- "Make a code" (Host) and the code field + Join. Messages (rejections,
+-- notices, a bad code) go to the global toast.
+--
+-- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
+-- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
+-- WaitingHint, Cancel, Record, ServerFull, Title, Pitch.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local Sheet = require(script.Parent.Parent.UI.Sheet)
 local Types = require(script.Parent.Types)
 
 local Screen = {}
 
-local MAX_WIDTH = 560 -- px
+local MAX_WIDTH = 480 -- px
 local CODE_LENGTH = 5
-local SHORT_SCREEN = 480 -- px; below this the pitch line is dropped to make room
-
-local PITCH = "Race a rival to 270 electoral votes: draft the map, run the campaign, win election night."
+local SHORT_SCREEN = 420 -- px; below this the tagline is dropped to make room
 
 -- Codes use letters A-Z and digits 2-9 (no 0 or 1).
 local function validCode(code: string): boolean
@@ -50,47 +60,49 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.new(1, 0, 0, Kit.size.hero + 8),
 		Font = Kit.font.bold,
 		TextSize = Kit.size.hero,
-		TextColor3 = Kit.colors.accent,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
 	})
-	local pitch = Kit.caption(PITCH, {
+	local pitch = Kit.text(Words.TAGLINE, {
 		Name = "Pitch",
 		LayoutOrder = nextOrder(),
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Parent = content,
-	})
-	-- Always there (empty until the profile arrives), so nothing jumps.
-	local record = Kit.text("", {
-		Name = "Record",
-		LayoutOrder = nextOrder(),
-		Size = UDim2.new(1, 0, 0, Kit.size.caption + 6),
-		TextSize = Kit.size.caption,
 		TextColor3 = Kit.colors.muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
 	})
-	local fullBanner = Kit.caption("Server full. Try again in a minute.", {
+	-- Always there (empty until the profile arrives), so nothing jumps.
+	local record = Kit.caption("", {
+		Name = "Record",
+		LayoutOrder = nextOrder(),
+		AutomaticSize = Enum.AutomaticSize.None,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = content,
+	})
+	local fullBanner = Kit.text("Server full. Try again in a minute.", {
 		Name = "ServerFull",
 		LayoutOrder = nextOrder(),
-		TextSize = Kit.size.body,
-		TextColor3 = Kit.colors.danger,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextColor3 = Kit.colors.warn,
 		Font = Kit.font.medium,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Visible = false,
 		Parent = content,
 	})
+	-- Breathing room between the hero block and the buttons.
+	Kit.box({
+		Name = "Spacer",
+		LayoutOrder = nextOrder(),
+		Size = UDim2.new(1, 0, 0, Kit.space.sm),
+		Parent = content,
+	})
 
 	local function section(name: string): Frame
-		local box = Kit.box({
+		local box = Kit.stack({
 			Name = name,
 			LayoutOrder = nextOrder(),
-			Size = UDim2.fromScale(1, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
 			Visible = false,
 			Parent = content,
-		})
-		Kit.list("Vertical", Kit.space.sm).Parent = box
+		}, "Vertical", Kit.space.sm)
 		return box
 	end
 
@@ -98,10 +110,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local waiting = section("Waiting")
 	local starting = section("Starting")
 
+	-- ------------------------------------------------------------ the friend sheet
+
+	-- Mounted last (below) so it draws over the column; built first so the
+	-- buttons can open it.
+	local friend = Sheet.new(parent, { title = "Play a friend", name = "FriendSheet", height = 0.42 })
+
 	-- A local problem (a malformed code) shows in the global toast like a rejection.
 	local function complain(text: string)
 		ctx.store.say(text, true)
 	end
+
+	-- ------------------------------------------------------------ idle
 
 	-- Never disabled by "server full": that status can be stale, and the server
 	-- answers ServerFull with a toast if there is still no room.
@@ -109,19 +129,68 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		ctx.net.send("Practice")
 	end, { variant = "primary", Name = "Practice", LayoutOrder = 1, Parent = idle })
 	practice:SetAttribute("PrimaryAction", true)
-	Kit.button("Find Match", function()
-		ctx.net.send("Queue")
-	end, { variant = "secondary", Name = "FindMatch", LayoutOrder = 2, Parent = idle })
-	Kit.button("Host Private Match", function()
-		ctx.net.send("Host")
-	end, { variant = "secondary", Name = "Host", LayoutOrder = 3, Parent = idle })
 
-	Kit.caption("Have a code?", { Name = "JoinHint", LayoutOrder = 10, Parent = idle })
-	local joinRow = Kit.box({
-		Name = "JoinRow",
-		LayoutOrder = 11,
+	local pair = Kit.box({
+		Name = "Pair",
+		LayoutOrder = 2,
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = idle,
+	})
+	Kit.list("Horizontal", Kit.space.sm).Parent = pair
+	Kit.button("Find match", function()
+		ctx.net.send("Queue")
+	end, {
+		variant = "secondary",
+		Name = "FindMatch",
+		LayoutOrder = 1,
+		Size = UDim2.new(0.5, -Kit.space.sm / 2, 1, 0),
+		Parent = pair,
+	})
+	Kit.button("Play a friend", function()
+		friend:open()
+	end, {
+		variant = "secondary",
+		Name = "PlayFriend",
+		LayoutOrder = 2,
+		Size = UDim2.new(0.5, -Kit.space.sm / 2, 1, 0),
+		Parent = pair,
+	})
+	local openHelp = ctx.help
+	if openHelp then
+		Kit.button("How to play", function()
+			openHelp()
+		end, {
+			variant = "ghost",
+			Name = "HowToPlay",
+			LayoutOrder = 3,
+			Parent = idle,
+		})
+	end
+
+	-- The sheet: make a code, or enter one.
+	local body = friend.body
+	Kit.text(Words.FRIEND_MAKE, {
+		Name = "MakeHint",
+		LayoutOrder = 1,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = body,
+	})
+	Kit.button("Make a code", function()
+		friend:close()
+		ctx.net.send("Host")
+	end, { variant = "secondary", Name = "Host", LayoutOrder = 2, Parent = body })
+	Kit.divider({ LayoutOrder = 3, Parent = body })
+	Kit.text(Words.FRIEND_ENTER, {
+		Name = "JoinHint",
+		LayoutOrder = 4,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = body,
+	})
+	local joinRow = Kit.box({
+		Name = "JoinRow",
+		LayoutOrder = 5,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Parent = body,
 	})
 	Kit.list("Horizontal", Kit.space.sm).Parent = joinRow
 	local codeBox = Kit.new("TextBox", {
@@ -133,7 +202,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Font = Kit.font.mono,
 		TextSize = Kit.size.body,
 		TextColor3 = Kit.colors.text,
-		PlaceholderText = "CODE",
+		PlaceholderText = Words.CODE_PLACEHOLDER,
 		PlaceholderColor3 = Kit.colors.muted,
 		ClearTextOnFocus = false,
 		Text = "",
@@ -166,20 +235,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = joinRow,
 	})
 
-	-- Queued or hosting: one box, one Cancel.
-	local waitingTitle = Kit.text("", {
+	-- ------------------------------------------------------------ queued or hosting
+
+	local waitingTitle = Kit.heading("", {
 		Name = "WaitingText",
 		LayoutOrder = 1,
-		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		Font = Kit.font.bold,
-		TextSize = Kit.size.heading,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = waiting,
+	})
+	local waitingHint = Kit.text("", {
+		Name = "WaitingHint",
+		LayoutOrder = 2,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextColor3 = Kit.colors.muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = waiting,
 	})
 	local codeWell = Kit.new("Frame", {
 		Name = "CodeWell",
-		LayoutOrder = 2,
+		LayoutOrder = 3,
 		Size = UDim2.new(1, 0, 0, Kit.size.hero + 2 * Kit.space.lg),
 		BackgroundColor3 = Kit.colors.field,
 		BorderSizePixel = 0,
@@ -192,27 +267,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.fromScale(1, 1),
 		Font = Kit.font.mono,
 		TextSize = Kit.size.hero,
-		TextColor3 = Kit.colors.accent,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = codeWell,
 	})
-	local waitingHint = Kit.caption("", {
-		Name = "WaitingHint",
-		LayoutOrder = 3,
-		TextSize = Kit.size.body,
+	local waitingNow = Kit.text("", {
+		Name = "WaitingNow",
+		LayoutOrder = 4,
+		Font = Kit.font.medium,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = waiting,
 	})
 	Kit.button("Cancel", function()
 		ctx.net.send("Leave")
-	end, { variant = "danger", Name = "Cancel", LayoutOrder = 4, Parent = waiting })
+	end, { variant = "danger", Name = "Cancel", LayoutOrder = 5, Parent = waiting })
 
-	Kit.text("Match found. Starting…", {
+	Kit.heading("Match found. Starting…", {
 		Name = "StartingText",
-		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		Font = Kit.font.bold,
-		TextSize = Kit.size.heading,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = starting,
 	})
@@ -236,18 +307,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		idle.Visible = status == "Idle"
 		waiting.Visible = status == "Queued" or status == "Hosting"
 		starting.Visible = status == "InMatch"
+		if status ~= "Idle" then
+			friend:close()
+		end
 		-- Only the idle Lobby has something to press first (UI audit rule "primary").
 		parent:SetAttribute("PrimaryOptional", status ~= "Idle")
 		if status == "Queued" then
 			local count = if lobby then lobby.queued else 0
-			waitingTitle.Text = `Looking for an opponent… ({count} waiting)`
-			waitingHint.Text = "You will be matched as soon as someone else joins."
+			waitingTitle.Text = "Looking for an opponent…"
+			waitingHint.Text = if count > 1
+				then `{count} players waiting`
+				else "You'll start as soon as someone joins."
+			waitingNow.Visible = false
 			codeWell.Visible = false
 		elseif status == "Hosting" then
 			waitingTitle.Text = "Your private match"
-			waitingHint.Text = "Tell your friend to enter this code"
+			waitingHint.Text = Words.HOSTING_HINT
 			codeLabel.Text = if lobby and lobby.code then lobby.code else "-----"
 			codeWell.Visible = true
+			waitingNow.Text = Words.HOSTING_WAIT
+			waitingNow.Visible = true
 		end
 	end
 
