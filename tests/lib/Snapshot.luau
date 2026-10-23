@@ -11,12 +11,22 @@
 --   (frames from their children, texts from an estimate of their bounds),
 --   ScrollingFrame (clipped at CanvasPosition 0; a "+N px below" marker shows
 --   how much is hidden), ClipsDescendants, ZIndex (sibling order), Rotation.
--- Drawn: BackgroundColor3/Transparency, UICorner, UIStroke (border, or text
--- outline when Contextual on a text), text with color, size, font weight,
--- X/Y alignment, wrapping, TextScaled (UITextSizeConstraint), TextTruncate,
--- TextStroke; images as labeled boxes (a Kit.icon image as its glyph in a
--- dashed box of its tint). Text widths are estimated (Builder Sans,
--- Gotham and Fredoka One are drawn as Helvetica), so line breaks are close to Studio, not exact.
+-- Drawn: BackgroundColor3/Transparency, UICorner (per-corner radii as a path),
+-- UIStroke (border, or text outline when Contextual on a text), UIGradient
+-- (Color and Transparency keypoints and Rotation, on the fill and the text of
+-- its parent, or on the border of its parent UIStroke), UIScale (around the
+-- object's anchor point), CanvasGroup.GroupTransparency, text with color, size,
+-- font weight, X/Y alignment, wrapping, TextScaled (UITextSizeConstraint),
+-- TextTruncate, TextStroke. Images: a Kit.icon image as its glyph in a dashed
+-- box of its tint; a decoration image (attribute Asset, UI/Assets) as a
+-- stand-in: "shadow" four stacked rounded rects (a fake blur: qlmanage drops
+-- SVG filters) under the object named by its Follow attribute, "glow" a radial
+-- gradient in ImageColor3, "dots" a dot pattern; any other image as a labeled
+-- dashed box. Text widths are estimated (Builder Sans, Gotham and Fredoka One
+-- are drawn as Helvetica), so line breaks are close to Studio, not exact.
+--
+-- Not drawn: UIGradient Offset, Scale and Type, TileMode; a UIGradient's effect
+-- on its parent's UIStroke; Rotation's effect on clipping; images' real pixels.
 --
 -- Snapshot.svg(peer, options?) -> string
 --   options.topInset  px the Roblox top bar takes from ScreenGuis that respect
@@ -81,6 +91,10 @@ local function childOf(inst: any, className: string): any
 		end
 	end
 	return nil
+end
+
+local function attrs(inst: any): { [string]: any }
+	return rawget(inst, "_attributes") or {}
 end
 
 local function udim(value: any, total: number): number
@@ -542,10 +556,184 @@ local function radiusOf(inst: any, w: number, h: number): number
 	return math.clamp(value, 0, math.min(w, h) / 2)
 end
 
-type Out = { lines: { string }, clips: number }
+-- The four corner radii (top-left, top-right, bottom-right, bottom-left), or
+-- nil when every corner is the same (a plain rx).
+local function cornersOf(inst: any, w: number, h: number): { number }?
+	local corner = childOf(inst, "UICorner")
+	if corner == nil then
+		return nil
+	end
+	local p = props(corner)
+	if
+		p.TopLeftRadius == nil
+		and p.TopRightRadius == nil
+		and p.BottomRightRadius == nil
+		and p.BottomLeftRadius == nil
+	then
+		return nil
+	end
+	local base = radiusOf(inst, w, h)
+	local function one(value: any): number
+		if value == nil then
+			return base
+		end
+		return math.clamp(value.Scale * math.min(w, h) + value.Offset, 0, math.min(w, h) / 2)
+	end
+	return { one(p.TopLeftRadius), one(p.TopRightRadius), one(p.BottomRightRadius), one(p.BottomLeftRadius) }
+end
+
+type Out = { lines: { string }, clips: number, ids: number }
 
 local function emit(out: Out, s: string)
 	table.insert(out.lines, s)
+end
+
+local function nextId(out: Out, prefix: string): string
+	out.ids += 1
+	return `{prefix}{out.ids}`
+end
+
+local WHITE = { R = 1, G = 1, B = 1 }
+
+-- A sequence's value at `t` (keypoints sorted by Time; numbers or Color3s).
+local function sample(points: { any }, t: number): any
+	if #points == 0 then
+		return nil
+	end
+	if t <= points[1].Time then
+		return points[1].Value
+	end
+	for i = 2, #points do
+		local a, b = points[i - 1], points[i]
+		if t <= b.Time then
+			local k = if b.Time > a.Time then (t - a.Time) / (b.Time - a.Time) else 1
+			if type(a.Value) == "number" then
+				return a.Value + (b.Value - a.Value) * k
+			end
+			return {
+				R = a.Value.R + (b.Value.R - a.Value.R) * k,
+				G = a.Value.G + (b.Value.G - a.Value.G) * k,
+				B = a.Value.B + (b.Value.B - a.Value.B) * k,
+			}
+		end
+	end
+	return points[#points].Value
+end
+
+-- Defines a linearGradient for UIGradient `gradient` over the box (x, y, w, h)
+-- of a paint of `base` color at `alpha`, and returns its id. UIGradient
+-- multiplies the paint's color and transparency; Rotation 0 runs left to
+-- right, 90 top to bottom.
+local function gradientDef(
+	out: Out,
+	gradient: any,
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	base: any,
+	alpha: number
+): string
+	local gp = props(gradient)
+	local colors = if gp.Color
+		then gp.Color.Keypoints
+		else { { Time = 0, Value = WHITE }, { Time = 1, Value = WHITE } }
+	local fades = if gp.Transparency
+		then gp.Transparency.Keypoints
+		else { { Time = 0, Value = 0 }, { Time = 1, Value = 0 } }
+	local times: { number } = {}
+	local seen: { [number]: boolean } = {}
+	for _, list in { colors, fades } do
+		for _, point in list do
+			if not seen[point.Time] then
+				seen[point.Time] = true
+				table.insert(times, point.Time)
+			end
+		end
+	end
+	table.sort(times)
+	local theta = math.rad(gp.Rotation or 0)
+	local dx, dy = math.cos(theta), math.sin(theta)
+	local length = math.abs(w * dx) + math.abs(h * dy)
+	local cx, cy = x + w / 2, y + h / 2
+	local id = nextId(out, "g")
+	local stops = {}
+	local color = base or WHITE
+	for _, t in times do
+		local c = sample(colors, t) or WHITE
+		local fade = sample(fades, t) or 0
+		table.insert(
+			stops,
+			string.format(
+				'<stop offset="%s" stop-color="%s" stop-opacity="%s"/>',
+				string.format("%.3f", t),
+				hex({ R = c.R * color.R, G = c.G * color.G, B = c.B * color.B }, "#ffffff"),
+				string.format("%.3f", math.clamp((1 - fade) * alpha, 0, 1))
+			)
+		)
+	end
+	emit(
+		out,
+		string.format(
+			'<linearGradient id="%s" gradientUnits="userSpaceOnUse" x1="%s" y1="%s" x2="%s" y2="%s">%s</linearGradient>',
+			id,
+			num(cx - dx * length / 2),
+			num(cy - dy * length / 2),
+			num(cx + dx * length / 2),
+			num(cy + dy * length / 2),
+			table.concat(stops)
+		)
+	)
+	return id
+end
+
+local function enabledChild(inst: any, className: string): any
+	local child = childOf(inst, className)
+	if child and props(child).Enabled ~= false then
+		return child
+	end
+	return nil
+end
+
+-- The start of a rounded box element: a rect with rx, or a path when the
+-- corners differ. The caller appends its paint attributes and "/>".
+local function shapeAt(x: number, y: number, w: number, h: number, r: number, corners: { number }?): string
+	if corners == nil then
+		return string.format(
+			'<rect x="%s" y="%s" width="%s" height="%s" rx="%s"',
+			num(x),
+			num(y),
+			num(w),
+			num(h),
+			num(r)
+		)
+	end
+	local tl, tr, br, bl = corners[1], corners[2], corners[3], corners[4]
+	return string.format(
+		'<path d="M %s %s H %s A %s %s 0 0 1 %s %s V %s A %s %s 0 0 1 %s %s H %s A %s %s 0 0 1 %s %s V %s A %s %s 0 0 1 %s %s Z"',
+		num(x + tl),
+		num(y),
+		num(x + w - tr),
+		num(tr),
+		num(tr),
+		num(x + w),
+		num(y + tr),
+		num(y + h - br),
+		num(br),
+		num(br),
+		num(x + w - br),
+		num(y + h),
+		num(x + bl),
+		num(bl),
+		num(bl),
+		num(x),
+		num(y + h - bl),
+		num(y + tl),
+		num(tl),
+		num(tl),
+		num(x + tl),
+		num(y)
+	)
 end
 
 local function drawText(out: Out, node: Node, ax: number, ay: number)
@@ -578,6 +766,10 @@ local function drawText(out: Out, node: Node, ax: number, ay: number)
 		anchor, tx = "end", x0 + bw
 	end
 	local fill = if isPlaceholder then hex(p.PlaceholderColor3, "#8a8f9c") else hex(p.TextColor3, "#1b2a35")
+	local gradient = enabledChild(node.inst, "UIGradient")
+	if gradient and not isPlaceholder then
+		fill = `url(#{gradientDef(out, gradient, ax, ay, node.w, node.h, p.TextColor3, 1)})`
+	end
 	local family = if mono
 		then "Menlo, Consolas, monospace"
 		else "Gotham, Montserrat, 'Helvetica Neue', Helvetica, Arial, sans-serif"
@@ -623,7 +815,115 @@ local function drawText(out: Out, node: Node, ax: number, ay: number)
 	end
 end
 
-local function drawNode(out: Out, node: Node, ox: number, oy: number)
+-- A decoration image's stand-in (attribute Asset, UI/Assets): see the header.
+local function drawAsset(
+	out: Out,
+	node: Node,
+	ax: number,
+	ay: number,
+	siblings: { [string]: Node },
+	ox: number,
+	oy: number
+)
+	local inst = node.inst
+	local p = props(inst)
+	local a = attrs(inst)
+	local alpha = 1 - (p.ImageTransparency or 0)
+	if alpha <= 0.01 then
+		return
+	end
+	local w, h = node.w, node.h
+	if a.Asset == "shadow" then
+		local dy = a.Dy or 4
+		local spread = a.Spread or 12
+		local x, y, bw, bh, r = ax + spread, ay + spread, w - 2 * spread, h - 2 * spread, 12
+		local target = if type(a.Follow) == "string" then siblings[a.Follow] else nil
+		if target then
+			x, y, bw, bh = ox + target.x, oy + target.y + dy, target.w, target.h
+			r = radiusOf(target.inst, bw, bh)
+		end
+		local color = hex(p.ImageColor3, "#000000")
+		local layers = { 0.07, 0.16, 0.28, 0.45 }
+		for i, share in layers do
+			local grow = (#layers - i) * 3
+			emit(
+				out,
+				shapeAt(x - grow, y - grow, bw + 2 * grow, bh + 2 * grow, r + grow, nil)
+					.. string.format(' fill="%s" fill-opacity="%s"/>', color, num(alpha * share))
+			)
+		end
+	elseif a.Asset == "glow" then
+		local rx, ry = w / 2, h / 2
+		if enum(p.ScaleType, "Stretch") == "Fit" then
+			rx = math.min(w, h) / 2
+			ry = rx
+		end
+		local id = nextId(out, "r")
+		local color = hex(p.ImageColor3, "#ffffff")
+		local stops = {}
+		for _, d in { 0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1 } do
+			table.insert(
+				stops,
+				string.format(
+					'<stop offset="%s" stop-color="%s" stop-opacity="%s"/>',
+					num(d),
+					color,
+					string.format("%.3f", alpha * math.max(0, 1 - d) ^ 2.2)
+				)
+			)
+		end
+		emit(
+			out,
+			string.format(
+				'<radialGradient id="%s" cx="0.5" cy="0.5" r="0.5">%s</radialGradient>',
+				id,
+				table.concat(stops)
+			)
+		)
+		emit(
+			out,
+			string.format(
+				'<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="url(#%s)"/>',
+				num(ax + w / 2),
+				num(ay + h / 2),
+				num(rx),
+				num(ry),
+				id
+			)
+		)
+	elseif a.Asset == "dots" then
+		local tile = if p.TileSize then udim(p.TileSize.X, w) else 64
+		local id = nextId(out, "p")
+		emit(
+			out,
+			string.format(
+				'<pattern id="%s" x="%s" y="%s" width="%s" height="%s" patternUnits="userSpaceOnUse"><circle cx="%s" cy="%s" r="1" fill="%s"/></pattern>',
+				id,
+				num(ax),
+				num(ay),
+				num(tile),
+				num(tile),
+				num(tile / 2),
+				num(tile / 2),
+				hex(p.ImageColor3, "#ffffff")
+			)
+		)
+		emit(
+			out,
+			string.format(
+				'<rect x="%s" y="%s" width="%s" height="%s" fill="url(#%s)" fill-opacity="%s"/>',
+				num(ax),
+				num(ay),
+				num(w),
+				num(h),
+				id,
+				num(alpha)
+			)
+		)
+	end
+end
+
+local function drawNode(out: Out, node: Node, ox: number, oy: number, siblings: { [string]: Node }?)
 	local inst = node.inst
 	local p = props(inst)
 	local c = class(inst)
@@ -632,37 +932,66 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number)
 	if w <= 0 or h <= 0 then
 		return
 	end
+	local groups = 0
+	-- UIScale scales the object and everything in it about its anchor point.
+	local scale = childOf(inst, "UIScale")
+	local k = if scale then props(scale).Scale or 1 else 1
+	if k ~= 1 then
+		local anchor = p.AnchorPoint
+		local px = ax + (if anchor then anchor.X else 0) * w
+		local py = ay + (if anchor then anchor.Y else 0) * h
+		emit(
+			out,
+			string.format(
+				'<g transform="translate(%s %s) scale(%s) translate(%s %s)">',
+				num(px),
+				num(py),
+				string.format("%.3f", k),
+				num(-px),
+				num(-py)
+			)
+		)
+		groups += 1
+	end
+	if c == "CanvasGroup" and (p.GroupTransparency or 0) > 0 then
+		emit(out, string.format('<g opacity="%s">', num(1 - p.GroupTransparency)))
+		groups += 1
+	end
 	local rotation = p.Rotation or 0
-	local opened = false
 	if rotation ~= 0 then
 		emit(
 			out,
 			string.format('<g transform="rotate(%s %s %s)">', num(rotation), num(ax + w / 2), num(ay + h / 2))
 		)
-		opened = true
+		groups += 1
 	end
 	local r = radiusOf(inst, w, h)
+	local corners = cornersOf(inst, w, h)
 	local bgAlpha = 1 - (p.BackgroundTransparency or 0)
 	if bgAlpha > 0.01 then
-		local default = if TEXT[c] or c == "ImageButton" then "#a3a2a5" else "#a3a2a5"
-		emit(
-			out,
-			string.format(
-				'<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="%s" fill-opacity="%s"/>',
-				num(ax),
-				num(ay),
-				num(w),
-				num(h),
-				num(r),
-				hex(p.BackgroundColor3, default),
+		local gradient = enabledChild(inst, "UIGradient")
+		local paint
+		if gradient then
+			local id = gradientDef(out, gradient, ax, ay, w, h, p.BackgroundColor3, bgAlpha)
+			paint = string.format(' fill="url(#%s)"/>', id)
+		else
+			paint = string.format(
+				' fill="%s" fill-opacity="%s"/>',
+				hex(p.BackgroundColor3, "#a3a2a5"),
 				num(bgAlpha)
 			)
-		)
+		end
+		emit(out, shapeAt(ax, ay, w, h, r, corners) .. paint)
+	end
+	local assetName = attrs(inst).Asset
+	if (c == "ImageLabel" or c == "ImageButton") and type(assetName) == "string" then
+		drawAsset(out, node, ax, ay, siblings or {}, ox, oy)
 	end
 	local attributes = rawget(inst, "_attributes")
 	local iconName = if attributes then attributes.Icon else nil
 	local icon = if type(iconName) == "string" then Icons[iconName] else nil
-	if c == "ImageLabel" and icon then
+	local plainImage = type(assetName) ~= "string"
+	if plainImage and c == "ImageLabel" and icon then
 		-- A Kit.icon image: its glyph in its tint, in a dashed box of the same tint.
 		local alpha = 1 - (p.ImageTransparency or 0)
 		if alpha > 0.01 then
@@ -692,7 +1021,7 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number)
 				)
 			)
 		end
-	elseif c == "ImageLabel" or c == "ImageButton" or c == "ViewportFrame" then
+	elseif plainImage and (c == "ImageLabel" or c == "ImageButton" or c == "ViewportFrame") then
 		local alpha = 1 - (p.ImageTransparency or 0)
 		if alpha > 0.01 then
 			emit(
@@ -721,22 +1050,27 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number)
 	if stroke and props(stroke).Enabled ~= false then
 		local sp = props(stroke)
 		local mode = enum(sp.ApplyStrokeMode, "Contextual")
-		if not (TEXT[c] and mode == "Contextual") then
+		if not (TEXT[c] and mode == "Contextual") and (sp.Thickness or 1) > 0 then
 			local t = sp.Thickness or 1
-			emit(
-				out,
-				string.format(
-					'<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="none" stroke="%s" stroke-width="%s" stroke-opacity="%s"/>',
-					num(ax - t / 2),
-					num(ay - t / 2),
-					num(w + t),
-					num(h + t),
-					num(if r > 0 then r + t / 2 else 0),
+			local x, y, bw, bh = ax - t / 2, ay - t / 2, w + t, h + t
+			local strokeAlpha = 1 - (sp.Transparency or 0)
+			local light = enabledChild(stroke, "UIGradient")
+			local paint
+			if light then
+				local id = gradientDef(out, light, x, y, bw, bh, sp.Color, strokeAlpha)
+				paint = string.format(' fill="none" stroke="url(#%s)" stroke-width="%s"/>', id, num(t))
+			else
+				paint = string.format(
+					' fill="none" stroke="%s" stroke-width="%s" stroke-opacity="%s"/>',
 					hex(sp.Color, "#000000"),
 					num(t),
-					num(1 - (sp.Transparency or 0))
+					num(strokeAlpha)
 				)
-			)
+			end
+			local grown = if corners
+				then { corners[1] + t / 2, corners[2] + t / 2, corners[3] + t / 2, corners[4] + t / 2 }
+				else nil
+			emit(out, shapeAt(x, y, bw, bh, if r > 0 then r + t / 2 else 0, grown) .. paint)
 		end
 	end
 	if TEXT[c] then
@@ -772,8 +1106,13 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number)
 		end
 		return index[a] < index[b]
 	end)
+	local byName: { [string]: Node } = {}
+	for _, child in node.children do
+		local name = tostring(props(child.inst).Name)
+		byName[name] = byName[name] or child
+	end
 	for _, child in ordered do
-		drawNode(out, child, ax, ay)
+		drawNode(out, child, ax, ay, byName)
 	end
 	if clips then
 		emit(out, "</g>")
@@ -783,7 +1122,7 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number)
 		emit(
 			out,
 			string.format(
-				'<rect x="%s" y="%s" width="%s" height="16" rx="8" fill="#e85454" fill-opacity="0.85"/>',
+				'<rect x="%s" y="%s" width="%s" height="16" rx="8" fill="#6b5cff" fill-opacity="0.85"/>',
 				num(ax + w - 108),
 				num(ay + h - 18),
 				"104"
@@ -799,7 +1138,7 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number)
 			)
 		)
 	end
-	if opened then
+	for _ = 1, groups do
 		emit(out, "</g>")
 	end
 end
@@ -812,7 +1151,7 @@ function Snapshot.svg(peer: any, options: Options?): string
 	local square = options ~= nil and options.square == true
 	local S = math.max(W, H)
 	local dx, dy = if square then (S - W) / 2 else 0, if square then (S - H) / 2 else 0
-	local out: Out = { lines = {}, clips = 0 }
+	local out: Out = { lines = {}, clips = 0, ids = 0 }
 	local cw, chh = if square then S else W, if square then S else H
 	emit(
 		out,
@@ -860,8 +1199,13 @@ function Snapshot.svg(peer: any, options: Options?): string
 			else topInset
 		local root: Node = { inst = g, x = 0, y = inset, w = W, h = H - inset, children = {} }
 		layoutChildren(root)
+		local byName: { [string]: Node } = {}
 		for _, child in root.children do
-			drawNode(out, child, 0, inset)
+			local name = tostring(props(child.inst).Name)
+			byName[name] = byName[name] or child
+		end
+		for _, child in root.children do
+			drawNode(out, child, 0, inset, byName)
 		end
 	end
 	if topInset > 0 then

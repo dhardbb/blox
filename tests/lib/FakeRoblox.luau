@@ -180,22 +180,46 @@ local function tweenInfo(
 	}, "TweenInfo")
 end
 
--- ColorSequence.new(c) / (c0, c1) and NumberSequence.new(n) / (n0, n1): two keypoints.
+-- ColorSequence.new(c) / (c0, c1) / ({ keypoints }) and NumberSequence.new(n) /
+-- (n0, n1) / ({ keypoints }), with ColorSequenceKeypoint and NumberSequenceKeypoint.
+local function keypoint(kind: string, time: number, value: any): any
+	return readonly(kind, { Time = time, Value = value }, kind)
+end
 local ColorSequence = {
 	new = function(a: any, b: any?): any
-		return readonly(
-			"ColorSequence",
-			{ Keypoints = { { Time = 0, Value = a }, { Time = 1, Value = b or a } } },
-			"ColorSequence"
-		)
+		local points = if type(a) == "table"
+				and a.Time == nil
+				and a.R == nil
+			then a
+			else { { Time = 0, Value = a }, { Time = 1, Value = b or a } }
+		return readonly("ColorSequence", { Keypoints = points }, "ColorSequence")
+	end,
+}
+local ColorSequenceKeypoint = {
+	new = function(time: number, color: any): any
+		return keypoint("ColorSequenceKeypoint", time, color)
 	end,
 }
 local NumberSequence = {
-	new = function(a: number, b: number?): any
+	new = function(a: any, b: number?): any
+		local points = if type(a) == "table"
+			then a
+			else { { Time = 0, Value = a }, { Time = 1, Value = b or a } }
+		return readonly("NumberSequence", { Keypoints = points }, "NumberSequence")
+	end,
+}
+local NumberSequenceKeypoint = {
+	new = function(time: number, value: number): any
+		return keypoint("NumberSequenceKeypoint", time, value)
+	end,
+}
+local Rect = {
+	new = function(x0: number?, y0: number?, x1: number?, y1: number?): any
+		local a, b, c, d = x0 or 0, y0 or 0, x1 or 0, y1 or 0
 		return readonly(
-			"NumberSequence",
-			{ Keypoints = { { Time = 0, Value = a }, { Time = 1, Value = b or a } } },
-			"NumberSequence"
+			"Rect",
+			{ Min = vector2(a, b), Max = vector2(c, d), Width = c - a, Height = d - b },
+			`{a}, {b}, {c}, {d}`
 		)
 	end,
 }
@@ -663,6 +687,44 @@ local GUI_OBJECTS = {
 }
 local GUI_BUTTONS = { TextButton = true, ImageButton = true }
 
+-- Like Roblox: fires after the property is set to a new value (Parent included).
+function methods.GetPropertyChangedSignal(self: any, name: string): any
+	local signals = rawget(self, "_propSignals")
+	if signals == nil then
+		signals = {}
+		rawset(self, "_propSignals", signals)
+	end
+	if signals[name] == nil then
+		signals[name] = newSignal(rawget(self, "_world"))
+	end
+	return signals[name]
+end
+
+-- Value equality for the fake data types (UDim2, Color3, Vector2, ...): field by field.
+local function sameValue(a: any, b: any): boolean
+	if rawequal(a, b) then
+		return true
+	end
+	if type(a) ~= "table" or type(b) ~= "table" then
+		return false
+	end
+	for _, field in { "X", "Y", "Scale", "Offset", "R", "G", "B", "Name", "Min", "Max" } do
+		local x, y = rawget(a, field), rawget(b, field)
+		if (x ~= nil or y ~= nil) and not sameValue(x, y) then
+			return false
+		end
+	end
+	return getmetatable(a) ~= nil and getmetatable(b) ~= nil and rawget(a, "Keypoints") == nil
+end
+
+local function propertyChanged(inst: any, name: string)
+	local signals = rawget(inst, "_propSignals")
+	local signal = if signals then signals[name] else nil
+	if signal then
+		signal.fire()
+	end
+end
+
 function methods.IsA(self: any, className: string): boolean
 	return self.ClassName == className
 		or (className == "GuiObject" and GUI_OBJECTS[self.ClassName] ~= nil)
@@ -825,6 +887,9 @@ end
 function instanceMeta.__newindex(self: any, key: string, value: any)
 	if key == "Parent" then
 		local old = rawget(self, "_parent")
+		if old == value then
+			return
+		end
 		if old then
 			local siblings = rawget(old, "_children")
 			local at = table.find(siblings, self)
@@ -836,9 +901,15 @@ function instanceMeta.__newindex(self: any, key: string, value: any)
 		if value then
 			table.insert(rawget(value, "_children"), self)
 		end
+		propertyChanged(self, "Parent")
 		return
 	end
-	rawget(self, "_props")[key] = value
+	local props = rawget(self, "_props")
+	local old = props[key]
+	props[key] = value
+	if not sameValue(old, value) then
+		propertyChanged(self, key)
+	end
 end
 
 function instanceMeta.__tostring(self: any): string
@@ -916,7 +987,10 @@ local function stdEnv(world: World, peer: Peer, path: string, inst: any): { [str
 		Vector2 = { new = vector2 },
 		TweenInfo = { new = tweenInfo },
 		ColorSequence = ColorSequence,
+		ColorSequenceKeypoint = ColorSequenceKeypoint,
 		NumberSequence = NumberSequence,
+		NumberSequenceKeypoint = NumberSequenceKeypoint,
+		Rect = Rect,
 		Instance = {
 			new = function(className: string, parent: any?)
 				local created = newInstance(world, className)
