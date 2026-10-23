@@ -151,13 +151,19 @@ describe("Lobby", function()
 		expect(logged(peer, "DEBUG_UI send Practice")):toBe(true)
 		tap(world, peer, "Lobby", "FindMatch")
 		expect(logged(peer, "DEBUG_UI send Queue")):toBe(true)
+		-- Host lives in the "Play a friend" sheet, which closes once a code is asked for.
+		check(not Rig.shown(need(peer, "Lobby", "Host"), "Lobby"), "Host shows before Play a friend")
+		tap(world, peer, "Lobby", "PlayFriend")
+		check(Rig.shown(need(peer, "Lobby", "Host"), "Lobby"), "the friend sheet did not open")
 		tap(world, peer, "Lobby", "Host")
 		expect(logged(peer, "DEBUG_UI send Host")):toBe(true)
+		expect(need(peer, "Lobby", "FriendSheet").Visible):toBe(false)
 		noErrors(world)
 	end)
 
 	it("joins only with a well-formed code, uppercased", function()
 		local world, peer = mountFixture("Lobby", nil)
+		tap(world, peer, "Lobby", "PlayFriend")
 		local box = need(peer, "Lobby", "CodeBox")
 		for _, bad in { "", "AB3", "AB3CDE", "AB10C", "AB-CD" } do
 			box.Text = bad
@@ -192,12 +198,14 @@ describe("Select", function()
 		pickMost(world, peer)
 		tap(world, peer, "Select", "LockIn")
 		expect(logged(peer, "DEBUG_UI submit")):toBe(false)
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (2/3)")
+		expect(textOf(peer, "Select", "NowText")):toBe("Pick 1 more issue")
 
 		tap(world, peer, "Select", "Issue_Schools")
+		expect(textOf(peer, "Select", "NowText")):toBe("All set? Lock in")
 		tap(world, peer, "Select", "LockIn")
 		expect(count(peer, "DEBUG_UI submit")):toBe(1)
-		expect(textOf(peer, "Select", "BarStatus")):toBe("Locked in · waiting for opponent")
+		expect(textOf(peer, "Select", "BarStatus")):toBe("Locked in")
+		check(string.find(textOf(peer, "Select", "NowText"), "Waiting for", 1, true) == 1, "no waiting line")
 		expect(textOf(peer, "Select", "LockIn")):toBe("Locked in")
 
 		-- Locked is final: a second press submits nothing more.
@@ -211,14 +219,14 @@ describe("Select", function()
 		pickMost(world, peer)
 		tap(world, peer, "Select", "Issue_Schools")
 		tap(world, peer, "Select", "Issue_Safety")
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (3/3)")
+		expect(textOf(peer, "Select", "NowText")):toBe("All set? Lock in")
 		local picked = tostring(need(peer, "Select", "Issue_Jobs").BackgroundColor3)
 		expect(tostring(need(peer, "Select", "Issue_Safety").BackgroundColor3) ~= picked):toBe(true)
 
 		tap(world, peer, "Select", "Issue_Jobs")
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (2/3)")
+		expect(textOf(peer, "Select", "NowText")):toBe("Pick 1 more issue")
 		tap(world, peer, "Select", "Issue_Safety")
-		expect(textOf(peer, "Select", "PlatformHeading")):toBe("2. Issues for Dana Okafor (3/3)")
+		expect(textOf(peer, "Select", "NowText")):toBe("All set? Lock in")
 		noErrors(world)
 	end)
 
@@ -231,15 +239,18 @@ describe("Select", function()
 		noErrors(world)
 	end)
 
-	it("shows every candidate with its perk and drawback", function()
+	it("shows every candidate with a short strength and weakness", function()
 		local world, peer = mountFixture("Select", nil)
 		local Candidates = require("@sim/Candidates")
+		local Config = require("@sim/Config")
+		local Words = require("@ui/Words/Setup")
 		for _, id in Candidates.ids do
-			need(peer, "Select", `Candidate_{id}`)
+			local card = need(peer, "Select", `Candidate_{id}`)
+			local short = Words.candidate(Config.defaults, id)
+			expect(tostring(card:FindFirstChild("Perk").Text)):toBe(`+ {short.strength}`)
+			expect(tostring(card:FindFirstChild("Drawback").Text)):toBe(`− {short.weakness}`)
 		end
 		need(peer, "Select", "ColorLine")
-		expect(string.sub(textOf(peer, "Select", "Perk"), 1, 1)):toBe("+")
-		expect(string.sub(textOf(peer, "Select", "Drawback"), 1, 3)):toBe("−")
 		noErrors(world)
 	end)
 end)
@@ -510,5 +521,55 @@ describe("Lobby design system", function()
 			expect(strictAudit(world, peer)):toBe(0)
 			noErrors(world)
 		end
+	end)
+end)
+
+-- ------------------------------------------------------------------ style v2 (WP-A, docs/UI-STYLE.md §4.1)
+
+describe("Lobby style v2", function()
+	it("says what the game is in at most 8 words, and opens How to play", function()
+		local world, peer = mountFixture("Lobby", PHONE)
+		local words = 0
+		for _ in string.gmatch(textOf(peer, "Lobby", "Pitch"), "%S+") do
+			words += 1
+		end
+		check(words <= 8, `the tagline has {words} words`)
+		tap(world, peer, "Lobby", "HowToPlay")
+		local overlay = FakeRoblox.find(peer, "HelpOverlay")
+		check(overlay ~= nil and overlay.Visible == true, "How to play did not open the help")
+		noErrors(world)
+	end)
+
+	it("puts Find match and Play a friend side by side under Play vs Bot", function()
+		local _world, peer = mountFixture("Lobby", PHONE)
+		local find, friend = need(peer, "Lobby", "FindMatch"), need(peer, "Lobby", "PlayFriend")
+		expect(find.Parent):toBe(friend.Parent)
+		expect(friend:GetAttribute("Variant")):toBe("secondary")
+		check(find.AbsoluteSize.X >= 44 and friend.AbsoluteSize.X >= 44, "a half-width button is too narrow")
+		-- The join field and Join live in the sheet, not on the main column.
+		expect(need(peer, "Lobby", "CodeBox"):FindFirstAncestor("FriendSheet") ~= nil):toBe(true)
+		expect(need(peer, "Lobby", "Join"):FindFirstAncestor("FriendSheet") ~= nil):toBe(true)
+	end)
+
+	it("audits clean, strictly, with the friend sheet open at both sizes", function()
+		for _, screen in { PHONE, { x = 1280, y = 720 } } do
+			local world, peer = mountFixture("Lobby", screen)
+			tap(world, peer, "Lobby", "PlayFriend")
+			check(need(peer, "Lobby", "FriendSheet").Visible == true, "the sheet is closed")
+			expect(strictAudit(world, peer)):toBe(0)
+			noErrors(world)
+		end
+	end)
+
+	it("says the host is waiting for a friend under the code", function()
+		local world, peer = mountFixture("Lobby", PHONE)
+		world.current = peer
+		storeOf(peer).setLobby(Fixtures.lobby("Hosting"))
+		world.current = nil
+		FakeRoblox.run(world, 0.3)
+		expect(textOf(peer, "Lobby", "WaitingHint")):toBe("Tell your friend this code")
+		expect(textOf(peer, "Lobby", "WaitingNow")):toBe("Waiting for your friend…")
+		check(Rig.shown(need(peer, "Lobby", "WaitingNow"), "Lobby"), "no waiting line")
+		noErrors(world)
 	end)
 end)
