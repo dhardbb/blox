@@ -174,7 +174,7 @@ export type Turn = {
 	key: string, -- "matchId:step" of the stage this player is answering
 	step: number,
 	label: string, -- "Select", "Draft round 2/8 (Stronghold)", "Week 3 Plan"
-	phase: string, -- View phase: Select, Draft or Plan
+	phase: string, -- View phase: Select, Draft, Decision or Plan
 	attempts: number, -- rejected command files so far
 	shownAt: number, -- real time the current screen appeared
 	output: { string }, -- what the last command file printed, shown on the next screen
@@ -280,6 +280,9 @@ local function stageLabel(view: any): string
 		return "Select"
 	elseif view.phase == "Draft" then
 		return `Draft round {view.draftRound + 1}/8 ({view.draftKind})`
+	end
+	if view.phase == "Decision" then
+		return `Week {view.week} Decision: {if view.decision == "Focus" then "debate focus" else "stance"}`
 	end
 	return `Week {view.week} {view.phase}`
 end
@@ -415,7 +418,7 @@ local function selectGuide(): { string }
 		table.insert(
 			out,
 			string.format(
-				"  %-9s %s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, ad $%g, debate prep %d]",
+				"  %-9s %s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, ad $%g, debate focus +%d]",
 				id,
 				p.name,
 				p.archetype,
@@ -426,7 +429,7 @@ local function selectGuide(): { string }
 				p.passiveIncome,
 				p.rallySupport,
 				p.mediaCost,
-				p.debatePrep
+				p.focusEdge
 			)
 		)
 	end
@@ -546,42 +549,11 @@ local function planGuide(payload: any, turn: Turn): { string }
 		out,
 		`Your ground game so far: {if #ownGotv > 0 then table.concat(ownGotv, ", ") else "none"}.`
 	)
-	-- This week's event and the next debate are on the board below; only what to
-	-- add to the plan is said here.
-	if view.event then
-		if view.event.kind == "Choice" then
-			table.insert(
-				out,
-				`CHOICE WEEK ({view.event.name}, issue {view.event.issue}): add "choice a", "choice b" or "choice c" to your plan (default c, the hedge). The board below has the states you need and one summary per stance (what it gains, the leads it risks, the poll leaders it would flip on today's polls, before their stance). Every state each stance moves, for you:`
-			)
-			for _, line in Explain.choiceLines(C, view.event, me.platform, Events.baseOf(me)) do
-				table.insert(out, `  {line}`)
-			end
-			for _, stance in view.event.stances or {} do
-				table.insert(out, `  {stance.id}: "{stance.text}"`)
-			end
-		end
-	end
-	local prepDue = table.find(C.DEBATE_WEEKS, view.week + 1) ~= nil
-	local prepText = ""
-	if prepDue and view.nextDebate then
-		local points = profile.debatePrep
-		local base = math.floor(points / 3)
-		local extra = points - base * 3
-		local spread = {}
-		for k = 1, 3 do
-			table.insert(spread, base + (if k <= extra then 1 else 0))
-		end
-		prepText = `; prep {table.concat(spread, " ")}`
+	-- The stance and the debate focus were their own Decision step (D-044).
+	if view.stance and view.event and view.event.kind == "Choice" then
 		table.insert(
 			out,
-			`DEBATE PREP DUE: the debate is next week, topics in order: {table.concat(
-				view.nextDebate.topics,
-				", "
-			)}. Add "prep A B C" to your plan: {points} points over those 3 topics, max {C.DEBATE_MAX_PER_TOPIC} per topic (default {table.concat(
-				spread,
-				" "
-			)}). Leave it out to keep the default.`
+			`Your stance on {view.event.name} this week: {view.stance} (taken on the Decision screen; secret until the week resolves).`
 		)
 	end
 	-- Previews follow the last "show ST" of this turn, else where the candidate is.
@@ -617,17 +589,14 @@ local function planGuide(payload: any, turn: Turn): { string }
 		out,
 		"     rally ST ISSUE   fund ST   ad ST ISSUE   attack ad ST ISSUE   poll ST   rpoll REGION"
 	)
-	table.insert(out, "     gotv ST UNITS    pivot DROP ADD   prep A B C   choice a|b|c")
+	table.insert(out, "     gotv ST UNITS    pivot DROP ADD")
 	table.insert(
 		out,
 		"     (names as the game says them: ad = Ad (media also works), attack ad = Attack ad (attack also works), gotv = Ground game, rpoll = Region poll)"
 	)
 	table.insert(out, `     ISSUE is one of: {string.lower(issueIds())}`)
 	table.insert(out, `     REGION is one of: {table.concat(Issues.regions, " ")}`)
-	table.insert(
-		out,
-		"  pass                          empty plan (AP lost, money banks; default prep / stance c, the hedge)"
-	)
+	table.insert(out, "  pass                          empty plan (AP lost, money banks)")
 	table.insert(
 		out,
 		"  show ST                       one state: numbers, what lean/momentum mean there, each action's expected effect (free)"
@@ -657,19 +626,83 @@ local function planGuide(payload: any, turn: Turn): { string }
 	if cash >= profile.mediaCost + (if second ~= "" then C.INTERNAL_POLL_COST else 0) then
 		second ..= `; ad {adj[2] or rallyStop} {string.lower(issueB)}`
 	end
-	local extra = prepText
-	if view.event and view.event.kind == "Choice" then
-		extra ..= "; choice a"
-	end
 	table.insert(
 		out,
-		`Example:   plan rally {location or rallyStop} {string.lower(issueA)}; fund {location or rallyStop}{extra}`
+		`Example:   plan rally {location or rallyStop} {string.lower(issueA)}; fund {location or rallyStop}`
 	)
 	table.insert(
 		out,
-		`Example:   plan fund {location or rallyStop}; rally {rallyStop} {string.lower(issueB)}{second}{extra}`
+		`Example:   plan fund {location or rallyStop}; rally {rallyStop} {string.lower(issueB)}{second}`
 	)
 	table.insert(out, `Example:   pass`)
+	return out
+end
+
+-- The Decision step (D-044): the debate focus right before a debate, or a
+-- Choice event's stance, on its own screen before the plan.
+local function decisionGuide(payload: any): { string }
+	local view = payload.view
+	local me = view.players[payload.you]
+	local C = Config.defaults
+	local out = {}
+	if view.decision == "Focus" then
+		local topics = if view.nextDebate then view.nextDebate.topics else {}
+		local edge = if #topics > 0 then Swing.focus(C, view, topics[1]).edge else C.DEBATE_FOCUS
+		table.insert(
+			out,
+			`STAGE: Week {view.week} Decision: debate focus. The debate runs right after this step. Pick ONE of its topics to focus on: +{edge} on that topic's score. Each topic: focus + {C.DEBATE_PLATFORM_BONUS} if on your platform + debate stat + a roll 0 to {C.DEBATE_ROLL_MAX}; higher total wins it. A win: {Numbers.signed(
+				C.DEBATE_TOPIC_WIN
+			)} in every state where it is a top issue (+{C.DEBATE_TOPIC_NATIONAL} everywhere). The opponent picks at the same time, in secret. No focus in time: every topic you lose is a gaffe ({Numbers.signed(
+				-C.DEBATE_GAFFE
+			)} in its states).`
+		)
+		table.insert(
+			out,
+			"The BOARD below lists each topic as the focus screen does: its states and EV, the ones you need, your odds. What a win would flip on today's polls:"
+		)
+		for _, topic in topics do
+			table.insert(out, `  {topic}: {Swing.focus(C, view, topic).winLine}`)
+		end
+		table.insert(out, "")
+		table.insert(out, "COMMANDS:")
+		table.insert(
+			out,
+			"  focus TOPIC                   lock in your focus (one of the three topics above)"
+		)
+		table.insert(out, "  show ST | rules | help        free info")
+		table.insert(out, "  auto                          the built-in bot picks for you (locks you in)")
+		for _, topic in topics do
+			table.insert(out, `Example:   focus {string.lower(topic)}`)
+		end
+		return out
+	end
+	local event = view.event
+	table.insert(
+		out,
+		`STAGE: Week {view.week} Decision: stance. {if event then event.name else "?"} asks for a stance on {if event
+			then event.issue
+			else "?"}; the week's plan comes right after this step. Stances are secret until the week resolves; the hedge (c) is the default.`
+	)
+	if event then
+		table.insert(out, "Every state each stance moves, for you:")
+		for _, line in Explain.choiceLines(C, event, me.platform, Events.baseOf(me)) do
+			table.insert(out, `  {line}`)
+		end
+		for _, stance in event.stances or {} do
+			table.insert(out, `  {stance.id}: "{stance.text}"`)
+		end
+		table.insert(
+			out,
+			"The board below has the states you need and one summary per stance (what it gains, the leads it risks, the poll leaders it would flip on today's polls, before their stance)."
+		)
+	end
+	table.insert(out, "")
+	table.insert(out, "COMMANDS:")
+	table.insert(out, "  choice a|b|c                  lock in your stance")
+	table.insert(out, "  show ST | rules | help        free info")
+	table.insert(out, "  auto                          the built-in bot picks for you (locks you in)")
+	table.insert(out, "Example:   choice a")
+	table.insert(out, "Example:   choice c")
 	return out
 end
 
@@ -719,6 +752,18 @@ local function recapLines(payload: any): { string }
 	return out
 end
 
+-- The harness default for this turn: "pass" in a plan week, the hedge on a
+-- stance (both what the game does when the timer runs out), else "auto" (a
+-- debate focus has no command for "none": the bot picks).
+local function defaultMove(turn: Turn): string
+	if turn.phase == "Plan" then
+		return "pass"
+	elseif turn.phase == "Decision" and string.find(turn.label, "stance", 1, true) then
+		return "choice c"
+	end
+	return "auto"
+end
+
 local function buildScreen(slot: Slot, extraOutput: { string }): string
 	local payload = slot.latest
 	local view = payload.view
@@ -737,10 +782,9 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 	if turn.attempts > 0 then
 		local left = maxAttempts - turn.attempts
 		add(
-			`!!! YOUR LAST COMMAND FILE WAS REJECTED: {left} attempt{if left == 1 then "" else "s"} left before the harness plays "{if turn.phase
-					== "Plan"
-				then "pass"
-				else "auto"}" for you !!!`
+			`!!! YOUR LAST COMMAND FILE WAS REJECTED: {left} attempt{if left == 1 then "" else "s"} left before the harness plays "{defaultMove(
+				turn
+			)}" for you !!!`
 		)
 	end
 	add(`STATUS: {ui.status}`)
@@ -761,6 +805,8 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 		guide = selectGuide()
 	elseif view.phase == "Draft" then
 		guide = draftGuide(payload)
+	elseif view.phase == "Decision" then
+		guide = decisionGuide(payload)
 	else
 		guide = planGuide(payload, turn)
 	end
@@ -828,7 +874,7 @@ end
 
 -- What the server's reason codes mean, for the agent reading the verdict.
 local GLOSS: { [string]: string } = {
-	WrongPhase = "this command is for a different stage (select, draft and plan only work in their own stage)",
+	WrongPhase = "this command is for a different stage (select, draft, focus/choice and plan only work in their own stage)",
 	BadShape = "malformed input",
 	TooManyActions = "too many actions in one plan",
 	UnknownState = "no such state code",
@@ -848,10 +894,10 @@ local GLOSS: { [string]: string } = {
 	BadPivot = "pivot DROP must be in your platform and ADD must not be",
 	NotEnoughAP = "the plan uses more AP than you have",
 	NotEnoughMoney = "the plan costs more than your cash (ads, attack ads, polls, ground game (gotv) and flights cost money)",
-	BadPrep = "prep must be your debate points split over the 3 topics, max 4 on one topic",
-	UnexpectedPrep = "prep is only accepted in the week before a debate",
-	BadChoice = "choice must be a, b or c (the stances on the board; c is the hedge)",
-	UnexpectedChoice = "choice is only accepted in a Choice-event week",
+	BadFocus = 'this step wants "focus TOPIC" with one of the debate\'s three topics',
+	UnexpectedFocus = "focus is only accepted on the debate's own Decision step, not in a plan",
+	BadChoice = 'this step wants "choice a", "choice b" or "choice c" (c is the hedge)',
+	UnexpectedChoice = "choice is only accepted on a Choice week's own Decision step, not in a plan",
 	StaleStep = "the stage moved on",
 	AlreadyLocked = "you are already locked in",
 }
@@ -946,11 +992,6 @@ local function writeResult(slot: Slot, turnNo: number, status: string, report: {
 		table.insert(out, line)
 	end
 	writeAtomic(path(`p{slot.n}.result.txt`), table.concat(out, "\n") .. "\n")
-end
-
--- The harness default for this turn: "pass" in a plan week, else "auto".
-local function defaultMove(turn: Turn): string
-	return if turn.phase == "Plan" then "pass" else "auto"
 end
 
 -- What a rejected screen and verdict say about the attempts left.

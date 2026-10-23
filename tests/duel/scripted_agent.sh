@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # A dumb scripted agent, used to prove the duel protocol end to end (and as a
 # template): selects a fixed candidate, drafts the first two legal states listed,
-# then passes every week.
+# then passes every week; a Decision step (debate focus or stance, D-044) sends
+# its first "Example:" line.
 #   tests/duel/scripted_agent.sh DIR N [candidate] [pass|example]
 # In "example" mode each Plan week sends the first "Example:" plan line of the
 # screen instead of "pass" (which also checks that the screen's examples are valid).
@@ -22,6 +23,10 @@ while true; do
 	Draft*)
 		states="$(printf '%s\n' "$screen" | awk '/^Your platform:/{f=1;next} f&&/^  [A-Z][A-Z]/{gsub(/\*/,"",$1);print $1} /^$/{f=0}' | head -2 | tr '\n' ' ')"
 		cmd="draft $states"
+		;;
+	*Decision*)
+		# A Decision step (debate focus or stance, D-044): its first example.
+		cmd="$(printf '%s\n' "$screen" | sed -n 's/^Example:   //p' | head -1)"
 		;;
 	*)
 		cmd="pass"
