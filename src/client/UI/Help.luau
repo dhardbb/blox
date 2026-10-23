@@ -4,15 +4,17 @@
 -- Actions, Events & debates, Polls & ground game. Each tab is a small picture
 -- built from frames (a race bar, the three steps of a turn, the six actions,
 -- a debate scoreboard, the three kinds of polls) and at most 60 words
--- (Shared/UI/Words/Reveal.help). Under each, "All the numbers" opens today's
--- exact rules for that tab, every number from Config and your candidate
--- (Shared/UI/Explain.help), so a balance change needs no edit here.
+-- (Shared/UI/Words/Reveal.help); the Actions and Polls pictures carry each
+-- action's icon (UI/Icons) beside its name. Under each, "All the numbers"
+-- opens today's exact rules for that tab, every number from Config and your
+-- candidate (Shared/UI/Explain.help), so a balance change needs no edit here.
 --
 -- Mounted once by App.client above the screens (below the toast); every
 -- header's "?" opens it (ctx.help). It opens on the tab for the moment (a
 -- debate or a stance: Events; the plan: Your turn; else How to win), keeps the
 -- step's countdown in its title row (the clock keeps running), and closes with
--- its × or a tap outside. It never holds a primary action.
+-- its × or a tap outside. It never holds a primary action. How to win starts
+-- with the Settings row (UI/Settings: Sound and Reduce motion, session only).
 --
 --   local help = Help.mount(parent, ctx)
 --   help.open() · help.close() · help.isOpen() -> boolean · help.destroy()
@@ -21,7 +23,8 @@
 --   Elements: HelpSheet (UI/Sheet), HelpClose (the ×), HelpTimer, HelpTabs,
 --   HelpTab_<tab>, HelpPage_<tab>, HelpArt_<tab>, HelpIntro_<tab>,
 --   HelpMoreButton_<tab>, HelpMore_<tab>, HelpSection_<id>, HelpTitle_<id>,
---   HelpText_<id> (one per Explain.help section).
+--   HelpText_<id> (one per Explain.help section), HelpSettings (the label
+--   HelpSettingsLabel and the row Settings with SoundChip and MotionChip).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -33,6 +36,7 @@ local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local Audit = require(script.Parent.Audit)
 local Kit = require(script.Parent.Kit)
+local Settings = require(script.Parent.Settings)
 local Sheet = require(script.Parent.Sheet)
 local Types = require(script.Parent.Parent.Screens.Types)
 
@@ -46,6 +50,17 @@ local NUMBER = 28 -- px, a step number's circle
 local ART_ROW = 28 -- px, one row of a picture
 local NAME_W = 112 -- px, the name column of the Actions picture
 local BAR_H = 12 -- px, the race bar in the How to win picture
+local ICON = 20 -- px, an action's icon in the Actions and Polls pictures
+
+-- The plan action kind (Sim/Plan) behind each name in Words.ACTIONS, for its icon.
+local ACTION_KINDS: { [string]: string } = {
+	Rally = "Rally",
+	Fundraise = "Fundraise",
+	Ad = "Media",
+	["Attack ad"] = "Attack",
+	Poll = "Poll",
+	["Ground game"] = "Gotv",
+}
 
 export type Help = {
 	root: Frame,
@@ -167,10 +182,32 @@ local function turnArt(art: Frame, config: ConfigModule.Config)
 	end
 end
 
--- A pill in a fixed-width name column and a short line beside it.
-local function namedRow(art: Frame, name: string, order: number, pill: string, tone: Kit.Tone, text: string)
+-- A pill in a fixed-width name column and a short line beside it, with the
+-- action's icon (UI/Icons) in front when there is one.
+local function namedRow(
+	art: Frame,
+	name: string,
+	order: number,
+	pill: string,
+	tone: Kit.Tone,
+	text: string,
+	icon: string?
+)
 	local line = row(art, name, order)
-	local box = Kit.box({ Name = "NameBox", Size = UDim2.new(0, NAME_W, 1, 0), Parent = line })
+	local left = 0
+	if icon then
+		local glyph = Kit.icon(icon, ICON, Kit.tone(tone))
+		glyph.AnchorPoint = Vector2.new(0, 0.5)
+		glyph.Position = UDim2.fromScale(0, 0.5)
+		glyph.Parent = line
+		left = ICON + Kit.space.xs
+	end
+	local box = Kit.box({
+		Name = "NameBox",
+		Position = UDim2.fromOffset(left, 0),
+		Size = UDim2.new(0, NAME_W, 1, 0),
+		Parent = line,
+	})
 	Kit.pill(pill, tone, {
 		Name = "Name",
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -179,8 +216,8 @@ local function namedRow(art: Frame, name: string, order: number, pill: string, t
 	})
 	Kit.text(text, {
 		Name = "Text",
-		Position = UDim2.fromOffset(NAME_W + Kit.space.sm, 0),
-		Size = UDim2.new(1, -(NAME_W + Kit.space.sm), 1, 0),
+		Position = UDim2.fromOffset(left + NAME_W + Kit.space.sm, 0),
+		Size = UDim2.new(1, -(left + NAME_W + Kit.space.sm), 1, 0),
 		TextSize = Kit.size.caption,
 		TextScaled = true,
 		Parent = line,
@@ -189,7 +226,9 @@ end
 
 local function actionsArt(art: Frame)
 	for k, action in Words.ACTIONS do
-		namedRow(art, `Action{k}`, k, action.name, "text", action.text)
+		local kind = ACTION_KINDS[action.name]
+		local icon = if kind then Kit.actionIcon(kind) else nil
+		namedRow(art, `Action{k}`, k, action.name, "text", action.text, icon or "vote")
 	end
 end
 
@@ -232,9 +271,9 @@ local function eventsArt(art: Frame)
 end
 
 local function pollsArt(art: Frame)
-	namedRow(art, "Public", 1, "Public poll", "text", "Everyone sees it; can be off")
-	namedRow(art, "Private", 2, "Your poll", "good", "Only you: the real numbers")
-	namedRow(art, "Ground", 3, "Ground game", "warn", "Hidden until election night")
+	namedRow(art, "Public", 1, "Public poll", "text", "Everyone sees it; can be off", "search")
+	namedRow(art, "Private", 2, "Your poll", "good", "Only you: the real numbers", "search")
+	namedRow(art, "Ground", 3, "Ground game", "warn", "Hidden until election night", "footprints")
 end
 
 -- ---------------------------------------------------------------- mount
@@ -321,6 +360,16 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 			Parent = sheet.body,
 		}, "Vertical", Kit.space.md)
 		pages[tab.id] = page
+		if tab.id == "win" then
+			-- The session settings, first thing in the default tab.
+			local settings = Kit.stack({
+				Name = "HelpSettings",
+				LayoutOrder = 0,
+				Parent = page,
+			}, "Vertical", Kit.space.xs)
+			Kit.caption("Settings", { Name = "HelpSettingsLabel", LayoutOrder = 1, Parent = settings })
+			Settings.row({ LayoutOrder = 2, Parent = settings })
+		end
 		Kit.text(tab.title, {
 			Name = `HelpPageTitle_{tab.id}`,
 			LayoutOrder = 1,

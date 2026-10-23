@@ -573,3 +573,89 @@ describe("Lobby style v2", function()
 		noErrors(world)
 	end)
 end)
+
+-- ------------------------------------------------------------------ polish (WP-3, docs/UI-STYLE.md §2.7.1)
+
+local function played(peer: FakeRoblox.Peer, name: string): number
+	local n = 0
+	for _, cue in Rig.sounds(peer) do
+		if cue == name then
+			n += 1
+		end
+	end
+	return n
+end
+
+describe("Lobby polish", function()
+	it("has Sound and Reduce motion chips under How to play that flip the settings", function()
+		local world, peer = mountFixture("Lobby", PHONE)
+		local Audio = FakeRoblox.require(world, peer, "src/client/UI/Audio.luau")
+		local Motion = FakeRoblox.require(world, peer, "src/client/UI/Motion.luau")
+		local how = need(peer, "Lobby", "HowToPlay")
+		local sound = need(peer, "Lobby", "SoundChip")
+		local row = need(peer, "Lobby", "Settings")
+		expect(row.Parent):toBe(how.Parent)
+		check(row.LayoutOrder > how.LayoutOrder, "the chips are not under How to play")
+		check(Rig.shown(sound, "Lobby"), "the Sound chip is hidden")
+		expect(sound:GetAttribute("On")):toBe(true)
+		tap(world, peer, "Lobby", "SoundChip")
+		expect(Audio.muted()):toBe(true)
+		expect(sound:GetAttribute("On")):toBe(false)
+		tap(world, peer, "Lobby", "SoundChip")
+		expect(Audio.muted()):toBe(false)
+		tap(world, peer, "Lobby", "MotionChip")
+		expect(Motion.reduced()):toBe(true)
+		expect(need(peer, "Lobby", "MotionChip"):GetAttribute("On")):toBe(true)
+		tap(world, peer, "Lobby", "MotionChip")
+		expect(Motion.reduced()):toBe(false)
+		expect(strictAudit(world, peer)):toBe(0)
+		noErrors(world)
+	end)
+
+	it("arrives fully drawn: the hero at full size, every line opaque", function()
+		local world, peer = mountFixture("Lobby", nil)
+		local scale = need(peer, "Lobby", "Title"):FindFirstChild("MotionScale")
+		check(scale == nil or scale.Scale == 1, "the hero is still popping")
+		for _, name in { "Title", "Pitch", "Record", "Practice", "FindMatch", "PlayFriend", "HowToPlay" } do
+			expect(need(peer, "Lobby", name).TextTransparency):toBe(0)
+		end
+		for _, name in { "Practice", "FindMatch", "PlayFriend", "SoundChip", "MotionChip" } do
+			expect(need(peer, "Lobby", name).BackgroundTransparency):toBe(0)
+		end
+		noErrors(world)
+	end)
+
+	it("arrives the same under reduced motion, with Reduce motion on", function()
+		local world, peer = Rig.fixture("Lobby", nil, { reducedMotion = true })
+		expect(need(peer, "Lobby", "MotionChip"):GetAttribute("On")):toBe(true)
+		for _, name in { "Title", "Practice", "HowToPlay" } do
+			expect(need(peer, "Lobby", name).TextTransparency):toBe(0)
+		end
+		local scale = need(peer, "Lobby", "Title"):FindFirstChild("MotionScale")
+		check(scale == nil or scale.Scale == 1, "the hero popped under reduced motion")
+		noErrors(world)
+	end)
+
+	it("shakes a bad-code toast back into place with one error cue, then fades it out", function()
+		local world, peer = mountFixture("Lobby", nil)
+		local frame = FakeRoblox.find(peer, "ToastLayer"):FindFirstChild("Toast")
+		local rest = frame.Position
+		tap(world, peer, "Lobby", "PlayFriend")
+		need(peer, "Lobby", "CodeBox").Text = "AB1"
+		tap(world, peer, "Lobby", "Join")
+		check(toastText(peer) ~= nil, "no toast")
+		expect(played(peer, "error")):toBe(1)
+		expect(frame:GetAttribute("Rejected")):toBe(true)
+		expect(frame.Position):toEqual(rest)
+		FakeRoblox.run(world, 6)
+		check(toastText(peer) == nil, "the toast never went away")
+		-- The next one is fully drawn again.
+		tap(world, peer, "Lobby", "Join")
+		check(toastText(peer) ~= nil, "no second toast")
+		expect(frame.BackgroundTransparency):toBe(0)
+		expect(frame:FindFirstChild("ToastText").TextTransparency):toBe(0)
+		expect(frame:FindFirstChild("ToastStroke").Transparency):toBe(0)
+		expect(frame.Position):toEqual(rest)
+		noErrors(world)
+	end)
+end)

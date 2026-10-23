@@ -7,13 +7,18 @@
 -- Layout (docs/UI-STYLE.md §4.1): one centered column, at most 480 px wide, that
 -- does not scroll: the "270" hero, a one-line tagline, the record, then Play vs
 -- Bot (the one primary), "Find match" and "Play a friend" side by side, and a
--- ghost "How to play" (the Help sheet). "Play a friend" opens a sheet with
+-- ghost "How to play" (the Help sheet), then the Sound and Reduce motion chips
+-- (UI/Settings, session only). "Play a friend" opens a sheet with
 -- "Make a code" (Host) and the code field + Join. Messages (rejections,
 -- notices, a bad code) go to the global toast.
 --
+-- Motion (docs/UI-STYLE.md §2.7.1): on mount the "270" pops and the column
+-- fades in top to bottom (Motion.stagger); nothing waits on it.
+--
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
--- WaitingHint, Cancel, Record, ServerFull, Title, Pitch.
+-- WaitingHint, Cancel, Record, ServerFull, Title, Pitch, Settings (SoundChip,
+-- MotionChip).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -21,6 +26,8 @@ local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local Motion = require(script.Parent.Parent.UI.Motion)
+local Settings = require(script.Parent.Parent.UI.Settings)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
 local Types = require(script.Parent.Types)
 
@@ -54,11 +61,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return order
 	end
 
-	Kit.text("270", {
+	local title = Kit.text("270", {
 		Name = "Title",
 		LayoutOrder = nextOrder(),
 		Size = UDim2.new(1, 0, 0, Kit.size.hero + 8),
-		Font = Kit.font.bold,
+		Font = Kit.font.display,
 		TextSize = Kit.size.hero,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
@@ -137,7 +144,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = idle,
 	})
 	Kit.list("Horizontal", Kit.space.sm).Parent = pair
-	Kit.button("Find match", function()
+	local findMatch = Kit.button("Find match", function()
 		ctx.net.send("Queue")
 	end, {
 		variant = "secondary",
@@ -146,7 +153,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.new(0.5, -Kit.space.sm / 2, 1, 0),
 		Parent = pair,
 	})
-	Kit.button("Play a friend", function()
+	local playFriend = Kit.button("Play a friend", function()
 		friend:open()
 	end, {
 		variant = "secondary",
@@ -156,8 +163,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = pair,
 	})
 	local openHelp = ctx.help
+	local howToPlay: TextButton? = nil
 	if openHelp then
-		Kit.button("How to play", function()
+		howToPlay = Kit.button("How to play", function()
 			openHelp()
 		end, {
 			variant = "ghost",
@@ -166,6 +174,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Parent = idle,
 		})
 	end
+	local settings = Settings.row({ LayoutOrder = 4, Parent = idle })
 
 	-- The sheet: make a code, or enter one.
 	local body = friend.body
@@ -331,6 +340,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			waitingNow.Visible = true
 		end
 	end
+
+	-- Arrive top to bottom: the hero pops, then each line fades in.
+	Motion.pop(title, Motion.POP_FROM)
+	local arriving: { Instance } = { title, pitch, record, practice, findMatch, playFriend }
+	if howToPlay then
+		table.insert(arriving, howToPlay)
+	end
+	for _, child in settings:GetDescendants() do
+		if child:IsA("TextButton") then
+			table.insert(arriving, child)
+		end
+	end
+	Motion.stagger(arriving, function(item, _index, delay)
+		Motion.enter(item, nil, delay)
+	end)
 
 	return {
 		update = update,

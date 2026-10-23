@@ -4,8 +4,10 @@
 -- Store and shows the newest message at the top center for Toast.SECONDS: max
 -- width 480, at least 44 px tall, body text on a raised panel (elevation 2, so
 -- it stands off the cards under it) with a 2 px stroke (danger for a rejection,
--- accent for a notice). It slides in a few pixels (Kit.motion.base); a newer
--- message replaces it at once.
+-- accent for a notice). A notice fades in sliding down Toast.SLIDE px
+-- (Motion.enter); a rejection fades in where it rests, shakes (Motion.shake)
+-- and plays "error". After Toast.SECONDS it fades out (Motion.exit); a newer
+-- message replaces it at once. Under reduced motion it only fades.
 --
 --   local toast = Toast.mount(parent, store)   -- store: { get, subscribe }
 --   toast.root   Frame "ToastLayer" (full size, transparent, never takes input)
@@ -16,7 +18,9 @@
 -- (tone "bad") so it persists; the toast is what catches the eye.
 
 local Messages = require(script.Parent.Parent.Screens.Common.Messages)
+local Audio = require(script.Parent.Audio)
 local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
 local Types = require(script.Parent.Parent.Screens.Types)
 
 local Toast = {}
@@ -79,19 +83,50 @@ function Toast.mount(parent: Instance, store: StoreLike): Toast
 	local seen = Messages.lastId(store.get()) -- show only what arrives after mounting
 	local shownId = 0
 
+	local rest = UDim2.new(0.5, 0, 0, Toast.TOP)
+
+	-- Back to fully drawn at the resting place, with nothing still running.
+	local function settle()
+		Motion.cancel(frame)
+		Motion.cancel(label)
+		Motion.cancel(stroke)
+		frame.Position = rest
+		frame.BackgroundTransparency = 0
+		label.TextTransparency = 0
+		stroke.Transparency = 0
+	end
+
+	local function hide(id: number)
+		if shownId ~= id then
+			return
+		end
+		Motion.tween(stroke, { Transparency = 1 }, Motion.t.exit, Motion.ease.in_)
+		Motion.exit(label, function() end)
+		Motion.exit(frame, function()
+			if shownId == id then
+				frame.Visible = false
+				settle()
+			end
+		end)
+	end
+
 	local function show(message: Types.Message)
 		shownId = message.id
+		settle()
 		label.Text = message.text
 		stroke.Color = if message.rejected then Kit.colors.danger else Kit.colors.accent
 		frame:SetAttribute("Rejected", message.rejected)
-		frame.Position = UDim2.new(0.5, 0, 0, Toast.TOP - Toast.SLIDE)
 		frame.Visible = true
-		Kit.tween(frame, { Position = UDim2.new(0.5, 0, 0, Toast.TOP) }, Kit.motion.base)
+		-- A rejection arrives in place and shakes; a notice slides down.
+		Motion.enter(frame, if message.rejected then 0 else -Toast.SLIDE)
+		Motion.enter(label, 0)
+		if message.rejected then
+			Motion.shake(frame)
+			Audio.play("error")
+		end
 		local id = message.id
 		task.delay(Toast.SECONDS, function()
-			if shownId == id then
-				frame.Visible = false
-			end
+			hide(id)
 		end)
 	end
 
