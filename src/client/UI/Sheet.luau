@@ -17,18 +17,31 @@
 --   sheet.panel   Frame "Panel"; sheet.body Frame "Body" (a details area: long
 --                 text is fine here); sheet.closeButton TextButton "Close"
 --
+-- Look (D-056): elevation 3. The panel is card-lit (surfaceTop -> surface), with
+-- Kit.radius.sheet (16) corners, a 1 px line edge lit from the top and a deep
+-- shadow (dy 8, spread 20); the scrim is the background at 0.3. On a wide
+-- screen the panel scales in from 0.96; on a phone it carries a 36 x 4 px
+-- drag handle ("Handle") at the top.
+--
 -- Rules: a sheet never holds the screen's primary action (the screen's pinned
 -- Lock in stays the only accent button); put at most one secondary action at the
 -- end of the body. Mount it as the last child of the screen root so it draws
 -- above everything else on the screen.
 
 local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
 
 local Sheet = {}
 
 local Z = 30 -- above the screen (Help is 40, the toast 50)
 local PORTRAIT_HEIGHT = 0.7 -- share of the screen a phone sheet takes
 local WIDE_HEIGHT = 0.8 -- share of the screen height on a wide screen
+local SHADOW_DY = 8 -- px
+local SHADOW_SPREAD = 20 -- px
+local OPEN_FROM = 0.96 -- the panel's scale as it opens on a wide screen
+local HANDLE_W = 36 -- px, the phone sheet's drag handle
+local HANDLE_H = 4 -- px
+local HANDLE_TOP = 6 -- px from the panel's top edge
 
 export type Options = {
 	title: string,
@@ -79,14 +92,27 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 
 	local panel = Kit.new("Frame", {
 		Name = "Panel",
-		BackgroundColor3 = Kit.colors.surface,
 		BorderSizePixel = 0,
-		ZIndex = Z + 1,
+		ZIndex = Z + 2,
 		Parent = root,
 	}) :: Frame
-	Kit.corner(Kit.radius.panel).Parent = panel
-	Kit.new("UIStroke", { Color = Kit.colors.line, Thickness = 1, Parent = panel })
+	Kit.depth(panel, Kit.colors.surfaceTop, Kit.colors.surface)
+	Kit.corner(Kit.radius.sheet).Parent = panel
+	Kit.bevel(panel, Kit.colors.line, 1, 1)
 	Kit.pad(Kit.space.md).Parent = panel
+	Kit.shadow(panel, { dy = SHADOW_DY, spread = SHADOW_SPREAD })
+	local handle = Kit.new("Frame", {
+		Name = "Handle",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, HANDLE_TOP - Kit.space.md),
+		Size = UDim2.fromOffset(HANDLE_W, HANDLE_H),
+		BackgroundColor3 = Kit.colors.line,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = panel,
+	})
+	handle:SetAttribute("Decor", true)
+	Kit.corner(Kit.radius.pill).Parent = handle
 	local widthCap = Kit.new("UISizeConstraint", { Parent = panel }) :: UISizeConstraint
 
 	local titleRow = Kit.box({
@@ -139,7 +165,9 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 	end
 
 	local function layout()
-		if portrait() then
+		local phone = portrait()
+		handle.Visible = phone
+		if phone then
 			panel.AnchorPoint = Vector2.new(0.5, 1)
 			panel.Position = UDim2.fromScale(0.5, 1)
 			panel.Size = UDim2.fromScale(1, options.height or PORTRAIT_HEIGHT)
@@ -164,6 +192,9 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 			root.Visible = true
 			scrim.BackgroundTransparency = 1
 			Kit.tween(scrim, { BackgroundTransparency = Kit.SCRIM_TRANSPARENCY }, Kit.motion.base)
+			if not portrait() then
+				Motion.pop(panel, OPEN_FROM)
+			end
 		end,
 		close = function(_self: Sheet)
 			if not opened then

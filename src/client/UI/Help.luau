@@ -262,6 +262,7 @@ local function eventsArt(art: Frame)
 			Parent = line,
 		})
 		Kit.pill(entry.verdict, entry.tone, {
+			filled = true,
 			Name = "Verdict",
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.fromScale(1, 0.5),
@@ -273,7 +274,7 @@ end
 local function pollsArt(art: Frame)
 	namedRow(art, "Public", 1, "Public poll", "text", "Everyone sees it; can be off", "search")
 	namedRow(art, "Private", 2, "Your poll", "good", "Only you: the real numbers", "search")
-	namedRow(art, "Ground", 3, "Ground game", "warn", "Hidden until election night", "footprints")
+	namedRow(art, "Ground", 3, "Ground game", "muted", "Hidden until election night", "footprints")
 end
 
 -- ---------------------------------------------------------------- mount

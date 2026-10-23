@@ -188,7 +188,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local rowList = Kit.list("Horizontal", Kit.space.sm)
 	rowList.VerticalAlignment = Enum.VerticalAlignment.Center
 	rowList.Parent = priorityRow
-	local roundPill = Kit.pill("", "warn", { Name = "RoundPill", LayoutOrder = 1, Parent = priorityRow })
+	local roundPill = Kit.pill("", "white", { Name = "RoundPill", LayoutOrder = 1, Parent = priorityRow })
 	local priority = Kit.text("", {
 		Name = "Priority",
 		LayoutOrder = 2,

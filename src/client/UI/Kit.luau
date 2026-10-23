@@ -10,8 +10,8 @@
 --   Kit.radius   control 8 · panel 12 · pill 999 (Kit.round() stays for circles)
 --   Kit.MIN_TOUCH 44, Kit.PRIMARY_H 56, Kit.BAR_H 84, Kit.HEADER_H 44,
 --   Kit.MIN_TEXT 12 (floor of every UITextSizeConstraint), Kit.MAP_NODE_MIN 36,
---   Kit.TIMER_WARN 10 (seconds; timers turn warn below it), Kit.TIMER_CRITICAL 5
---   (danger, a pop and a tick each second below it).
+--   Kit.TIMER_WARN 10 (seconds; timers turn loss orange below it), Kit.TIMER_CRITICAL 5
+--   (a pop and a tick each second below it; the time bar turns orange).
 --   Kit.colors   every Colors token as a Color3 (background, surface, raised,
 --                raisedHover, line, text, muted, neutral, undecided, accent,
 --                danger, good, onAccent, field, warn, disabledText, surfaceTop,
@@ -71,7 +71,7 @@
 --   (a button label), Kit.MAX_TEXT_WORDS 30 (one text outside a details area),
 --   Kit.PILL_H 24, Kit.NOW_H 32 (the "what to do now" line), Kit.SHEET_MAX_W 560,
 --   Kit.SCRIM_TRANSPARENCY 0.35, Kit.motion { fast 0.12, base 0.2, slow 0.35 } s.
---   Kit.colors.bad (= danger) and Kit.colors.warn (orange, text only).
+--   Kit.colors.bad (= danger = warn = loss: one orange, D-056).
 --   Kit.glyph       the glyphs known to render in Gotham (no ▾ ▴, no emoji)
 --   Kit.tone(name) -> Color3   "text" | "muted" | "accent" | "good" | "bad" | "warn"
 --   Kit.title(text, props?) -> TextLabel          title size, bold
@@ -105,6 +105,52 @@
 --   Kit.icon(name, size?, color?) -> ImageLabel | TextLabel   (UI/Icons)
 --   Kit.actionIcon(kind) -> string?   the icon name for a plan action kind
 --
+-- Front-page foundation (docs/DESIGN.md D-056; docs/UI-STYLE.md §2):
+--   Navy neutrals; orange `loss` (= warn = danger = bad) is the only "against
+--   you" color; red is a player color and never means bad.
+--   Kit.radius   + button 12 (primary, secondary) · sheet 16 (sheets, help)
+--   Kit.size     + wordmark 72 (the Lobby's "270" only; texts carry attribute Wordmark)
+--   Kit.colors   + loss, lossEdge, onLoss, goodEdge, accentLip, raisedLip, glow
+--   Kit.tone     + "loss" (preferred over "bad"/"warn") · "white" (text; a white pill)
+--   Kit.playerText(view, p) -> Color3   a player color readable as text (Colors.textOn)
+--   Kit.textColor(color) -> Color3      the same for any Color3
+--   Chunky buttons: primary and secondary are a face (the TextButton returned,
+--     with the Name, attributes and Activated) inside a transparent holder Frame
+--     "<Name>Holder" (= button.Parent) that also holds the "Lip" under the face
+--     (primary 4 px accentLip, secondary 3 px raisedLip; pressing moves the face
+--     down onto it). The holder takes the caller's Parent, Size, Position,
+--     AnchorPoint, LayoutOrder, Visible and ZIndex. Later changes to the face's
+--     Size, Visible and LayoutOrder are passed on to the holder automatically;
+--     move or reparent it with Kit.outer(button).Position / .Parent. Pass
+--     props.lip = false for a secondary without a lip (and without a holder).
+--     Primary label: Fredoka One at heading (20). Corners: Kit.radius.button.
+--   Kit.outer(button) -> GuiObject       the holder of a lipped button, else the button
+--   Kit.bevel(inst, base, thickness?, alpha?) -> UIStroke   the "Edge": a border
+--     in `base` lit from the top (a UIGradient "EdgeLight" fades it from `text`),
+--     the top highlight of every card, button and sheet
+--   Kit.eyebrow(text, props?) -> TextLabel   caption, muted, upper case, medium
+--   Kit.shadow(inst, opts?) -> ImageLabel?   a soft 9-slice shadow behind `inst`
+--     (a sibling, ZIndex one under it, following its size, place and Visible);
+--     opts { dy 4, spread 12, transparency 0.45 }. Nil when `inst` has no parent
+--     or its parent lays children out (a list or grid would move the shadow):
+--     cards in lists get their depth from the bevel instead
+--   Kit.glow(parent, color, opts?) -> ImageLabel?   a radial glow centered in
+--     `parent`, under its other children (ZIndex 0); opts { scale 1, px?,
+--     transparency 0.6, stretch? }. Nil in a parent with a list or grid layout
+--   Kit.stamp(text, color, props?) -> Frame "Stamp"   a tilted plate (−6°) with a
+--     Fredoka label (props.size: a Kit.size token, default title) and a glow;
+--     attribute Overhang. Animate it with Motion.stamp
+--   Kit.monogram(name, color, px) -> Frame "Monogram"   a candidate's initials in
+--     a lit circle of `color` (dataColor); the label is "Initials"
+--   Kit.raceBar(parent, opts) -> RaceBar   the two-sided vote bar with the 270 tick
+--   Kit.wordmark(px?) -> Frame "Wordmark"   the "270" lockup: glow, lip, outline
+--   Kit.iconPlate(name, px?) -> Frame "IconPlate"   an icon in a field circle
+--   Kit.pill(text, tone, { filled = true, fill = Color3? })   a filled tag: tone
+--     (or `fill`, a data color) fill, readable text, a 1 px edge. Tone "white":
+--     a text-colored fill with background text (the battleground mark)
+--   Every ImageLabel from shadow and glow carries Decor = true (the audit skips
+--   it) and Asset = "shadow" | "glow" (the snapshot renderer draws a stand-in).
+--
 -- A button made without `props.variant` keeps the v0.3 behavior: setEnabled
 -- only fades it (transparency) and never touches its colors, because legacy
 -- screens color such buttons themselves. Screens move to explicit variants in
@@ -112,6 +158,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Assets = require(script.Parent.Assets)
 local Audio = require(script.Parent.Audio)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Icons = require(script.Parent.Icons)
@@ -120,7 +167,7 @@ local Motion = require(script.Parent.Motion)
 local Kit = {}
 
 export type Variant = "primary" | "secondary" | "danger" | "chip" | "ghost"
-export type Tone = "text" | "muted" | "accent" | "good" | "bad" | "warn"
+export type Tone = "text" | "muted" | "accent" | "good" | "bad" | "warn" | "loss" | "white"
 
 Kit.MIN_TOUCH = 44 -- px, smallest button in either direction (PLAN.md touch targets)
 Kit.PRIMARY_H = 56 -- px, the one pinned primary button
@@ -136,7 +183,9 @@ Kit.MAX_TEXT_WORDS = 30 -- words in one text outside a details area (UI audit wa
 Kit.PILL_H = 24 -- px, a read-only tag
 Kit.NOW_H = 32 -- px, the header's "what to do now" line
 Kit.SHEET_MAX_W = 560 -- px, widest a sheet gets on a wide screen
-Kit.SCRIM_TRANSPARENCY = 0.35 -- the dimmed layer behind a sheet
+Kit.SCRIM_TRANSPARENCY = 0.3 -- the dimmed layer behind a sheet
+Kit.LIP_PRIMARY = 4 -- px, the primary's lip (the face travels this far when pressed)
+Kit.LIP_SECONDARY = 3 -- px, a secondary's or an icon button's lip
 
 -- Durations in seconds; every tween is one of these (docs/UI-STYLE.md, Motion).
 Kit.motion = {
@@ -190,7 +239,8 @@ Kit.size = {
 	body = 16, -- buttons, sentences, list rows
 	heading = 20, -- panel titles, state name, timer
 	title = 28, -- screen titles, EV counters
-	hero = 48, -- "270" on the Lobby, "You won", the private match code
+	hero = 48, -- "You won", the private match code
+	wordmark = 72, -- the Lobby's "270" only (Kit.wordmark; the audit allows it on a Wordmark text)
 }
 
 Kit.space = {
@@ -202,13 +252,23 @@ Kit.space = {
 }
 
 Kit.radius = {
-	control = 8, -- buttons, chips, fields
+	control = 8, -- chips, fields, icon buttons
+	button = 12, -- primary and secondary buttons
 	panel = 12, -- panels, cards, toasts
+	sheet = 16, -- sheets, the help overlay
 	pill = 999, -- tags
 }
 
 function Kit.color(rgb: Colors.RGB): Color3
 	return Color3.fromRGB(rgb.r, rgb.g, rgb.b)
+end
+
+-- A Color3 back as 0-255 RGB, for the Colors helpers (tint, onColor, textOn).
+function Kit.rgb(color: Color3): Colors.RGB
+	local function c(v: number): number
+		return math.clamp(math.floor(v * 255 + 0.5), 0, 255)
+	end
+	return { r = c(color.R), g = c(color.G), b = c(color.B) }
 end
 
 Kit.colors = {
@@ -231,11 +291,21 @@ Kit.colors = {
 	surfaceTop = Kit.color(Colors.surfaceTop),
 	raisedTop = Kit.color(Colors.raisedTop),
 	accentEdge = Kit.color(Colors.accentEdge),
+	accentLip = Kit.color(Colors.accentLip),
+	raisedLip = Kit.color(Colors.raisedLip),
+	loss = Kit.color(Colors.loss),
+	lossEdge = Kit.color(Colors.lossEdge),
+	onLoss = Kit.color(Colors.onLoss),
+	goodEdge = Kit.color(Colors.goodEdge),
+	glow = Kit.color(Colors.glow),
 }
-Kit.colors.bad = Kit.colors.danger -- the semantic name for a loss or an error
+Kit.colors.bad = Kit.colors.loss -- the semantic name for a loss or an error (orange, never red)
 
--- The text color for a semantic tone.
+-- The text color for a semantic tone ("white" is text: the white pill's fill).
 function Kit.tone(name: Tone): Color3
+	if name == "white" then
+		return Kit.colors.text
+	end
 	return (Kit.colors :: any)[name] or Kit.colors.text
 end
 
@@ -243,6 +313,18 @@ end
 function Kit.playerColor(view: any, p: number): Color3
 	local player = view.players[p]
 	return Kit.color(Colors.of(if player then player.color else nil))
+end
+
+-- The readable variant of any color for text on a dark surface (Colors.textOn).
+function Kit.textColor(color: Color3): Color3
+	return Kit.color(Colors.textOn(Kit.rgb(color)))
+end
+
+-- A player's color as text: names, "Rex leads +3". Fills, dots and bars keep
+-- Kit.playerColor (D-056).
+function Kit.playerText(view: any, p: number): Color3
+	local player = view.players[p]
+	return Kit.color(Colors.textOn(Colors.of(if player then player.color else nil)))
 end
 
 -- Creates an instance, sets `props` (Parent last), and parents `children`.
@@ -482,12 +564,14 @@ local function strokeOf(button: Instance): UIStroke?
 end
 
 local HAIRLINE_TRANSPARENCY = 0.5 -- a card's or secondary button's 1 px line edge
+local EDGE_LIGHT_ALPHA = 0.45 -- how bright the top of an edge gets (a share of `text`)
+local EDGE_LIGHT_SPAN = 0.3 -- the top share of an edge that fades from the light into its base
 
 -- A top-light gradient that keeps the fill's token: the top shows the fill as
 -- set, the bottom BUTTON_SHADE of it. UIGradient multiplies its parent's colors
 -- (text included, so the shade stays light), and setEnabled/setSelected keep
 -- changing BackgroundColor3 under it.
-local BUTTON_SHADE = 0.86
+local BUTTON_SHADE = 0.8
 
 local function shade(inst: Instance)
 	local k = BUTTON_SHADE
@@ -499,6 +583,10 @@ local function shade(inst: Instance)
 	})
 end
 
+local function ratio(b: number, t: number): number
+	return if t > 0 then math.clamp(b / t, 0, 1) else 1
+end
+
 -- Fills `inst` with `top` and adds a vertical UIGradient "Depth" that brings it
 -- down to `base` at the bottom (cards: surfaceTop -> surface; elevated panels
 -- such as the election spotlight: raisedTop -> raised). Returns `inst`.
@@ -508,9 +596,6 @@ function Kit.depth<T>(inst: T, top: Color3, base: Color3): T
 	local old = target:FindFirstChild("Depth")
 	if old then
 		old:Destroy()
-	end
-	local function ratio(b: number, t: number): number
-		return if t > 0 then math.clamp(b / t, 0, 1) else 1
 	end
 	Kit.new("UIGradient", {
 		Name = "Depth",
@@ -524,40 +609,212 @@ function Kit.depth<T>(inst: T, top: Color3, base: Color3): T
 	return inst
 end
 
+-- Paints an edge stroke: `base` at `alpha` (1 = opaque), lit from the top. The
+-- stroke itself is `text`; its UIGradient "EdgeLight" multiplies it down to
+-- `base` below the top EDGE_LIGHT_SPAN and carries the transparency. The
+-- stroke's attributes Base and Alpha keep what was asked for.
+local function paintEdge(stroke: UIStroke, base: Color3, thickness: number, alpha: number)
+	local light = Kit.colors.text
+	stroke.Color = light
+	stroke.Thickness = thickness
+	stroke.Transparency = 0
+	stroke:SetAttribute("Base", base)
+	stroke:SetAttribute("Alpha", alpha)
+	local gradient = stroke:FindFirstChild("EdgeLight") :: UIGradient?
+	if gradient == nil then
+		gradient = Kit.new("UIGradient", { Name = "EdgeLight", Rotation = 90, Parent = stroke })
+	end
+	local g = gradient :: UIGradient
+	local k = Color3.new(ratio(base.R, light.R), ratio(base.G, light.G), ratio(base.B, light.B))
+	local top = math.max(alpha, EDGE_LIGHT_ALPHA)
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+		ColorSequenceKeypoint.new(EDGE_LIGHT_SPAN, k),
+		ColorSequenceKeypoint.new(1, k),
+	})
+	g.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1 - top),
+		NumberSequenceKeypoint.new(EDGE_LIGHT_SPAN, 1 - alpha),
+		NumberSequenceKeypoint.new(1, 1 - alpha),
+	})
+end
+
+-- The "Edge" of a card, button or sheet: a `thickness` px border in `base` at
+-- `alpha` (default: a 1 px line hairline at 0.5), lit from the top (the top
+-- highlight). Replaces an older Edge. Returns the UIStroke.
+function Kit.bevel(inst: Instance, base: Color3?, thickness: number?, alpha: number?): UIStroke
+	local old = inst:FindFirstChild("Edge")
+	if old then
+		old:Destroy()
+	end
+	local stroke = Kit.new("UIStroke", {
+		Name = "Edge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = inst,
+	}) :: UIStroke
+	paintEdge(stroke, base or Kit.colors.line, thickness or 1, alpha or (1 - HAIRLINE_TRANSPARENCY))
+	return stroke
+end
+
+local FILL = UDim2.fromScale(1, 1)
+local REST = UDim2.fromOffset(0, 0)
+
+local function isFill(size: UDim2): boolean
+	return size.X.Scale == 1 and size.X.Offset == 0 and size.Y.Scale == 1 and size.Y.Offset == 0
+end
+
+-- The props a lipped button's holder takes from the caller.
+local HOLDER_PROPS: { [string]: boolean } = {
+	Parent = true,
+	Size = true,
+	Position = true,
+	AnchorPoint = true,
+	LayoutOrder = true,
+	Visible = true,
+	ZIndex = true,
+	AutomaticSize = true,
+	SizeConstraint = true,
+}
+
+-- The holder of a lipped button (its parent, a transparent Frame "<Name>Holder"
+-- that also holds the Lip), or `inst` itself. Move, reparent or anchor a primary
+-- or secondary through this.
+function Kit.outer(inst: GuiObject): GuiObject
+	local parent = inst.Parent
+	if parent and parent:GetAttribute("LipHolder") == true and parent:IsA("GuiObject") then
+		return parent :: GuiObject
+	end
+	return inst
+end
+
+-- Keeps a face and its holder together: Size, Visible and LayoutOrder set on
+-- the face later go to the holder (the face always fills it); a destroyed face
+-- takes the holder along; a face moved elsewhere leaves the holder (and its
+-- lip) behind and keeps the size it had.
+local function follow(face: GuiObject, holder: Frame)
+	local outerSize = holder.Size
+	pcall(function()
+		face:GetPropertyChangedSignal("Size"):Connect(function()
+			local size = face.Size
+			if face.Parent == holder and not isFill(size) then
+				outerSize = size
+				holder.Size = size
+				face.Size = FILL
+			end
+		end)
+		face:GetPropertyChangedSignal("Visible"):Connect(function()
+			holder.Visible = face.Visible
+		end)
+		face:GetPropertyChangedSignal("LayoutOrder"):Connect(function()
+			holder.LayoutOrder = face.LayoutOrder
+		end)
+		face:GetPropertyChangedSignal("Parent"):Connect(function()
+			local parent = face.Parent
+			if parent == holder then
+				return
+			end
+			holder:Destroy()
+			if parent ~= nil then
+				face.Size = outerSize
+			end
+		end)
+	end)
+end
+
 -- A button with a label that shrinks to fit, at least MIN_TOUCH px both ways.
 -- `props.variant` picks the look (see the header); other props are set on the
--- TextButton as usual and win over the variant's defaults.
+-- TextButton as usual and win over the variant's defaults. Primary and
+-- secondary buttons come in a holder with a lip (see the header).
 function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }?): TextButton
 	local variant: Variant? = nil
+	local lipWanted = true
 	local rest: { [string]: any } = {}
 	if props then
 		for key, value in props do
 			if key == "variant" then
 				variant = if type(value) == "string" then VARIANTS[value] else nil
+			elseif key == "lip" then
+				lipWanted = value ~= false
 			else
 				rest[key] = value
 			end
 		end
 	end
 	local look = if variant then LOOKS[variant] else SECONDARY
+	local primary = variant == "primary"
+	local lip = if primary
+		then Kit.LIP_PRIMARY
+		elseif variant == "secondary" and lipWanted then Kit.LIP_SECONDARY
+		else 0
 	local base = merged({
 		BackgroundColor3 = look.bg,
 		BackgroundTransparency = if variant == "ghost" then 1 else 0,
 		BorderSizePixel = 0,
 		AutoButtonColor = true,
-		Size = UDim2.new(1, 0, 0, if variant == "primary" then Kit.PRIMARY_H else Kit.MIN_TOUCH),
-		Font = if variant == "primary" then Kit.font.display else Kit.font.medium,
-		TextSize = Kit.size.body,
+		Size = UDim2.new(1, 0, 0, if primary then Kit.PRIMARY_H else Kit.MIN_TOUCH),
+		Font = if primary then Kit.font.display else Kit.font.medium,
+		TextSize = if primary then Kit.size.heading else Kit.size.body,
 		TextColor3 = look.text,
 		TextScaled = true,
 		Text = text,
 		Name = text,
 	}, rest)
+
+	-- A lipped button: the caller's placement goes on the holder.
+	local holder: Frame? = nil
+	if lip > 0 then
+		local outer: { [string]: any } = {
+			Name = `{base.Name}Holder`,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}
+		for key in HOLDER_PROPS do
+			if base[key] ~= nil then
+				outer[key] = base[key]
+				-- The face keeps Visible and LayoutOrder too, so a later change shows.
+				if key ~= "Visible" and key ~= "LayoutOrder" then
+					base[key] = nil
+				end
+			end
+		end
+		local parent = outer.Parent
+		outer.Parent = nil
+		local frame = Kit.new("Frame", outer) :: Frame
+		frame:SetAttribute("LipHolder", true)
+		Kit.new("UISizeConstraint", { MinSize = Vector2.new(Kit.MIN_TOUCH, Kit.MIN_TOUCH), Parent = frame })
+		local lipFrame = Kit.new("Frame", {
+			Name = "Lip",
+			Size = FILL,
+			Position = UDim2.fromOffset(0, lip),
+			BackgroundColor3 = if primary then Kit.colors.accentLip else Kit.colors.raisedLip,
+			BorderSizePixel = 0,
+			ZIndex = 0,
+			Parent = frame,
+		})
+		lipFrame:SetAttribute("Decor", true)
+		Kit.corner(Kit.radius.button).Parent = lipFrame
+		base.Size = FILL
+		base.Position = REST
+		base.Parent = frame
+		holder = frame
+		if parent then
+			frame.Parent = parent
+		end
+	end
+
 	local button = Kit.new("TextButton", base)
 	if variant then
 		button:SetAttribute("Variant", variant)
 	end
-	Kit.corner(Kit.radius.control).Parent = button
+	if variant == "danger" then
+		-- Its orange label says what it destroys ("Cancel", "Clear"): a warning.
+		button:SetAttribute("Warn", true)
+	end
+	if lip > 0 then
+		button:SetAttribute("Lip", lip)
+	end
+	Kit.corner(if lip > 0 or variant == "danger" then Kit.radius.button else Kit.radius.control).Parent =
+		button
 	Kit.new("UIPadding", {
 		PaddingLeft = UDim.new(0, Kit.space.sm),
 		PaddingRight = UDim.new(0, Kit.space.sm),
@@ -581,18 +838,16 @@ function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }
 			Parent = button,
 		})
 	end
-	if variant == "primary" or variant == "secondary" then
-		Kit.new("UIStroke", {
-			Name = "Edge",
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-			Color = if variant == "primary" then Kit.colors.accentEdge else Kit.colors.line,
-			Thickness = if variant == "primary" then 2 else 1,
-			Transparency = if variant == "primary" then 0 else HAIRLINE_TRANSPARENCY,
-			Parent = button,
-		})
+	if primary then
+		Kit.bevel(button, Kit.colors.accentEdge, 2, 1)
+	elseif variant == "secondary" then
+		Kit.bevel(button)
 	end
-	if variant == "primary" or variant == "secondary" or variant == "chip" then
+	if primary or variant == "secondary" or variant == "chip" then
 		shade(button)
+	end
+	if holder then
+		follow(button, holder)
 	end
 	Motion.press(button)
 	local cue = if variant == "chip" then "select" else "tap"
@@ -603,9 +858,10 @@ function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }
 	return button
 end
 
--- A 44x44 secondary button for a glyph: "×", "+", "−".
+-- A 44x44 secondary button for a glyph or an icon: "×", "+", "−", "?". Corner
+-- control (8), with the secondary's 3 px lip.
 function Kit.iconButton(glyph: string, onActivate: () -> (), props: { [string]: any }?): TextButton
-	return Kit.button(
+	local button = Kit.button(
 		glyph,
 		onActivate,
 		merged({
@@ -614,6 +870,17 @@ function Kit.iconButton(glyph: string, onActivate: () -> (), props: { [string]: 
 			Font = Kit.font.bold,
 		}, props)
 	)
+	local radius = UDim.new(0, Kit.radius.control)
+	local corner = button:FindFirstChildOfClass("UICorner")
+	if corner then
+		corner.CornerRadius = radius
+	end
+	local lip = Kit.outer(button):FindFirstChild("Lip")
+	local lipCorner = if lip then lip:FindFirstChildOfClass("UICorner") else nil
+	if lipCorner then
+		lipCorner.CornerRadius = radius
+	end
+	return button
 end
 
 -- Sets a button's enabled look and whether it responds. Touches only what the
@@ -647,10 +914,15 @@ function Kit.setEnabled(button: TextButton, enabled: boolean)
 	local edge = button:FindFirstChild("Edge")
 	if edge and variant == "primary" then
 		-- A disabled primary wears the secondary's hairline, not the accent edge.
-		local e = edge :: UIStroke
-		e.Color = if enabled then Kit.colors.accentEdge else Kit.colors.line
-		e.Thickness = if enabled then 2 else 1
-		e.Transparency = if enabled then 0 else HAIRLINE_TRANSPARENCY
+		if enabled then
+			paintEdge(edge :: UIStroke, Kit.colors.accentEdge, 2, 1)
+		else
+			paintEdge(edge :: UIStroke, Kit.colors.line, 1, 1 - HAIRLINE_TRANSPARENCY)
+		end
+	end
+	local lip = Kit.outer(button):FindFirstChild("Lip")
+	if lip and variant == "primary" then
+		(lip :: Frame).BackgroundColor3 = if enabled then Kit.colors.accentLip else Kit.colors.raisedLip
 	end
 end
 
@@ -703,8 +975,11 @@ function Kit.stack(props: { [string]: any }?, direction: string?, gap: number?):
 	return frame
 end
 
--- A card: the one container style for grouped content. Surface fill, panel
--- corner, padding md, a vertical list (gap sm); grows in Y with its content.
+local CARD_PAD = 14 -- px, a card's padding (D-056: md 12 was tight next to the bevel)
+
+-- A card: the one container style for grouped content. Surface gradient, panel
+-- corner, the bevel edge, padding 14, a vertical list (gap sm); grows in Y
+-- with its content.
 function Kit.card(props: { [string]: any }?, children: { Instance }?): Frame
 	local frame = Kit.panel(merged({
 		Name = "Card",
@@ -715,14 +990,12 @@ function Kit.card(props: { [string]: any }?, children: { Instance }?): Frame
 	if props == nil or props.BackgroundColor3 == nil then
 		Kit.depth(frame, Kit.colors.surfaceTop, Kit.colors.surface)
 	end
-	Kit.new("UIStroke", {
-		Name = "Edge",
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = Kit.colors.line,
-		Thickness = 1,
-		Transparency = HAIRLINE_TRANSPARENCY,
-		Parent = frame,
-	})
+	Kit.bevel(frame)
+	local pad = frame:FindFirstChildOfClass("UIPadding")
+	if pad then
+		local px = UDim.new(0, CARD_PAD)
+		pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = px, px, px, px
+	end
 	Kit.list("Vertical", Kit.space.sm).Parent = frame
 	if children then
 		for _, child in children do
@@ -768,8 +1041,36 @@ function Kit.chip(text: string, onActivate: () -> (), props: { [string]: any }?)
 end
 
 -- A read-only tag, Kit.PILL_H tall and as wide as its text: "Your platform",
--- "Battleground", "Locked in". The tone colors the text; the fill stays raised.
+-- "Battleground", "Locked in". The tone colors the text on a raised fill. With
+-- props.filled = true the tone is the fill instead (props.fill: any data color,
+-- marked dataColor) with readable text and a 1 px edge; tone "white" is always
+-- filled: a text-colored fill with background text (the battleground mark).
+local EDGE_TINT = 0.35 -- a data-colored fill's edge: this far toward the background
+local EDGES: { [string]: Color3 } = {
+	loss = Kit.colors.lossEdge,
+	bad = Kit.colors.lossEdge,
+	warn = Kit.colors.lossEdge,
+	good = Kit.colors.goodEdge,
+	accent = Kit.colors.accentEdge,
+	white = Kit.colors.line,
+}
+
 function Kit.pill(text: string, tone: Tone?, props: { [string]: any }?): TextLabel
+	local name: Tone = tone or "text"
+	local rest: { [string]: any } = {}
+	local filled = false
+	local fill: Color3? = nil
+	if props then
+		for key, value in props do
+			if key == "filled" then
+				filled = value == true
+			elseif key == "fill" then
+				fill = value
+			else
+				rest[key] = value
+			end
+		end
+	end
 	local label = Kit.text(
 		text,
 		merged({
@@ -782,8 +1083,8 @@ function Kit.pill(text: string, tone: Tone?, props: { [string]: any }?): TextLab
 			TextSize = Kit.size.caption,
 			TextWrapped = false,
 			TextXAlignment = Enum.TextXAlignment.Center,
-			TextColor3 = Kit.tone(tone or "text"),
-		}, props)
+			TextColor3 = Kit.tone(name),
+		}, rest)
 	)
 	Kit.corner(Kit.PILL_H // 2).Parent = label
 	Kit.new("UIPadding", {
@@ -791,6 +1092,9 @@ function Kit.pill(text: string, tone: Tone?, props: { [string]: any }?): TextLab
 		PaddingRight = UDim.new(0, Kit.space.sm),
 		Parent = label,
 	})
+	if filled or fill ~= nil or name == "white" then
+		Kit.paintPill(label, name, true, fill)
+	end
 	return label
 end
 
@@ -894,6 +1198,578 @@ local ACTION_ICONS: { [string]: string } = {
 
 function Kit.actionIcon(kind: string): string?
 	return ACTION_ICONS[kind]
+end
+
+-- ---------------------------------------------------------------- front page (D-056)
+
+local SHADOW_DY = 4 -- px a shadow drops below its object
+local SHADOW_SPREAD = 12 -- px a shadow reaches past its object on each side
+local SHADOW_TRANSPARENCY = 0.45
+local SHADOW_SLICE = Rect.new(40, 40, 56, 56) -- ui-shadow.png's stretchable middle
+local GLOW_TRANSPARENCY = 0.6
+local STAMP_TILT = -6 -- degrees
+local STAMP_RADIUS = 10 -- px
+local STAMP_PAD_X = 14 -- px
+local STAMP_PAD_Y = 8 -- px
+local STAMP_GLOW = 1.8 -- the glow behind a stamp, x its size
+local STAMP_GLOW_TRANSPARENCY = 0.55
+local DISPLAY_EM = 0.66 -- Fredoka One's average advance, in em (a stamp's width estimate)
+local MONOGRAM_TEXT = 0.42 -- a monogram's initials, x its size
+local MONOGRAM_SHADE = 0.78 -- the bottom of a monogram's gradient
+local MONOGRAM_SHEEN = 0.45 -- the top share of a monogram the sheen covers
+local MONOGRAM_SHEEN_TRANSPARENCY = 0.82
+local RACE_OVERHANG = 4 -- px the 270 tick reaches above and below the bar
+local RACE_TICK_W = 3 -- px
+local RACE_SHADE = 0.82 -- the bottom of a race bar segment's gradient
+local RACE_CAPTION_W = 40 -- px, the "270" over the tick
+local WORDMARK_TEXT = "270"
+local WORDMARK_DROP = 6 -- px, the lip under the wordmark
+local WORDMARK_STROKE = 3 -- px
+local WORDMARK_GLOW = 2.4
+local WORDMARK_GLOW_TRANSPARENCY = 0.65
+local WORDMARK_BOTTOM = Color3.fromRGB(232, 236, 248) -- the wordmark gradient's bottom (a multiply of text)
+local ICON_PLATE = 24 -- px, an icon plate's default size
+
+-- Whether `parent` lays its children out (a list or a grid moves every child).
+local function laysOut(parent: Instance): boolean
+	return parent:FindFirstChildOfClass("UIListLayout") ~= nil
+		or parent:FindFirstChildOfClass("UIGridLayout") ~= nil
+end
+
+local function decor<T>(inst: T, asset: string): T
+	local target = inst :: any
+	target:SetAttribute("Decor", true)
+	target:SetAttribute("Asset", asset)
+	return inst
+end
+
+-- An eyebrow over a title: caption size, muted, upper case ("JUST CALLED").
+function Kit.eyebrow(text: string, props: { [string]: any }?): TextLabel
+	return Kit.caption(string.upper(text), merged({ Name = "Eyebrow", Font = Kit.font.medium }, props))
+end
+
+export type ShadowOptions = { dy: number?, spread: number?, transparency: number? }
+
+-- A soft shadow behind `inst`: a sibling ImageLabel "Shadow" one ZIndex under
+-- it that follows its Size, Position, AnchorPoint, Visible and background fade
+-- (AbsoluteSize for an AutomaticSize object). Nil when `inst` has no parent yet
+-- or its parent lays children out. Draws nothing until Assets.shadow is uploaded.
+function Kit.shadow(inst: GuiObject, opts: ShadowOptions?): ImageLabel?
+	local parent = inst.Parent
+	if parent == nil or laysOut(parent) then
+		return nil
+	end
+	local o: ShadowOptions = opts or {}
+	local dy = o.dy or SHADOW_DY
+	local spread = o.spread or SHADOW_SPREAD
+	local transparency = o.transparency or SHADOW_TRANSPARENCY
+	local shadow = decor(
+		Kit.new("ImageLabel", {
+			Name = "Shadow",
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Image = Assets.shadow.id,
+			ImageColor3 = Color3.new(0, 0, 0),
+			ScaleType = Enum.ScaleType.Slice,
+			SliceCenter = SHADOW_SLICE,
+			SliceScale = 1,
+		}),
+		"shadow"
+	) :: ImageLabel
+	shadow:SetAttribute("Follow", inst.Name)
+	shadow:SetAttribute("Dy", dy)
+	shadow:SetAttribute("Spread", spread)
+	local function place()
+		local auto = inst.AutomaticSize
+		local size: UDim2 = (inst :: any).Size or UDim2.fromScale(1, 1)
+		if auto ~= nil and auto.Name ~= "None" then
+			local abs = inst.AbsoluteSize
+			size = UDim2.fromOffset(abs.X, abs.Y)
+		end
+		-- (Never nil in Roblox; an unset property in the fake engine.)
+		local position: UDim2 = (inst :: any).Position or UDim2.new()
+		local anchor: Vector2 = (inst :: any).AnchorPoint or Vector2.new(0, 0)
+		shadow.AnchorPoint = anchor
+		shadow.Size =
+			UDim2.new(size.X.Scale, size.X.Offset + 2 * spread, size.Y.Scale, size.Y.Offset + 2 * spread)
+		shadow.Position = UDim2.new(
+			position.X.Scale,
+			position.X.Offset + spread * (2 * anchor.X - 1),
+			position.Y.Scale,
+			position.Y.Offset + spread * (2 * anchor.Y - 1) + dy
+		)
+		shadow.Visible = inst.Visible
+		shadow.ZIndex = ((inst :: any).ZIndex or 1) - 1
+		local fade = math.clamp((inst :: any).BackgroundTransparency or 0, 0, 1)
+		shadow.ImageTransparency = 1 - (1 - transparency) * (1 - fade)
+	end
+	place()
+	pcall(function()
+		for _, name in
+			{
+				"Size",
+				"Position",
+				"AnchorPoint",
+				"Visible",
+				"ZIndex",
+				"BackgroundTransparency",
+				"AbsoluteSize",
+			}
+		do
+			inst:GetPropertyChangedSignal(name):Connect(place)
+		end
+		inst:GetPropertyChangedSignal("Parent"):Connect(function()
+			if inst.Parent ~= shadow.Parent then
+				shadow:Destroy()
+			end
+		end)
+	end)
+	shadow.Parent = parent
+	return shadow
+end
+
+export type GlowOptions = { scale: number?, px: number?, transparency: number?, stretch: boolean? }
+
+-- A radial glow centered in `parent`, under its other children (ZIndex 0):
+-- `scale` x the parent (a circle as big as the parent's shorter side, or an
+-- ellipse with `stretch`), or `px` square. Nil in a parent that lays children
+-- out. Draws nothing until Assets.glow is uploaded.
+function Kit.glow(parent: Instance, color: Color3, opts: GlowOptions?): ImageLabel?
+	if laysOut(parent) then
+		return nil
+	end
+	local o: GlowOptions = opts or {}
+	local scale = o.scale or 1
+	return decor(
+		Kit.new("ImageLabel", {
+			Name = "Glow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = if o.px then UDim2.fromOffset(o.px, o.px) else UDim2.fromScale(scale, scale),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Image = Assets.glow.id,
+			ImageColor3 = color,
+			ImageTransparency = o.transparency or GLOW_TRANSPARENCY,
+			ScaleType = if o.stretch then Enum.ScaleType.Stretch else Enum.ScaleType.Fit,
+			ZIndex = 0,
+			Parent = parent,
+		}),
+		"glow"
+	) :: ImageLabel
+end
+
+-- The edge of a fill in a data color: 35 % toward the background.
+local function edgeOf(color: Color3): Color3
+	return Kit.color(Colors.tint(Kit.rgb(color), Colors.background, EDGE_TINT))
+end
+
+-- Re-tones a Kit.pill: `tone` as the text on a raised fill, or with `filled`
+-- the tone (or `fill`, a data color: the pill is marked dataColor) as the fill
+-- with readable text and a 1 px edge ("white" is always filled). For pills
+-- whose meaning changes (a verdict, a state's tags).
+function Kit.paintPill(pill: TextLabel, tone: Tone, filled: boolean?, fill: Color3?)
+	local solid = filled == true or fill ~= nil or tone == "white"
+	local edge = pill:FindFirstChild("Edge") :: UIStroke?
+	pill:SetAttribute("Filled", solid)
+	if not solid then
+		pill.BackgroundColor3 = Kit.colors.raised
+		pill.TextColor3 = Kit.tone(tone)
+		pill.Font = Kit.font.medium
+		if edge then
+			edge.Enabled = false
+		end
+		return
+	end
+	local color = fill or Kit.tone(tone)
+	pill.BackgroundColor3 = color
+	pill.TextColor3 = Kit.color(Colors.onColor(Kit.rgb(color)))
+	pill.Font = Kit.font.bold
+	if edge == nil then
+		edge = Kit.new("UIStroke", {
+			Name = "Edge",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Thickness = 1,
+			Parent = pill,
+		})
+	end
+	local stroke = edge :: UIStroke
+	stroke.Enabled = true
+	stroke.Color = if fill then edgeOf(fill) else (EDGES[tone] or Kit.colors.line)
+	if fill then
+		Kit.dataColor(pill)
+	end
+end
+
+-- A stamp for the big moments ("CALLED", "270!", "You won"): a plate of
+-- `color` tilted −6° with a Fredoka label in its readable color, a 2 px edge,
+-- an outline on the label and a glow behind. props.size is the label's Kit.size
+-- token (default title); other props go on the returned Frame "Stamp" (Name,
+-- Position, AnchorPoint, LayoutOrder, ZIndex, Parent). Attribute Overhang, so
+-- it may sit over an edge. The plate is "Plate", the label "Label".
+function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Frame
+	local size = Kit.size.title
+	local rest: { [string]: any } = {}
+	if props then
+		for key, value in props do
+			if key == "size" then
+				size = value
+			else
+				rest[key] = value
+			end
+		end
+	end
+	local chars = utf8.len(text) or #text
+	local width = math.ceil(chars * size * DISPLAY_EM) + 2 * STAMP_PAD_X
+	local height = size + 2 * STAMP_PAD_Y + Kit.space.xs
+	local parent = rest.Parent
+	rest.Parent = nil
+	local root = Kit.new(
+		"Frame",
+		merged({
+			Name = "Stamp",
+			Size = UDim2.fromOffset(width, height),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Rotation = STAMP_TILT,
+		}, rest)
+	) :: Frame
+	root:SetAttribute("Overhang", true)
+	Kit.glow(root, color, { scale = STAMP_GLOW, transparency = STAMP_GLOW_TRANSPARENCY })
+	local edge = edgeOf(color)
+	local plate = Kit.dataColor(Kit.new("Frame", {
+		Name = "Plate",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		ZIndex = 1,
+		Parent = root,
+	}))
+	Kit.corner(STAMP_RADIUS).Parent = plate
+	shade(plate)
+	Kit.new("UIStroke", {
+		Name = "Edge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = edge,
+		Thickness = 2,
+		Parent = plate,
+	})
+	Kit.new("UIPadding", {
+		PaddingLeft = UDim.new(0, STAMP_PAD_X),
+		PaddingRight = UDim.new(0, STAMP_PAD_X),
+		PaddingTop = UDim.new(0, STAMP_PAD_Y),
+		PaddingBottom = UDim.new(0, STAMP_PAD_Y),
+		Parent = plate,
+	})
+	local label = Kit.text(text, {
+		Name = "Label",
+		Size = UDim2.fromScale(1, 1),
+		Font = Kit.font.display,
+		TextSize = size,
+		TextScaled = true,
+		TextWrapped = false,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = Kit.color(Colors.onColor(Kit.rgb(color))),
+		Parent = plate,
+	})
+	Kit.new("UIStroke", {
+		Name = "Outline",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		Color = edge,
+		Thickness = 2,
+		Transparency = 0.15,
+		Parent = label,
+	})
+	if parent then
+		root.Parent = parent
+	end
+	return root
+end
+
+-- A candidate's portrait until there is art: the initials of `name` (first
+-- letters of the first two words) in Fredoka on a lit circle of `color`, `px`
+-- wide: a top-light gradient, a 2 px darker edge and a sheen over the top.
+-- Marked dataColor and Monogram (the audit allows its scaled initials).
+function Kit.monogram(name: string, color: Color3, px: number): Frame
+	local root = Kit.dataColor(Kit.new("Frame", {
+		Name = "Monogram",
+		Size = UDim2.fromOffset(px, px),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+	})) :: Frame
+	root:SetAttribute("Monogram", true)
+	Kit.round().Parent = root
+	Kit.new("UIGradient", {
+		Name = "Depth",
+		Rotation = 90,
+		Color = ColorSequence.new(
+			Color3.new(1, 1, 1),
+			Color3.new(MONOGRAM_SHADE, MONOGRAM_SHADE, MONOGRAM_SHADE)
+		),
+		Parent = root,
+	})
+	Kit.new("UIStroke", {
+		Name = "Edge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = edgeOf(color),
+		Thickness = 2,
+		Parent = root,
+	})
+	local clip = Kit.box({
+		Name = "SheenClip",
+		Size = UDim2.fromScale(1, MONOGRAM_SHEEN),
+		ClipsDescendants = true,
+		ZIndex = 1,
+		Parent = root,
+	})
+	clip:SetAttribute("Decor", true)
+	local sheen = Kit.new("Frame", {
+		Name = "Sheen",
+		Size = UDim2.fromOffset(px, px),
+		BackgroundColor3 = Kit.colors.text,
+		BorderSizePixel = 0,
+		Parent = clip,
+	})
+	Kit.round().Parent = sheen
+	Kit.new("UIGradient", {
+		Name = "Fade",
+		Rotation = 90,
+		Transparency = NumberSequence.new(MONOGRAM_SHEEN_TRANSPARENCY, 1),
+		Parent = sheen,
+	})
+	local initials = ""
+	for word in string.gmatch(name, "%S+") do
+		initials ..= string.upper(string.sub(word, 1, 1))
+		if #initials >= 2 then
+			break
+		end
+	end
+	local label = Kit.text(initials, {
+		Name = "Initials",
+		Size = UDim2.fromScale(1, 1),
+		Font = Kit.font.display,
+		TextSize = math.max(Kit.MIN_TEXT, math.floor(px * MONOGRAM_TEXT)),
+		TextScaled = true,
+		TextWrapped = false,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = Kit.color(Colors.onColor(Kit.rgb(color))),
+		ZIndex = 2,
+		Parent = root,
+	})
+	label:SetAttribute("Monogram", true)
+	return root
+end
+
+export type RaceBarOptions = {
+	h: number?, -- px, the bar's thickness (10 in the Campaign header, 14 on election night)
+	mark: number?, -- where the tick sits, a share of the track (votes to win / all votes)
+	caption: string?, -- a short label over the tick ("270"); nil for none
+	name: string?, -- the root's Name (default "RaceBar")
+	order: number?, -- the root's LayoutOrder
+}
+
+export type RaceBar = {
+	root: Frame,
+	track: Frame,
+	left: Frame,
+	right: Frame,
+	tick: Frame,
+	caption: TextLabel?,
+	set: (self: RaceBar, left: number, right: number) -> (),
+	setColors: (self: RaceBar, left: Color3, right: Color3) -> (),
+	setMark: (self: RaceBar, share: number) -> (),
+	cross: (self: RaceBar) -> (),
+}
+
+-- The race to 270 as one bar: a raised track, the left player's share growing
+-- from the left end and the right player's from the right (each lit from the
+-- top, rounded at the outer end; they never cover each other), and the tick at
+-- `mark`, overhanging the bar RACE_OVERHANG px each way. The root (dataColor) is
+-- full width and h + 8 px tall (+ the caption row). bar:set(l, r) takes shares
+-- of the track (0..1) and slides there; bar:cross() flashes the tick accent
+-- with a glow pulse (the crossing moment; the glow is decorative).
+function Kit.raceBar(parent: Instance, opts: RaceBarOptions?): RaceBar
+	local o: RaceBarOptions = opts or {}
+	local h = o.h or 10
+	local captionH = if o.caption then Kit.size.caption + Kit.space.xs else 0
+	local mark = math.clamp(o.mark or 0.5, 0, 1)
+	local root = Kit.dataColor(Kit.box({
+		Name = o.name or "RaceBar",
+		LayoutOrder = o.order or 0,
+		Size = UDim2.new(1, 0, 0, captionH + h + 2 * RACE_OVERHANG),
+	})) :: Frame
+	local track = Kit.new("Frame", {
+		Name = "Track",
+		Position = UDim2.fromOffset(0, captionH + RACE_OVERHANG),
+		Size = UDim2.new(1, 0, 0, h),
+		BackgroundColor3 = Kit.colors.raised,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Parent = root,
+	}) :: Frame
+	Kit.corner(Kit.radius.pill).Parent = track
+	Kit.bevel(track)
+	local function segment(name: string, right: boolean): Frame
+		local fill = Kit.new("Frame", {
+			Name = name,
+			AnchorPoint = Vector2.new(if right then 1 else 0, 0),
+			Position = UDim2.fromScale(if right then 1 else 0, 0),
+			Size = UDim2.fromScale(0, 1),
+			BackgroundColor3 = Kit.colors.muted,
+			BorderSizePixel = 0,
+			Parent = track,
+		}) :: Frame
+		Kit.corner(Kit.radius.pill).Parent = fill
+		Kit.new("UIGradient", {
+			Name = "Depth",
+			Rotation = 90,
+			Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(RACE_SHADE, RACE_SHADE, RACE_SHADE)),
+			Parent = fill,
+		})
+		return fill
+	end
+	local left = segment("FillLeft", false)
+	local right = segment("FillRight", true)
+	local tick = Kit.new("Frame", {
+		Name = "Tick",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(mark, 0, 0, captionH),
+		Size = UDim2.fromOffset(RACE_TICK_W, h + 2 * RACE_OVERHANG),
+		BackgroundColor3 = Kit.colors.text,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+		Parent = root,
+	}) :: Frame
+	tick:SetAttribute("Overhang", true)
+	Kit.corner(1).Parent = tick
+	local caption: TextLabel? = nil
+	if o.caption then
+		caption = Kit.text(o.caption, {
+			Name = "TickCaption",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(mark, 0),
+			Size = UDim2.fromOffset(RACE_CAPTION_W, Kit.size.caption + 2),
+			Font = Kit.font.display,
+			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextColor3 = Kit.colors.muted,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Parent = root,
+		});
+		(caption :: TextLabel):SetAttribute("Overhang", true)
+	end
+	local bar: RaceBar = {
+		root = root,
+		track = track,
+		left = left,
+		right = right,
+		tick = tick,
+		caption = caption,
+		set = function(_self: RaceBar, l: number, r: number)
+			local a = math.clamp(l, 0, 1)
+			local b = math.clamp(r, 0, 1 - a)
+			Motion.tween(left, { Size = UDim2.fromScale(a, 1) }, Motion.t.call, Motion.ease.out)
+			Motion.tween(right, { Size = UDim2.fromScale(b, 1) }, Motion.t.call, Motion.ease.out)
+		end,
+		setColors = function(_self: RaceBar, l: Color3, r: Color3)
+			left.BackgroundColor3 = l
+			right.BackgroundColor3 = r
+		end,
+		setMark = function(_self: RaceBar, share: number)
+			local m = math.clamp(share, 0, 1)
+			tick.Position = UDim2.new(m, 0, 0, captionH)
+			if caption then
+				caption.Position = UDim2.fromScale(m, 0)
+			end
+		end,
+		cross = function(_self: RaceBar)
+			tick.BackgroundColor3 = Kit.colors.accent
+			Motion.tween(tick, { BackgroundColor3 = Kit.colors.text }, Motion.t.call, Motion.ease.in_)
+			if Motion.headless or Motion.reduced() then
+				return
+			end
+			local pulse =
+				Kit.glow(tick, Kit.colors.accent, { px = (h + 2 * RACE_OVERHANG) * 3, transparency = 0.3 })
+			if pulse then
+				Motion.tween(pulse, { ImageTransparency = 1 }, Motion.t.call, Motion.ease.in_)
+				task.delay(Motion.t.call, function()
+					pulse:Destroy()
+				end)
+			end
+		end,
+	}
+	root.Parent = parent
+	return bar
+end
+
+-- The "270" lockup (the Lobby, any title moment): Fredoka One at `px` (default
+-- Kit.size.wordmark) in `text`, lit from the top, a 3 px accentEdge outline, a
+-- 6 px accentLip drop under it (the button lip, in type) and an accent glow
+-- behind. Returns the Frame "Wordmark" (full width, px + 16 tall); the label is
+-- "Mark" (attribute Wordmark, so the audit knows its size).
+function Kit.wordmark(px: number?, props: { [string]: any }?): Frame
+	local size = px or Kit.size.wordmark
+	local root = Kit.box(merged({
+		Name = "Wordmark",
+		Size = UDim2.new(1, 0, 0, size + 2 * Kit.space.sm),
+	}, props))
+	Kit.glow(root, Kit.colors.accent, { scale = WORDMARK_GLOW, transparency = WORDMARK_GLOW_TRANSPARENCY })
+	local function line(name: string, color: Color3, dy: number, stroke: Color3, z: number): TextLabel
+		local label = Kit.text(WORDMARK_TEXT, {
+			Name = name,
+			Position = UDim2.fromOffset(0, dy),
+			Size = UDim2.fromScale(1, 1),
+			Font = Kit.font.display,
+			TextSize = size,
+			TextWrapped = false,
+			TextColor3 = color,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			ZIndex = z,
+			Parent = root,
+		})
+		label:SetAttribute("Wordmark", true)
+		Kit.new("UIStroke", {
+			Name = "Outline",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+			Color = stroke,
+			Thickness = WORDMARK_STROKE,
+			Parent = label,
+		})
+		return label
+	end
+	local drop = line("Drop", Kit.colors.accentLip, WORDMARK_DROP, Kit.colors.accentLip, 1)
+	drop:SetAttribute("Decor", true)
+	local mark = line("Mark", Kit.colors.text, 0, Kit.colors.accentEdge, 2)
+	local bottom = WORDMARK_BOTTOM
+	local light = Kit.colors.text
+	Kit.new("UIGradient", {
+		Name = "Depth",
+		Rotation = 90,
+		Color = ColorSequence.new(
+			Color3.new(1, 1, 1),
+			Color3.new(ratio(bottom.R, light.R), ratio(bottom.G, light.G), ratio(bottom.B, light.B))
+		),
+		Parent = mark,
+	})
+	return root
+end
+
+-- An icon in a round `field` plate (default 24 px): the state card's action
+-- buttons, the help rows, the settings chips. The icon is two thirds of the plate.
+function Kit.iconPlate(name: string, px: number?, color: Color3?): Frame
+	local size = px or ICON_PLATE
+	local plate = Kit.new("Frame", {
+		Name = "IconPlate",
+		Size = UDim2.fromOffset(size, size),
+		BackgroundColor3 = Kit.colors.field,
+		BorderSizePixel = 0,
+	}) :: Frame
+	Kit.round().Parent = plate
+	local icon = Kit.icon(name, math.floor(size * 2 / 3), color)
+	icon.AnchorPoint = Vector2.new(0.5, 0.5)
+	icon.Position = UDim2.fromScale(0.5, 0.5)
+	icon.Parent = plate
+	return plate
 end
 
 -- Seconds left as "0:34".

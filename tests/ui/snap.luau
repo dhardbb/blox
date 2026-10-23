@@ -65,6 +65,7 @@ local function kitGallery(world: World, peer: Peer)
 		return FakeRoblox.require(world, peer, `src/client/UI/{name}.luau`)
 	end
 	world.current = peer
+	local Vector2 = FakeRoblox.types.Vector2
 	local Kit = load("Kit")
 	local Header = load("Header")
 	local ActionBar = load("ActionBar")
@@ -88,33 +89,86 @@ local function kitGallery(world: World, peer: Peer)
 		Size = UDim2.new(1, 0, 1, -(header.height + Kit.space.sm + Kit.BAR_H + Kit.space.sm)),
 		Parent = root,
 	})
-	local column = Kit.stack({ Name = "Column", Parent = scroll }, "Vertical", Kit.space.md)
+	-- Two columns on a wide screen (the parts, then the front-page pieces); one
+	-- on a phone, without the expander and the ghost button.
+	local wide = world.screen.x > 700
+	local function column(name: string, x: number): any
+		local frame = Kit.box({
+			Name = name,
+			Position = UDim2.new(x, if x > 0 then Kit.space.sm else 0, 0, 0),
+			Size = UDim2.new(if wide then 0.5 else 1, if wide then -Kit.space.sm else 0, 1, 0),
+			Parent = scroll,
+		})
+		return Kit.stack({ Name = "Stack", Parent = frame }, "Vertical", Kit.space.md)
+	end
+	local columnA = column("ColumnA", 0)
+	local columnB = if wide then column("ColumnB", 0.5) else columnA
 	CoachTip.reset()
-	CoachTip.show(column, { id = "campaign.map", order = 1 })
-	local card = Kit.card({ LayoutOrder = 2, Parent = column })
+	CoachTip.show(columnA, { id = "campaign.map", order = 1 })
+	local card = Kit.card({ LayoutOrder = 2, Parent = columnA })
 	Kit.heading("Ohio · 17 votes", { Parent = card, LayoutOrder = 1 })
 	local pills = Kit.stack({ LayoutOrder = 2, Parent = card }, "Horizontal", Kit.space.xs)
-	Kit.pill("Battleground", "warn", { Parent = pills, LayoutOrder = 1 })
+	pills:FindFirstChildOfClass("UIListLayout").Wraps = true
+	Kit.pill("Battleground", "white", { Parent = pills, LayoutOrder = 1 })
 	Kit.pill("You lead +3", "good", { Parent = pills, LayoutOrder = 2 })
 	Kit.pill("Your issue", "accent", { Parent = pills, LayoutOrder = 3 })
+	Kit.pill("−0.5", "loss", { filled = true, Parent = pills, LayoutOrder = 4 })
+	Kit.pill("+1.0", "good", { filled = true, Parent = pills, LayoutOrder = 5 })
 	Kit.text("You lead by 3. Rally here to grow it.", { LayoutOrder = 3, Parent = card })
 	Kit.caption("Public poll · updated this week", { LayoutOrder = 4, Parent = card })
-	local chips = Kit.stack({ LayoutOrder = 3, Parent = column }, "Horizontal", Kit.space.sm)
+	local chips = Kit.stack({ LayoutOrder = 3, Parent = columnA }, "Horizontal", Kit.space.sm)
 	for i, label in { "Rally", "Ad $3", "Poll $1" } do
 		local chip = Kit.chip(
 			label,
 			function() end,
-			{ Size = UDim2.fromOffset(110, Kit.MIN_TOUCH), LayoutOrder = i, Parent = chips }
+			{ Size = UDim2.fromOffset(100, Kit.MIN_TOUCH), LayoutOrder = i, Parent = chips }
 		)
 		Kit.setSelected(chip, i == 1)
 	end
-	local option = Kit.cardButton(function() end, { LayoutOrder = 4, Parent = column })
+	local option = Kit.cardButton(function() end, { LayoutOrder = 4, Parent = columnA })
 	Kit.text("A · Side with the staff", { Font = Kit.font.bold, LayoutOrder = 1, Parent = option })
 	Kit.caption("+1.5 where Health is a top issue", { LayoutOrder = 2, Parent = option })
 	Kit.setSelected(option, true)
-	local more = Collapsible.new(column, { title = "Why?", order = 5 })
-	Kit.caption("Details live here, one tap away.", { Parent = more.body })
-	Kit.button("More details", function() end, { variant = "ghost", LayoutOrder = 6, Parent = column })
+	if wide then
+		local more = Collapsible.new(columnA, { title = "Why?", order = 5 })
+		Kit.caption("Details live here, one tap away.", { Parent = more.body })
+		Kit.button("More details", function() end, { variant = "ghost", LayoutOrder = 6, Parent = columnA })
+	end
+
+	-- The front-page pieces (D-056): a lit spotlight card with its shadow, a
+	-- monogram and a CALLED stamp; the wordmark; the race bar.
+	local cobalt = Kit.color({ r = 52, g = 104, b = 214 })
+	local crimson = Kit.color({ r = 206, g = 52, b = 72 })
+	local split = if wide then 0.5 else 0.62 -- the spotlight's share of the row
+	local show =
+		Kit.box({ Name = "Showcase", LayoutOrder = 10, Size = UDim2.new(1, 0, 0, 112), Parent = columnB })
+	local spot = Kit.card({
+		Name = "Spotlight",
+		Position = UDim2.fromOffset(0, Kit.space.lg),
+		Size = UDim2.new(split, -Kit.space.sm, 0, 0),
+		Parent = show,
+	})
+	Kit.shadow(spot)
+	local row = Kit.stack({ Name = "Row", Parent = spot }, "Horizontal", Kit.space.sm)
+	Kit.monogram("Dana Okafor", cobalt, 44).Parent = row
+	local words = Kit.stack({ Name = "Words", Size = UDim2.new(1, -52, 0, 0), Parent = row }, "Vertical", 0)
+	Kit.eyebrow("Just called", { LayoutOrder = 1, Parent = words })
+	Kit.text("Utah · 6 votes", { Font = Kit.font.bold, LayoutOrder = 2, Parent = words })
+	Kit.stamp("CALLED", cobalt, {
+		size = Kit.size.heading,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(split, -Kit.space.lg, 0, Kit.space.lg),
+		ZIndex = 5,
+		Parent = show,
+	})
+	Kit.wordmark(nil, {
+		Position = UDim2.new(split, Kit.space.lg, 0, Kit.space.sm),
+		Size = UDim2.new(1 - split, -Kit.space.lg, 0, Kit.size.wordmark + 2 * Kit.space.sm),
+		Parent = show,
+	})
+	local race = Kit.raceBar(columnB, { h = 14, mark = 270 / 538, caption = "270", order = 11 })
+	race:setColors(cobalt, crimson)
+	race:set(310 / 538, 189 / 538)
 	local bar = ActionBar.new(root, {
 		primary = "Lock in",
 		onPrimary = function() end,

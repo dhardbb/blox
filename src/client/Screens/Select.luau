@@ -288,7 +288,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Parent = card,
 		})
 		local taken =
-			Kit.pill("Taken", "bad", { Name = "Taken", LayoutOrder = 5, Visible = false, Parent = card })
+			Kit.pill("Taken", "muted", { Name = "Taken", LayoutOrder = 5, Visible = false, Parent = card })
 		cards[id] = card
 		parts[id] = { name = name, archetype = archetype, perk = perk, drawback = drawback, taken = taken }
 	end

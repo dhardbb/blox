@@ -19,6 +19,9 @@
 -- a soft "pip" (the "select" cue, pitched up) unless `quiet` is set. Under
 -- reduced motion it only fades; nothing waits on it.
 --
+-- Look: a raised card with a 2 px accent outline; a positioned tip also casts
+-- a shadow (Kit.shadow).
+--
 -- Placement: in a list layout pass `order` (LayoutOrder); anywhere else pass
 -- `position` and `anchorPoint` (and `width`, default the parent's width, at
 -- most 360 px). Keep tips off the map's nodes and off the action bar.
@@ -119,6 +122,17 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 		ZIndex = 20,
 	})
 	root:SetAttribute("TipId", id)
+	-- The accent outline is the tip's only stroke (it replaces the card's edge).
+	local edge = root:FindFirstChild("Edge")
+	if edge then
+		edge:Destroy()
+	end
+	-- A tip is compact: the old md padding, not a card's 14 px.
+	local pad = root:FindFirstChildOfClass("UIPadding")
+	if pad then
+		local px = UDim.new(0, Kit.space.md)
+		pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = px, px, px, px
+	end
 	Kit.new("UISizeConstraint", { MaxSize = Vector2.new(MAX_W, math.huge), Parent = root })
 	Kit.new("UIStroke", {
 		Name = "TipStroke",
@@ -160,6 +174,7 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 		end,
 	}
 	root.Parent = parent
+	Kit.shadow(root) -- a positioned tip only: in a list there is no room for one
 	Motion.pop(root, Motion.POP_FROM)
 	Motion.enter(root)
 	if not options.quiet then

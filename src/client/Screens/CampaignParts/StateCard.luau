@@ -273,7 +273,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 				end
 			end)
 		end
-		button.Parent = actionGrid
+		Kit.outer(button).Parent = actionGrid
 		actionButtons[entry.name] = { button = button, label = label, effect = effect, icon = icon }
 	end
 
@@ -822,7 +822,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local theirName = Model.firstName(config, view, rival)
 		local items: { { text: string, tone: Kit.Tone } } = {}
 		if s.battleground then
-			table.insert(items, { text = "Battleground", tone = "warn" })
+			table.insert(items, { text = "Battleground", tone = "white" })
 		end
 		if s.owner then
 			local whose = if s.owner == me then "Your" else `{theirName}'s`
@@ -856,7 +856,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			pill.Visible = item ~= nil
 			if item then
 				pill.Text = item.text
-				pill.TextColor3 = Kit.tone(item.tone)
+				Kit.paintPill(pill, item.tone)
 			end
 		end
 		tagRow.Visible = #items > 0

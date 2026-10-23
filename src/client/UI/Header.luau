@@ -2,8 +2,8 @@
 -- The standard screen header (docs/DESIGN.md D-030, docs/UI-STYLE.md): one
 -- Kit.HEADER_H (44 px) row with a bold title, a muted subtitle after it, and the
 -- countdown at the right; optionally a time bar and a "what to do now" line.
--- The timer is accent, warn once fewer than Kit.TIMER_WARN (10) seconds are
--- left, and danger under Kit.TIMER_CRITICAL (5), where each new second pops the
+-- The timer (Fredoka One) is accent, loss orange once fewer than Kit.TIMER_WARN
+-- (10) seconds are left (attribute Warn), and under Kit.TIMER_CRITICAL (5) each new second pops the
 -- number and plays the "tick" cue; it is hidden when there is no deadline. A
 -- 44 px sound button (SoundButton, ♪ or the volume icon) mutes and unmutes
 -- every cue (UI/Audio, session only); it steps aside (hidden) when the title
@@ -16,8 +16,10 @@
 --   header:setTitle(text)
 --   header:setSubtitle(text?)                    -- nil or "" hides it
 --   header:setTimer(secondsLeft?, warnBelow?, total?)  -- nil hides the timer; with
---                  `total` (the step's full length) a 3 px bar under the row shows
---                  the time left at a glance (TimerBar; danger under warnBelow)
+--                  `total` (the step's full length) a 4 px rounded bar under the
+--                  title (it stops short of the buttons) shows the time left at a
+--                  glance, with a glowing dot at its end (TimerBar; loss under
+--                  the critical mark)
 --   header:setTimerLabel(label?)                 -- "Results in" -> "Results in 0:32"
 --   header:setNow(text?)                         -- the "what to do now" line (needs
 --                  opts.now); nil or "" leaves the row empty but keeps its space
@@ -27,7 +29,8 @@
 --   header.now     TextLabel "NowText" or nil
 --   header.title   TextLabel "Title"; header.subtitle "Subtitle"; header.timer "Timer"
 --   header.help    TextButton "HelpButton" or nil; header.sound TextButton
---                  "SoundButton"; header.rightWidth: px the timer and the buttons
+--                  "SoundButton" (lipped icon buttons: Kit.outer(button) is the
+--                  holder Header places); header.rightWidth: px the timer and the buttons
 --                  take at the right, for owners that lay out beside them
 --                  (setTimerLabel widens the timer and updates it)
 --
@@ -41,7 +44,9 @@ local Header = {}
 
 local TIMER_W = 72 -- px, room for "10:00" at heading size
 local LABELED_TIMER_W = 150 -- px, room for "Results in 0:32" (after setTimerLabel)
-local TIMER_BAR_H = 3 -- px, the time bar under the row
+local TIMER_BAR_H = 4 -- px, the time bar under the row
+local TIMER_DOT = 12 -- px, the glow at the time bar's leading end
+local TIMER_DOT_TRANSPARENCY = 0.2
 local TICK_POP = 1.15 -- the timer's scale on each new second under Kit.TIMER_CRITICAL
 local ICON_PX = 22 -- px, the sound button's icon
 local MIN_TITLE_W = 170 -- px the title keeps before the sound button steps aside
@@ -115,7 +120,7 @@ function Header.new(parent: Instance, options: Options): Header
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromOffset(TIMER_W, Kit.HEADER_H),
-		Font = Kit.font.bold,
+		Font = Kit.font.display,
 		TextSize = Kit.size.heading,
 		TextScaled = true,
 		TextColor3 = Kit.colors.accent,
@@ -189,7 +194,8 @@ function Header.new(parent: Instance, options: Options): Header
 		paintSound()
 	end)
 
-	-- The time bar: a track and a fill along the bottom of the row.
+	-- The time bar: a track and a fill along the bottom of the row, rounded,
+	-- with a glowing dot riding the fill's end.
 	local track = Kit.new("Frame", {
 		Name = "TimerBar",
 		Position = UDim2.fromOffset(0, Kit.HEADER_H - TIMER_BAR_H),
@@ -199,6 +205,7 @@ function Header.new(parent: Instance, options: Options): Header
 		Visible = false,
 		Parent = root,
 	})
+	Kit.corner(Kit.radius.pill).Parent = track
 	local fill = Kit.new("Frame", {
 		Name = "Fill",
 		Size = UDim2.fromScale(1, 1),
@@ -206,6 +213,12 @@ function Header.new(parent: Instance, options: Options): Header
 		BorderSizePixel = 0,
 		Parent = track,
 	})
+	Kit.corner(Kit.radius.pill).Parent = fill
+	local dot = Kit.glow(fill, Kit.colors.accent, { px = TIMER_DOT, transparency = TIMER_DOT_TRANSPARENCY })
+	if dot then
+		dot.Position = UDim2.fromScale(1, 0.5)
+		dot.ZIndex = 2
+	end
 
 	local now: TextLabel? = nil
 	if options.now then
@@ -260,16 +273,18 @@ function Header.new(parent: Instance, options: Options): Header
 		timer.Size = UDim2.fromOffset(width, Kit.HEADER_H)
 		local right = width
 		if help then
-			help.Position = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H / 2)
+			Kit.outer(help).Position = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H / 2)
 			right += Kit.MIN_TOUCH + Kit.space.sm
 		end
 		local rowWidth = root.AbsoluteSize.X
 		local room = rowWidth - (right + 2 * Kit.space.sm + Kit.MIN_TOUCH)
 		sound.Visible = rowWidth <= 0 or room >= math.max(MIN_TITLE_W, titleWidth())
 		if sound.Visible then
-			sound.Position = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H / 2)
+			Kit.outer(sound).Position = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H / 2)
 			right += Kit.MIN_TOUCH + Kit.space.sm
 		end
+		-- The time bar runs under the title, stopping short of the buttons.
+		track.Size = UDim2.new(1, -(right + Kit.space.sm), 0, TIMER_BAR_H)
 		if force or ownLeft == nil or left.Size == ownLeft then
 			local size = UDim2.new(1, -(right + Kit.space.sm), 0, Kit.HEADER_H)
 			left.Size = size
@@ -311,16 +326,14 @@ function Header.new(parent: Instance, options: Options): Header
 			local warnAt = warnBelow or Kit.TIMER_WARN
 			local urgent = shown < warnAt
 			local critical = shown < math.min(warnAt, Kit.TIMER_CRITICAL)
-			self.timer.TextColor3 = if critical
-				then Kit.colors.danger
-				elseif urgent then Kit.colors.warn
-				else Kit.colors.accent
+			self.timer.TextColor3 = if urgent then Kit.colors.loss else Kit.colors.accent
+			self.timer:SetAttribute("Warn", urgent)
 			self.timer.Visible = true
 			track.Visible = total ~= nil and total > 0
 			if total and total > 0 then
 				fill.Size = UDim2.fromScale(math.clamp(secondsLeft / total, 0, 1), 1)
-				-- Warn is a text color, never a fill: the bar goes straight to danger.
-				fill.BackgroundColor3 = if critical then Kit.colors.danger else Kit.colors.accent
+				-- The bar turns orange (loss) under the critical mark.
+				fill.BackgroundColor3 = if critical then Kit.colors.loss else Kit.colors.accent
 			end
 			-- Each new second under the critical mark: a pop and a tick.
 			if critical and shown > 0 and lastShown ~= nil and shown < lastShown then

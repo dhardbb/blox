@@ -543,7 +543,8 @@ describe("Lobby style v2", function()
 	it("puts Find match and Play a friend side by side under Play vs Bot", function()
 		local _world, peer = mountFixture("Lobby", PHONE)
 		local find, friend = need(peer, "Lobby", "FindMatch"), need(peer, "Lobby", "PlayFriend")
-		expect(find.Parent):toBe(friend.Parent)
+		-- Lipped buttons sit in holders (Kit.outer, D-056): the holders share the row.
+		expect(find.Parent.Parent):toBe(friend.Parent.Parent)
 		expect(friend:GetAttribute("Variant")):toBe("secondary")
 		check(find.AbsoluteSize.X >= 44 and friend.AbsoluteSize.X >= 44, "a half-width button is too narrow")
 		-- The join field and Join live in the sheet, not on the main column.

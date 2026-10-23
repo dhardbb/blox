@@ -11,7 +11,7 @@
 --   card:setTitle(text)
 --   card:setExpanded(expanded)     -- does not call onToggle
 --   card:isExpanded() -> boolean
---   card.root    Frame (opts.name, default "Collapsible"): a Kit.panel
+--   card.root    Frame (opts.name, default "Collapsible"): a Kit.panel lit like a card
 --   card.toggle  TextButton "Toggle", the title row (attribute Expanded)
 --   card.body    Frame "Body": put content here; it has a vertical list (gap xs)
 
@@ -49,6 +49,9 @@ function Collapsible.new(parent: Instance, options: Options): Collapsible
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 	})
+	-- Lit like a card (D-056).
+	Kit.depth(root, Kit.colors.surfaceTop, Kit.colors.surface)
+	Kit.bevel(root)
 	Kit.list("Vertical", Kit.space.xs).Parent = root
 
 	local card: Collapsible
@@ -60,6 +63,7 @@ function Collapsible.new(parent: Instance, options: Options): Collapsible
 		end
 	end, {
 		variant = "secondary",
+		lip = false,
 		Name = "Toggle",
 		LayoutOrder = 1,
 		BackgroundTransparency = 1,
@@ -67,6 +71,13 @@ function Collapsible.new(parent: Instance, options: Options): Collapsible
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = root,
 	})
+	-- The title row is the card's own top line: no box of its own.
+	for _, name in { "Edge", "Depth" } do
+		local chrome = toggle:FindFirstChild(name)
+		if chrome then
+			chrome:Destroy()
+		end
+	end
 	local body = Kit.box({
 		Name = "Body",
 		LayoutOrder = 2,

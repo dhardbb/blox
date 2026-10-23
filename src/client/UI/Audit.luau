@@ -14,7 +14,9 @@
 --   textFloor     a text under Kit.MIN_TEXT, or TextScaled without a UITextSizeConstraint
 --                 whose MinTextSize is at least Kit.MIN_TEXT
 --   typeScale     a text size that is not one of the five Kit.size tokens (TextScaled
---                 texts are judged by their MaxTextSize)
+--                 texts are judged by their MaxTextSize). Kit.size.wordmark (72) is
+--                 allowed on a text with attribute Wordmark; a monogram's initials
+--                 (inside attribute Monogram) are scaled to their circle and skipped
 --   contained     a visible object pokes more than 1 px outside the screen, outside its
 --                 parent (when the parent has no list/grid layout and no AutomaticSize,
 --                 and the object has no attribute Overhang = true: a map badge on a
@@ -34,17 +36,25 @@
 --                 instance with attribute DataColor = true (Kit.dataColor): map
 --                 fills, feed tints and EV bars are data, not chrome
 --   textSizes     more than Kit.MAX_TEXT_SIZES (4) distinct text sizes on the screen
+--                 (a monogram's initials do not count)
 --   labelWords    a button label longer than Kit.MAX_LABEL_WORDS (8) words
 --   wallOfText    a text longer than Kit.MAX_TEXT_WORDS (30) words outside a details
 --                 area (attribute Details = true: Kit.details, Sheet and
 --                 Collapsible bodies, the Help overlay)
+--   lossText      orange (loss) text that leans on its color: a text colored
+--                 Kit.colors.loss of one or two words (a tag, a number) must carry
+--                 "−" / "-", "▼", "lost", "lose(s)" or "behind", or sit on (or under)
+--                 an instance with attribute Warn = true (the status line's warn and
+--                 bad tones, the timer). A longer orange line says what is wrong in
+--                 words. Orange never carries meaning alone (docs/DESIGN.md D-056)
 --
 -- Motion (docs/DESIGN.md D-053): decorative effects (UI/Motion's Ring and
 -- Confetti frames, attribute Decor = true, and everything inside them) are
 -- skipped, and a "MotionScale" UIScale on an object or its ancestors (a button
 -- held down, a card popping in) is divided out of the sizes checked, so an audit
 -- that lands mid-animation judges the resting layout. The palette includes the
--- gradient and edge tokens (surfaceTop, raisedTop, accentEdge) through Kit.colors.
+-- gradient and edge tokens (surfaceTop, raisedTop, accentEdge) through Kit.colors,
+-- and the readable text variant of each player color (Colors.textOn, D-056).
 --
 -- Transition (UI overhaul v0.4.0): the screens are redesigned one work package
 -- at a time, so findings a screen is known to have are reported as "pending"
@@ -81,6 +91,7 @@ export type Rule =
 	| "textSizes"
 	| "labelWords"
 	| "wallOfText"
+	| "lossText"
 
 export type Finding = {
 	rule: Rule,
@@ -119,6 +130,7 @@ local RULES: { Rule } = {
 	"textSizes",
 	"labelWords",
 	"wallOfText",
+	"lossText",
 }
 Audit.RULES = RULES
 
@@ -128,6 +140,7 @@ Audit.STYLE = table.freeze({
 	textSizes = true,
 	labelWords = true,
 	wallOfText = true,
+	lossText = true,
 } :: { [Rule]: boolean })
 
 local TOLERANCE = 1 -- px a box may poke outside before it counts
@@ -146,6 +159,22 @@ for _, color in Kit.colors :: { [string]: Color3 } do
 end
 for _, rgb in Colors.player do
 	table.insert(PALETTE, Kit.color(rgb))
+	table.insert(PALETTE, Kit.color(Colors.textOn(rgb)))
+end
+
+-- What makes orange text readable without its color (the lossText rule): a
+-- sign, or a sentence of at least LOSS_SENTENCE words.
+local LOSS_SENTENCE = 3
+local LOSS_SIGNS = { "−", "-", "▼", "lost", "lose", "behind" }
+
+local function signed(text: string): boolean
+	local lower = string.lower(text)
+	for _, sign in LOSS_SIGNS do
+		if string.find(lower, sign, 1, true) then
+			return true
+		end
+	end
+	return false
 end
 
 local function isText(inst: Instance): boolean
@@ -338,9 +367,29 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 					add("textFloor", inst, `text "{quoted}" in {inst.Name} is {text.TextSize}px`, onMap)
 				end
 				local px = textSizeOf(inst)
-				sizes[px] = true
-				if not SCALE[px] then
+				local monogram = marked(inst, "Monogram")
+				if not monogram then
+					-- A monogram's initials are a picture, not a text size.
+					sizes[px] = true
+				end
+				local wordmark = px == Kit.size.wordmark and inst:GetAttribute("Wordmark") == true
+				if not SCALE[px] and not wordmark and not monogram then
 					add("typeScale", inst, `text "{quoted}" in {inst.Name} is {px}px (not a Kit.size)`, onMap)
+				end
+				if
+					style
+					and (text.TextTransparency or 0) < 1
+					and sameColor(text.TextColor3, Kit.colors.loss)
+					and Kit.words(text.Text) < LOSS_SENTENCE
+					and not signed(text.Text)
+					and not marked(inst, "Warn")
+				then
+					add(
+						"lossText",
+						inst,
+						`orange text "{quoted}" in {inst.Name} has no sign (−, ▼, lost)`,
+						onMap
+					)
 				end
 				if style then
 					local words = Kit.words(text.Text)

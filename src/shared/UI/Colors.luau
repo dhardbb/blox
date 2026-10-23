@@ -19,30 +19,43 @@ Colors.player = table.freeze({
 	Crimson = rgb(206, 52, 72),
 	Cobalt = rgb(52, 104, 214),
 	Emerald = rgb(36, 168, 108),
-	Amber = rgb(232, 164, 40),
+	Amber = rgb(240, 186, 36), -- hue 44: gold, kept clear of the loss orange (D-056)
 	Violet = rgb(146, 84, 214),
 	Teal = rgb(24, 168, 178),
 } :: { [string]: RGB })
 
-Colors.background = rgb(16, 18, 24)
-Colors.surface = rgb(28, 31, 40) -- panels
-Colors.raised = rgb(40, 44, 56) -- buttons, cards
-Colors.raisedHover = rgb(56, 62, 78)
-Colors.line = rgb(64, 70, 86) -- map adjacency lines, dividers
-Colors.text = rgb(234, 236, 242)
-Colors.muted = rgb(150, 156, 172)
-Colors.neutral = rgb(118, 122, 134) -- a state nobody leads
-Colors.undecided = rgb(190, 194, 204) -- the undecided ring
-Colors.accent = rgb(255, 128, 214) -- pink: the primary button, selection outline, timer; far from every player color (D-051)
-Colors.danger = rgb(232, 84, 84)
-Colors.good = rgb(92, 200, 128)
-Colors.onAccent = Colors.background -- text on an accent fill
-Colors.field = rgb(22, 25, 33) -- text boxes and read-only wells (between background and surface)
-Colors.warn = rgb(255, 150, 64) -- warning text and icons, never a fill (docs/UI-STYLE.md); not the accent, so "careful" never looks like "press here"
+-- Neutrals (D-056): a navy stage, each step about 7 L* lighter than the last.
+Colors.background = rgb(13, 17, 30) -- the stage behind everything
+Colors.field = rgb(18, 23, 38) -- text boxes and read-only wells (between background and surface)
+Colors.surface = rgb(24, 30, 48) -- cards and panels
+Colors.surfaceTop = rgb(31, 38, 60) -- top stop of a card's top-light gradient (bottom: surface)
+Colors.raised = rgb(38, 46, 70) -- buttons, chips, tags
+Colors.raisedTop = rgb(46, 55, 82) -- top stop of a raised panel's gradient (bottom: raised)
+Colors.raisedHover = rgb(54, 64, 94) -- a selected chip
+Colors.raisedLip = rgb(9, 12, 22) -- the lip under a secondary button: darker than the stage, so it reads on any surface
+Colors.line = rgb(70, 80, 112) -- hairlines (at 0.5 transparency), map adjacency lines, dividers
+Colors.text = rgb(240, 243, 250) -- 14.9:1 on surface
+Colors.muted = rgb(158, 168, 194) -- 7.0:1 on surface, 5.7:1 on raised
+Colors.neutral = rgb(118, 124, 142) -- a state nobody leads
+Colors.undecided = rgb(190, 196, 210) -- the undecided ring
+
+-- Accent (D-051): pink, "press here / selected"; far from every player color.
+Colors.accent = rgb(255, 128, 214) -- the primary button, selection outline, timer
+Colors.accentEdge = rgb(214, 96, 178) -- the primary button's 2 px edge
+Colors.accentLip = rgb(158, 58, 126) -- the lip under the primary button (clearly darker than the face's shaded bottom)
+Colors.onAccent = Colors.background -- text on an accent fill (8.3:1)
+
+-- Status (D-056): green is a gain; orange is anything against you. Red is a
+-- player color, so it never means "bad".
+Colors.good = rgb(92, 200, 128) -- a gain (7.9:1 on surface)
+Colors.goodEdge = rgb(64, 136, 94) -- the stroke of a good fill (a filled "You win" pill)
+Colors.loss = rgb(255, 122, 40) -- a loss, a warning, an error (6.4:1 on surface); always with a sign or a word
+Colors.lossEdge = rgb(196, 84, 20) -- the stroke or lip of a loss fill
+Colors.onLoss = Colors.background -- text on a loss fill (7.2:1)
+Colors.warn = Colors.loss -- one orange: "be careful" and "you lost" read the same
+Colors.danger = Colors.loss -- the old name for a loss or an error; kept for every caller
 Colors.disabledText = Colors.muted -- labels of disabled buttons
-Colors.surfaceTop = rgb(34, 38, 48) -- top stop of a card's top-light gradient (bottom: surface)
-Colors.raisedTop = rgb(48, 53, 66) -- top stop of a raised panel's gradient (bottom: raised)
-Colors.accentEdge = rgb(214, 96, 178) -- the primary button's 2 px edge, a darker accent
+Colors.glow = rgb(44, 62, 120) -- the tint of the map's backdrop glow
 
 -- Linear blend from `base` toward `color`, t in [0, 1]. Used for map fills, the
 -- Election feed rows (0.35) and the draft board legend (0.6).
@@ -67,6 +80,13 @@ end
 -- Amber, Teal and Emerald, light (text) on dark ones.
 function Colors.onColor(color: RGB): RGB
 	return if Colors.luma(color) > 0.5 then Colors.background else Colors.text
+end
+
+-- The readable variant of a player color for text on a dark surface: a quarter
+-- of the way toward `text` (Crimson -> 214,100,116, 4.7:1 on surface). Fills,
+-- dots, bars and rings keep the base color (D-056).
+function Colors.textOn(color: RGB): RGB
+	return Colors.tint(color, Colors.text, 0.25)
 end
 
 -- Player color by name, neutral if unknown (e.g. before Select ends).

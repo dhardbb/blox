@@ -11,12 +11,16 @@
 --   With the pass: tapping a swatch saves it (ctx.net.setColor); Auto clears it.
 --
 --   local pick = ColorPick.new(screenRoot, ctx, { LayoutOrder = 5, Parent = column })
---   pick.button   TextButton "ColorButton" (a dot and "Color: …"), hidden without the pass
+--   pick.button   TextButton "ColorButton" (a monogram and "Color: …"), hidden without the pass
 --   pick.sheet    the Sheet "ColorSheet": ColorHint, ColorTie, Swatches (Swatch_Auto,
 --                 Swatch_<Color>; attribute Locked on each while greyed), BuyColorPass
+--
+-- Each swatch shows the player's own initial as a monogram in that color
+-- (Kit.monogram, D-056): "this is you in Teal".
 --   pick.update(lobby)   from the screen's update
 --   pick.open()
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
@@ -28,7 +32,9 @@ local Sheet = require(script.Parent.Sheet)
 
 local ColorPick = {}
 
-local DOT = 18 -- px, a swatch's color dot
+local DOT = 36 -- px, a swatch's monogram (36, not 40: "Crimson" keeps body size on a phone)
+local BUTTON_DOT = 24 -- px, the Color button's monogram
+local SWATCH_H = Kit.PRIMARY_H -- px, a row of swatches (a 40 px monogram and its padding)
 local PER_ROW = 3 -- swatches in a row (three fit a 390 px phone)
 local AUTO = "Auto" -- the swatch that clears the pick
 local SHEET_HEIGHT = 0.55 -- share of a phone's screen
@@ -41,21 +47,26 @@ export type ColorPick = {
 	open: () -> (),
 }
 
--- A round dot in a player color (neutral for nil).
-local function dot(parent: Instance, color: string?, order: number): Frame
-	local frame = Kit.dataColor(Kit.new("Frame", {
-		Name = "Dot",
-		LayoutOrder = order,
-		Size = UDim2.fromOffset(DOT, DOT),
-		BackgroundColor3 = Kit.color(Colors.of(color)),
-		BorderSizePixel = 0,
-		Parent = parent,
-	}))
-	Kit.round().Parent = frame
+-- The local player's name, for the monograms ("You" headless or before join).
+local function playerName(): string
+	local player = Players.LocalPlayer
+	if player == nil then
+		return "You"
+	end
+	local display = (player :: any).DisplayName
+	return if type(display) == "string" and display ~= "" then display else player.Name
+end
+
+-- The player's monogram in a player color (neutral for nil).
+local function dot(parent: Instance, color: string?, order: number, px: number?): Frame
+	local frame = Kit.monogram(playerName(), Kit.color(Colors.of(color)), px or DOT)
+	frame.Name = "Dot"
+	frame.LayoutOrder = order
+	frame.Parent = parent
 	return frame
 end
 
--- A chip with dots then a label (the button's own text stays empty).
+-- A chip with monograms then a label (the button's own text stays empty).
 local function labelled(button: TextButton, dots: { string? }, text: string): TextLabel
 	local content = Kit.box({ Name = "Content", Parent = button })
 	local list = Kit.list("Horizontal", Kit.space.xs)
@@ -103,7 +114,7 @@ function ColorPick.new(screen: Instance, ctx: any, props: { [string]: any }?): C
 	list.VerticalAlignment = Enum.VerticalAlignment.Center
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	list.Parent = buttonContent
-	local buttonDot = dot(buttonContent, nil, 1)
+	local buttonDot = dot(buttonContent, nil, 1, BUTTON_DOT)
 	local buttonLabel = Kit.text("", {
 		Name = "Label",
 		LayoutOrder = 2,
@@ -142,7 +153,7 @@ function ColorPick.new(screen: Instance, ctx: any, props: { [string]: any }?): C
 		local frame = Kit.box({
 			Name = `Row{order}`,
 			LayoutOrder = order,
-			Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+			Size = UDim2.new(1, 0, 0, SWATCH_H),
 			Parent = swatches,
 		})
 		Kit.list("Horizontal", Kit.space.sm).Parent = frame
@@ -183,7 +194,16 @@ function ColorPick.new(screen: Instance, ctx: any, props: { [string]: any }?): C
 	local function render()
 		local shown = if owned then saved else nil
 		buttonLabel.Text = Words.colorButton(shown)
-		buttonDot.BackgroundColor3 = Kit.color(Colors.of(shown))
+		local tint = Kit.color(Colors.of(shown))
+		buttonDot.BackgroundColor3 = tint
+		local edge = buttonDot:FindFirstChild("Edge") :: UIStroke?
+		if edge then
+			edge.Color = Kit.color(Colors.tint(Colors.of(shown), Colors.background, 0.35))
+		end
+		local initials = buttonDot:FindFirstChild("Initials") :: TextLabel?
+		if initials then
+			initials.TextColor3 = Kit.color(Colors.onColor(Colors.of(shown)))
+		end
 		buttonDot.Visible = shown ~= nil
 		hint.Text = if owned then Words.COLOR_OWNED else Words.COLOR_LOCKED
 		tie.Visible = owned
@@ -197,6 +217,10 @@ function ColorPick.new(screen: Instance, ctx: any, props: { [string]: any }?): C
 			for _, child in swatch:GetDescendants() do
 				if child.Name == "Dot" and child:IsA("Frame") then
 					child.BackgroundTransparency = if owned then 0 else LOCKED_FADE
+					local letters = child:FindFirstChild("Initials") :: TextLabel?
+					if letters then
+						letters.TextTransparency = if owned then 0 else LOCKED_FADE
+					end
 				end
 			end
 		end
@@ -217,7 +241,7 @@ function ColorPick.new(screen: Instance, ctx: any, props: { [string]: any }?): C
 	render()
 
 	if p.Parent then
-		button.Parent = p.Parent
+		Kit.outer(button).Parent = p.Parent
 	end
 	return {
 		button = button,

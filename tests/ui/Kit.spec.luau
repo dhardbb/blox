@@ -10,6 +10,7 @@ local Test = require("@testlib/Test")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 local check = Rig.check
+local UDim2 = FakeRoblox.types.UDim2
 
 type Client = {
 	world: FakeRoblox.World,
@@ -43,13 +44,14 @@ local function press(c: Client, button: any)
 end
 
 describe("Kit tokens", function()
-	it("has exactly the five text sizes of the type scale", function()
+	it("has exactly the five text sizes of the type scale, plus the Lobby's wordmark", function()
 		local c = client()
 		local keys = 0
 		for _ in c.Kit.size do
 			keys += 1
 		end
-		expect(keys):toBe(5)
+		expect(keys):toBe(6)
+		expect(c.Kit.size.wordmark):toBe(72)
 		expect(c.Kit.size.caption):toBe(14)
 		expect(c.Kit.size.body):toBe(16)
 		expect(c.Kit.size.heading):toBe(20)
@@ -65,7 +67,9 @@ describe("Kit tokens", function()
 		expect(Kit.space.lg):toBe(16)
 		expect(Kit.space.xl):toBe(24)
 		expect(Kit.radius.control):toBe(8)
+		expect(Kit.radius.button):toBe(12)
 		expect(Kit.radius.panel):toBe(12)
+		expect(Kit.radius.sheet):toBe(16)
 		expect(Kit.MIN_TOUCH):toBe(44)
 		expect(Kit.PRIMARY_H):toBe(56)
 		expect(Kit.BAR_H):toBe(84)
@@ -447,14 +451,19 @@ describe("Kit polish: fonts, depth and edges", function()
 		local primary = Kit.button("Lock in", function() end, { variant = "primary", Parent = c.stage })
 		local edge = primary:FindFirstChild("Edge")
 		check(edge ~= nil and edge.Thickness == 2, "no 2 px edge on the primary")
-		check(same(edge.Color, Kit.colors.accentEdge), "the primary edge is not accentEdge")
+		check(same(edge:GetAttribute("Base"), Kit.colors.accentEdge), "the primary edge is not accentEdge")
+		expect(edge:GetAttribute("Alpha")):toBe(1)
+		check(edge:FindFirstChild("EdgeLight") ~= nil, "the primary edge is not lit from the top")
 		expect(edge.ApplyStrokeMode.Name):toBe("Border")
 		check(primary:FindFirstChild("Depth") ~= nil, "no top-light gradient on the primary")
 		Kit.setEnabled(primary, false)
-		check(same(edge.Color, Kit.colors.line) and edge.Thickness == 1, "a disabled primary keeps its edge")
-		expect(edge.Transparency):toBe(0.5)
+		check(
+			same(edge:GetAttribute("Base"), Kit.colors.line) and edge.Thickness == 1,
+			"a disabled primary keeps its edge"
+		)
+		expect(edge:GetAttribute("Alpha")):toBe(0.5)
 		Kit.setEnabled(primary, true)
-		check(same(edge.Color, Kit.colors.accentEdge), "re-enabling did not restore the edge")
+		check(same(edge:GetAttribute("Base"), Kit.colors.accentEdge), "re-enabling did not restore the edge")
 	end)
 
 	it("puts hairlines and depth on secondaries and cards only", function()
@@ -462,7 +471,12 @@ describe("Kit polish: fonts, depth and edges", function()
 		local Kit = c.Kit
 		local secondary = Kit.button("Back", function() end, { variant = "secondary", Parent = c.stage })
 		local edge = secondary:FindFirstChild("Edge")
-		check(edge ~= nil and same(edge.Color, Kit.colors.line) and edge.Transparency == 0.5, "no hairline")
+		check(
+			edge ~= nil
+				and same(edge:GetAttribute("Base"), Kit.colors.line)
+				and edge:GetAttribute("Alpha") == 0.5,
+			"no hairline"
+		)
 		check(secondary:FindFirstChild("Depth") ~= nil, "no gradient on a secondary")
 		local ghost = Kit.button("More", function() end, { variant = "ghost", Parent = c.stage })
 		check(
@@ -477,6 +491,7 @@ describe("Kit polish: fonts, depth and edges", function()
 		local depth = card:FindFirstChild("Depth")
 		check(depth ~= nil and depth.Rotation == 90, "no vertical gradient on a card")
 		check(card:FindFirstChild("Edge") ~= nil, "no hairline on a card")
+		expect(card:FindFirstChildOfClass("UIPadding").PaddingTop.Offset):toBe(14)
 		local flat = Kit.card({ BackgroundColor3 = Kit.colors.raised, Parent = c.stage })
 		check(flat:FindFirstChild("Depth") == nil, "a card with its own fill got a gradient")
 		check(same(flat.BackgroundColor3, Kit.colors.raised), "a card's own fill was replaced")
@@ -538,5 +553,190 @@ describe("Kit polish: icons", function()
 			check(icon.id == "" or string.match(icon.id, "^rbxassetid://%d+$") ~= nil, `{name} id {icon.id}`)
 		end
 		expect(n):toBe(12)
+	end)
+end)
+
+-- ------------------------------------------------------------------ front page (docs/DESIGN.md D-056)
+
+describe("Kit foundation: orange losses and chunky buttons", function()
+	it("has one orange for loss, warn and bad, and readable player text", function()
+		local c = client()
+		local Kit = c.Kit
+		check(same(Kit.colors.loss, Kit.color({ r = 255, g = 122, b = 40 })), "loss is not 255,122,40")
+		for _, name in { "warn", "danger", "bad" } do
+			check(same(Kit.colors[name], Kit.colors.loss), `{name} is not the loss orange`)
+		end
+		check(same(Kit.tone("loss"), Kit.colors.loss), "tone loss")
+		check(same(Kit.tone("bad"), Kit.colors.loss), "tone bad")
+		check(same(Kit.tone("white"), Kit.colors.text), "tone white")
+		check(same(Kit.colors.background, Kit.color({ r = 13, g = 17, b = 30 })), "the stage is not navy")
+		local view = { players = { { color = "Crimson" }, { color = "Cobalt" } } }
+		check(same(Kit.playerText(view, 1), Kit.color({ r = 215, g = 100, b = 117 })), "Crimson text")
+		check(same(Kit.playerColor(view, 1), Kit.color({ r = 206, g = 52, b = 72 })), "Crimson fill changed")
+		check(same(Kit.textColor(Kit.playerColor(view, 2)), Kit.playerText(view, 2)), "textColor")
+	end)
+
+	it("puts a primary's and a secondary's face in a holder with a lip", function()
+		local c = client()
+		local Kit = c.Kit
+		local primary = Kit.button("Lock in", function() end, {
+			variant = "primary",
+			Name = "LockIn",
+			LayoutOrder = 3,
+			Size = UDim2.new(1, 0, 0, Kit.PRIMARY_H),
+			Parent = c.stage,
+		})
+		local holder = primary.Parent
+		expect(holder.Name):toBe("LockInHolder")
+		expect(holder.Parent):toBe(c.stage)
+		expect(holder.LayoutOrder):toBe(3)
+		expect(Kit.outer(primary)):toBe(holder)
+		local lip = holder:FindFirstChild("Lip")
+		check(lip ~= nil and same(lip.BackgroundColor3, Kit.colors.accentLip), "no accent lip")
+		expect(lip.Position.Y.Offset):toBe(Kit.LIP_PRIMARY)
+		expect(lip:GetAttribute("Decor")):toBe(true)
+		expect(primary.AbsoluteSize.Y):toBe(56)
+		expect(primary.TextSize):toBe(Kit.size.heading)
+		expect(primary:FindFirstChildOfClass("UICorner").CornerRadius.Offset):toBe(Kit.radius.button)
+		Kit.setEnabled(primary, false)
+		check(same(lip.BackgroundColor3, Kit.colors.raisedLip), "a disabled primary keeps the pink lip")
+		local secondary = Kit.button("Back", function() end, { variant = "secondary", Parent = c.stage })
+		local secondLip = Kit.outer(secondary):FindFirstChild("Lip")
+		check(secondLip ~= nil and same(secondLip.BackgroundColor3, Kit.colors.raisedLip), "no secondary lip")
+		expect(secondLip.Position.Y.Offset):toBe(Kit.LIP_SECONDARY)
+		for _, variant in { "chip", "danger", "ghost" } do
+			local button = Kit.button(variant, function() end, { variant = variant, Parent = c.stage })
+			expect(button.Parent):toBe(c.stage)
+		end
+		local flat = Kit.button(
+			"Flat",
+			function() end,
+			{ variant = "secondary", lip = false, Parent = c.stage }
+		)
+		expect(flat.Parent):toBe(c.stage)
+		local icon = Kit.iconButton("+", function() end, { Parent = c.stage })
+		expect(icon:FindFirstChildOfClass("UICorner").CornerRadius.Offset):toBe(Kit.radius.control)
+		check(Kit.outer(icon):FindFirstChild("Lip") ~= nil, "an icon button has no lip")
+	end)
+
+	it("passes later Size, Visible and LayoutOrder changes to the holder", function()
+		local c = client()
+		local Kit = c.Kit
+		local button = Kit.button("Bank", function() end, {
+			variant = "secondary",
+			Visible = false,
+			Parent = c.stage,
+		})
+		local holder = button.Parent
+		expect(holder.Visible):toBe(false)
+		button.Visible = true
+		expect(holder.Visible):toBe(true)
+		button.Size = UDim2.new(0.3, 0, 0, 56)
+		expect(holder.Size.X.Scale):toBe(0.3)
+		expect(button.Size.X.Scale):toBe(1)
+		expect(button.AbsoluteSize.Y):toBe(56)
+		button.LayoutOrder = 7
+		expect(holder.LayoutOrder):toBe(7)
+		button:Destroy()
+		expect(holder.Parent):toBe(nil)
+	end)
+
+	it("makes filled pills, white pills, eyebrows, icon plates and bevels", function()
+		local c = client()
+		local Kit = c.Kit
+		local loss = Kit.pill("−0.5", "loss", { filled = true, Parent = c.stage })
+		check(same(loss.BackgroundColor3, Kit.colors.loss), "a filled loss pill is not orange")
+		check(same(loss.TextColor3, Kit.colors.onLoss), "a filled loss pill's text is not dark")
+		check(same(loss:FindFirstChild("Edge").Color, Kit.colors.lossEdge), "no lossEdge")
+		local white = Kit.pill("13", "white", { Parent = c.stage })
+		check(same(white.BackgroundColor3, Kit.colors.text), "a white pill is not white")
+		check(same(white.TextColor3, Kit.colors.background), "a white pill's text is not dark")
+		local plain = Kit.pill("Your issue", "accent", { Parent = c.stage })
+		check(
+			same(plain.BackgroundColor3, Kit.colors.raised) and plain:FindFirstChild("Edge") == nil,
+			"plain pill"
+		)
+		local data =
+			Kit.pill("+2 Rex", "text", { fill = Kit.color({ r = 206, g = 52, b = 72 }), Parent = c.stage })
+		expect(data:GetAttribute("DataColor")):toBe(true)
+		local eyebrow = Kit.eyebrow("Just called", { Parent = c.stage })
+		expect(eyebrow.Text):toBe("JUST CALLED")
+		expect(eyebrow.TextSize):toBe(Kit.size.caption)
+		local plate = Kit.iconPlate("megaphone", 24)
+		plate.Parent = c.stage
+		expect(plate.AbsoluteSize.X):toBe(24)
+		check(plate:FindFirstChild("Icon") ~= nil, "no icon in the plate")
+		local frame = Kit.box({ Parent = c.stage })
+		local edge = Kit.bevel(frame)
+		expect(edge.Name):toBe("Edge")
+		check(edge:FindFirstChild("EdgeLight") ~= nil, "a bevel is not lit")
+	end)
+
+	it("casts shadows beside free-standing objects and glows inside them, never in a list", function()
+		local c = client()
+		local Kit = c.Kit
+		local card = Kit.new("Frame", {
+			Name = "Spot",
+			Size = UDim2.fromOffset(200, 100),
+			Position = UDim2.fromOffset(40, 40),
+			ZIndex = 5,
+			Parent = c.stage,
+		})
+		local shadow = Kit.shadow(card)
+		check(shadow ~= nil and shadow.Parent == c.stage, "no shadow beside the card")
+		expect(shadow.ZIndex):toBe(4)
+		expect(shadow:GetAttribute("Decor")):toBe(true)
+		expect(shadow:GetAttribute("Asset")):toBe("shadow")
+		expect(shadow.Size.X.Offset):toBe(224)
+		expect(shadow.Position.Y.Offset):toBe(40 - 12 + 4)
+		card.Visible = false
+		expect(shadow.Visible):toBe(false)
+		local glow = Kit.glow(card, Kit.colors.accent, { scale = 2 })
+		check(glow ~= nil and glow.Parent == card and glow.ZIndex == 0, "no glow under the card's children")
+		expect(glow:GetAttribute("Asset")):toBe("glow")
+		local stack = Kit.stack({ Parent = c.stage })
+		local item = Kit.card({ Parent = stack })
+		expect(Kit.shadow(item)):toBe(nil)
+		expect(Kit.glow(stack, Kit.colors.accent)):toBe(nil)
+	end)
+
+	it("builds stamps, monograms, race bars and the wordmark", function()
+		local c = client()
+		local Kit = c.Kit
+		local cobalt = Kit.color({ r = 52, g = 104, b = 214 })
+		local stamp = Kit.stamp("CALLED", cobalt, { Parent = c.stage })
+		expect(stamp.Name):toBe("Stamp")
+		expect(stamp.Rotation):toBe(-6)
+		expect(stamp:GetAttribute("Overhang")):toBe(true)
+		local label = stamp:FindFirstChild("Label", true)
+		expect(label.Text):toBe("CALLED")
+		expect(label.TextSize):toBe(Kit.size.title)
+		expect(label.Font.Name):toBe("FredokaOne")
+		local hero = Kit.stamp("You lost", Kit.colors.loss, { size = Kit.size.hero, Parent = c.stage })
+		check(
+			same(hero:FindFirstChild("Label", true).TextColor3, Kit.colors.onLoss),
+			"You lost is not dark on orange"
+		)
+		local mono = Kit.monogram("Dana Okafor", cobalt, 56)
+		mono.Parent = c.stage
+		expect(mono:FindFirstChild("Initials").Text):toBe("DO")
+		expect(mono:GetAttribute("DataColor")):toBe(true)
+		expect(mono.AbsoluteSize.X):toBe(56)
+		local bar = Kit.raceBar(c.stage, { h = 14, mark = 270 / 538, caption = "270" })
+		expect(bar.root.AbsoluteSize.Y):toBe(14 + 8 + Kit.size.caption + Kit.space.xs)
+		bar:setColors(cobalt, Kit.color({ r = 206, g = 52, b = 72 }))
+		bar:set(0.4, 0.3)
+		expect(bar.left.Size.X.Scale):toBe(0.4)
+		expect(bar.right.Size.X.Scale):toBe(0.3)
+		bar:set(0.8, 0.5)
+		expect(bar.right.Size.X.Scale < 0.21):toBe(true)
+		check(math.abs(bar.tick.Position.X.Scale - 270 / 538) < 1e-6, "the tick is not at 270")
+		bar:cross()
+		local mark = Kit.wordmark(nil, { Parent = c.stage })
+		local text = mark:FindFirstChild("Mark")
+		expect(text.Text):toBe("270")
+		expect(text.TextSize):toBe(72)
+		expect(text:GetAttribute("Wordmark")):toBe(true)
+		Rig.noErrors(c.world)
 	end)
 end)

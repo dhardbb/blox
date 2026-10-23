@@ -738,7 +738,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				entry.topic.Text = Model.issueName(result.topics[t])
 				entry.score.Text = `{mine} – {theirs}`
 				entry.verdict.Text = verdict
-				entry.verdict.TextColor3 = Kit.tone(tone :: Kit.Tone)
+				-- A win or a loss is a filled pill (green, orange); a tie stays plain (D-056).
+				Kit.paintPill(entry.verdict, tone :: Kit.Tone, tone ~= "muted")
 				entry.swing.Text = Words.topicLine(config, view, result, t, rival)
 				local moved = Swing.debateTopic(config, view, result, t)
 				entry.gaffe.Text = table.concat(moved.gaffeLines, "\n")

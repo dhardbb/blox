@@ -15,7 +15,16 @@
 --                   a new tween on a property cancels the old one on that property
 --   Motion.cancel(inst)             stops every tween and timed effect on inst
 --   Motion.scale(inst) -> UIScale   get-or-create the child UIScale "MotionScale"
---   Motion.press(button)            shrinks to 0.96 while held, springs back on release
+--   Motion.press(button)            shrinks to 0.96 while held, springs back on release;
+--                   a button with attribute Lip (Kit's primary and secondary)
+--                   instead travels down onto its lip (Lip px) at 0.98
+--   Motion.stamp(inst, delay?)      a stamp lands: scale 1.6 -> 1 (pop, Back Out) as it
+--                   fades in (0.15 s); under reduced motion it is simply there
+--   Motion.shine(button) -> cancel  a light band sweeps the primary every 4.5 s
+--                   while it is enabled (decorative)
+--   Motion.breathe(inst, prop, a, b, seconds) -> cancel   ping-pongs a number
+--                   property between a and b (Sine in/out; decorative)
+--   Motion.pulseOnce(inst)          1 -> 1.03 -> 1 over 0.9 s (the "your turn" nudge)
 --   Motion.pop(inst, from?, delay?) UIScale from (0.9) to 1.0, Back Out
 --   Motion.enter(inst, dy?, delay?) fades in from transparent, sliding up dy (12) px
 --   Motion.exit(inst, onDone)       fades out; onDone when it finishes
@@ -80,6 +89,15 @@ Motion.ease = {
 }
 
 Motion.PRESS_SCALE = 0.96 -- a held button's size
+Motion.LIP_PRESS_SCALE = 0.98 -- a held lipped button's size (it also travels down its lip)
+Motion.STAMP_FROM = 1.6 -- where a stamp's scale starts
+Motion.STAMP_FADE = 0.15 -- s, a stamp fading in
+Motion.SHINE_EVERY = 4.5 -- s between two shines on the primary (a decorative loop)
+Motion.SHINE_SECONDS = 0.6 -- s, one sweep
+Motion.SHINE_W = 40 -- px, the light band
+Motion.SHINE_TRANSPARENCY = 0.75
+Motion.PULSE_SCALE = 1.03
+Motion.PULSE_SECONDS = 0.9 -- s, there and back
 Motion.POP_FROM = 0.9 -- where a pop starts
 Motion.ENTER_DY = 12 -- px an entering element slides up
 Motion.REDUCED_FADE = 0.1 -- s, enter/exit fade under reduced motion
@@ -338,9 +356,16 @@ end
 
 function Motion.press(button: GuiButton)
 	local scale: UIScale? = nil
+	local function lip(): number
+		local value = button:GetAttribute("Lip")
+		return if type(value) == "number" then value else 0
+	end
 	local function release()
 		if scale and scale.Scale ~= 1 then
 			play(scale, { Scale = 1 }, Motion.t.release, Motion.ease.back)
+		end
+		if lip() > 0 and button.Position.Y.Offset ~= 0 then
+			play(button, { Position = UDim2.fromOffset(0, 0) }, Motion.t.release, Motion.ease.back)
 		end
 	end
 	button.InputBegan:Connect(function(input: InputObject)
@@ -348,7 +373,16 @@ function Motion.press(button: GuiButton)
 			return
 		end
 		scale = scale or Motion.scale(button)
-		play(scale :: UIScale, { Scale = Motion.PRESS_SCALE }, Motion.t.press, Motion.ease.out)
+		local travel = lip()
+		play(
+			scale :: UIScale,
+			{ Scale = if travel > 0 then Motion.LIP_PRESS_SCALE else Motion.PRESS_SCALE },
+			Motion.t.press,
+			Motion.ease.out
+		)
+		if travel > 0 then
+			play(button, { Position = UDim2.fromOffset(0, travel) }, Motion.t.press, Motion.ease.out)
+		end
 	end)
 	button.InputEnded:Connect(function(input: InputObject)
 		if isPress(input) then
@@ -635,6 +669,121 @@ function Motion.typewriter(label: TextLabel | TextButton, cps: number?): () -> (
 		target.MaxVisibleGraphemes = -1
 	end)
 	return skip
+end
+
+-- ---------------------------------------------------------------- front page (D-056)
+
+-- The GuiObjects under `inst` (itself included) and the transparency
+-- properties a fade-in drives on each, at their resting values.
+local function fadeTargets(inst: Instance): { { inst: any, props: { [string]: number } } }
+	local out = {}
+	for _, node in { inst, table.unpack(inst:GetDescendants()) } do
+		if node:IsA("GuiObject") then
+			table.insert(out, { inst = node, props = fadeProps(node) })
+		end
+	end
+	return out
+end
+
+function Motion.stamp(inst: Instance, delay: number?)
+	if Motion.headless or Motion.reduced() then
+		return
+	end
+	local scale = Motion.scale(inst)
+	scale.Scale = Motion.STAMP_FROM
+	play(scale, { Scale = 1 }, Motion.t.pop, Motion.ease.back, nil, delay)
+	for _, target in fadeTargets(inst) do
+		local goals = table.clone(target.props)
+		for key in goals do
+			target.inst[key] = 1
+		end
+		play(target.inst, goals, Motion.STAMP_FADE, Motion.ease.out, nil, delay)
+	end
+end
+
+function Motion.shine(button: GuiObject): () -> ()
+	if Motion.headless or Motion.reduced() then
+		return function() end
+	end
+	local alive = true
+	local band = Instance.new("Frame")
+	band.Name = "Shine"
+	band:SetAttribute("Decor", true)
+	band.AnchorPoint = Vector2.new(0.5, 0)
+	band.Position = UDim2.fromScale(-0.3, 0)
+	band.Size = UDim2.new(0, Motion.SHINE_W, 1, 0)
+	band.BackgroundColor3 = Color3.new(1, 1, 1)
+	band.BackgroundTransparency = 1
+	band.BorderSizePixel = 0
+	band.ZIndex = 2
+	local soft = Instance.new("UIGradient")
+	soft.Rotation = 20
+	soft.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.5, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	soft.Parent = band
+	band.Parent = button
+	button.ClipsDescendants = true
+	local function sweep()
+		if not alive or band.Parent == nil then
+			return
+		end
+		if (button :: any).Active ~= false and not Motion.reduced() then
+			band.Position = UDim2.fromScale(-0.3, 0)
+			band.BackgroundTransparency = Motion.SHINE_TRANSPARENCY
+			play(
+				band,
+				{ Position = UDim2.fromScale(1.3, 0) },
+				Motion.SHINE_SECONDS,
+				Motion.ease.linear,
+				function()
+					band.BackgroundTransparency = 1
+				end
+			)
+		end
+		task.delay(Motion.SHINE_EVERY, sweep)
+	end
+	task.delay(Motion.SHINE_EVERY, sweep)
+	return function()
+		alive = false
+		band:Destroy()
+	end
+end
+
+function Motion.breathe(inst: Instance, prop: string, a: number, b: number, seconds: number): () -> ()
+	local target = inst :: any
+	if Motion.headless or Motion.reduced() then
+		return function() end
+	end
+	cancelProps(target, { [prop] = true })
+	target[prop] = a
+	local info = TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+	local tween = tweenService:Create(inst, info, { [prop] = b })
+	local props = active[target] or {}
+	active[target] = props
+	props[prop] = tween
+	tween:Play()
+	return function()
+		if props[prop] == tween then
+			props[prop] = nil
+		end
+		tween:Cancel()
+		target[prop] = a
+	end
+end
+
+function Motion.pulseOnce(inst: Instance)
+	if Motion.headless or Motion.reduced() then
+		return
+	end
+	local scale = Motion.scale(inst)
+	cancelProps(scale, { Scale = true })
+	scale.Scale = 1
+	local info =
+		TweenInfo.new(Motion.PULSE_SECONDS / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 0, true)
+	tweenService:Create(scale, info, { Scale = Motion.PULSE_SCALE }):Play()
 end
 
 return Motion

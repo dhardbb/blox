@@ -146,7 +146,9 @@ local function evLine(_ctx: Context, s: StateView): Line
 		parts = {
 			{
 				text = if record then tostring(record.ev) else "?",
-				color = if s.battleground then Kit.colors.warn else nil,
+				-- A battleground is good news: a white tag, not orange (D-056).
+				color = if s.battleground then Kit.colors.text else nil,
+				filled = if s.battleground then true else nil,
 			},
 		},
 	}

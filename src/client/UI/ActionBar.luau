@@ -20,8 +20,11 @@
 --                                        -- light and settles into its disabled look,
 --                                        -- with the "lockIn" cue (pitch 0.8 for time's up)
 --   bar.root       Frame "ActionBar": Size (1, 0, 0, BAR_H), AnchorPoint (0, 1), Position (0, 0, 1, 0)
---   bar.primary    TextButton (default Name "Primary"), attribute PrimaryAction = true
---   bar.secondary  TextButton (default Name "Secondary")
+--   bar.primary    TextButton (default Name "Primary"), attribute PrimaryAction = true;
+--                  its holder (Kit.outer) "PrimaryHolder" with the lip
+--   bar.secondary  TextButton (default Name "Secondary"), in "SecondaryHolder"
+--   bar.plate      Frame "Plate": the bar's surface plate (decor), lit, with a
+--                  shadow cast upward (D-056: the one persistent bottom bar)
 --   bar.status     TextLabel "BarStatus"; bar.opponent TextLabel "BarOpponent"
 --
 -- The owning screen sizes its scroll region to
@@ -55,9 +58,11 @@ export type Tone = "muted" | "ok" | "warn" | "bad"
 local TONES: { [string]: Color3 } = {
 	muted = Kit.colors.muted,
 	ok = Kit.colors.good,
-	warn = Kit.colors.warn,
-	bad = Kit.colors.danger,
+	warn = Kit.colors.loss,
+	bad = Kit.colors.loss,
 }
+local PLATE_PAD = Kit.space.sm -- px the plate reaches past the bar on the left, right and top
+local PLATE_SHADOW_DY = -4 -- px: the plate's shadow falls upward, over the board
 
 export type Options = {
 	primary: string,
@@ -71,6 +76,7 @@ export type Options = {
 
 export type ActionBar = {
 	root: Frame,
+	plate: Frame,
 	primary: TextButton,
 	secondary: TextButton,
 	status: TextLabel,
@@ -90,6 +96,21 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		Position = UDim2.fromScale(0, 1),
 		Size = UDim2.new(1, 0, 0, Kit.BAR_H),
 	})
+
+	-- The plate: a card-lit surface behind the status line and the buttons.
+	local plate = Kit.new("Frame", {
+		Name = "Plate",
+		Position = UDim2.fromOffset(-PLATE_PAD, -PLATE_PAD),
+		Size = UDim2.new(1, 2 * PLATE_PAD, 1, PLATE_PAD),
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = root,
+	}) :: Frame
+	plate:SetAttribute("Decor", true)
+	Kit.depth(plate, Kit.colors.surfaceTop, Kit.colors.surface)
+	Kit.corner(Kit.radius.panel).Parent = plate
+	Kit.bevel(plate)
+	Kit.shadow(plate, { dy = PLATE_SHADOW_DY })
 
 	local status = Kit.text("", {
 		Name = "BarStatus",
@@ -145,7 +166,8 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		Visible = false,
 		Parent = primary,
 	})
-	Kit.corner(Kit.radius.control).Parent = timeFill
+	Kit.corner(Kit.radius.button).Parent = timeFill
+	Motion.shine(primary)
 	local armed = false -- set by the first setPrimary: later changes may flash
 	local wasEnabled = false
 
@@ -162,6 +184,7 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 
 	local bar: ActionBar = {
 		root = root,
+		plate = plate,
 		primary = primary,
 		secondary = secondary,
 		status = status,
@@ -189,6 +212,8 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		setStatus = function(self: ActionBar, text: string, tone: Tone)
 			self.status.Text = text
 			self.status.TextColor3 = TONES[tone]
+			-- Orange text says "careful" or "that failed" (the audit's lossText rule).
+			self.status:SetAttribute("Warn", tone == "warn" or tone == "bad")
 		end,
 		setOpponent = function(self: ActionBar, text: string?)
 			self.opponent.Text = text or ""

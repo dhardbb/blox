@@ -297,7 +297,7 @@ describe("UI audit style rules", function()
 		local Kit = t.c.Kit
 		Kit.panel({ Size = UDim2.fromOffset(100, 100), Parent = t.root })
 		Kit.text("Amber", {
-			TextColor3 = Kit.color({ r = 232, g = 164, b = 40 }),
+			TextColor3 = Kit.color({ r = 240, g = 186, b = 36 }),
 			Size = UDim2.fromOffset(100, 22),
 			Parent = t.root,
 		})
