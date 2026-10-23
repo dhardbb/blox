@@ -17,9 +17,9 @@ export type Asset = {
 }
 
 local Assets: { [string]: Asset } = {
-	shadow = { id = "", kind = "slice" },
-	glow = { id = "", kind = "radial" },
-	dots = { id = "", kind = "tile" },
+	shadow = { id = "rbxassetid://81207934470509", kind = "slice" },
+	glow = { id = "rbxassetid://109577761634341", kind = "radial" },
+	dots = { id = "rbxassetid://77034414001634", kind = "tile" },
 }
 
 return table.freeze(Assets)
