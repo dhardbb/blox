@@ -23,11 +23,11 @@ local function playOut(seed: number): { string }
 end
 
 describe("Match", function()
-	it("walks Select, MapReveal, 8 draft rounds, 12 weeks with debates, election", function()
+	it("walks Select, MapReveal, 3 draft rounds, 12 weeks with debates, election", function()
 		local trail = playOut(11)
 		expect(trail[1]):toBe("Select:0:0")
 		expect(trail[2]):toBe("MapReveal:0:0")
-		for round = 0, 7 do
+		for round = 0, 2 do
 			expect(trail[3 + round]):toBe(`Draft:0:{round}`)
 		end
 		local weeks, debates = 0, {}
@@ -39,9 +39,9 @@ describe("Match", function()
 			end
 		end
 		expect(weeks):toBe(C.WEEKS)
-		expect(debates):toEqual({ "Debate:4:7", "Debate:9:7" })
-		expect(trail[#trail]):toBe("Election:13:7")
-		expect(#trail):toBe(2 + 8 + 12 + 2 + 1)
+		expect(debates):toEqual({ "Debate:4:2", "Debate:9:2" })
+		expect(trail[#trail]):toBe("Election:13:2")
+		expect(#trail):toBe(2 + 3 + 12 + 2 + 1)
 	end)
 
 	it("is deterministic: same seed and inputs give the same match", function()

@@ -15,13 +15,12 @@ describe("Config", function()
 		expect(C.BASE_SUPPORT * 2 + C.BASE_UNDECIDED):toBe(100)
 	end)
 
-	it("draft priority covers every round and is balanced", function()
-		expect(#C.DRAFT_PRIORITY):toBe(1 + C.STRONGHOLD_ROUNDS + C.NOMINATION_ROUNDS)
-		local count = { 0, 0 }
-		for _, slot in C.DRAFT_PRIORITY do
-			count[slot] += 1
+	it("draft priority covers every round; A has the home, B the nominations (D-044)", function()
+		expect(#C.DRAFT_PRIORITY):toBe(1 + C.NOMINATION_ROUNDS)
+		expect(C.DRAFT_PRIORITY[1]):toBe(1)
+		for round = 2, #C.DRAFT_PRIORITY do
+			expect(C.DRAFT_PRIORITY[round]):toBe(2)
 		end
-		expect(count[1]):toBe(count[2])
 	end)
 
 	it("debates fall inside the campaign", function()
@@ -139,7 +138,7 @@ describe("Config", function()
 			+ #C.DEBATE_WEEKS * C.TIMER_DEBATE
 			+ C.TIMER_ELECTION
 			+ C.TRANSITION_ALLOWANCE
-		expect(worst):toBe(1042)
+		expect(worst):toBe(932) -- 1042 before D-044 (eight draft rounds)
 		expect(worst):toBeLessThan(17.5 * 60 + 1)
 	end)
 

@@ -1,5 +1,6 @@
 --!strict
--- The match state machine: Select -> MapReveal -> Draft (rounds) -> Plan (week n)
+-- The match state machine: Select -> MapReveal (strongholds assigned) -> Draft
+-- (home, then nominations) -> Plan (week n)
 -- [-> Debate] -> ... -> Election -> Done.
 --
 -- Pure: Match.new(config, seed, playerIds) builds a match; Match.advance(config,
@@ -280,6 +281,9 @@ function Match.advance(
 
 	if phase == "Select" then
 		events = resolveSelect(config, match, collect(config, match, given))
+		-- Strongholds come from the leans, which are shown from the map reveal on
+		-- (D-044): both players see them before the home round.
+		Draft.assignStrongholds(config, match)
 		match.phase = "MapReveal"
 	elseif phase == "MapReveal" then
 		match.phase = "Draft"

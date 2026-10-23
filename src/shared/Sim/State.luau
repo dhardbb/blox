@@ -36,7 +36,7 @@ export type StateSim = {
 	capacity: number, -- fundraising pool capacity
 	pool: number, -- money left in the pool (hidden: it reveals yields)
 	battleground: boolean,
-	owner: number?, -- player who drafted it as home or stronghold
+	owner: number?, -- player whose home or stronghold it is (strongholds are assigned from the leans, D-044)
 	isHome: boolean,
 	momentum: { number }, -- by player (public)
 	backlash: { number }, -- attack backlash meter by player
@@ -98,7 +98,7 @@ export type DraftPick = {
 	round: number, -- 0-based
 	player: number,
 	state: string,
-	kind: "Home" | "Stronghold" | "Nominate",
+	kind: "Home" | "Nominate",
 }
 
 export type DebateResult = {

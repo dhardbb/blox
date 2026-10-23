@@ -131,7 +131,7 @@ function Format.event(event: View.EventView): string
 	return `{event.name} ({rule}). {event.text}`
 end
 
-local PICK_NOUN: { [string]: string } = { Home = "home", Stronghold = "stronghold" }
+local PICK_NOUN: { [string]: string } = { Home = "home" }
 
 -- "P1 (you)" or "P2".
 local function seatName(p: number?, you: number): string

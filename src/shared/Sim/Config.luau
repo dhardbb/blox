@@ -36,16 +36,16 @@ local Config = {
 	LEAN_BIG_STATE_CAP = 3, -- largest lean for a big state
 	LEAN_MAX_EV_IMBALANCE = 15, -- reroll if |sum of EV x lean| exceeds this
 
-	-- Draft (D-007, D-009)
+	-- Draft (D-007, D-009, D-044)
 	BIG_STATE_EV = 20, -- states at or above this EV get reduced draft bonuses and leans
 	HOME_BONUS = 12, -- support added in the home state
 	HOME_BONUS_BIG = 6, -- home bonus in a big state
 	HOME_FUNDRAISE_MULT = 1.25, -- fundraiser yield multiplier at home, all game (1.5 -> 1.25 in D-034: home funding was the whole economy)
 	STRONGHOLD_BONUS = 8, -- support added in a stronghold
 	STRONGHOLD_BONUS_BIG = 4, -- stronghold bonus in a big state
-	STRONGHOLD_ROUNDS = 5, -- draft rounds 1-5 pick strongholds
-	NOMINATION_ROUNDS = 2, -- draft rounds 6-7 nominate battlegrounds
-	DRAFT_PRIORITY = { 1, 2, 2, 1, 2, 1, 1, 2 }, -- clash priority by round (player slot), Thue-Morse
+	STRONGHOLD_COUNT = 5, -- strongholds each player is given at the map reveal: their strongest-leaning states (D-044; was 5 drafted rounds)
+	NOMINATION_ROUNDS = 2, -- draft rounds 1-2 nominate battlegrounds (round 0 is the home state)
+	DRAFT_PRIORITY = { 1, 2, 2 }, -- clash priority by round (player slot): A for the home, B for both nominations (Thue-Morse prefix)
 	BATTLEGROUND_MULT = 1.5, -- multiplier on every campaign effect in a battleground
 
 	-- Actions

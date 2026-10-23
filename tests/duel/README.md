@@ -11,7 +11,7 @@ tests/duel/wait.sh ../duel/m1 1        # player 1: block until there is a new sc
 tests/duel/send.sh ../duel/m1 1 'select okafor crimson jobs health schools'
 ```
 
-Each player loops `wait.sh` → think → `send.sh` until `wait.sh` prints `MATCH OVER`. The simulated clock stops whenever a player must act, so agents have unlimited real time. Reveals, debates and election night run by themselves.
+The draft is three blind rounds (home state, then two battleground nominations); each player's five strongholds are assigned from the map's leans before it and listed on the draft screen. Each player loops `wait.sh` → think → `send.sh` until `wait.sh` prints `MATCH OVER`. The simulated clock stops whenever a player must act, so agents have unlimited real time. Reveals, debates and election night run by themselves.
 
 Options: `--seed N` (map and deck), `--timeout S` (real seconds a screen may wait for a command before the harness plays the default for that player; default 600), `--attempts K` (rejected command files per turn before it does the same; default 5), `--screen WxH` (the simulated screen size). Fallbacks are listed under HARNESS NOTES in `result.txt`.
 

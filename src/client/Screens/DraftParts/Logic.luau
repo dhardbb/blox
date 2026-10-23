@@ -20,8 +20,9 @@ export type Pick = { player: number, state: string, kind: Draft.Kind }
 local Logic = {}
 
 -- Legality as the View shows it (mirrors Draft.isLegal, which needs the full match):
--- homes and strongholds need an undrafted state, nominations any state that is not
--- a home or already a battleground. Neither may take a battleground.
+-- a home needs a state nobody owns (strongholds are assigned before the draft,
+-- D-044), nominations any state that is not a home or already a battleground.
+-- Neither may take a battleground.
 function Logic.legal(kind: Draft.Kind, sv: View.StateView): boolean
 	if kind == "Nominate" then
 		return not sv.isHome and not sv.battleground
@@ -42,31 +43,46 @@ function Logic.reason(kind: Draft.Kind, sv: View.StateView): string
 		return `{sv.id}: already a battleground`
 	elseif kind == "Nominate" and sv.isHome then
 		return `{sv.id}: a home state, can't nominate`
+	elseif not sv.isHome and sv.owner ~= nil then
+		return `{sv.id}: a stronghold, can't be a home`
 	end
 	return `{sv.id}: already drafted`
 end
 
--- The round's kind for the header: "Home state", "Stronghold", "Nominate".
+-- The round's kind for the header: "Home state", "Nominate".
 function Logic.title(kind: Draft.Kind): string
 	if kind == "Home" then
 		return "Home state"
-	elseif kind == "Stronghold" then
-		return "Stronghold"
 	end
 	return "Nominate"
 end
 
--- How the draft works, for the map reveal (three short lines).
-function Logic.howItWorks(rounds: number): string
-	return `{rounds} blind rounds: you both pick at the same time.\nEach round, a 1st choice and an optional backup.\nIf you both want the same state, priority decides.`
+-- How the draft works, for the map reveal (three short lines, D-044).
+function Logic.howItWorks(config: Config): string
+	return `Strongholds come from the map: you each get your {config.STRONGHOLD_COUNT} strongest-leaning states (ringed).\nThen {Draft.rounds(
+		config
+	)} blind rounds: your home state, then {config.NOMINATION_ROUNDS} battlegrounds.\nEach round, a 1st choice and an optional backup. If you both want the same state, priority decides.`
 end
 
--- "home state", "stronghold", "battleground": what a pick of this kind makes the state.
+-- "Your strongholds: MI NC VA NJ KY · theirs: GA OH WI MN IA", or nil before
+-- they are assigned.
+function Logic.strongholdsLine(view: View.View, you: number): string?
+	local mine = view.players[you].strongholds
+	local them = view.players[Logic.opponent(view)]
+	local theirs = if them then them.strongholds else {}
+	if #mine == 0 and #theirs == 0 then
+		return nil
+	end
+	local function list(ids: { string }): string
+		return if #ids > 0 then table.concat(ids, " ") else "none"
+	end
+	return `Your strongholds: {list(mine)} · theirs: {list(theirs)}`
+end
+
+-- "home state", "battleground": what a pick of this kind makes the state.
 function Logic.noun(kind: Draft.Kind): string
 	if kind == "Home" then
 		return "home state"
-	elseif kind == "Stronghold" then
-		return "stronghold"
 	end
 	return "battleground"
 end
@@ -76,8 +92,6 @@ function Logic.help(config: Config, kind: Draft.Kind): string
 	local big = config.BIG_STATE_EV
 	if kind == "Home" then
 		return `Home state: +{config.HOME_BONUS} support there (+{config.HOME_BONUS_BIG} in states with {big}+ EV), and your fundraisers there raise ×{config.HOME_FUNDRAISE_MULT} all game.`
-	elseif kind == "Stronghold" then
-		return `Stronghold: +{config.STRONGHOLD_BONUS} support there (+{config.STRONGHOLD_BONUS_BIG} in states with {big}+ EV).`
 	end
 	return `Battleground: the state loses all draft bonuses, and every campaign effect there is ×{config.BATTLEGROUND_MULT}. A home state can't be nominated.`
 end
@@ -192,10 +206,7 @@ function Logic.picks(events: { State.Event }): { Pick }
 	for _, event in events do
 		local player, id, issue = event.player, event.state, event.issue
 		if event.kind == "Pick" and player ~= nil and id ~= nil and issue ~= nil then
-			local kind: Draft.Kind = if issue == "Home"
-				then "Home"
-				elseif issue == "Stronghold" then "Stronghold"
-				else "Nominate"
+			local kind: Draft.Kind = if issue == "Home" then "Home" else "Nominate"
 			table.insert(out, { player = player, state = id, kind = kind })
 		end
 	end

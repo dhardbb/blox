@@ -715,23 +715,33 @@ describe("Events: Choice stances (D-039)", function()
 		expect(recount.ev[1] + recount.ev[2]):toBe(0) -- every state was 35/35 before
 	end)
 
-	it("the same event moves the same states the same way in every match (given the platform)", function()
-		local a = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Plan", 5)
-		local b =
-			Fixtures.advanceTo(Fixtures.campaign({ seed = 9, candidates = { "reyes", "hale" } }), "Plan", 7)
-		for p = 1, 2 do
-			b.players[p].platform = table.clone(a.players[p].platform)
+	it(
+		"the same event moves the same states the same way in every match (given platform and base)",
+		function()
+			local a = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Plan", 5)
+			local b = Fixtures.advanceTo(
+				Fixtures.campaign({ seed = 9, candidates = { "reyes", "hale" } }),
+				"Plan",
+				7
+			)
+			for p = 1, 2 do
+				b.players[p].platform = table.clone(a.players[p].platform)
+				-- The base (home and strongholds) weights a stance (D-043); strongholds
+				-- come from each match's leans (D-044), so give b the same base.
+				b.players[p].home = a.players[p].home
+				b.players[p].strongholds = table.clone(a.players[p].strongholds)
+			end
+			a.eventDeck[5], b.eventDeck[7] = "water", "water"
+			local ra = resolve(a, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } })
+			local rb = resolve(b, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } })
+			local ma = ra.eventLog[#ra.eventLog].moves :: { State.StateMove }
+			local mb = rb.eventLog[#rb.eventLog].moves :: { State.StateMove }
+			expect(ma):toEqual(mb)
+			expect(ma):toEqual(
+				resolve(a, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } }).eventLog[#ra.eventLog].moves
+			)
 		end
-		a.eventDeck[5], b.eventDeck[7] = "water", "water"
-		local ra = resolve(a, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } })
-		local rb = resolve(b, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } })
-		local ma = ra.eventLog[#ra.eventLog].moves :: { State.StateMove }
-		local mb = rb.eventLog[#rb.eventLog].moves :: { State.StateMove }
-		expect(ma):toEqual(mb)
-		expect(ma):toEqual(
-			resolve(a, { { actions = {}, choice = "A" }, { actions = {}, choice = "C" } }).eventLog[#ra.eventLog].moves
-		)
-	end)
+	)
 
 	it("swapping seats mirrors the outcome exactly", function()
 		local match = clean("river") -- a symmetric board

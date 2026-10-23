@@ -229,9 +229,15 @@ describe("Stances: the debate reveal", function()
 				end
 			end
 			if entry.winner ~= 0 then
+				-- The badge is the net over all topics; a state where two topics'
+				-- points cancel has none, so check the first state that kept some.
 				local net = Swing.debateNet(C, view, result, #result.topics)
-				local first = entry.states[1]
-				expect(badgeOf(peer, first)):toBe(Numbers.signed(net[first]))
+				for _, id in entry.states do
+					if net[id] ~= nil then
+						expect(badgeOf(peer, id)):toBe(Numbers.signed(net[id]))
+						break
+					end
+				end
 			end
 		end
 		check(flips > 0, "the fixture debate flips no state (pick another seed)")
