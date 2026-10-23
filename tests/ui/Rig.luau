@@ -40,9 +40,18 @@ local function newWorld(seed: number, screen: { x: number, y: number }?): FakeRo
 	return FakeRoblox.world({ root = process.cwd, seed = seed, screen = screen })
 end
 
+export type FixtureOptions = {
+	reducedMotion: boolean?, -- the player's Reduce Motion setting is on from the start
+}
+
 -- A client showing fixture `moment` offline (DEBUG_UI mode).
-local function fixture(moment: string, screen: { x: number, y: number }?): (FakeRoblox.World, FakeRoblox.Peer)
+local function fixture(
+	moment: string,
+	screen: { x: number, y: number }?,
+	options: FixtureOptions?
+): (FakeRoblox.World, FakeRoblox.Peer)
 	local world = newWorld(3, screen)
+	world.reducedMotion = options ~= nil and options.reducedMotion == true
 	local peer = FakeRoblox.join(world, "P", { DebugScreen = moment })
 	FakeRoblox.run(world, 1.5)
 	return world, peer
@@ -103,6 +112,19 @@ local function shown(inst: any, screen: string): boolean
 		node = node.Parent
 	end
 	return node ~= nil
+end
+
+-- The cue names this client's Sounds played (UI/Audio names each Sound after
+-- its cue; a fallback plays under the stand-in cue's name), oldest first.
+local function sounds(peer: FakeRoblox.Peer): { string }
+	local world: FakeRoblox.World = rawget(peer.game, "_world")
+	local names = {}
+	for _, entry in world.sounds do
+		if entry.peer == peer.name then
+			table.insert(names, entry.name)
+		end
+	end
+	return names
 end
 
 local function enabled(peer: FakeRoblox.Peer, screen: string, name: string): boolean
@@ -294,6 +316,7 @@ return {
 	tap = tap,
 	shown = shown,
 	enabled = enabled,
+	sounds = sounds,
 	storeOf = storeOf,
 	netOf = netOf,
 	payloadOf = payloadOf,

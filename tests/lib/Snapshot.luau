@@ -14,8 +14,8 @@
 -- Drawn: BackgroundColor3/Transparency, UICorner, UIStroke (border, or text
 -- outline when Contextual on a text), text with color, size, font weight,
 -- X/Y alignment, wrapping, TextScaled (UITextSizeConstraint), TextTruncate,
--- TextStroke; images as labeled boxes. Text widths are estimated (Gotham is
--- drawn as Helvetica), so line breaks are close to Studio, not exact.
+-- TextStroke; images as labeled boxes. Text widths are estimated (Builder Sans,
+-- Gotham and Fredoka One are drawn as Helvetica), so line breaks are close to Studio, not exact.
 --
 -- Snapshot.svg(peer, options?) -> string
 --   options.topInset  px the Roblox top bar takes from ScreenGuis that respect
@@ -132,7 +132,10 @@ end
 
 local function fontOf(p: { [string]: any }): (boolean, boolean, string)
 	local font = enum(p.Font, "Legacy")
-	local bold = string.find(font, "Bold") ~= nil or string.find(font, "Black") ~= nil
+	-- Fredoka One (Kit.font.display) has one heavy weight: draw it bold.
+	local bold = string.find(font, "Bold") ~= nil
+		or string.find(font, "Black") ~= nil
+		or string.find(font, "Fredoka") ~= nil
 	local medium = string.find(font, "Medium") ~= nil or string.find(font, "Semi") ~= nil
 	local mono = font == "Code" or font == "RobotoMono"
 	local weight = if bold then "700" elseif medium then "500" else "400"

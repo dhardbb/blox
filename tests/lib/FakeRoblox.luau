@@ -16,6 +16,16 @@
 -- game:BindToClose (FakeRoblox.shutdown runs the handlers), and os.time on the
 -- simulated clock.
 --
+-- Presentation stubs (client polish, docs/DESIGN.md D-053): TweenService
+-- (Create returns a tween whose Play applies the goals at once and fires
+-- Completed on the next step; Cancel fires it as Cancelled), TweenInfo,
+-- ColorSequence and NumberSequence values, GuiService (ReducedMotionEnabled reads
+-- world.reducedMotion, PreferredTransparency 1; FakeRoblox.setReducedMotion fires
+-- its property signal), SoundService (an ordinary instance; a Sound starts
+-- IsLoaded = true and every Sound:Play() is logged in world.sounds) and
+-- ContentProvider (PreloadAsync reports each asset Success, or Failure when its
+-- id is in world.brokenAssets). Specs assert end states, never timings.
+--
 -- What it does not fake: rendering, physics, real replication of anything but
 -- remotes, or Studio. Real-engine checks still need Studio
 -- (docs/TESTING.md). Used by tests/e2e and tests/play.luau.
@@ -72,6 +82,19 @@ export type World = {
 	closeHandlers: { () -> () }, -- game:BindToClose callbacks
 	studio: boolean, -- what RunService:IsStudio() answers (default true)
 	clientFolder: any, -- this world's StarterPlayerScripts tree (src/client)
+	reducedMotion: boolean, -- what GuiService.ReducedMotionEnabled answers (default false)
+	sounds: { SoundPlay }, -- every Sound:Play() on any client, in order
+	brokenAssets: { [string]: boolean }, -- content ids PreloadAsync reports as Failure
+}
+
+-- One Sound:Play() in the fake engine (world.sounds).
+export type SoundPlay = {
+	peer: string, -- the client's name
+	name: string, -- the Sound's Name (UI/Audio names each Sound after its cue)
+	id: string, -- its SoundId
+	speed: number, -- PlaybackSpeed
+	volume: number, -- Volume
+	at: number, -- world.clock
 }
 
 -- ---------------------------------------------------------------- data types
@@ -118,6 +141,44 @@ local Color3 = {
 	end,
 	new = function(r: number?, g: number?, b: number?): any
 		return readonly("Color3", { R = r or 0, G = g or 0, B = b or 0 }, "color")
+	end,
+}
+
+local function tweenInfo(
+	time: number?,
+	style: any?,
+	direction: any?,
+	repeatCount: number?,
+	reverses: boolean?,
+	delayTime: number?
+): any
+	return readonly("TweenInfo", {
+		Time = time or 1,
+		EasingStyle = style,
+		EasingDirection = direction,
+		RepeatCount = repeatCount or 0,
+		Reverses = reverses or false,
+		DelayTime = delayTime or 0,
+	}, "TweenInfo")
+end
+
+-- ColorSequence.new(c) / (c0, c1) and NumberSequence.new(n) / (n0, n1): two keypoints.
+local ColorSequence = {
+	new = function(a: any, b: any?): any
+		return readonly(
+			"ColorSequence",
+			{ Keypoints = { { Time = 0, Value = a }, { Time = 1, Value = b or a } } },
+			"ColorSequence"
+		)
+	end,
+}
+local NumberSequence = {
+	new = function(a: number, b: number?): any
+		return readonly(
+			"NumberSequence",
+			{ Keypoints = { { Time = 0, Value = a }, { Time = 1, Value = b or a } } },
+			"NumberSequence"
+		)
 	end,
 }
 
@@ -380,11 +441,14 @@ local EVENTS = {
 	PlayerRemoving = true,
 	InputBegan = true,
 	InputEnded = true,
+	MouseLeave = true,
+	Ended = true,
 }
 
 local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
 
 local newInstance: (world: World, className: string, name: string?) -> any
+local addPresentationServices: (world: World, peer: Peer) -> ()
 
 -- Rough layout: size from UDim2 against the parent's size, clamped by a child
 -- UISizeConstraint (padding and list layouts ignored), enough for the UI audit's
@@ -606,6 +670,30 @@ function methods.GetPlayerByUserId(self: any, userId: number): any
 	return nil
 end
 
+-- Sound: Play logs to world.sounds and sets Playing; Stop clears it.
+function methods.Play(self: any)
+	local world: World = rawget(self, "_world")
+	local props = rawget(self, "_props")
+	props.Playing = true
+	props.IsPlaying = true
+	local peer = world.current
+	table.insert(world.sounds, {
+		peer = if peer then peer.name else "?",
+		name = tostring(props.Name),
+		id = tostring(props.SoundId or ""),
+		speed = props.PlaybackSpeed or 1,
+		volume = props.Volume or 0.5,
+		at = world.clock,
+	})
+end
+
+function methods.Stop(self: any)
+	local props = rawget(self, "_props")
+	props.Playing = false
+	props.IsPlaying = false
+	props.TimePosition = 0
+end
+
 function methods.GetServerTimeNow(self: any): number
 	return (rawget(self, "_world") :: World).clock
 end
@@ -740,6 +828,14 @@ newInstance = function(world: World, className: string, name: string?): any
 	if GUI_OBJECTS[className] then
 		rawget(inst, "_props").BackgroundTransparency = 0
 	end
+	if className == "Sound" then
+		local props = rawget(inst, "_props")
+		props.IsLoaded = true
+		props.Playing = false
+		props.Volume = 0.5
+		props.PlaybackSpeed = 1
+		props.TimeLength = 0.5
+	end
 	if className == "UITextSizeConstraint" then
 		rawget(inst, "_props").MinTextSize = 1
 		rawget(inst, "_props").MaxTextSize = 100
@@ -779,6 +875,9 @@ local function stdEnv(world: World, peer: Peer, path: string, inst: any): { [str
 		UDim = { new = udim },
 		UDim2 = UDim2,
 		Vector2 = { new = vector2 },
+		TweenInfo = { new = tweenInfo },
+		ColorSequence = ColorSequence,
+		NumberSequence = NumberSequence,
 		Instance = {
 			new = function(className: string, parent: any?)
 				local created = newInstance(world, className)
@@ -937,6 +1036,95 @@ local function newGame(world: World, isServer: boolean): any
 	return game
 end
 
+-- A stub Tween: Play applies the goals at once and fires Completed (Completed)
+-- on the next step; Cancel before that fires it as Cancelled instead.
+local function newTween(world: World, peer: Peer, inst: any, info: any, goals: { [string]: any }): any
+	local completed = newSignal(world)
+	local tween = {
+		Instance = inst,
+		TweenInfo = info,
+		PlaybackState = Enum.PlaybackState.Begin,
+		Completed = completed,
+	}
+	local token = 0
+	local function finish(state: string)
+		token += 1
+		local mine = token
+		tween.PlaybackState = (Enum.PlaybackState :: any)[state]
+		local co = coroutine.create(function()
+			if mine == token then
+				completed.fire((Enum.PlaybackState :: any)[state])
+			end
+		end)
+		schedule(world, world.clock, co, peer, {})
+	end
+	function tween.Play(_self: any)
+		for key, value in goals do
+			inst[key] = value
+		end
+		finish("Completed")
+	end
+	function tween.Cancel(_self: any)
+		finish("Cancelled")
+	end
+	function tween.Pause(_self: any)
+		token += 1
+		tween.PlaybackState = Enum.PlaybackState.Paused
+	end
+	return tween
+end
+
+-- TweenService, GuiService, SoundService and ContentProvider for one peer.
+addPresentationServices = function(world: World, peer: Peer)
+	local game = peer.game
+	local services = rawget(game, "_services")
+	services.TweenService = {
+		Create = function(_self: any, inst: any, info: any, goals: { [string]: any }): any
+			return newTween(world, peer, inst, info, goals)
+		end,
+	}
+	local reducedSignal = newSignal(world)
+	rawset(peer :: any, "_reducedSignal", reducedSignal)
+	services.GuiService = setmetatable({
+		GetPropertyChangedSignal = function(_self: any, name: string): any
+			return if name == "ReducedMotionEnabled" then reducedSignal else newSignal(world)
+		end,
+	}, {
+		__index = function(_, key: string): any
+			if key == "ReducedMotionEnabled" then
+				return world.reducedMotion
+			elseif key == "PreferredTransparency" then
+				return 1
+			end
+			return nil
+		end,
+	})
+	local soundService = newInstance(world, "SoundService", "SoundService")
+	soundService.Parent = game
+	services.SoundService = soundService
+	services.ContentProvider = {
+		PreloadAsync = function(_self: any, list: { any }, callback: ((string, any) -> ())?)
+			for _, inst in list do
+				local ids = {}
+				for _, node in { inst, table.unpack(inst:GetDescendants()) } do
+					local id = rawget(node, "_props").SoundId
+					if type(id) == "string" and id ~= "" then
+						table.insert(ids, id)
+					end
+				end
+				for _, id in ids do
+					if callback then
+						local status = if world.brokenAssets[id]
+							then Enum.AssetFetchStatus.Failure
+							else Enum.AssetFetchStatus.Success
+						callback(id, status)
+					end
+				end
+			end
+		end,
+	}
+end
+
 local function newPeer(world: World, name: string, isServer: boolean): Peer
 	local game = newGame(world, isServer)
 	local runService = game:GetService("RunService")
@@ -956,6 +1144,7 @@ local function newPeer(world: World, name: string, isServer: boolean): Peer
 	signals.RenderStepped = newSignal(world)
 	peer.heartbeat = signals.Heartbeat
 	peer.runStepped = signals.RenderStepped
+	addPresentationServices(world, peer)
 	return peer
 end
 
@@ -989,6 +1178,9 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		closeHandlers = {},
 		studio = true,
 		clientFolder = nil,
+		reducedMotion = false,
+		sounds = {},
+		brokenAssets = {},
 	} :: World
 	world.shared = newInstance(world, "ReplicatedStorage", "ReplicatedStorage")
 	local sharedFolder = newInstance(world, "Folder", "Shared")
@@ -1143,6 +1335,20 @@ function FakeRoblox.step(world: World, dt: number)
 	end
 	world.current = nil
 	deliver(world)
+end
+
+-- Turns the player's Reduce Motion setting on or off for every client, firing
+-- GuiService's ReducedMotionEnabled property signal as Roblox does.
+function FakeRoblox.setReducedMotion(world: World, on: boolean)
+	world.reducedMotion = on
+	for _, client in world.clients do
+		local signal = rawget(client :: any, "_reducedSignal")
+		if signal then
+			world.current = client
+			signal.fire()
+			world.current = nil
+		end
+	end
 end
 
 -- Runs the world for `seconds` of simulated time.
