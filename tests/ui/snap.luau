@@ -145,6 +145,15 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		name = "02b-lobby-friend",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "PlayFriend")
+		end,
+	},
+	{ name = "03a-select-start", moment = "Select", screen = "Select" },
+	{
 		name = "03-select-candidate",
 		moment = "Select",
 		screen = "Select",

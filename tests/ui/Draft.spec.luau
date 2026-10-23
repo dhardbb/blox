@@ -187,15 +187,24 @@ describe("Draft screen: fixtures", function()
 
 	it("shows the map heading and no pickers during the map reveal", function()
 		local _world, peer = mount("MapReveal")
-		expect(titleOf(peer)):toBe("The map for this match")
+		expect(titleOf(peer)):toBe("The map")
+		expect(textOf(peer, "NowText")):toBe("Your color shows states that lean to you")
 		expect(need(peer, "Slots").Visible):toBe(false)
 		expect(need(peer, "ActionBar").Visible):toBe(false)
-		check(contains(textOf(peer, "Priority"), "priority"), textOf(peer, "Priority"))
+		check(contains(textOf(peer, "Priority"), "Round 1: ties go to"), textOf(peer, "Priority"))
 		-- Strongholds are assigned before the draft and shown for both players (D-045).
-		local line = need(peer, "Strongholds")
-		expect(line.Visible):toBe(true)
-		check(contains(tostring(line.Text), "Your strongholds: "), tostring(line.Text))
-		check(contains(tostring(line.Text), "theirs: "), tostring(line.Text))
+		local payload = Fixtures.payload(Config.defaults, "MapReveal")
+		local card = need(peer, "StrongholdsCard")
+		expect(card.Visible):toBe(true)
+		for name, p in { StrongholdsYou = payload.you, StrongholdsThem = 3 - payload.you } do
+			local list = tostring(need(peer, name):FindFirstChild("List").Text)
+			expect(list):toBe(table.concat(payload.view.players[p].strongholds, " "))
+		end
+		expect(tostring(need(peer, "StrongholdsYou"):FindFirstChild("Who").Text)):toBe("You")
+		check(
+			contains(textOf(peer, "SheetStrongholds"), "Your strongholds: "),
+			textOf(peer, "SheetStrongholds")
+		)
 		check(contains(textOf(peer, "HowItWorks"), "strongest-leaning"), textOf(peer, "HowItWorks"))
 		check(contains(textOf(peer, "HowItWorks"), "3 blind rounds"), textOf(peer, "HowItWorks"))
 	end)
@@ -203,12 +212,15 @@ describe("Draft screen: fixtures", function()
 	it("describes the round and who has priority", function()
 		local _world, peer = mount("Draft")
 		local header = titleOf(peer)
-		check(contains(header, "Round 2 of 3"), header)
-		check(contains(header, "Nominate"), header)
-		check(contains(textOf(peer, "Explain"), "×1.5"), textOf(peer, "Explain"))
-		expect(need(peer, "Strongholds").Visible):toBe(true)
+		expect(header):toBe("Round 2 of 3")
+		expect(textOf(peer, "Explain")):toBe("Battleground")
+		expect(textOf(peer, "RoundPill")):toBe("Battleground")
+		expect(textOf(peer, "NowText")):toBe("Pick a battleground")
+		-- The battleground rule is one tap away, in plain words (+50%, not ×1.5).
+		check(contains(textOf(peer, "RuleNominate"), "+50% more"), textOf(peer, "RuleNominate"))
+		expect(need(peer, "StrongholdsCard").Visible):toBe(false)
 		local priority = textOf(peer, "Priority")
-		check(contains(priority, "have priority"), priority)
+		check(contains(priority, "Ties go to"), priority)
 		expect(need(peer, "ActionBar").Visible):toBe(true)
 	end)
 
@@ -348,8 +360,9 @@ describe("Draft screen: locking in", function()
 		tap(world, peer, "LockIn")
 		check(logged(peer, "[270] DEBUG_UI submit"), "no submit line: " .. table.concat(peer.log, " | "))
 		expect(textOf(peer, "LockIn")):toBe("Locked in")
-		expect(textOf(peer, "BarStatus")):toBe("Locked in · waiting for opponent")
-		check(contains(textOf(peer, "BarOpponent"), "Opponent"), textOf(peer, "BarOpponent"))
+		expect(textOf(peer, "BarStatus")):toBe("Locked in")
+		check(contains(textOf(peer, "NowText"), "Waiting for "), textOf(peer, "NowText"))
+		check(contains(textOf(peer, "BarOpponent"), ": "), textOf(peer, "BarOpponent"))
 		-- Locked means locked: more taps change nothing and nothing is sent twice.
 		local sent = 0
 		for _, line in peer.log do
@@ -393,7 +406,8 @@ describe("Draft screen: reveal and rounds", function()
 		expect(need(peer, "ActionBar").Visible):toBe(false)
 		expect(need(peer, "Slots").Visible):toBe(false)
 		expect(tostring(need(peer, "YouPick"):FindFirstChild("Title").Text)):toBe(`You got {a}`)
-		expect(tostring(need(peer, "ThemPick"):FindFirstChild("Title").Text)):toBe(`They got {b}`)
+		local them = tostring(need(peer, "ThemPick"):FindFirstChild("Title").Text)
+		check(contains(them, ` got {b}`) and not contains(them, "They"), them)
 		-- The new owners show in the draft board.
 		check(contains(textOf(peer, "Detail"), a) or contains(textOf(peer, "Detail"), b), "board not updated")
 	end)
@@ -460,7 +474,7 @@ describe("Draft screen: reveal and rounds", function()
 		push(world, peer, last)
 		noErrors(world)
 		expect(titleOf(peer)):toBe("Round 3 of 3 · picks revealed")
-		check(contains(textOf(peer, "Explain"), "campaign"), textOf(peer, "Explain"))
+		check(contains(textOf(peer, "NowText"), "campaign"), textOf(peer, "NowText"))
 	end)
 end)
 
@@ -723,7 +737,7 @@ describe("Draft screen: UI overhaul (WP4)", function()
 
 	for _, phone in { false, true } do
 		it(
-			`fills the map reveal panel with the legend and how the draft works ({if phone
+			`shows the map reveal's legend and puts how the draft works in a sheet ({if phone
 				then "phone"
 				else "16:9"})`,
 			function()
@@ -731,11 +745,21 @@ describe("Draft screen: UI overhaul (WP4)", function()
 				local screen = FakeRoblox.find(peer, "Draft")
 				expect(screen:GetAttribute("PrimaryOptional")):toBe(true)
 				expect(need(peer, "ActionBar").Visible):toBe(false)
-				expect(panelChild(need(peer, "Legend")).Name):toBe("Legend")
+				if phone then
+					expect(panelChild(need(peer, "Legend")).Name):toBe("Legend")
+				else
+					-- Wide: the two keys sit beside the lens chips, over the map.
+					expect(need(peer, "LegendRow").Parent.Name):toBe("LegendSlot")
+				end
 				check(need(peer, "Legend").Visible ~= false, "the legend is hidden")
-				check(contains(textOf(peer, "Priority"), "priority in round 1"), textOf(peer, "Priority"))
-				local how = need(peer, "HowItWorks")
-				check(how.Visible ~= false and contains(tostring(how.Text), "priority"), tostring(how.Text))
+				check(contains(textOf(peer, "Priority"), "Round 1: ties go to"), textOf(peer, "Priority"))
+				-- How the draft works: one tap, a sheet.
+				expect(need(peer, "DraftSheet").Visible):toBe(false)
+				tap(world, peer, "HowButton")
+				expect(need(peer, "DraftSheet").Visible):toBe(true)
+				check(contains(textOf(peer, "HowItWorks"), "priority"), textOf(peer, "HowItWorks"))
+				local problems = strictFindings(world, peer)
+				check(#problems == 0, "with the sheet open: " .. table.concat(problems, " | "))
 				noErrors(world)
 			end
 		)
@@ -751,5 +775,75 @@ describe("drawn colors (D-047, replaces the playtest-1 color clash)", function()
 			check(string.find(message.text, "coin flip", 1, true) == nil, message.text)
 		end
 		Rig.noErrors(world)
+	end)
+end)
+
+-- ------------------------------------------------------------------ style v2 (WP-A, docs/UI-STYLE.md §4.3)
+
+-- The visible Row_ buttons of the state list.
+local function shownRows(peer: FakeRoblox.Peer): { string }
+	local out = {}
+	for _, child in need(peer, "StateList"):GetChildren() do
+		if child.ClassName == "TextButton" and child.Visible ~= false then
+			table.insert(out, string.sub(child.Name, 5))
+		end
+	end
+	return out
+end
+
+describe("Draft screen: style v2", function()
+	it("lists the 8 best picks, keeps a far-down choice, and shows all on request", function()
+		local world, peer = mount("Draft", PHONE)
+		local payload = draftPayload()
+		local rows = shownRows(peer)
+		expect(#rows):toBe(8)
+		local Logic = FakeRoblox.require(world, peer, "src/client/Screens/DraftParts/Logic.luau")
+		for _, id in rows do
+			for _, sv in payload.view.states do
+				if sv.id == id then
+					check(Logic.legal("Nominate", sv), `{id} is listed but not pickable`)
+				end
+			end
+		end
+		-- A small state picked on the map stays in the short list.
+		local small = Rig.safeState(payload.view)
+		tap(world, peer, small)
+		check(table.find(shownRows(peer), small) ~= nil, `{small} is not listed after picking it`)
+		expect(textOf(peer, "ShowAll")):toBe("Show all states")
+		tap(world, peer, "ShowAll")
+		expect(#shownRows(peer)):toBe(51)
+		expect(textOf(peer, "ShowAll")):toBe("Show fewer states")
+		local problems = strictFindings(world, peer)
+		check(#problems == 0, table.concat(problems, " | "))
+		noErrors(world)
+	end)
+
+	it("words leans as pills with the opponent's name and votes as votes", function()
+		local _world, peer = mount("Draft")
+		local row = need(peer, "Row_CA")
+		expect(tostring(row:FindFirstChild("EV").Text)):toBe("54 votes")
+		local lean = tostring(row:FindFirstChild("Lean").Text)
+		check(lean == "Even" or contains(lean, "+"), lean)
+		check(not contains(lean, "them"), `the lean says "them": {lean}`)
+	end)
+
+	it("shows the draft coach tip once, and dismisses it on the first pick", function()
+		local world, peer = mount("Draft", PHONE)
+		local tip = need(peer, "CoachTip")
+		expect(tip:GetAttribute("TipId")):toBe("draft.pick")
+		local a = sampleStates(draftPayload())
+		tap(world, peer, `Row_{a}`)
+		expect(findIn(peer, "CoachTip")):toBe(nil)
+		noErrors(world)
+	end)
+
+	it("marks the legend dots as data colors (the style audit's tokenColor)", function()
+		local _world, peer = mount("Draft")
+		local legend = need(peer, "LegendRow")
+		for _, inst in legend:GetDescendants() do
+			if inst.Name == "Swatch" then
+				expect(inst:GetAttribute("DataColor")):toBe(true)
+			end
+		end
 	end)
 end)
