@@ -64,6 +64,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 			frontrunner = false,
 			debatePrep = nil,
 			internalPolls = {},
+			scouted = {},
 			raised = 0,
 			card = nil,
 		}

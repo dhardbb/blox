@@ -24,6 +24,15 @@ export type InternalPoll = {
 	support: { number }, -- true support, within INTERNAL_POLL_ERROR
 	undecided: number, -- exact
 	momentum: { number }, -- exact, every player
+	gotv: { number }, -- ground-game units by player, exact at the end of the polled week (D-044: polls reveal ground game)
+}
+
+-- The latest ground game a player's own internal polls saw in one state (D-044).
+-- Kept after the poll itself expires, so a reading from week 8 still shows in week 10.
+export type Scout = {
+	state: string,
+	week: number, -- the week whose end the poll measured
+	gotv: { number }, -- units by player at that time
 }
 
 export type StateSim = {
@@ -90,6 +99,7 @@ export type PlayerState = {
 	frontrunner: boolean, -- the candidate's frontrunner drawback is active
 	debatePrep: { number }?, -- prep for the next debate (hidden until it resolves)
 	internalPolls: { InternalPoll }, -- results from last week's plan (private)
+	scouted: { Scout }, -- latest ground game each own internal poll saw, one per state, StateData order (private)
 	raised: number, -- money raised by fundraisers last week (private)
 	card: WeekCard?, -- last week's public actions
 }

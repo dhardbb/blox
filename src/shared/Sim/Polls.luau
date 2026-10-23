@@ -216,7 +216,8 @@ function Polls.underdogMults(config: Config, match: MatchState, p: number): (num
 end
 
 -- A private internal poll of one state for player p: true support within
--- INTERNAL_POLL_ERROR (zero-sum offsets, one decimal), exact undecided and momentum.
+-- INTERNAL_POLL_ERROR (zero-sum offsets, one decimal), exact undecided and momentum,
+-- and every player's ground-game units there, exact (D-044).
 function Polls.internal(config: Config, rng: Rng.Rng, s: StateSim): State.InternalPoll
 	local n = #s.support
 	local offsets = table.create(n, 0)
@@ -235,6 +236,7 @@ function Polls.internal(config: Config, rng: Rng.Rng, s: StateSim): State.Intern
 		support = support,
 		undecided = math.floor(s.undecided * 10 + 0.5) / 10,
 		momentum = table.clone(s.momentum),
+		gotv = table.clone(s.gotv),
 	}
 end
 
