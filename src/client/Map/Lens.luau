@@ -7,7 +7,8 @@
 --   EV      electoral votes; "B" on a battleground
 --   Issues  the state's top issues as short codes; yours (your platform) filled
 --   Polls   the public-poll lead in the leader's color; "i+5" your internal poll
---           there; a momentum arrow; then Lens.pollDetails (your ground game "G2")
+--           there; a momentum arrow; then Lens.pollDetails (your ground game "G2",
+--           theirs where your polls saw it, "opp G3")
 --   Money   what one more fundraiser there would raise this week, from
 --           Explain.action (the state card's number); dim when your plan
 --           already empties the pool
@@ -89,7 +90,7 @@ function Lens.legend(config: ConfigModule.Config, id: Id): string
 	if id == "Issues" then
 		return "Top issues · filled = on your platform"
 	elseif id == "Polls" then
-		return "Poll lead · i = your internal poll · ▲ momentum · G = ground game"
+		return "Poll lead · i = your poll · ▲ momentum · G / opp G = ground game"
 	elseif id == "Money" then
 		return "One more fundraiser there this week · dim = pool used up"
 	end
@@ -195,9 +196,25 @@ local function groundGame(ctx: Context, s: StateView): Part?
 	return if units > 0 then { text = `G{units}`, color = colorOf(ctx.view, ctx.view.you) } else nil
 end
 
--- Extra pills for the Polls lens, in order. Add one to show more per state (for
--- example what a poll reveals about the opponent's ground game).
-Lens.pollDetails = { groundGame } :: { Detail }
+-- Their ground game here, as your latest internal poll of the state saw it
+-- (D-049): "opp G3" in their color. Nothing where you never polled or saw none.
+local function theirGroundGame(ctx: Context, s: StateView): Part?
+	local view = ctx.view
+	local scout = Explain.scoutOf(view, s.id)
+	if scout == nil then
+		return nil
+	end
+	for p in view.players do
+		local units = scout.gotv[p] or 0
+		if p ~= view.you and units > 0 then
+			return { text = `opp G{units}`, color = colorOf(view, p) }
+		end
+	end
+	return nil
+end
+
+-- Extra pills for the Polls lens, in order. Add one to show more per state.
+Lens.pollDetails = { groundGame, theirGroundGame } :: { Detail }
 
 local function pollsLine(ctx: Context, s: StateView): Line
 	local view = ctx.view

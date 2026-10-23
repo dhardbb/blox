@@ -281,7 +281,32 @@ describe("Swing: resolved Choice weeks and the result", function()
 		if toYou > 0 then
 			check(has(lines[1], `flipped to you (+{toYou} EV)`), lines[1])
 		end
-		check(has(lines[3], "Final gap: "), lines[3])
+		check(has(lines[#lines], "Final gap: "), lines[#lines])
+		-- The ground game your polls found sits between them, when there is any (D-049).
+		local scouting = Swing.scoutLine(view)
+		expect(#lines):toBe(if scouting then 4 else 3)
+		if scouting then
+			expect(lines[3]):toBe(scouting)
+		end
+	end)
+
+	it("credits the ground game your polls found on election night (D-049)", function()
+		local view = viewAt("Over")
+		local election = view.election :: any
+		local them = if view.you == 1 then 2 else 1
+		local result = election.results[1]
+		view.scouted = {
+			{ state = result.state, week = 9, gotv = if them == 2 then { 0, 3 } else { 3, 0 } },
+		}
+		local line = Swing.scoutLine(view) :: string
+		check(has(line, `Your polls found their ground game in {result.state} (3 units; you had `), line)
+		local verdict = if result.winner == view.you
+			then "won it"
+			elseif result.winner == 0 then "tied"
+			else "lost it"
+		check(has(line, verdict), line)
+		view.scouted = { { state = result.state, week = 9, gotv = { 0, 0 } } }
+		expect(Swing.scoutLine(view)):toBe(nil) -- a poll that saw none is not a credit
 	end)
 end)
 

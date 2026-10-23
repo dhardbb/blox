@@ -44,7 +44,7 @@ Studio's local 2-player test only works on one computer. To play from two places
 
 **What to send back:** who won and by how much, the moment that felt best and the one that felt worst, any stance you regretted (and why), and screenshots of anything that looked wrong. Note which device saw it (iPad touch vs Mac).
 
-## Drawn issues and colors, unique candidates (unreleased)
+## Drawn issues and colors, unique candidates (v0.8.0)
 
 Design log: `docs/DESIGN.md` D-047 and D-048. Use **Test → Clients and Servers → Local Server, 2 Players** for steps 3–5 (an iPad as the second player works too).
 
@@ -367,7 +367,7 @@ Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on
 
 **Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
 
-## Map lenses (unreleased)
+## Map lenses (v0.8.0)
 
 The map switch (`DESIGN.md` D-046). **Play vs Bot**; do it once in the Studio window (16:9) and once on the iPad (or **Test → Device → iPad**), portrait and landscape.
 
@@ -382,6 +382,25 @@ The map switch (`DESIGN.md` D-046). **Play vs Bot**; do it once in the Studio wi
 7. **iPad / phone.** The chips are easy to hit with a thumb, nothing overlaps the map, and the pills stay readable on the big states. In the crowded Northeast the pills may overlap their neighbors in the Issues and Polls lenses: say if that makes them unreadable.
 
 **Send back:** a screenshot of each lens on the campaign map (16:9 and iPad), whether the default map now feels calmer, which lens you used most, and the Output lines starting with `[270] UI audit`.
+
+## Polls reveal ground game (v0.8.0)
+
+`DESIGN.md` D-049. A paid internal poll now also shows the opponent's ground game in the polled states, and a ground-game unit costs $2.5 (was $2). Two-player test (**Test → Clients and Servers, 2 players**); do step 4 on the iPad or a phone too.
+
+1. **The poll says what it is for.** On client 1, tap a state, then hover or read the preview under **Poll** and **Region poll**.
+   - Poll: "next week you see their hidden ground game here (it counts only on election night) and true support within ±1; $1.0". Region poll: "their hidden ground game and true support in all N … states, next week; $3.0".
+   - The state card has a grey line "Their ground game here: hidden. A poll shows it before election night."
+2. **Their units show up where you poll.** On client 2, put **3** ground-game units in Ohio (the card says $2.5 each). On client 1, **Poll** Ohio. Both lock in.
+   - Next week on client 1, Ohio's card reads in red "Their ground game here: 3 units, -4.5 for you on election night (your poll, end of week N)." In the map's **Polls** lens, Ohio shows "opp G3" in their color (not on the default EV map, D-046). The week card's internal-poll line ends "OH … (their ground game 3)".
+   - Client 2 sees nothing about client 1's poll, and its own Ohio card still says their (client 1's) ground game is hidden.
+3. **The reading stays, and ages.** Do not poll Ohio again for two weeks.
+   - The card keeps the reading and adds "they may have added more since". Poll Ohio again after client 2 adds a unit: the card now says 4 units and the new week.
+4. **A poll that sees none says so.** Poll a state where client 2 has no units: "Their ground game here: none when you polled (end of week N)." No map tag.
+5. **Election night credits it.** Finish the match. On Results, "What decided it" has a line "Your polls found their ground game in OH (3 units; you had …, won it / lost it)."
+6. **Help.** Tap **?** → Ground game and Polls: both say an internal poll is the only way to see their ground game before election night, and Ground game explains the "opp G3" tag.
+7. **F2 / duel.** The F2 board shows "Your internal polls: OH … their gotv 3" and "Their gotv your polls saw: OH 3 (wk N)". `show OH` ends with the same "Their ground game here" line.
+
+**Send back:** a screenshot of step 2 (card and map tag) on 16:9 and on the iPad, the Results line from step 5, and whether you changed a plan because of a reading (and which).
 
 ## Screens for stances and debates (v0.6.0)
 
@@ -471,7 +490,7 @@ Rules only (`DESIGN.md` D-039 to D-041). The screens for them are the section ab
 2. In the campaign, select a state where one side has momentum (the ▲ on the map). Should: the state card says "about +X support drifts to … next week" and "Drift: … about 0.3 support next week per point of momentum lead shown now …". Next week, check the state moved by about that much if nobody campaigned there. Send back: a screenshot of the card, and the two polls.
 3. Open "?" (How it works) → "Leans, momentum, backlash, underdog". Should: the same drift sentence, with your candidate's numbers (Tomas Reyes: 25% kept, 0.15 per point). Send back: a screenshot.
 
-## Decision screens: debate focus and stances (D-044, unreleased)
+## Decision screens: debate focus and stances (D-044, v0.8.0)
 
 Playtest 3 asked for debates and event choices "on a separate screen before the week decisions with a separate timer". **Play vs Bot** is enough for steps 1 to 6; step 7 needs **Test → Clients and Servers, 2 players**. Do steps 1 to 4 once on 16:9 and once on an iPad or phone (**Test → Device**).
 
@@ -492,7 +511,7 @@ Playtest 3 asked for debates and event choices "on a separate screen before the 
 
 **Send back:** screenshots of the stance screen and the focus screen on 16:9 and on the iPad/phone, the plan screen's "Your stance" line, a debate reveal after a focus, how long the decision screens felt (is 20 s enough? too much?), and the Output lines starting with `[270] UI audit Decision`.
 
-## A shorter draft (D-045)
+## A shorter draft (D-045, v0.8.0)
 
 Strongholds are no longer drafted: each player gets their five strongest-leaning states at the map reveal, then the draft is three blind rounds (home, then two battleground nominations). Test in Studio with **Practice** (or two players via Test → Clients and Servers), once on a phone in portrait and once at 16:9.
 

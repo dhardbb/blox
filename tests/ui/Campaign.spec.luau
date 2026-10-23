@@ -12,6 +12,7 @@ local process = require("@lune/process")
 
 local Config = require("@sim/Config")
 local Events = require("@sim/Events")
+local Explain = require("@ui/Explain")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
 local Plan = require("@sim/Plan")
@@ -232,6 +233,10 @@ describe("Campaign screen", function()
 
 	it("adds GOTV units to one tray line and clears the plan", function()
 		local world, peer = fixture("Plan")
+		-- Two units cost $5 at GOTV_COST 2.5 (D-049): more than the week-3 fixture holds.
+		local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
+		payload.view.players[payload.view.you].cash = 10
+		Rig.push(world, peer, payload)
 		press(world, peer, "OH")
 		press(world, peer, "Gotv")
 		press(world, peer, "Gotv")
@@ -246,6 +251,28 @@ describe("Campaign screen", function()
 		press(world, peer, "BankButton")
 		check(said(peer, "[270] DEBUG_UI bank"), "Bank sent nothing")
 		noErrors(world)
+	end)
+
+	it("says on the state card what a poll shows of their ground game (D-049)", function()
+		local world, peer = fixture("Plan")
+		press(world, peer, "OH")
+		check(
+			string.find(text(peer, "CardScout"), "hidden. A poll shows it", 1, true) ~= nil,
+			"scout hint: " .. text(peer, "CardScout")
+		)
+		noErrors(world)
+		-- After a poll of OH that saw three of their units, the card says so.
+		local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
+		local view = payload.view
+		local seen = table.create(#view.players, 0)
+		seen[if view.you == 1 then 2 else 1] = 3
+		view.scouted = { { state = "OH", week = view.week - 1, gotv = seen } }
+		local world2, peer2 = fixture("Plan")
+		Rig.push(world2, peer2, payload)
+		press(world2, peer2, "OH")
+		expect(text(peer2, "CardScout")):toBe(Explain.scoutNote(Config.defaults, view, "OH"))
+		check(string.find(text(peer2, "CardScout"), "3 units", 1, true) ~= nil, text(peer2, "CardScout"))
+		noErrors(world2)
 	end)
 
 	it("pivots in two choices behind the Pivot button", function()

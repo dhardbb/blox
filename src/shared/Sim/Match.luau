@@ -74,6 +74,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 			debateFocus = nil,
 			stance = nil,
 			internalPolls = {},
+			scouted = {},
 			raised = 0,
 			card = nil,
 		}

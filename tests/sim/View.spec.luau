@@ -152,7 +152,9 @@ describe("View: no leaks", function()
 		end
 		local opponent = secret.players[2]
 		opponent.cash = if opponent.cash > 10 then opponent.cash + 5 elseif opponent.cash < 4 then 0 else 7
-		opponent.internalPolls = { { state = "CA", support = { 1, 2 }, undecided = 3, momentum = { 0, 0 } } }
+		opponent.internalPolls =
+			{ { state = "CA", support = { 1, 2 }, undecided = 3, momentum = { 0, 0 }, gotv = { 4, 0 } } }
+		opponent.scouted = { { state = "OH", week = 2, gotv = { 4, 4 } } }
 		opponent.raised = 1234
 		opponent.debateFocus = if opponent.debateFocus == secret.debateTopics[4][1]
 			then secret.debateTopics[4][3]
@@ -273,6 +275,27 @@ describe("View: no leaks", function()
 		local oh = view.states[State.indexOf.OH]
 		expect(oh.gotv):toBe(1)
 		expect(View.build(C, match, 2).states[State.indexOf.OH].gotv):toBe(1) -- their own unit, not mine
+	end)
+
+	it("your internal poll shows their ground game to you alone (D-049)", function()
+		local match = busyMatch() -- both put a unit in OH and polled it
+		local week = match.week - 1
+		local mine = View.build(C, match, 1)
+		expect(mine.internalPolls[1].gotv):toEqual({ 1, 1 })
+		expect(#mine.scouted):toBe(1)
+		expect(mine.scouted[1].state):toBe("OH")
+		expect(mine.scouted[1].week):toBe(week)
+		expect(mine.scouted[1].gotv):toEqual({ 1, 1 })
+		-- Only your own readings: player 2's never reach player 1 (the hidden-value
+		-- check above also rewrites them), and dropping player 1's empties the list.
+		match.players[1].internalPolls, match.players[1].scouted = {}, {}
+		expect(#View.build(C, match, 1).scouted):toBe(0)
+		expect(#View.build(C, match, 2).scouted):toBe(1)
+		match = busyMatch()
+		-- A reading is a snapshot: units placed after it never reach the poller.
+		local later = State.clone(match)
+		State.get(later, "OH").gotv[2] += 2
+		expect(View.build(C, later, 1).scouted):toEqual(mine.scouted)
 	end)
 
 	it("opponent money is only a bracket", function()

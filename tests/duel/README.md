@@ -47,6 +47,10 @@ Since D-044 the debate focus and a Choice event's stance are not part of the pla
 
 After a debate the board names the states each topic swung and every flip (`Your Jobs win swung OH, MI, PA (+1.0 each) - PA flipped to you (+19 EV)`, `Their gaffe on Safety: -0.6 in TX, AZ`); each topic's score (focus, platform, stat, roll) and both focuses are under `DEBATES AND EVENTS SO FAR`, and the log has one line per flipped state.
 
+## Polls and ground game
+
+Ground game (`gotv`) is hidden from the public polls and the projection; it counts only on election night. A paid internal poll (`poll ST`, or `rpoll REGION` for every state in a region) is the only way to see the opponent's: next turn, `Your internal polls` on the board ends `their gotv N` for each polled state with any, and `Their gotv your polls saw: OH 3 (wk 8), …` lists your latest reading of every state you ever polled (exact, as of the end of that week; they may have added units since). The state list tags those states `their gotv N (-X for you; your poll, end of week W)`, and `show ST` ends with the same sentence the game's state card shows. `WHAT TO DO` repeats the rule once per plan turn. The opponent sees your units only where they poll.
+
 ## Scripted players
 
 `tests/duel/scripted_agent.sh DIR N [candidate] [pass|example]` is a dumb player used to prove the protocol end to end: it picks a fixed candidate, drafts the first two legal states, then passes every week (or, with `example`, sends each week's first example plan); on a Decision step it sends the screen's first example (`focus` on the first topic, `choice a`). It needs no `timeout` command, so it runs on macOS as is.

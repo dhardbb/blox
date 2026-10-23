@@ -358,6 +358,45 @@ describe("Resolve: pivots and upkeep", function()
 		expect(#match.players[2].internalPolls):toBe(0)
 	end)
 
+	it("an internal poll reveals every player's ground game there, as of the week's end (D-049)", function()
+		local match = clean()
+		local week = match.week
+		match = run(
+			match,
+			{ { kind = "Poll", state = "OH" }, { kind = "Gotv", state = "OH", units = 1 } },
+			{ { kind = "Gotv", state = "OH", units = 2 }, { kind = "Gotv", state = "PA", units = 3 } }
+		)
+		local polls = match.players[1].internalPolls
+		expect(#polls):toBe(1)
+		expect(polls[1].gotv):toEqual({ 1, 2 }) -- this week's units count: the poll reads the week's end
+		local oh = match.players[1].scouted[1]
+		expect(#match.players[1].scouted):toBe(1)
+		expect(oh.state):toBe("OH")
+		expect(oh.week):toBe(week)
+		expect(oh.gotv):toEqual({ 1, 2 })
+		expect(#match.players[2].scouted):toBe(0) -- PA was never polled, and nobody polled for player 2
+
+		-- The reading outlives the poll, and a new poll of the same state replaces it.
+		local later = match.week
+		match = run(
+			match,
+			{ { kind = "Poll", state = "PA" } },
+			{ { kind = "Gotv", state = "OH", units = 1 } }
+		)
+		local scouted = match.players[1].scouted
+		expect(#scouted):toBe(2)
+		expect(scouted[1].state):toBe("OH") -- StateData order
+		expect(scouted[1].week):toBe(week)
+		expect(scouted[1].gotv):toEqual({ 1, 2 }) -- stale: the new unit is not seen
+		expect(scouted[2].state):toBe("PA")
+		expect(scouted[2].week):toBe(later)
+		expect(scouted[2].gotv):toEqual({ 0, 3 })
+		match = run(match, { { kind = "Poll", state = "OH" } }, {})
+		expect(match.players[1].scouted[1].week):toBe(later + 1)
+		expect(match.players[1].scouted[1].gotv):toEqual({ 1, 3 })
+		expect(#match.players[1].scouted):toBe(2)
+	end)
+
 	it("places ground game units", function()
 		local match = run(clean(), { { kind = "Gotv", state = "OH", units = 3 } }, {})
 		expect(at(match, "OH").gotv):toEqual({ 3, 0 })

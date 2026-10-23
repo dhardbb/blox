@@ -22,6 +22,12 @@
 -- candidate who previews next week's event (View.nextEvent) ends the route in a
 -- coming Regional's region.
 --
+-- Paid internal polls scout the opponent's hidden ground game (D-049): from
+-- scoutFromWeek the bot polls the close states it has not just polled (a region
+-- when enough of them share one), pays for none while the opponent's cash shows
+-- Low, and counts every unit a poll saw against its own margin there, so the
+-- money step answers with ads or ground game where the race is really close.
+--
 -- Styles restrict the balanced policy for the harness's dominance checks.
 
 local Candidates = require("./Candidates")
@@ -64,15 +70,21 @@ local ISSUES: { Types.Issue } = Issues.list :: any
 -- Left unfrozen so harness experiments can vary them.
 Bot.tuning = {
 	draftSigma = 8, -- how far the campaign is expected to move a state after the draft
-	pollStates = 1, -- paid internal polls per week: the closest big state(s)
+	pollStates = 1, -- internal polls per week before scouting starts (free ones count): the closest big state(s)
 	pollMinCash = 0, -- only buy paid polls with at least this much cash
 	pollFromWeek = 4, -- first week the bot buys paid polls
-	gotvFromWeek = 7, -- start banking ground game this week (9 -> 7, D-021: six weeks of spend, placed after the first debate)
-	gotvPremium = 1.3, -- GOTV is hidden and never saturates: value it a little higher (1.2 -> 1.3, D-037: the flat economy pulled late money into ads)
+	scoutFromWeek = 7, -- from this week, polls scout the opponent's ground game (D-049; the bot's own ground game starts then too)
+	scoutPolls = 1, -- internal polls per week while scouting (free ones count)
+	scoutMinValue = 0.05, -- skip states whose margin is worth less than this (EV per point)
+	scoutResponse = 1, -- share of the opponent's scouted units the bot counts against its margin
+	regionPollShare = 1.5, -- buy a region poll when its states are worth this many times the singles its price would buy
+	gotvFromWeek = 6, -- start banking ground game this week (9 -> 7, D-021: six weeks of spend, placed after the first debate; 7 -> 6, D-049: a dearer unit needs a longer runway)
+	gotvPremium = 1.5, -- GOTV is hidden and never saturates: value it a little higher (1.2 -> 1.3, D-037: the flat economy pulled late money into ads; 1.3 -> 1.5, D-049: the $2.5 unit)
 	moneyValue = 0.4, -- value of $1 as a share of the best media buy per dollar (banked money waits a week and buys worse ads than the best one)
 	sandbagLead = 4, -- the sandbag bot never pads past this estimated margin
 	minValuePerDollar = 0.002, -- below this, money is better banked
 	campaignVariance = 2, -- margin variance added per week left in the campaign
+	freshPollVar = 1, -- a fresh internal poll keeps this share of the public poll's error variance (0 -> 1, D-049: trusting a poll's exact read made the bot pile into one razor-close state)
 }
 local T = Bot.tuning
 
@@ -275,6 +287,7 @@ type Estimate = {
 	theirMomentum: number,
 	bought: number, -- media buys planned here this week
 	gotv: number, -- my units, placed plus planned
+	theirGotv: number, -- the opponent's units, as my latest internal poll there saw them (0 if never polled; D-049)
 }
 
 local function buildEstimates(config: Config, view: View): { Estimate }
@@ -285,6 +298,10 @@ local function buildEstimates(config: Config, view: View): { Estimate }
 	for _, poll in view.internalPolls do
 		fresh[poll.state] = poll
 	end
+	local scouted: { [string]: any } = {}
+	for _, scout in view.scouted do
+		scouted[scout.state] = scout
+	end
 	local out: { Estimate } = {}
 	for i, s in view.states do
 		local poll = s.poll
@@ -293,12 +310,13 @@ local function buildEstimates(config: Config, view: View): { Estimate }
 		if fresh[s.id] then
 			local f = fresh[s.id]
 			mine, theirs, undecided = f.support[me], f.support[them], f.undecided
-			errorVar = config.INTERNAL_POLL_ERROR ^ 2
+			errorVar = math.max(config.INTERNAL_POLL_ERROR ^ 2, T.freshPollVar * config.POLL_SIGMA ^ 2)
 		elseif poll ~= nil then
 			mine, theirs, undecided = poll.support[me], poll.support[them], poll.undecided
 		end
+		local theirGotv = if scouted[s.id] then (scouted[s.id].gotv[them] or 0) * T.scoutResponse else 0
 		out[i] = {
-			margin = mine - theirs + config.GOTV_PER_UNIT * s.gotv,
+			margin = mine - theirs + config.GOTV_PER_UNIT * (s.gotv - theirGotv),
 			mine = mine,
 			undecided = undecided,
 			sigma = math.sqrt(errorVar + config.ELECTION_SIGMA ^ 2 + campaign),
@@ -306,6 +324,7 @@ local function buildEstimates(config: Config, view: View): { Estimate }
 			theirMomentum = s.momentum[them] * 0.5,
 			bought = 0,
 			gotv = s.gotv,
+			theirGotv = theirGotv,
 		}
 	end
 	return out
@@ -550,30 +569,81 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 		end
 	end
 
-	-- 2. Internal polls: the closest big states, unless already polled fresh.
+	-- 2. Internal polls. Early: the closest big state, for a sharper read. From
+	-- scoutFromWeek (D-049): the close states not polled last week, to see the
+	-- opponent's ground game there before election night.
 	if style ~= "NeverPoll" and week < config.WEEKS and week >= T.pollFromWeek then
 		local polled = {}
 		for _, poll in view.internalPolls do
 			polled[poll.state] = true
 		end
+		local scouting = week >= T.scoutFromWeek
 		local order = {}
 		for i, record in StateData.list do
-			if not polled[record.id] and record.ev >= 8 then
+			if not polled[record.id] and (scouting or record.ev >= 8) then
 				table.insert(order, { i = i, value = marginValue(estimates[i], record.ev) })
 			end
 		end
 		table.sort(order, function(a, b)
-			return a.value > b.value
+			if a.value ~= b.value then
+				return a.value > b.value
+			end
+			return a.i < b.i
 		end)
 		local free = profile.freePolls
-		for k = 1, math.min(T.pollStates + free, #order) do
-			local cost = if free > 0 then 0 else config.INTERNAL_POLL_COST
-			if k > T.pollStates and cost > 0 then
-				break
+		local wanted = if scouting then T.scoutPolls else T.pollStates
+		if scouting and view.players[them].money == "Low" then
+			wanted = 0 -- they can barely afford ground game: only the free polls
+		end
+		local covered: { [number]: boolean } = {}
+		local minValue = if scouting then T.scoutMinValue else 0.05
+
+		-- A region poll when its worthwhile states are worth more than the singles
+		-- its price would buy (the free polls are spent first, on the best states).
+		if scouting and wanted > 0 and config.REGION_POLL_COST <= cash then
+			local singles = math.floor(config.REGION_POLL_COST / config.INTERNAL_POLL_COST)
+			local benchmark = 0
+			for k = free + 1, math.min(free + singles, #order) do
+				benchmark += order[k].value
 			end
-			if cost <= cash and (cost == 0 or cash >= T.pollMinCash) and order[k].value > 0.05 then
-				table.insert(actions, { kind = "Poll", state = StateData.list[order[k].i].id })
+			local byRegion: { [string]: number } = {}
+			for k = free + 1, #order do
+				local entry = order[k]
+				if entry.value > minValue then
+					local region = StateData.list[entry.i].region
+					byRegion[region] = (byRegion[region] or 0) + entry.value
+				end
+			end
+			local bestRegion, bestTotal = nil, benchmark * T.regionPollShare
+			for _, region in Issues.regions do
+				local total = byRegion[region] or 0
+				if total > bestTotal then
+					bestRegion, bestTotal = region, total
+				end
+			end
+			if bestRegion ~= nil then
+				table.insert(actions, { kind = "RegionPoll", region = bestRegion })
+				cash -= config.REGION_POLL_COST
+				wanted = 0
+				for k, entry in order do
+					if StateData.list[entry.i].region == bestRegion and k > free then
+						covered[entry.i] = true
+					end
+				end
+			end
+		end
+
+		local taken = 0
+		for _, entry in order do
+			if not covered[entry.i] and entry.value > minValue then
+				local cost = if free > 0 then 0 else config.INTERNAL_POLL_COST
+				-- Free polls first; paid ones only up to `wanted` polls in all.
+				if free == 0 and (taken >= wanted or cost > cash or cash < T.pollMinCash) then
+					break
+				end
+				table.insert(actions, { kind = "Poll", state = StateData.list[entry.i].id })
 				cash -= cost
+				taken += 1
 				free = math.max(0, free - 1)
 			end
 		end

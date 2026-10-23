@@ -3,7 +3,8 @@
 -- server replicates View.build output and nothing else.
 --
 -- Never included: true support or undecided, poll error terms, pool levels, the
--- seed or RNG state, opponents' exact cash, GOTV units, backlash, internal polls,
+-- seed or RNG state, opponents' exact cash, GOTV units (an opponent's only as your
+-- own internal polls measured them, D-049), backlash, internal polls,
 -- fundraiser yields, anyone's
 -- candidate or platform before the Select phase ends, the event deck beyond the
 -- current week (next week's event only for a candidate whose perk previews it,
@@ -98,6 +99,7 @@ export type View = {
 	nextEvent: EventView?, -- next week's event, only for a candidate with eventPreview (D-035)
 	eventLog: { State.EventResult }, -- resolved events, Choice answers revealed
 	internalPolls: { State.InternalPoll }, -- yours, from last week's plan
+	scouted: { State.Scout }, -- yours: the latest ground game each of your internal polls saw, per state (D-049)
 	raised: number, -- what your fundraisers raised last week
 	debateFocus: Types.Issue?, -- your focus topic for this week's debate, from its Decision until the debate resolves
 	stance: Types.Choice?, -- your stance on this week's Choice event, from its Decision until the week resolves
@@ -238,6 +240,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 		nextEvent = nextEvent,
 		eventLog = copy(match.eventLog),
 		internalPolls = copy(me.internalPolls),
+		scouted = copy(me.scouted),
 		raised = me.raised,
 		debateFocus = me.debateFocus,
 		stance = me.stance,

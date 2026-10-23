@@ -5,12 +5,14 @@
 --   lune run tests/harness/balance.luau 500        -- fewer matches
 --   lune run tests/harness/balance.luau 500 POLL_SIGMA=4 DRIFT_CAP=2   -- a Config variant
 --   lune run tests/harness/balance.luau EVENTS_ENABLED=false           -- without the event deck
+--   lune run tests/harness/balance.luau 500 bot.scoutPolls=2           -- a Bot.tuning variant
 --
 -- Prints every metric with its target and a list of red flags. Exits 0 either
 -- way: the report informs tuning, it does not gate commits.
 
 local process = require("@lune/process")
 
+local Bot = require("@sim/Bot")
 local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
 local Issues = require("@sim/Issues")
@@ -26,9 +28,16 @@ end
 
 local N = 2000
 local changes: { [string]: any } = {}
+local tuned: { string } = {}
 for _, arg in args do
 	local key, value = string.match(arg, "^([%u_]+)=(.+)$")
-	if key and value then
+	local knob, setting = string.match(arg, "^bot%.(%w+)=(.+)$")
+	if knob and setting then
+		local knobs = Bot.tuning :: any
+		assert(knobs[knob] ~= nil, `unknown Bot.tuning key {knob}`)
+		knobs[knob] = tonumber(setting)
+		table.insert(tuned, arg)
+	elseif key and value then
 		if value == "true" or value == "false" then
 			changes[key] = value == "true" -- e.g. EVENTS_ENABLED=false
 		else
@@ -263,6 +272,9 @@ for key, value in changes do
 	table.insert(variantKeys, `{key}={value}`)
 end
 print(if #variantKeys > 0 then "Config variant: " .. table.concat(variantKeys, " ") else "Config: defaults")
+if #tuned > 0 then
+	print("Bot variant: " .. table.concat(tuned, " "))
+end
 
 header("Candidates (mirror matches excluded)")
 for _, id in ids do

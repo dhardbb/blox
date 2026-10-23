@@ -775,3 +775,31 @@ Red after this pass: Okafor over the line and Strand under it (both have swung �
 **Client.** Select step 1: the eight cards (the opponent's shows "Taken by your opponent", greyed and inert) and the color line; "Next: issues" sends `Claim` (`Remotes`: `{ matchId, step, input = candidate }`). Step 2 opens when the server confirms the claim: the color line, "2. Issues for <name>", the hint, and eight two-line chips with this match's EV and multiplier. Both steps fit a phone and an iPad without scrolling (UI audit 0). Debug: `claim CANDIDATE`; `select CANDIDATE ISSUE ISSUE ISSUE` (a color word is skipped).
 
 **Timer.** `TIMER_SELECT` 30 → 38: two steps need more than one, and 38 is the most the 17.5-minute worst case allows (D-005: the worst case was exactly 1,050 s on this branch; with D-045's shorter draft the old steps' worst case is 940 s, plus at most 200 s of decision screens, D-044).
+
+## Polls reveal ground game (playtest feedback)
+
+### D-049 — An internal poll shows their ground game; a unit costs $2.5 (approved reshape + tuning, Oct 23, 2026)
+
+*Built on its own branch (`polls`, logged there as D-044) and merged after D-044 to D-048; the harness numbers below are from before those. On playtest4 the "opp G3" tag lives in the map's Polls lens (`Lens.pollDetails`, D-046), not on the default map.*
+
+**Feedback.** "Polling doesn't have any obvious use cases" and "Is ground game overpowered?" Both were fair. A unit was the cheapest point of margin in the game ($2 for +1.5, $1.33 a point, never saturating, up to 4 a state) against $1.9 a point for an ad that saturates; it was invisible to the opponent until election night; and paid polls only sharpened a support number nothing else used. The designers chose "polls reveal ground game, plus trim ground game a bit".
+
+**Rules.** An internal poll (`Poll` or `RegionPoll`) now also reports every player's ground-game units in each polled state, exact, as of the end of the week polled (`InternalPoll.gotv`). The poller keeps the latest reading per state (`PlayerState.scouted`, a `Scout` of state, week and units) after the poll itself expires, so a week-8 reading still shows in week 10, marked as possibly stale. Only `View.build` for the poller carries it (`View.scouted`); `tests/sim/View.spec` checks that another seat's readings never reach the view and that units placed after a reading never change it. No public hint ("none / some / heavy") was added: a free public signal would do the poll's job for nothing.
+
+**Tuning.** `GOTV_COST` 2 → **2.5** ($1.67 a point; Walt Begay still pays $1, so his perk is worth a little more). Chosen over `GOTV_PER_UNIT` 1.5 → 1.2 because a unit keeps its visible +1.5, and because at 1,500 matches `GOTV_PER_UNIT` 1.2 and 1.3 dropped "GOTV changes the winner" to 6–9% even with a keener bot (1.4 held 10% but is a smaller trim, $1.43 a point), while $2.5 with the bot changes below keeps it at 10%. The Config spec's D-021 check (a unit beats a mismatched ad per dollar, loses to a matched one) still holds.
+
+**Bot.** From week 7 (`scoutFromWeek`) the poll goes to the closest state by EV × closeness (not just 8+ EV states), or a whole region when its close states are worth 1.5× the singles its price buys; no paid poll while the opponent's cash shows Low; free polls first. Every unit a reading saw counts against the bot's margin there (`Estimate.theirGotv`). A fresh internal poll now keeps the public poll's error variance in the bot's sigma (`freshPollVar` 1): with the exact ±1 sigma the bot piled its money into one razor-close state, and perfect free knowledge of true support made it *lose* 65% of mirrored matches. Ground game starts a week earlier (`gotvFromWeek` 6) and is valued at `gotvPremium` 1.5 (was 1.3) so the dearer unit is still bought.
+
+**Harness** (`lune run tests/harness/balance.luau`, 2,000 matches; "before" is this branch's start on the same seeds; `tests/harness/scout.luau` is new: 2,000 NeverPoll-vs-Balanced matches with spend).
+
+| Check | After | Before | Target |
+|---|---|---|---|
+| Candidates | Okafor 53.3, Calloway 54.5, **Venkat 55.3**, Hale 47.3, Alvarado 47.6, Reyes 47.7, Strand 45.8, Begay 48.7 | Okafor 52.9, **Calloway 56.6**, Venkat 54.9, Hale 51.7, Alvarado 46.0, Reyes 49.2, **Strand 44.6**, **Begay 44.4** | 45–55% |
+| GOTV changes the winner / average spend | **10.4%** / $7.7 | 9.3% / $8.3 | ≥ 10% |
+| NeverPoll win rate (balance side check, 400 games / scout harness, 2,000) | 55.5% / **55.7%** | 54.5% / 58.1% | designers: well under 50% |
+| Polls / ground game spend per player (scout harness, Balanced) | $5.7 / $7.5 | — | — |
+| Debates change the winner / comeback / 100+ EV | 24.0% / 38.7% / 19.0% | 23.2% / 38.3% / 21.6% | ✓ |
+
+**Not met: NeverPoll stays about 55%.** The bots cannot use what a poll shows, and the reason is structural, not a bug. Measured with an oracle that hands the Balanced bot information for free (1,500 matches; the no-poll mirror measured 52.4% on these seeds): knowing the opponent's exact ground game in *every* state from week 7 left NeverPoll at 53.3%, worth nothing, because two bots that weigh the same close states put their units in the same states, so the reading only confirms what each bot would have done anyway; knowing true support in every state was worth 10 points (41.9%), but realistic polling (the five closest states a week, nearly free) was worth only 3–5, and at $1 a state a poll costs the bot more than it returns (each $1 is worth about 0.8 points of win rate in a mirrored match). Every paid-poll schedule tried (1–4 a week, regions at $1–3, from week 4, 7, 9 or 10, carrying old readings forward with `POLL_RHO`) measured 53–63%. Humans differ in the way that matters: they do not mirror, so "their 3 units in a state I thought was safe" changes a human's plan where it does not change a bot's. The TESTING checklist asks the playtesters whether a reading changed a plan.
+
+*For the designers.* If the playtests also find polls unused, the levers are, in order: a cheaper single poll ($0.5; the bot then loses only 1–3 points to NeverPoll), a cheaper region poll ($1.5–2), or making the reading public-facing in a limited way (the poll also reveals how many states they have ground game in, not where). Strand's two free polls are now worth a little more to a human (they scout), and about the same to the bot.

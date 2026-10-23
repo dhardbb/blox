@@ -444,6 +444,22 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 			end
 		end
 		player.internalPolls = results
+		-- Each reading replaces the last one of its state (D-049).
+		for _, result in results do
+			local scout: State.Scout = { state = result.state, week = week, gotv = table.clone(result.gotv) }
+			local found = false
+			for k, old in player.scouted do
+				if old.state == result.state then
+					player.scouted[k], found = scout, true
+				end
+			end
+			if not found then
+				table.insert(player.scouted, scout)
+			end
+		end
+		table.sort(player.scouted, function(a, b)
+			return State.indexOf[a.state] < State.indexOf[b.state]
+		end)
 		if #results > 0 then
 			table.insert(events, { kind = "InternalPolls", player = p, amount = #results, private = true })
 		end

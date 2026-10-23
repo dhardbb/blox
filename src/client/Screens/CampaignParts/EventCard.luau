@@ -388,13 +388,15 @@ function EventCard.week(parent: Instance, model: Model.Model, order: number): We
 			raised.Visible = view.raised > 0
 			local pollParts: { string } = {}
 			for _, result in view.internalPolls do
+				local units = result.gotv[them] or 0
 				table.insert(
 					pollParts,
 					string.format(
-						"%s %.1f-%.1f",
+						"%s %.1f-%.1f%s",
 						result.state,
 						result.support[you] or 0,
-						result.support[them] or 0
+						result.support[them] or 0,
+						if units > 0 then ` (their ground game {units})` else ""
 					)
 				)
 			end

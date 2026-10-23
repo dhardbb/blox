@@ -231,7 +231,15 @@ describe("Map lenses", function()
 			-- An internal poll in OH that has you well ahead, and two ground-game units in PA.
 			local support = table.create(#view.players, 0)
 			support[you], support[them] = 52, 40
-			view.internalPolls = { { state = "OH", support = support, undecided = 8, momentum = { 0, 0 } } }
+			view.internalPolls = {
+				{
+					state = "OH",
+					support = support,
+					undecided = 8,
+					momentum = { 0, 0 },
+					gotv = table.create(#view.players, 0),
+				},
+			}
 			local pa = 0
 			for i, s in view.states do
 				if s.id == "PA" then
@@ -239,6 +247,13 @@ describe("Map lenses", function()
 				end
 			end
 			view.states[pa].gotv = 2
+			-- Your poll of MI saw three of their units (D-049); WI saw none.
+			local seen, none = table.create(#view.players, 0), table.create(#view.players, 0)
+			seen[them] = 3
+			view.scouted = {
+				{ state = "MI", week = view.week - 1, gotv = seen },
+				{ state = "WI", week = view.week - 1, gotv = none },
+			}
 			Rig.push(world, peer, payload)
 			Rig.tap(world, peer, "Campaign", "LensPolls")
 
@@ -263,6 +278,20 @@ describe("Map lenses", function()
 				table.find(pills(peer, "Campaign", "PA"), "G2") ~= nil,
 				table.concat(pills(peer, "Campaign", "PA"), " ")
 			)
+
+			local mi = pills(peer, "Campaign", "MI")
+			expect(mi[#mi]):toBe("opp G3")
+			check(
+				same(pill(peer, "Campaign", "MI", #mi).TextColor3, Kit.playerColor(view, them)),
+				"opp G3 is not in their color"
+			)
+			for _, text in pills(peer, "Campaign", "WI") do
+				check(string.sub(text, 1, 3) ~= "opp", "WI: a poll that saw no units shows a tag")
+			end
+			-- Not on the default map: the EV lens has no ground game.
+			Rig.tap(world, peer, "Campaign", "LensEV")
+			check(table.find(pills(peer, "Campaign", "MI"), "opp G3") == nil, "opp G3 in the EV lens")
+			Rig.tap(world, peer, "Campaign", "LensPolls")
 
 			-- The hook another feature uses for one more pill per state (e.g. their ground game).
 			table.insert(Lens.pollDetails, function(_ctx: any, s: any): any

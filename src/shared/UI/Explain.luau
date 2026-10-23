@@ -11,6 +11,7 @@
 --   Explain.action(config, view, draft, id, kind, issue?) -> Preview (one action here)
 --   Explain.previews(config, view, draft, id, message) -> { { name, text } } (the action grid)
 --   Explain.leanText(view, s) · momentumNote · backlashNote · underdogText
+--   Explain.scoutOf(view, id) · scoutNote(config, view, id) (their ground game, as your polls saw it, D-049)
 --   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
 --   Explain.debateOdds(config, edge) -> (win, tie, lose)
 --   Explain.debateParts / debateLine (a resolved topic, split into focus, platform, stat, roll)
@@ -444,7 +445,9 @@ local function poll(config: Config, view: View, draft: PlanDraft.Draft): Preview
 		else Numbers.cost(config.INTERNAL_POLL_COST)
 	return {
 		kind = "Poll",
-		text = `Poll: next week you see true support here within ±{num(config.INTERNAL_POLL_ERROR)}, exact undecided and momentum; {price}`,
+		text = `Poll: next week you see their hidden ground game here (it counts only on election night) and true support within ±{num(
+			config.INTERNAL_POLL_ERROR
+		)}; {price}`,
 	}
 end
 
@@ -459,7 +462,7 @@ local function regionPoll(config: Config, id: string): Preview
 	local name = if region then (Issues.regionName :: any)[region] or region else "?"
 	return {
 		kind = "RegionPoll",
-		text = `Region poll: an internal poll of all {n} {name} states; {Numbers.cost(
+		text = `Region poll: their hidden ground game and true support in all {n} {name} states, next week; {Numbers.cost(
 			config.REGION_POLL_COST
 		)}`,
 	}
@@ -477,7 +480,7 @@ local function gotv(config: Config, view: View, draft: PlanDraft.Draft, id: stri
 	local placed = s.gotv + planned
 	return {
 		kind = "Gotv",
-		text = `Ground game: {signed(config.GOTV_PER_UNIT)} margin here on election night per unit ({placed} of {profile.gotvMaxUnits} placed); polls never show it; {Numbers.cost(
+		text = `Ground game: {signed(config.GOTV_PER_UNIT)} margin here on election night per unit ({placed} of {profile.gotvMaxUnits} placed); public polls never show it, their internal polls do; {Numbers.cost(
 			profile.gotvCost
 		)} a unit`,
 	}
@@ -605,6 +608,31 @@ function Explain.backlashNote(config: Config, _view: View, s: StateView): string
 			config.BACKLASH_PENALTY
 		)} support.`
 	return `Your attack backlash here: {meter} of {threshold}. {next} Fades {num(config.BACKLASH_DECAY)} a week.`
+end
+
+-- Your latest reading of a state's ground game (D-049), or nil if you never polled it.
+function Explain.scoutOf(view: View, id: string): SimState.Scout?
+	for _, scout in (view.scouted or {}) :: { SimState.Scout } do
+		if scout.state == id then
+			return scout
+		end
+	end
+	return nil
+end
+
+-- What your internal polls saw of the opponent's ground game in a state, or the
+-- hint that a poll would show it (D-049). Their units are hidden otherwise.
+function Explain.scoutNote(config: Config, view: View, id: string): string
+	local scout = Explain.scoutOf(view, id)
+	if scout == nil then
+		return "Their ground game here: hidden. A poll shows it before election night."
+	end
+	local units = scout.gotv[opponentOf(view)] or 0
+	local stale = if scout.week < view.week - 1 then "; they may have added more since" else ""
+	if units <= 0 then
+		return `Their ground game here: none when you polled (end of week {scout.week}){stale}.`
+	end
+	return `Their ground game here: {plural(units, "unit")}, {signed(-units * config.GOTV_PER_UNIT)} for you on election night (your poll, end of week {scout.week}){stale}.`
 end
 
 -- Player p's underdog tier and what it gives, or nil at tier 0. Also names the
@@ -982,7 +1010,7 @@ function Explain.help(config: Config, view: View?): { Section }
 		)} of what they lose becomes undecided, the rest goes to you. No momentum. Watch your backlash.`,
 		`Poll ({Numbers.cost(c.INTERNAL_POLL_COST)}{if me.freePolls > 0
 			then `, {me.freePolls} free a week`
-			else ""}) and Region poll ({Numbers.cost(c.REGION_POLL_COST)}, every state in the region): your private read of true support. See Polls.`,
+			else ""}) and Region poll ({Numbers.cost(c.REGION_POLL_COST)}, every state in the region): the only way to see their ground game before election night, plus your private read of true support. See Polls.`,
 		`Ground game ({Numbers.cost(me.gotvCost)} a unit, up to {me.gotvMaxUnits} per state): counts only on election night. See Ground game.`,
 		`Pivot ({c.PIVOT_AP} AP, once per match): swap one platform issue; costs {points(c.PIVOT_PENALTY)} national support.`,
 		`Multipliers stack: battlegrounds {times(c.BATTLEGROUND_MULT)} on every campaign effect; from week {c.CLOSING_FROM_WEEK} rallies and ads {times(
@@ -1020,8 +1048,9 @@ function Explain.help(config: Config, view: View?): { Section }
 	})
 
 	section("ground", "Ground game", {
-		`Each unit adds {signed(c.GOTV_PER_UNIT)} to your margin in that state on election night, and nowhere else: polls and the projection never show it, and your opponent never sees your units.`,
+		`Each unit adds {signed(c.GOTV_PER_UNIT)} to your margin in that state on election night, and nowhere else: public polls and the projection never show it.`,
 		`Units cost {Numbers.cost(me.gotvCost)}, stack up to {me.gotvMaxUnits} per state over the match, and need no AP or travel. Best in close states you expect to lose by a little.`,
+		"An internal poll shows the units of both sides in the states it covers, as of the end of that week. So your opponent sees your units only where they poll, and you see theirs only where you poll: a state that looks safe can still be lost to their hidden ground game. The state card keeps your latest reading; in the map's Polls lens, opp G3 means your poll saw 3 of their units there.",
 	})
 
 	section("polls", "Polls", {
@@ -1029,7 +1058,9 @@ function Explain.help(config: Config, view: View?): { Section }
 			c.POLL_RHO
 		)} of each state's error carries into next week, so a poll can stay wrong for weeks.`,
 		"Projected EV gives each state to whoever leads its public poll; a tied poll counts for nobody, so the two totals rarely add to 538.",
-		`Internal polls (only you see them, next week): true support within ±{num(c.INTERNAL_POLL_ERROR)}, exact undecided and momentum. Use them in close states.`,
+		`Internal polls (only you see them, next week): their ground game there (exact, both sides, as of the end of the week you polled), true support within ±{num(
+			c.INTERNAL_POLL_ERROR
+		)}, exact undecided and momentum. Use them in close states before you spend on the last weeks: a 2-point lead is no lead against 3 units of their ground game.`,
 	})
 
 	local debateWeeks: { string } = {}

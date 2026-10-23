@@ -2,7 +2,11 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased: decision screens and the debate focus (D-044)
+## 0.8.0: Playtest 4: cleaner choices (Oct 23, 2026)
+
+Five branches merged for playtest 4 (`docs/DESIGN.md` D-044 to D-049). Each was tuned on its own; the combined harness numbers are below. Studio checklists: `docs/TESTING.md`, one section per feature below.
+
+### Decision screens and the debate focus (D-044)
 
 - **Stances and debates get their own screen.** In a Choice week the stance is taken on its own screen before the plan, with its own 20 s timer (no stance in time: C). Right before each debate, a second screen asks for your debate focus. Each shows only the decision, the map preview, the countdown and Lock in; when both players lock in it moves on at once. The plan screen keeps its 50 s and loses the prep panel and the stance chips; it says "Your stance: A · …" in one line.
 - **Prep is now one focus topic.** One tap: the topic you focus on gets +2 (Marcus Hale: +3, replacing his 7th prep point). The screen lists each topic's states and EV, the ones you need (within 5 points in the public poll) and your odds ("You win 81% (38% if they focus here too)"). No focus in time: every topic you lose is a gaffe (-0.6 in its states). Gaffes no longer come from a 0-prep topic.
@@ -10,23 +14,23 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 - **Debug and duel.** F2 and the duel harness have `focus TOPIC` and `choice a|b|c` as their own step (no longer inside `plan`); the duel README explains the Decision steps.
 - **Test in Studio:** `docs/TESTING.md`, "Decision screens: debate focus and stances". Nothing needed from the humans except a view on the 20 s timer and the match length (D-044, "Timer").
 
-## Unreleased: a shorter draft (D-045)
+### A shorter draft (D-045)
 
 - **Strongholds are no longer drafted.** At the map reveal each player is given their five strongest-leaning states as strongholds (same +8 / +4 bonuses), shown for both players on the map and in a "Your strongholds: … · theirs: …" line, before any pick. A stronghold can't be a home.
 - **The draft is three blind rounds**: home state, then two battleground nominations (priority A, B, B). It takes about 71 s instead of 181 s.
 - Harness (2,000 matches): priority A 47.8% (48.9% at 6,000), comeback 39.9%, median margin 50 EV (was 52), stronghold EV gap between players 2 EV at the median. The most common stronghold is now in 28% of matches (GA, OH, MI, NC were in 98–100%). Homes are still mostly CA or TX: see `docs/DESIGN.md` D-045 for options.
 - Bots, the balance harness (new "Draft" section), the duel harness and its README, the F2 board and the specs follow the new draft.
-- Test in Studio: `docs/TESTING.md`, "A shorter draft (D-045)". Nothing needed from the humans.
+- Test in Studio: `docs/TESTING.md`, "A shorter draft (D-045, v0.8.0)". Nothing needed from the humans.
 
-## Unreleased: map lenses (D-046)
+### Map lenses (D-046)
 
 - **The map shows one thing at a time.** Four chips over the map, **EV / Issues / Polls / $**, switch what each state shows under its name: its electoral votes (default, "B" on a battleground); its two top issues, yours filled in your color; the public poll lead in the leader's color with your internal poll ("i+5"), momentum ▲ and ground game ("G2"); or what one more fundraiser there would raise this week (dim once your plan empties the pool). Works on the Campaign and Draft screens and stays picked for the session.
 - **Less on the default map.** The "H B G3" tags and the momentum arrows are gone from the campaign map; the tag above a state now appears only when it matters (the week's event *, stance previews, reveals, draft picks). The fill by poll leader and the owner rings are unchanged.
 - The line over the campaign map explains the current lens. New specs `tests/ui/Lens.spec` (each lens's text per state, switching, session memory, strict UI audit at 390x844, 844x390, 768x1024, 1024x768 and 1280x720).
 
-**To test:** `docs/TESTING.md`, "Map lenses". Nothing needed from the humans.
+- **To test:** `docs/TESTING.md`, "Map lenses". Nothing needed from the humans.
 
-## Unreleased: drawn issues and colors, unique candidates (D-047, D-048)
+### Drawn issues and colors, unique candidates (D-047, D-048)
 
 - **Top issues are drawn every match.** Each state's two top issues come from the match seed (regional flavor kept: Farms still leans to the Plains), balanced so every issue covers 108–161 EV. Every issue now tops the EV ranking in some matches; the bot's platform is the match's three biggest issues 2% of the time (was 29%), and every issue is 12–13% of platform picks (Schools and Farms were never picked).
 - **Niche issues hit harder.** A platform issue's rally/ad multiplier grows as its EV shrinks: ×1.72 at 108 EV, ×1.5 at the mean, ×1.39 at 161. Running on the three biggest or three smallest issues wins about as often as a mixed platform.
@@ -34,6 +38,17 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 - **Two players never share a candidate.** Select is two steps: claim a candidate ("Next: issues"), then pick three issues. The opponent's candidate shows "Taken" at once; a same-moment clash goes to a seeded coin flip and the loser picks again. Select timer 30 → 38 s.
 - The issue chips, state cards, help text, debug board, duel harness and its `map.txt` read this match's issues. Debug: `claim CANDIDATE`; `select CANDIDATE ISSUE ISSUE ISSUE` (no color).
 - **To test:** `docs/TESTING.md`, "Drawn issues and colors, unique candidates". Nothing needed from the humans.
+
+### Polls reveal ground game (D-049)
+
+- A paid internal poll (state or region) now also shows the opponent's ground-game units in each polled state, exactly, as of the end of the week you polled. Only the player who polled sees it. Before this, nothing showed ground game until election night.
+- The state card keeps your latest reading ("Their ground game here: 3 units, -4.5 for you on election night (your poll, end of week 8)"), or says "hidden. A poll shows it" where you never polled. The map's Polls lens tags those states "opp G3". The week card's internal-poll line, the F2 board and the duel harness show the same.
+- Results: "What decided it" adds "Your polls found their ground game in OH (3 units; you had 4, won it)".
+- The Poll and Region poll previews and the help screen now say what a poll is for: seeing their hidden ground game before election night.
+- Ground game costs $2.5 a unit (was $2): at $1.33 a point of margin it was the cheapest point in the game. Walt Begay still pays $1.
+- Bots scout close states from week 7 (not while the opponent's cash shows Low), count what they see against their own margin there, and start ground game a week earlier.
+- Harness (2,000 matches): GOTV changes the winner 10.4%, average GOTV spend $7.7, candidates 45.8–55.3%. The never-poll bot still wins about 55% against the polling bot: see D-049 for why the bots cannot use the information and what would change it.
+- Test: `docs/TESTING.md`, "Polls reveal ground game". Nothing needed from the humans.
 
 ## 0.7.0: your base hears your stance (D-043)
 
