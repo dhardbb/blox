@@ -5,12 +5,15 @@
 -- state card. The fill by public-poll leader is the same in every lens; screens
 -- keep their event and stance badges (the Tags layer).
 --
---   EV      "Votes": the state's electoral votes; ★ and a white outline on a battleground
+--   EV      "Votes": the state's electoral votes on a dark plate; on a
+--           battleground "★13", outlined in white (good news, never orange,
+--           and never a white fill, which means "selected": D-056)
 --   Issues  the state's top issue as a short code: the first one on your
 --           platform (filled in your color), else its first top issue
---   Polls   the public-poll lead ("+3") in the leader's color, "tie", or the
---           lean before the first poll ("~+2"). Your internal polls, momentum
---           and ground game are on the state card (Details)
+--   Polls   the public-poll lead ("+3") on a plate filled in the leader's
+--           color, "tie", or the lean before the first poll ("~+2", the
+--           leader's readable text color: a lean, not a poll). Your internal
+--           polls, momentum and ground game are on the state card (Details)
 --   Money   what one more fundraiser there would raise this week, from
 --           Explain.action (the state card's number); dim when your plan
 --           already empties the pool
@@ -120,13 +123,14 @@ local function leaderOf(values: { number }): (number?, number)
 	return best, if second == -math.huge then first else first - second
 end
 
--- "+3" in the leader's color, "tie" when under Lens.TIE; `prefix` marks the kind.
+-- "+3" on a plate filled in the leader's color (the map makes its text
+-- readable), "tie" when under Lens.TIE; `prefix` marks the kind.
 local function leadPart(view: View, support: { number }, prefix: string): Part
 	local leader, lead = leaderOf(support)
 	if leader == nil or lead < Lens.TIE then
 		return { text = `{prefix}tie`, color = Kit.colors.muted }
 	end
-	return { text = `{prefix}+{math.floor(lead + 0.5)}`, color = colorOf(view, leader) }
+	return { text = `{prefix}+{math.floor(lead + 0.5)}`, color = colorOf(view, leader), filled = true }
 end
 
 -- The state's top issues this match, from the View's issue map (D-047).
@@ -147,8 +151,8 @@ local function evLine(_ctx: Context, s: StateView): Line
 		parts = {
 			{
 				text = if s.battleground then Kit.STAR .. votes else votes,
-				-- A battleground is good news (D-056), marked with a star and a white
-				-- outline, never a white fill, which means "press here" (D-058).
+				-- A battleground is good news (D-056): a star and a white outline,
+				-- never orange, never a white fill, which means "selected" (D-058).
 				outlined = if s.battleground then true else nil,
 			},
 		},
@@ -177,7 +181,11 @@ local function pollsLine(ctx: Context, s: StateView): Line
 		return { parts = { leadPart(view, s.poll.support, "") } }
 	elseif s.leanTo and s.lean > 0 then
 		-- Before the first poll: the lean, marked "~".
-		return { parts = { { text = `~+{math.floor(s.lean + 0.5)}`, color = colorOf(view, s.leanTo) } } }
+		return {
+			parts = {
+				{ text = `~+{math.floor(s.lean + 0.5)}`, color = Kit.textColor(colorOf(view, s.leanTo)) },
+			},
+		}
 	end
 	return { parts = {} }
 end

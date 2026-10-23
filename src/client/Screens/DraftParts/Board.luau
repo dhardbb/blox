@@ -129,7 +129,8 @@ function Board.newSummary(): Summary
 				blocks[p] = block
 			end
 			block.name.Text = Board.who(config, view, p)
-			block.name.TextColor3 = colors[p] or Kit.colors.text
+			-- A player's color as text goes through its readable variant (D-056).
+			block.name.TextColor3 = if colors[p] then Kit.textColor(colors[p]) else Kit.colors.text
 			-- A stronghold someone nominated lost its bonus: list it apart (playtest 1).
 			local active, nominated = Drafted.strongholds(view, p)
 			local lost = {}
@@ -202,6 +203,8 @@ function Board.newLegend(): Legend
 				Kit.color(Colors.tint(Colors.neutral, rgb[p] or Colors.neutral, LEGEND_TINT))
 			local who = if p == view.you then "you" else opponent
 			labels[k].Text = if polled then `Polls lead to {who}` else `Leans to {who}`
+			-- The words in the player's readable text color, so the key matches the map.
+			labels[k].TextColor3 = if rgb[p] then Kit.color(Colors.textOn(rgb[p])) else Kit.colors.text
 		end
 		note.Text = if polled
 			then "Deeper color: a bigger poll lead. Ring: who drafted it. H: home. B: battleground."

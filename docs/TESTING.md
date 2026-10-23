@@ -743,6 +743,20 @@ Before testing: the two decoration images need uploading first (`assets/ui/READM
 7. **Losing:** finish a match you lose. "You lost" is orange; nothing on that screen is red unless it is the other player's color. In a debate week, a topic the other player wins shows an orange "Rex wins" tag.
 8. **No errors:** the Output window shows no errors from `Kit`, `Assets`, `Header`, `ActionBar` or `Sheet`, before and after the upload. *Send back:* the Output log.
 
+## Front-page map (unreleased)
+
+Client only. Needs the foundation's images uploaded (shadow, glow) to see the glows; without them the map still works, just flatter. Best on the iPad and on a phone.
+
+1. **Campaign map (iPad).** Behind the map there is a soft navy glow, like a lit table. Every state looks like a chunky token: a darker edge just under it, the top a little lighter than the bottom, a faint shadow. Lines between states are fainter than before. *Send back:* a screenshot; does the map look like the hero of the screen?
+2. **Battlegrounds.** In the Votes lens a battleground shows "★" before its votes, on a dark tag with a white outline. Nothing on the map is orange unless it goes against you. *Send back:* can you spot the battlegrounds at a glance?
+3. **Selecting a state.** Tap Ohio: its ring turns white and a soft white glow under it slowly breathes. Tap another state: the glow moves. With Reduce Motion on, the glow stays still.
+4. **Polls lens.** Each lead ("+3") sits on a tag filled in the leader's color, readable on any state; a near-tie says "tie".
+5. **Phone (portrait).** No state's circle overlaps another, and every two-letter code is readable, also in the Northeast and around Ohio, Pennsylvania and Virginia. The bigger states show their votes inside. *Send back:* a phone screenshot of the Campaign map and of the Draft map.
+6. **A stance week.** Pick stance A or B: states it helps get a ring and soft glow in your color with "+1.0"-style tags filled in your color; states it hurts glow orange with an orange "-0.5" tag in dark text. A state that would flip says FLIP on a dark tag with a thick edge in the new leader's color.
+7. **Debate reveal.** Moved states glow toward whoever gained; flips say FLIP with an edge in the new leader's color (a grey edge for a tie).
+8. **Election night.** The state being counted ("?") glows; the map otherwise fills in as before.
+9. **No errors** from `NodeMap`, `Lens` or `SwingMarks` in the Output window. *Send back:* the Output log.
+
 ## White accent (unreleased, D-058)
 
 Client only. Pink is replaced by white everywhere.

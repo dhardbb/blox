@@ -4,6 +4,18 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### Front-page map
+
+Client only (and display numbers in `MapLayout`): no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Front-page map".
+
+- **The map is lit.** A soft navy glow sits behind the board; every state is a chunky token: a darker lip under it, a soft shadow, the top lighter than the bottom, its code with a thin dark outline.
+- **The selected state glows** white (the accent) and the glow breathes slowly (off with Reduce Motion). On election night the state being counted glows the same way.
+- **Map numbers are on dark plates** in the round display font. A battleground reads "★13" with a white outline (never orange, never a white fill). The lens line reads "Votes · ★ = battleground".
+- **Polls lens:** each lead sits on a plate filled in the leader's color, so it reads on any state ("tie" stays plain).
+- **Marks on the map:** a gain is a tag filled in your color; a loss is an orange tag with a dark "−0.5"; FLIP is a dark tag with a thick edge in the new leader's color. A moved state gets a colored ring and a soft bloom under it.
+- **Phone:** states no longer overlap: circles keep their real size where the 36 px tap area is bigger, and the layout leaves a little more room between them.
+- Draft: the map key's "Leans to you / Rex" words and the board's names use the readable version of each player's color.
+
 ### White accent (D-058)
 
 Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "White accent".

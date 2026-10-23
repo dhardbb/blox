@@ -134,27 +134,23 @@ describe("Map lenses", function()
 			local view = Fixtures.payload(C, "Plan").view
 			expect(selected(peer, "Campaign")):toEqual({ "EV" })
 			for _, s in view.states do
-				local votes = tostring(StateData.byId[s.id].ev)
+				local ev = tostring(StateData.byId[s.id].ev)
 				local part = pill(peer, "Campaign", s.id, 1)
-				local color = part.TextColor3
-				local outline = part:FindFirstChild("Outline")
+				local edge = part:FindFirstChild("Edge")
+				-- The number is white on the dark plate everywhere (never orange).
+				check(same(part.TextColor3, Kit.colors.text), `{s.id}: the number is not the text color`)
+				check(same(part.BackgroundColor3, Kit.colors.field), `{s.id}: the plate is not the field`)
 				if s.battleground then
-					-- D-058: a battleground is good news: a star and a white outline on
-					-- a field fill, never a white fill (that is the primary button).
-					expect(pills(peer, "Campaign", s.id)):toEqual({ Kit.STAR .. votes })
-					check(same(color, Kit.colors.text), `{s.id}: a battleground's number is not white`)
+					-- D-056/D-058: a battleground is good news: a star and a white
+					-- outline, never a white fill (that means "selected").
+					expect(pills(peer, "Campaign", s.id)):toEqual({ Kit.STAR .. ev })
 					check(
-						same(part.BackgroundColor3, Kit.colors.field),
-						`{s.id}: a battleground's tag is filled`
-					)
-					check(
-						outline ~= nil and outline.Enabled and same(outline.Color, Kit.colors.text),
-						`{s.id}: a battleground's tag has no white outline`
+						same(edge.Color, Kit.colors.text) and edge.Transparency == 0,
+						`{s.id}: a battleground's plate is not outlined in white`
 					)
 				else
-					expect(pills(peer, "Campaign", s.id)):toEqual({ votes })
-					check(outline == nil or not outline.Enabled, `{s.id}: a plain tag is outlined`)
-					check(same(color, Kit.colors.text), `{s.id}: the number is not the text color`)
+					expect(pills(peer, "Campaign", s.id)):toEqual({ ev })
+					check(edge.Transparency > 0, `{s.id}: a plain plate has a solid outline`)
 				end
 			end
 			-- The old crowded tags ("H B G3 *") and the momentum arrows are gone from the default map.
@@ -227,7 +223,7 @@ describe("Map lenses", function()
 					`{s.id}: {shownIssue} is on your platform but not filled`
 				)
 			else
-				check(same(part.BackgroundColor3, Kit.colors.background), `{s.id}: {shownIssue} is filled`)
+				check(same(part.BackgroundColor3, Kit.colors.field), `{s.id}: {shownIssue} is filled`)
 			end
 		end
 		check(filledSeen > 0, "no state shares an issue with your platform")
@@ -248,7 +244,7 @@ describe("Map lenses", function()
 		expect(Lens.issuesOf(fake, view.states[1])):toEqual({ "Transit", "Farms" })
 	end)
 
-	it("Polls: the public lead in the leader's color, the lean before a poll, nothing else", function()
+	it("Polls: the public lead filled in the leader's color, the lean before a poll, nothing else", function()
 		local world, peer = Rig.fixture("Plan")
 		local _, Kit = modules(world, peer)
 		local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
@@ -281,9 +277,14 @@ describe("Map lenses", function()
 				local text, leader = leadText(s.poll.support, "")
 				expect(got):toEqual({ text })
 				if leader then
+					local part = pill(peer, "Campaign", s.id, 1)
 					check(
-						same(pill(peer, "Campaign", s.id, 1).TextColor3, Kit.playerColor(view, leader)),
-						`{s.id}'s lead is not in the leader's color`
+						same(part.BackgroundColor3, Kit.playerColor(view, leader)),
+						`{s.id}'s lead is not filled in the leader's color`
+					)
+					check(
+						same(part.TextColor3, Kit.colors.text) or same(part.TextColor3, Kit.colors.background),
+						`{s.id}'s lead text is not readable on the fill`
 					)
 				end
 			elseif s.leanTo and s.lean > 0 then
@@ -437,10 +438,7 @@ describe("Lens motion", function()
 			if string.match(inst.Name, "^Part%d") and inst.Visible ~= false then
 				shownPills += 1
 				expect(inst.TextTransparency):toBe(0)
-				check(
-					math.abs(inst.BackgroundTransparency - 0.15) < 1e-6,
-					`{inst.Name} backing did not settle`
-				)
+				check(math.abs(inst.BackgroundTransparency) < 1e-6, `{inst.Name} backing did not settle`)
 			end
 		end
 		check(shownPills > 10, `only {shownPills} lens pills`)

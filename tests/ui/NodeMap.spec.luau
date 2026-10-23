@@ -101,18 +101,62 @@ describe("NodeMap", function()
 		expect(m.map.root.Tags:FindFirstChild("PA").Visible):toBe(false)
 	end)
 
-	it("joins a word to the badge and fills the tag in its color", function()
+	it("joins a word to the badge and edges the tag in its color; a badge fills it", function()
 		local m = mount(390, 244)
-		local red = m.Kit.colors.danger
-		m.map:setMarks({ PA = { badge = "+1.5", badgeColor = red, note = "FLIP", noteColor = red } })
+		local orange = m.Kit.colors.loss
+		m.map:setMarks({ PA = { badge = "-1.5", badgeColor = orange, note = "FLIP", noteColor = orange } })
 		local tag = m.map.root.Tags:FindFirstChild("PA")
-		expect(tag.Text):toBe("+1.5 FLIP")
-		expect(tag.BackgroundColor3):toBe(red)
+		local edge = tag:FindFirstChildOfClass("UIStroke")
+		expect(tag.Text):toBe("-1.5 FLIP")
+		-- A flip: a dark plate, white text, a 2 px edge in the word's color.
+		expect(tag.BackgroundColor3):toBe(m.Kit.colors.field)
+		expect(tag.TextColor3):toBe(m.Kit.colors.text)
+		expect(edge.Color):toBe(orange)
+		expect(edge.Thickness):toBe(2)
 		expect(hit(m, "PA"):FindFirstChild("Arrow").Visible):toBe(false)
-		m.map:setMarks({ PA = { badge = "+1.5", badgeColor = red } })
-		expect(tag.Text):toBe("+1.5")
-		expect(tag.TextColor3):toBe(red)
-		expect(tag.BackgroundColor3):toBe(m.Kit.colors.background)
+		-- A loss: filled orange with a dark number and its own edge.
+		m.map:setMarks({ PA = { badge = "-1.5", badgeColor = orange } })
+		expect(tag.Text):toBe("-1.5")
+		expect(tag.BackgroundColor3):toBe(orange)
+		expect(tag.TextColor3):toBe(m.Kit.colors.onLoss)
+		expect(edge.Color):toBe(m.Kit.colors.lossEdge)
+		expect(edge.Thickness):toBe(1)
+	end)
+
+	it("lights the board: a stage glow, a shadow and a lip per state, a glow under the selection", function()
+		local m = mount(390, 244)
+		local root = m.map.root
+		local stage = root:FindFirstChild("StageGlow")
+		check(stage ~= nil and stage:GetAttribute("Decor") == true, "no decorative stage glow")
+		local shadows = root.Shadows
+		for _, n in MapLayout.nodes() do
+			local shadow = shadows:FindFirstChild(`Shadow{n.id}`)
+			check(shadow ~= nil and shadow:GetAttribute("Decor") == true, `{n.id} has no contact shadow`)
+			check(shadows:FindFirstChild(`Lip{n.id}`) ~= nil, `{n.id} has no lip`)
+		end
+		check(shadows.ZIndex < root.Nodes.ZIndex, "the shadows are over the nodes")
+		local glow = shadows:FindFirstChild("SelectGlow")
+		expect(glow.Visible):toBe(false)
+		m.map:select("OH")
+		expect(glow.Visible):toBe(true)
+		expect(glow.ImageColor3):toBe(m.Kit.colors.accent)
+		m.map:select(nil)
+		expect(glow.Visible):toBe(false)
+	end)
+
+	it("keeps each circle inside its layout size when the 36 px minimum grows its target", function()
+		-- 340 px: narrower than MapLayout.PHONE_WIDTH, so small targets clamp to 36 px.
+		local m = mount(340, 212)
+		m.map:setMarks({})
+		local width = m.map.root.AbsoluteSize.X
+		for _, n in MapLayout.nodes() do
+			local circle = hit(m, n.id).Circle
+			local drawn = circle.AbsoluteSize.X
+			check(
+				drawn <= 2 * n.r * width + 0.5,
+				`{n.id}'s circle is {drawn} px, its layout {2 * n.r * width}`
+			)
+		end
 	end)
 
 	it("keeps every tag inside the map", function()

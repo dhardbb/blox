@@ -31,7 +31,7 @@ export type Node = {
 local MapLayout = {}
 
 MapLayout.ASPECT = 1.6 -- box width / height
-MapLayout.PHONE_WIDTH = 390 -- px, the narrowest map the layout is sized for (portrait phone)
+MapLayout.PHONE_WIDTH = 360 -- px, the narrowest map the layout is sized for (a 390 px portrait phone less its screen padding, with room)
 MapLayout.MIN_HIT = 36 -- px, tap target per node; must equal Kit.MAP_NODE_MIN (NodeMap.spec)
 MapLayout.LABEL_SCALE = 0.85 -- label box width as a share of the circle's diameter
 -- The Northeast inset, top to bottom (roughly north to south, so leaders rarely cross).
@@ -42,8 +42,8 @@ local LAT_NORTH, LAT_SOUTH = 49.5, 24.5
 local MARGIN_X, EAST_X = 0.05, 0.86 -- projected x of LON_WEST and LON_EAST (the ladder is east of it)
 local MARGIN_TOP, MARGIN_BOTTOM = 0.07, 0.13 -- projected y of LAT_NORTH and LAT_SOUTH, in box heights
 local R_BASE, R_PER_SQRT_EV = 0.0293, 0.0040 -- radius = base + per * sqrt(EV), in box widths
-local GAP = 0.003 -- minimum space between two circles, in box widths
-local LADDER_X = 0.952 -- ladder column center, box width (keeps a MIN_HIT target inside at PHONE_WIDTH)
+local GAP = 0.004 -- minimum space between two circles, in box widths (room for an owner ring on a phone)
+local LADDER_X = 0.95 -- ladder column center, box width (keeps a MIN_HIT target inside at PHONE_WIDTH)
 local LADDER_R = 0.0305 -- ladder circle radius, box width
 local LADDER_TOP, LADDER_BOTTOM = 0.08, 0.92 -- first and last ladder centers, box height
 local ITERATIONS = 400

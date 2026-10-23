@@ -87,10 +87,13 @@ local function badgeOf(peer: FakeRoblox.Peer, id: string): string?
 	return if badge.Visible then (string.gsub(badge.Text, " FLIP$", "")) else nil
 end
 
--- The color a state's tag is in: its text, or its fill once it says FLIP.
+-- The color a state's tag is in: its fill, or its edge once it says FLIP.
 local function tagColor(peer: FakeRoblox.Peer, id: string): Color3
 	local badge = nodePart(peer, id, "Badge")
-	return if string.find(badge.Text, "FLIP", 1, true) then badge.BackgroundColor3 else badge.TextColor3
+	if string.find(badge.Text, "FLIP", 1, true) then
+		return badge:FindFirstChildOfClass("UIStroke").Color
+	end
+	return badge.BackgroundColor3
 end
 
 local function strict(world: FakeRoblox.World, peer: FakeRoblox.Peer, rootName: string): { string }
@@ -143,7 +146,7 @@ describe("Stances: the Choice week", function()
 		Rig.noErrors(world)
 	end)
 
-	it("previews the selected stance on the map: gains in your color, losses in red", function()
+	it("previews the selected stance on the map: gains in your color, losses in orange", function()
 		local world, peer = open("Stance", nil)
 		local Kit = kitOf(world, peer)
 		local view = viewOf(world, peer)
@@ -169,7 +172,12 @@ describe("Stances: the Choice week", function()
 			look(id, mine, "in your color")
 		end
 		for _, id in preview.losses do
-			look(id, Kit.colors.danger, "red")
+			look(id, Kit.colors.loss, "orange")
+			-- A loss tag is orange with a dark number (D-056).
+			local badge = nodePart(peer, id, "Badge")
+			if badge.Visible and not string.find(badge.Text, "FLIP", 1, true) then
+				check(same(badge.TextColor3, Kit.colors.onLoss), `{id}'s loss tag text is not dark`)
+			end
 		end
 		check(badges > 0 and badges <= 5 + #preview.flips, `{badges} badges on the map`)
 		check(Rig.contains(textOf(peer, "GainText"), "Helps you"), textOf(peer, "GainText"))
