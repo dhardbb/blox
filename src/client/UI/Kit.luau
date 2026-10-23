@@ -61,6 +61,35 @@
 --   Screen roots: set attribute PrimaryOptional = true on the screen's holder
 --   frame for a moment with nothing to press (UI/Audit rule "primary").
 --
+-- Style v2 (docs/UI-STYLE.md, the rulebook for every screen):
+--   Kit.MAX_TEXT_SIZES 4 (distinct sizes on one screen), Kit.MAX_LABEL_WORDS 8
+--   (a button label), Kit.MAX_TEXT_WORDS 30 (one text outside a details area),
+--   Kit.PILL_H 24, Kit.NOW_H 32 (the "what to do now" line), Kit.SHEET_MAX_W 560,
+--   Kit.SCRIM_TRANSPARENCY 0.35, Kit.motion { fast 0.12, base 0.2, slow 0.35 } s.
+--   Kit.colors.bad (= danger) and Kit.colors.warn (orange, text only).
+--   Kit.glyph       the glyphs known to render in Gotham (no ▾ ▴, no emoji)
+--   Kit.tone(name) -> Color3   "text" | "muted" | "accent" | "good" | "bad" | "warn"
+--   Kit.title(text, props?) -> TextLabel          title size, bold
+--   Kit.stack(props?, direction?, gap?) -> Frame  transparent, list layout, grows in Y
+--   Kit.card(props?, children?) -> Frame          surface, panel corner, padding md,
+--                                                 vertical list (gap sm), grows in Y
+--   Kit.cardButton(onActivate, props?) -> TextButton  a tappable card (chip look:
+--                                                 Kit.setSelected outlines it)
+--   Kit.chip(text, onActivate, props?) -> TextButton  Kit.button variant "chip"
+--   Kit.pill(text, tone?, props?) -> TextLabel    a 24 px read-only tag
+--   Kit.divider(props?) -> Frame                  a 1 px line
+--   Kit.details(container) -> container           marks a details area (a sheet or
+--                                                 an expander body): long text OK
+--   Kit.dataColor(inst) -> inst                   marks a data-colored element (map
+--                                                 fills, feed tints): any color OK
+--   Kit.words(text) -> number
+--   Kit.tween(inst, goals, duration?)             TweenService (Quad Out), or set
+--                                                 at once where there is none
+--   Variant "ghost": no fill, text color, for tertiary actions ("More", "Back").
+--   New modules: UI/Sheet (bottom sheet on phones, centered panel on wide screens),
+--   UI/CoachTip (first-match tips, shown once), Header option `now` (the "what to do
+--   now" line) and a timer bar (setTimer's third argument).
+--
 -- A button made without `props.variant` keeps the v0.3 behavior: setEnabled
 -- only fades it (transparency) and never touches its colors, because legacy
 -- screens color such buttons themselves. Screens move to explicit variants in
@@ -72,7 +101,8 @@ local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 
 local Kit = {}
 
-export type Variant = "primary" | "secondary" | "danger" | "chip"
+export type Variant = "primary" | "secondary" | "danger" | "chip" | "ghost"
+export type Tone = "text" | "muted" | "accent" | "good" | "bad" | "warn"
 
 Kit.MIN_TOUCH = 44 -- px, smallest button in either direction (PLAN.md touch targets)
 Kit.PRIMARY_H = 56 -- px, the one pinned primary button
@@ -81,6 +111,35 @@ Kit.HEADER_H = 44 -- px, the standard one-row header
 Kit.MIN_TEXT = 12 -- px, floor for every UITextSizeConstraint
 Kit.MAP_NODE_MIN = 36 -- px, smallest map tap target
 Kit.TIMER_WARN = 10 -- s, timers turn danger below this
+Kit.MAX_TEXT_SIZES = 4 -- distinct text sizes one screen may show (UI audit textSizes)
+Kit.MAX_LABEL_WORDS = 8 -- words on one button label (UI audit labelWords)
+Kit.MAX_TEXT_WORDS = 30 -- words in one text outside a details area (UI audit wallOfText)
+Kit.PILL_H = 24 -- px, a read-only tag
+Kit.NOW_H = 32 -- px, the header's "what to do now" line
+Kit.SHEET_MAX_W = 560 -- px, widest a sheet gets on a wide screen
+Kit.SCRIM_TRANSPARENCY = 0.35 -- the dimmed layer behind a sheet
+
+-- Durations in seconds; every tween is one of these (docs/UI-STYLE.md, Motion).
+Kit.motion = {
+	fast = 0.12, -- press feedback, chip selection
+	base = 0.2, -- panels and sheets opening, a value changing
+	slow = 0.35, -- a reveal step, a big number counting
+}
+
+-- Glyphs that render in Roblox's Gotham (▾ and ▴ do not; no emoji anywhere).
+Kit.glyph = {
+	dot = "·",
+	bullet = "•",
+	close = "×",
+	plus = "+",
+	minus = "−",
+	up = "▲",
+	down = "▼",
+	arrow = "→",
+	more = "…",
+	check = "✓",
+	flight = "✈",
+}
 
 Kit.font = {
 	body = Enum.Font.Gotham,
@@ -134,6 +193,12 @@ Kit.colors = {
 	warn = Kit.color(Colors.warn),
 	disabledText = Kit.color(Colors.disabledText),
 }
+Kit.colors.bad = Kit.colors.danger -- the semantic name for a loss or an error
+
+-- The text color for a semantic tone.
+function Kit.tone(name: Tone): Color3
+	return (Kit.colors :: any)[name] or Kit.colors.text
+end
 
 -- A player's color by index in the View (neutral before Select ends).
 function Kit.playerColor(view: any, p: number): Color3
@@ -343,11 +408,19 @@ local CHIP: Look = {
 	disabledText = Kit.colors.disabledText,
 }
 
+local GHOST: Look = {
+	bg = Kit.colors.raised, -- only shows on press (the button has no fill)
+	text = Kit.colors.text,
+	disabledBg = Kit.colors.raised,
+	disabledText = Kit.colors.disabledText,
+}
+
 local LOOKS: { [string]: Look } = {
 	primary = PRIMARY,
 	secondary = SECONDARY,
 	danger = DANGER,
 	chip = CHIP,
+	ghost = GHOST,
 }
 
 -- Every variant by name, so a string from props or an attribute becomes a Variant.
@@ -356,6 +429,7 @@ local VARIANTS: { [string]: Variant } = {
 	secondary = "secondary",
 	danger = "danger",
 	chip = "chip",
+	ghost = "ghost",
 }
 
 local function variantOf(button: Instance): Variant?
@@ -386,6 +460,7 @@ function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }
 	local look = if variant then LOOKS[variant] else SECONDARY
 	local base = merged({
 		BackgroundColor3 = look.bg,
+		BackgroundTransparency = if variant == "ghost" then 1 else 0,
 		BorderSizePixel = 0,
 		AutoButtonColor = true,
 		Size = UDim2.new(1, 0, 0, if variant == "primary" then Kit.PRIMARY_H else Kit.MIN_TOUCH),
@@ -480,6 +555,168 @@ function Kit.setSelected(button: TextButton, selected: boolean)
 	if stroke then
 		stroke.Enabled = selected
 	end
+end
+
+-- ---------------------------------------------------------------- style v2
+
+-- A bold title-size line: a screen's one big heading.
+function Kit.title(text: string, props: { [string]: any }?): TextLabel
+	return Kit.text(
+		text,
+		merged({
+			Size = UDim2.new(1, 0, 0, Kit.size.title + 8),
+			Font = Kit.font.bold,
+			TextSize = Kit.size.title,
+		}, props)
+	)
+end
+
+-- A transparent frame whose children stack in a list ("Vertical" by default,
+-- gap sm) and that grows in Y with them. Full width unless props say otherwise.
+function Kit.stack(props: { [string]: any }?, direction: string?, gap: number?): Frame
+	local frame = Kit.box(merged({
+		Name = "Stack",
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+	}, props))
+	Kit.list(direction, gap or Kit.space.sm).Parent = frame
+	return frame
+end
+
+-- A card: the one container style for grouped content. Surface fill, panel
+-- corner, padding md, a vertical list (gap sm); grows in Y with its content.
+function Kit.card(props: { [string]: any }?, children: { Instance }?): Frame
+	local frame = Kit.panel(merged({
+		Name = "Card",
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+	}, props))
+	Kit.list("Vertical", Kit.space.sm).Parent = frame
+	if children then
+		for _, child in children do
+			child.Parent = frame
+		end
+	end
+	return frame
+end
+
+-- A tappable card (a candidate, a stance, a topic): the chip look (raised,
+-- selected = accent outline via Kit.setSelected), padding md, a vertical list
+-- (gap xs) for the caller's labels, grows in Y. Put Kit.text/caption inside.
+function Kit.cardButton(onActivate: () -> (), props: { [string]: any }?): TextButton
+	local button = Kit.button(
+		"",
+		onActivate,
+		merged({
+			variant = "chip",
+			Name = "CardButton",
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			TextScaled = false,
+		}, props)
+	)
+	local corner = button:FindFirstChildOfClass("UICorner")
+	if corner then
+		corner.CornerRadius = UDim.new(0, Kit.radius.panel)
+	end
+	local pad = button:FindFirstChildOfClass("UIPadding")
+	if pad then
+		pad.PaddingTop = UDim.new(0, Kit.space.md)
+		pad.PaddingBottom = UDim.new(0, Kit.space.md)
+		pad.PaddingLeft = UDim.new(0, Kit.space.md)
+		pad.PaddingRight = UDim.new(0, Kit.space.md)
+	end
+	Kit.list("Vertical", Kit.space.xs).Parent = button
+	return button
+end
+
+-- A toggle chip: Kit.button with variant "chip" (Kit.setSelected shows it picked).
+function Kit.chip(text: string, onActivate: () -> (), props: { [string]: any }?): TextButton
+	return Kit.button(text, onActivate, merged({ variant = "chip" }, props))
+end
+
+-- A read-only tag, Kit.PILL_H tall and as wide as its text: "Your platform",
+-- "Battleground", "Locked in". The tone colors the text; the fill stays raised.
+function Kit.pill(text: string, tone: Tone?, props: { [string]: any }?): TextLabel
+	local label = Kit.text(
+		text,
+		merged({
+			Name = "Pill",
+			Size = UDim2.fromOffset(0, Kit.PILL_H),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundTransparency = 0,
+			BackgroundColor3 = Kit.colors.raised,
+			Font = Kit.font.medium,
+			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = Kit.tone(tone or "text"),
+		}, props)
+	)
+	Kit.corner(Kit.PILL_H // 2).Parent = label
+	Kit.new("UIPadding", {
+		PaddingLeft = UDim.new(0, Kit.space.sm),
+		PaddingRight = UDim.new(0, Kit.space.sm),
+		Parent = label,
+	})
+	return label
+end
+
+-- A 1 px divider line, full width.
+function Kit.divider(props: { [string]: any }?): Frame
+	return Kit.new(
+		"Frame",
+		merged({
+			Name = "Divider",
+			Size = UDim2.new(1, 0, 0, 1),
+			BackgroundColor3 = Kit.colors.line,
+			BorderSizePixel = 0,
+		}, props)
+	)
+end
+
+-- Marks `container` as a details area (a sheet body, an expander body): texts
+-- inside may run past Kit.MAX_TEXT_WORDS, because the player asked to see them.
+function Kit.details<T>(container: T): T
+	(container :: any):SetAttribute("Details", true)
+	return container
+end
+
+-- Marks `inst` (and what is inside it) as data-colored: map fills, player-tinted
+-- feed rows, EV bars. The UI audit's tokenColor rule skips it.
+function Kit.dataColor<T>(inst: T): T
+	(inst :: any):SetAttribute("DataColor", true)
+	return inst
+end
+
+-- Words in a text (runs of non-space characters).
+function Kit.words(text: string): number
+	local n = 0
+	for _ in string.gmatch(text, "%S+") do
+		n += 1
+	end
+	return n
+end
+
+local tweenService: any = nil
+do
+	local ok, service = pcall(function()
+		return game:GetService("TweenService")
+	end)
+	tweenService = if ok then service else nil
+end
+
+-- Tweens `inst` to `goals` over `duration` (default Kit.motion.base), Quad Out.
+-- Without a TweenService (the headless test engine) the goals apply at once.
+function Kit.tween(inst: Instance, goals: { [string]: any }, duration: number?)
+	if tweenService == nil then
+		for key, value in goals do
+			(inst :: any)[key] = value
+		end
+		return
+	end
+	local info = TweenInfo.new(duration or Kit.motion.base, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	tweenService:Create(inst, info, goals):Play()
 end
 
 -- Seconds left as "0:34".

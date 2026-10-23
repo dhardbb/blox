@@ -282,7 +282,8 @@ describe("UI audit output and the transition list", function()
 		for _, rule in t.Audit.RULES do
 			known[rule] = true
 		end
-		local labels = { "NodeMap", "Lobby", "Select", "Draft", "Campaign", "Election", "Results" }
+		local labels =
+			{ "NodeMap", "Lobby", "Select", "Draft", "Decision", "Campaign", "Election", "Results" }
 		for label, pending in t.Audit.PENDING do
 			check(table.find(labels, label) ~= nil, `PENDING has an unknown screen {label}`)
 			for rule in pending do

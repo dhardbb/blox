@@ -1,8 +1,10 @@
 --!strict
 -- A panel whose 44 px title row toggles its body (docs/DESIGN.md D-030): the
 -- event card, the week card, the state list, the Draft board on phones. The
--- title row reads "Title +" when collapsed and "Title –" when expanded. The
--- panel grows with its body (AutomaticSize Y), so it belongs in a list layout.
+-- title row reads "Title +" when collapsed and "Title −" (minus) when expanded.
+-- The panel grows with its body (AutomaticSize Y), so it belongs in a list
+-- layout. The body is a details area (Kit.details): longer text is allowed
+-- there, because the player opened it (UI audit rule wallOfText).
 --
 --   local card = Collapsible.new(parent, { title = "Week card", expanded = false,
 --       name = "WeekCard", order = 5, onToggle = function(expanded) end })
@@ -18,7 +20,7 @@ local Kit = require(script.Parent.Kit)
 local Collapsible = {}
 
 local COLLAPSED = "+" -- Gotham has no ▾/▴ (they render as boxes)
-local EXPANDED = "–"
+local EXPANDED = "−" -- U+2212, the same width as "+"
 
 export type Options = {
 	title: string,
@@ -73,6 +75,7 @@ function Collapsible.new(parent: Instance, options: Options): Collapsible
 		Parent = root,
 	})
 	Kit.list("Vertical", Kit.space.xs).Parent = body
+	Kit.details(body)
 
 	local function render()
 		toggle.Text = `{title} {if expanded then EXPANDED else COLLAPSED}`

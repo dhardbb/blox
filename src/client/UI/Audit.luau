@@ -25,14 +25,36 @@
 --                 primary sits in a ScrollingFrame or outside the screen
 --   oneAccent     more than one visible button filled with the accent color
 --
+-- Style rules (docs/UI-STYLE.md, style v2). Audit.run checks them; Audit.check
+-- only with { style = true }, so the layout specs that call check() directly
+-- keep testing layout alone:
+--   tokenColor    a visible fill, text or UIStroke color off the palette (Kit.colors
+--                 and the six player colors). Skipped on the map and under an
+--                 instance with attribute DataColor = true (Kit.dataColor): map
+--                 fills, feed tints and EV bars are data, not chrome
+--   textSizes     more than Kit.MAX_TEXT_SIZES (4) distinct text sizes on the screen
+--   labelWords    a button label longer than Kit.MAX_LABEL_WORDS (8) words
+--   wallOfText    a text longer than Kit.MAX_TEXT_WORDS (30) words outside a details
+--                 area (attribute Details = true: Kit.details, Sheet and
+--                 Collapsible bodies, the Help overlay)
+--
 -- Transition (UI overhaul v0.4.0): the screens are redesigned one work package
 -- at a time, so findings a screen is known to have are reported as "pending"
 -- (printed, not counted, no WARN) until its package lands. Audit.PENDING lists,
 -- per audit label (the screen name), the rules still pending there; the key
 -- "NodeMap" covers everything inside the node map on any screen. To make a screen
 -- strict, delete its entry. `Audit.run(root, label, { strict = true })` ignores
--- PENDING altogether (the specs use it to prove a screen is clean).
+-- PENDING for the layout rules (the specs use it to prove a screen is clean);
+-- pending style rules stay notes even then.
+--
+-- Style v2 transition: the screens the style rules found on the day they were
+-- added are listed below; each UI-STYLE work package (WP-A, WP-B, WP-C) deletes
+-- its own screens' lines when it redoes them. tests/ui/Style.spec.luau fails if a
+-- listed rule no longer fires (delete the line) or an unlisted one does.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Kit = require(script.Parent.Kit)
 
 local Audit = {}
@@ -47,6 +69,10 @@ export type Rule =
 	| "contained"
 	| "primary"
 	| "oneAccent"
+	| "tokenColor"
+	| "textSizes"
+	| "labelWords"
+	| "wallOfText"
 
 export type Finding = {
 	rule: Rule,
@@ -56,12 +82,25 @@ export type Finding = {
 }
 
 export type Options = {
-	strict: boolean?, -- ignore Audit.PENDING
+	strict: boolean?, -- ignore Audit.PENDING for the layout rules (style entries still apply)
+}
+
+export type CheckOptions = {
+	style: boolean?, -- also run the style rules (Audit.STYLE)
 }
 
 -- Rules each screen still breaks while the overhaul is in progress. Each work
 -- package empties (deletes) its own entries; keep one entry per line.
-Audit.PENDING = {} :: { [string]: { [Rule]: boolean } }
+Audit.PENDING = {
+	-- Style v2 (docs/UI-STYLE.md §6). WP-A: Select, Draft. WP-B: Decision,
+	-- Campaign. WP-C: Election, Results.
+	Select = { wallOfText = true }, -- WP-A: the platform hint
+	Draft = { tokenColor = true, wallOfText = true }, -- WP-A: legend swatches, "how it works"
+	Decision = { labelWords = true, wallOfText = true }, -- WP-B: focus topic labels and notes
+	Campaign = { wallOfText = true }, -- WP-B: state card momentum note; WP-C: debate swing lines
+	Election = { tokenColor = true }, -- WP-C: player-tinted feed rows (mark them Kit.dataColor)
+	Results = { textSizes = true }, -- WP-C: five sizes (hero, title, heading, body, caption)
+} :: { [string]: { [Rule]: boolean } }
 
 -- The rules in the order they are reported.
 local RULES: { Rule } = {
@@ -74,8 +113,20 @@ local RULES: { Rule } = {
 	"contained",
 	"primary",
 	"oneAccent",
+	"tokenColor",
+	"textSizes",
+	"labelWords",
+	"wallOfText",
 }
 Audit.RULES = RULES
+
+-- The style rules: checked by Audit.run, and by Audit.check with { style = true }.
+Audit.STYLE = table.freeze({
+	tokenColor = true,
+	textSizes = true,
+	labelWords = true,
+	wallOfText = true,
+} :: { [Rule]: boolean })
 
 local TOLERANCE = 1 -- px a box may poke outside before it counts
 local SCALE: { [number]: boolean } = {
@@ -86,12 +137,37 @@ local SCALE: { [number]: boolean } = {
 	[Kit.size.hero] = true,
 }
 
+-- Every color a screen's chrome may use: the Kit tokens and the player colors.
+local PALETTE: { Color3 } = {}
+for _, color in Kit.colors :: { [string]: Color3 } do
+	table.insert(PALETTE, color)
+end
+for _, rgb in Colors.player do
+	table.insert(PALETTE, Kit.color(rgb))
+end
+
 local function isText(inst: Instance): boolean
 	return inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")
 end
 
 local function sameColor(a: Color3, b: Color3): boolean
 	return math.abs(a.R - b.R) < 0.003 and math.abs(a.G - b.G) < 0.003 and math.abs(a.B - b.B) < 0.003
+end
+
+local function onPalette(color: Color3): boolean
+	for _, token in PALETTE do
+		if sameColor(color, token) then
+			return true
+		end
+	end
+	return false
+end
+
+local function hex(color: Color3): string
+	local function c(v: number): number
+		return math.clamp(math.floor(v * 255 + 0.5), 0, 255)
+	end
+	return string.format("#%02x%02x%02x", c(color.R), c(color.G), c(color.B))
 end
 
 -- An Enum value's name; works with real EnumItems and the fake engine's.
@@ -121,8 +197,9 @@ local function outside(inner: Rect, outer: Rect, vertical: boolean): boolean
 end
 
 -- Every finding under `root`, pending or not, and the number of distinct text
--- sizes among the visible texts.
-function Audit.check(root: Instance): ({ Finding }, number)
+-- sizes among the visible texts. Style rules only with { style = true }.
+function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, number)
+	local style = options ~= nil and options.style == true
 	local findings: { Finding } = {}
 	local function add(rule: Rule, inst: Instance, message: string, onMap: boolean)
 		table.insert(findings, { rule = rule, name = inst.Name, message = message, onMap = onMap })
@@ -149,6 +226,21 @@ function Audit.check(root: Instance): ({ Finding }, number)
 			node = node.Parent
 		end
 		return nil
+	end
+
+	-- Whether `inst` or an ancestor up to the root has attribute `name` = true.
+	local function marked(inst: Instance, name: string): boolean
+		local node: Instance? = inst
+		while node do
+			if node:GetAttribute(name) == true then
+				return true
+			end
+			if node == root then
+				return false
+			end
+			node = node.Parent
+		end
+		return false
 	end
 
 	local rootRect: Rect? = if root:IsA("GuiObject") then rectOf(root :: GuiObject) else nil
@@ -232,6 +324,47 @@ function Audit.check(root: Instance): ({ Finding }, number)
 				if not SCALE[px] then
 					add("typeScale", inst, `text "{quoted}" in {inst.Name} is {px}px (not a Kit.size)`, onMap)
 				end
+				if style then
+					local words = Kit.words(text.Text)
+					if inst:IsA("GuiButton") and words > Kit.MAX_LABEL_WORDS then
+						add(
+							"labelWords",
+							inst,
+							`button "{quoted}" in {inst.Name} has {words} words (max {Kit.MAX_LABEL_WORDS})`,
+							onMap
+						)
+					elseif words > Kit.MAX_TEXT_WORDS and not marked(inst, "Details") then
+						add(
+							"wallOfText",
+							inst,
+							`text "{quoted}" in {inst.Name} has {words} words (max {Kit.MAX_TEXT_WORDS} outside details)`,
+							onMap
+						)
+					end
+				end
+			end
+		end
+
+		if style and not onMap and not marked(inst, "DataColor") then
+			local fill = gui.BackgroundColor3
+			if fill and gui.BackgroundTransparency < 1 and not onPalette(fill) then
+				add("tokenColor", inst, `{inst.Name} fill {hex(fill)} is not a token`, false)
+			end
+			if isText(inst) then
+				local text = inst :: any
+				if
+					text.Text ~= ""
+					and (text.TextTransparency or 0) < 1
+					and not onPalette(text.TextColor3)
+				then
+					add("tokenColor", inst, `{inst.Name} text {hex(text.TextColor3)} is not a token`, false)
+				end
+			end
+			local stroke = inst:FindFirstChildOfClass("UIStroke") :: UIStroke?
+			if stroke and stroke.Enabled ~= false and (stroke.Transparency or 0) < 1 then
+				if not onPalette(stroke.Color) then
+					add("tokenColor", inst, `{inst.Name} stroke {hex(stroke.Color)} is not a token`, false)
+				end
 			end
 		end
 
@@ -289,6 +422,19 @@ function Audit.check(root: Instance): ({ Finding }, number)
 	for _ in sizes do
 		distinct += 1
 	end
+	if style and distinct > Kit.MAX_TEXT_SIZES then
+		local list = {}
+		for px in sizes do
+			table.insert(list, px)
+		end
+		table.sort(list)
+		add(
+			"textSizes",
+			root,
+			`{distinct} text sizes ({table.concat(list, ", ")}; max {Kit.MAX_TEXT_SIZES})`,
+			false
+		)
+	end
 	return findings, distinct
 end
 
@@ -296,15 +442,17 @@ end
 -- prints one summary line. Returns the number of problems (pending ones excluded).
 function Audit.run(root: Instance, label: string, options: Options?): number
 	local strict = options ~= nil and options.strict == true
-	local screenPending = if strict then nil else Audit.PENDING[label]
-	local mapPending = if strict then nil else Audit.PENDING.NodeMap
+	local screenPending = Audit.PENDING[label]
+	local mapPending = Audit.PENDING.NodeMap
 	local problems = 0
 	local pending: { [string]: { string } } = {}
 	local pendingCount = 0
-	local findings, distinctSizes = Audit.check(root)
+	local findings, distinctSizes = Audit.check(root, { style = true })
 	for _, finding in findings do
 		local allow = if finding.onMap then mapPending else screenPending
-		if allow and allow[finding.rule] then
+		-- Strict ignores the layout transition, not the style one (the style
+		-- list has its own ratchet: tests/ui/Style.spec.luau).
+		if allow and allow[finding.rule] and (not strict or Audit.STYLE[finding.rule]) then
 			pendingCount += 1
 			local list = pending[finding.rule] or {}
 			pending[finding.rule] = list

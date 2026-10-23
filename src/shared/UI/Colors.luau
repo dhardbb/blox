@@ -38,7 +38,7 @@ Colors.danger = rgb(232, 84, 84)
 Colors.good = rgb(92, 200, 128)
 Colors.onAccent = Colors.background -- text on an accent fill
 Colors.field = rgb(22, 25, 33) -- text boxes and read-only wells (between background and surface)
-Colors.warn = Colors.accent -- warning text (a timer under Kit.TIMER_WARN uses danger instead)
+Colors.warn = rgb(255, 150, 64) -- warning text and icons, never a fill (docs/UI-STYLE.md); not the accent, so "careful" never looks like "press here"
 Colors.disabledText = Colors.muted -- labels of disabled buttons
 
 -- Linear blend from `base` toward `color`, t in [0, 1]. Used for map fills, the

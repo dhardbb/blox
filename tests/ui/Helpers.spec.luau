@@ -47,7 +47,8 @@ describe("Colors", function()
 
 	it("has the design-system tokens (D-030)", function()
 		expect(Colors.onAccent):toEqual(Colors.background)
-		expect(Colors.warn):toEqual(Colors.accent)
+		-- Warning text is its own color, so "careful" never reads as "press here".
+		expect(Colors.warn == Colors.accent):toBe(false)
 		expect(Colors.disabledText):toEqual(Colors.muted)
 		local field = Colors.field
 		-- The field well sits between the background and a panel.
