@@ -108,6 +108,7 @@ export type SeatSpec = {
 	id: string,
 	kind: SeatKind,
 	prePick: any?, -- Human: optional lobby pre-pick
+	color: string?, -- Human: their Color Pass pick (the server sends it only for owners, D-055)
 	candidate: string?, -- Bot: candidate to play
 	style: Bot.Style?, -- Bot: play style
 }
@@ -479,9 +480,13 @@ function Session.new(
 		config = ConfigModule.with(config, { EVENTS_ENABLED = false })
 	end
 	local ids = {}
+	local colorPicks: { [string]: string } = {}
 	local seats: { Seat } = {}
 	for p, spec in specs do
 		ids[p] = spec.id
+		if spec.color then
+			colorPicks[spec.id] = spec.color
+		end
 		seats[p] = {
 			id = spec.id,
 			kind = spec.kind,
@@ -503,7 +508,7 @@ function Session.new(
 	local session: Session = {
 		id = id,
 		config = config,
-		match = Match.new(config, seed, ids),
+		match = Match.new(config, seed, ids, colorPicks),
 		seats = seats,
 		step = 0,
 		stage = "Input",

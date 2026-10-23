@@ -15,6 +15,7 @@ local Profile = require(ReplicatedStorage.Shared.Net.Profile)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local DataService = require(script.Parent.DataService)
+local PassService = require(script.Parent.PassService)
 local Replication = require(script.Parent.Replication)
 
 local MatchService = {}
@@ -42,14 +43,57 @@ end
 
 local function sendLobby(id: string)
 	local state: Lobby.PlayerState, code = Lobby.state(lobby, id)
+	local profile = DataService.profile(id)
+	local passId = PassService.colorPassId()
 	local status: Remotes.LobbyStatus = {
 		state = state,
 		code = code,
 		queued = #lobby.queue,
 		full = lobby.active >= lobby.capacity,
 		profile = DataService.summary(id),
+		color = if profile then profile.color else nil,
+		-- Absent while the pass is not set up: the client then shows no color option.
+		colorPass = if passId then { id = passId, owned = PassService.ownsColorPass(id) } else nil,
 	}
 	Replication.send(id, { kind = "Lobby", lobby = status })
+end
+
+-- The color a player starts a match with when they chose one (D-055): only a
+-- Color Pass owner's saved pick counts, as the server knows it now (no waiting).
+-- Anyone else, or an owner whose check failed, is dealt red or blue by Match.new.
+local function colorPick(id: string): string?
+	if not PassService.ownsColorPass(id) then
+		return nil
+	end
+	local profile = DataService.profile(id)
+	return if profile then profile.color else nil
+end
+
+-- SetColor: saves a chosen color (or auto, when `color` is nil) in the profile.
+-- Returns a reason code when it is turned down. May yield (a fresh pass check).
+local function setColor(player: Player, color: string?): string?
+	local id = idOf(player)
+	if color ~= nil then
+		if not Profile.isColor(color) then
+			return "UnknownColor"
+		end
+		if PassService.colorPassId() == nil then
+			return "NoColorPass"
+		end
+		-- Not known to own it: ask Roblox again (a failed check at join, or a
+		-- purchase made outside the game), never the client.
+		if not PassService.ownsColorPass(id) and not PassService.refresh(player) then
+			return "NoColorPass"
+		end
+	end
+	local how = DataService.update(id, function(profile: Profile.Profile): Profile.Profile
+		return (Profile.withColor(profile, color))
+	end)
+	if how == "Skipped" then
+		return "NotSaved"
+	end
+	print(`[270] player {id} color: {color or "auto"} ({how})`)
+	return nil
 end
 
 -- Sends the current lobby status to everyone who is not in a match. Whenever the
@@ -202,7 +246,7 @@ local function startMatch(outcome: Lobby.Outcome)
 	local seed = random:NextInteger(1, 2 ^ 31 - 1)
 	local specs: { Session.SeatSpec } = {}
 	for _, id in outcome.players do
-		table.insert(specs, { id = id, kind = "Human", prePick = prePicks[id] })
+		table.insert(specs, { id = id, kind = "Human", prePick = prePicks[id], color = colorPick(id) })
 	end
 	if outcome.kind == "Practice" then
 		local candidate = Candidates.ids[random:NextInteger(1, #Candidates.ids)]
@@ -261,13 +305,15 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 		Lobby.leave(lobby, id)
 	elseif request.op == "PrePick" then
 		prePicks[id] = request.pick
+	elseif request.op == "SetColor" then
+		reason = setColor(player, request.color)
 	end
 	if reason then
 		Replication.reject(player, request.op, reason)
 	end
 	if outcome and (outcome.kind == "Match" or outcome.kind == "Practice") then
 		startMatch(outcome)
-	elseif request.op == "PrePick" or reason then
+	elseif request.op == "PrePick" or request.op == "SetColor" or reason then
 		sendLobby(id) -- only this player's own screen changes
 	else
 		broadcastLobby() -- the queue or the open codes changed
@@ -325,6 +371,12 @@ end
 function MatchService.start()
 	DataService.start()
 	DataService.onLoaded(function(id: string)
+		if matchOf[id] == nil then
+			sendLobby(id)
+		end
+	end)
+	PassService.start()
+	PassService.onChanged(function(id: string)
 		if matchOf[id] == nil then
 			sendLobby(id)
 		end

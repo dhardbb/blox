@@ -19,6 +19,7 @@ local OPS: { [string]: boolean } = {
 	Practice = true,
 	Leave = true,
 	PrePick = true,
+	SetColor = true,
 	Claim = true,
 	Submit = true,
 	Bank = true,
@@ -97,6 +98,14 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			return false, "BadShape", nil
 		end
 		request.pick = raw.pick
+	elseif op == "SetColor" then
+		-- Optional: absent means auto. Which names are colors is the server's check.
+		if raw.color ~= nil then
+			if type(raw.color) ~= "string" then
+				return false, "BadShape", nil
+			end
+			request.color = raw.color
+		end
 	elseif op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
 		local matchId, step = raw.matchId, raw.step
 		if type(matchId) ~= "string" or type(step) ~= "number" or step ~= math.floor(step) then

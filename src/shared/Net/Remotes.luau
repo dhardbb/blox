@@ -22,6 +22,7 @@ export type Op =
 	| "Practice" -- play the bot now
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
 	| "PrePick" -- remember a candidate and platform for Select: { pick }
+	| "SetColor" -- save a chosen color (Color Pass owners, D-055): { color? } (absent = auto)
 	| "Claim" -- Select step 1: claim a candidate (D-048): { matchId, step, input = candidate id }
 	| "Submit" -- lock in this stage's input: { matchId, step, input }
 	| "Bank" -- take 15 s of time bank: { matchId, step }
@@ -36,6 +37,14 @@ export type Request = {
 	step: number?,
 	input: any?,
 	events: boolean?, -- Host: false turns the event deck off for this private match
+	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue)
+}
+
+-- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while
+-- Net/Products.COLOR_PASS_ID is 0: no color option anywhere.
+export type ColorPass = {
+	id: number, -- the pass id, for MarketplaceService:PromptGamePassPurchase
+	owned: boolean, -- the server's check (false while unknown or if the check failed)
 }
 
 -- Lobby status for one player.
@@ -45,6 +54,8 @@ export type LobbyStatus = {
 	queued: number, -- players waiting in the public queue
 	full: boolean, -- the server has no room for another match
 	profile: Profile.Summary?, -- the player's saved rating and record; absent until it has loaded
+	color: string?, -- the saved color pick; absent = auto (red or blue)
+	colorPass: ColorPass?, -- absent while the pass is not set up
 }
 
 -- Rating change after a rated match (message kind "Rating").

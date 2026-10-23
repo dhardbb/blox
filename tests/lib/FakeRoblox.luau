@@ -16,6 +16,14 @@
 -- game:BindToClose (FakeRoblox.shutdown runs the handlers), and os.time on the
 -- simulated clock.
 --
+-- MarketplaceService (the Color Pass, docs/DESIGN.md D-055): UserOwnsGamePassAsync
+-- answers from world.market.owned after the DataStore latency, or fails while
+-- world.market.failures > 0; PromptGamePassPurchase only logs the prompt in
+-- world.market.prompts; FakeRoblox.finishPassPurchase plays the player's answer
+-- (marks the pass owned when bought and fires the server's
+-- PromptGamePassPurchaseFinished). FakeRoblox.setModuleField changes a constant
+-- in a shared module on every peer (FakeRoblox.setColorPass: Net/Products).
+--
 -- Presentation stubs (client polish, docs/DESIGN.md D-053): TweenService
 -- (Create returns a tween whose Play applies the goals at once and fires
 -- Completed on the next step; Cancel fires it as Cancelled), TweenInfo,
@@ -85,6 +93,16 @@ export type World = {
 	reducedMotion: boolean, -- what GuiService.ReducedMotionEnabled answers (default false)
 	sounds: { SoundPlay }, -- every Sound:Play() on any client, in order
 	brokenAssets: { [string]: boolean }, -- content ids PreloadAsync reports as Failure
+	market: MarketState,
+	overrides: { [string]: { [string]: any } }, -- module path (from the root) -> fields set after it loads
+}
+
+-- The fake MarketplaceService's world-level state. Tests flip the switches.
+export type MarketState = {
+	owned: { [number]: { [number]: boolean } }, -- user id -> pass id -> owned
+	failures: number, -- the next N UserOwnsGamePassAsync calls fail
+	checks: number, -- UserOwnsGamePassAsync calls so far
+	prompts: { { userId: number, passId: number } }, -- PromptGamePassPurchase calls, in order
 }
 
 -- One Sound:Play() in the fake engine (world.sounds).
@@ -419,6 +437,27 @@ local function newDataStore(world: World, name: string): any
 		return deepCopy(new), {}
 	end
 	return store
+end
+
+-- MarketplaceService for one peer: game passes only.
+local function newMarketplaceService(world: World): any
+	return {
+		UserOwnsGamePassAsync = function(_self: any, userId: number, passId: number): boolean
+			local market = world.market
+			market.checks += 1
+			requestDelay(world)
+			if market.failures > 0 then
+				market.failures -= 1
+				error("HTTP 500 (simulated MarketplaceService failure)", 0)
+			end
+			local passes = market.owned[userId]
+			return passes ~= nil and passes[passId] == true
+		end,
+		PromptGamePassPurchase = function(_self: any, player: any, passId: number)
+			table.insert(world.market.prompts, { userId = player.UserId, passId = passId })
+		end,
+		PromptGamePassPurchaseFinished = newSignal(world),
+	}
 end
 
 local function newDataStoreService(world: World): any
@@ -970,6 +1009,12 @@ loadScript = function(world: World, peer: Peer, path: string, inst: any): ...any
 		environment = stdEnv(world, peer, path, inst),
 	})
 	local result = chunk()
+	local fields = world.overrides[string.sub(path, #world.root + 2)]
+	if fields and type(result) == "table" then
+		for key, value in fields do
+			result[key] = value
+		end
+	end
 	peer.modules[path] = result
 	return result
 end
@@ -1028,6 +1073,7 @@ local function newGame(world: World, isServer: boolean): any
 	end
 	services.ReplicatedStorage = world.shared
 	services.DataStoreService = newDataStoreService(world)
+	services.MarketplaceService = newMarketplaceService(world)
 	rawget(game, "_props").JobId = if isServer then world.jobId else ""
 	if isServer then
 		local spsParent = newInstance(world, "StarterPlayerScripts", "StarterPlayerScripts")
@@ -1181,6 +1227,8 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		reducedMotion = false,
 		sounds = {},
 		brokenAssets = {},
+		market = { owned = {}, failures = 0, checks = 0, prompts = {} },
+		overrides = {},
 	} :: World
 	world.shared = newInstance(world, "ReplicatedStorage", "ReplicatedStorage")
 	local sharedFolder = newInstance(world, "Folder", "Shared")
@@ -1349,6 +1397,48 @@ function FakeRoblox.setReducedMotion(world: World, on: boolean)
 			world.current = nil
 		end
 	end
+end
+
+-- Sets `key` to `value` in the module at `path` (from the repository root, e.g.
+-- "src/shared/Net/Products.luau") on every peer: copies already loaded now,
+-- later loads (a client that joins afterwards) as they load. The module must
+-- return an unfrozen table.
+function FakeRoblox.setModuleField(world: World, path: string, key: string, value: any)
+	local fields = world.overrides[path] or {}
+	fields[key] = value
+	world.overrides[path] = fields
+	local full = `{world.root}/{path}`
+	for _, peer in { world.server, table.unpack(world.clients) } do
+		local loaded = peer.modules[full]
+		if type(loaded) == "table" then
+			loaded[key] = value
+		end
+	end
+end
+
+-- Sets up the Color Pass (Net/Products.COLOR_PASS_ID) for this world; 0 turns it off.
+function FakeRoblox.setColorPass(world: World, passId: number)
+	FakeRoblox.setModuleField(world, "src/shared/Net/Products.luau", "COLOR_PASS_ID", passId)
+end
+
+-- Gives (or takes back) a pass outside the game, as a purchase on the website would.
+function FakeRoblox.setOwnsPass(world: World, userId: number, passId: number, owned: boolean)
+	local passes = world.market.owned[userId] or {}
+	passes[passId] = if owned then true else nil
+	world.market.owned[userId] = passes
+end
+
+-- The player closes a pass purchase prompt: `purchased` true pays (the pass is
+-- theirs) and false cancels. Fires PromptGamePassPurchaseFinished on the server.
+function FakeRoblox.finishPassPurchase(world: World, peer: Peer, passId: number, purchased: boolean)
+	local player = peer.player
+	if purchased then
+		FakeRoblox.setOwnsPass(world, player.UserId, passId, true)
+	end
+	local market = world.server.game:GetService("MarketplaceService")
+	world.current = world.server
+	market.PromptGamePassPurchaseFinished.fire(player, passId, purchased)
+	world.current = nil
 end
 
 -- Runs the world for `seconds` of simulated time.

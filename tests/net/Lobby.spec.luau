@@ -24,6 +24,7 @@ describe("Schemas.request", function()
 			{ op = "Bank", matchId = "m1", step = 3 },
 			{ op = "Skip", matchId = "m1", step = 3 },
 			{ op = "Resync" },
+			{ op = "SetColor", color = "Crimson" },
 		}
 		for _, raw in good do
 			local ok, reason, request = Schemas.request(raw)
@@ -73,6 +74,20 @@ describe("Schemas.request", function()
 			local ok, reason = Schemas.request(case[1])
 			expect(ok):toBe(false)
 			expect(reason):toBe(case[2])
+		end
+	end)
+
+	it("a SetColor request carries an optional string color (D-055)", function()
+		local ok, _, request = Schemas.request({ op = "SetColor", color = "Teal" })
+		expect(ok):toBe(true)
+		expect((request :: any).color):toBe("Teal")
+		ok, _, request = Schemas.request({ op = "SetColor" })
+		expect(ok):toBe(true)
+		expect((request :: any).color):toBe(nil)
+		for _, bad in { 5, true, {} } do
+			local good, reason = Schemas.request({ op = "SetColor", color = bad })
+			expect(good):toBe(false)
+			expect(reason):toBe("BadShape")
 		end
 	end)
 

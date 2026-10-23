@@ -7,6 +7,7 @@
 -- The record is plain data (tables, numbers, strings, booleans) so it can go
 -- straight into a DataStore. See docs/DESIGN.md D-028 for the format.
 
+local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
 local Rating = require("./Rating")
 
@@ -40,6 +41,10 @@ export type Profile = {
 	perCandidate: { [string]: CandidateRecord }, -- rated games by candidate id
 	recent: { Recent }, -- oldest first, at most Profile.RECENT_MAX
 	practice: { games: number, wins: number, losses: number }, -- vs the bot; never rated
+	-- The player's chosen color, one of Candidates.colors; nil = auto (red or blue).
+	-- Saved for anyone, used only while they own the Color Pass (D-055). Added
+	-- after version 1 without a bump: older profiles simply have none.
+	color: string?,
 }
 
 -- What the lobby shows.
@@ -72,7 +77,11 @@ export type Change = {
 
 local Profile = {}
 
-Profile.VERSION = 1 -- bump when the saved shape changes, and teach migrate the old one
+-- Bump when the saved shape changes (a rename or a reshape), and teach migrate
+-- the old one. An added optional field needs no bump: `color` (D-055) did not,
+-- because a bump makes servers still on the old version read such a profile as
+-- "from the future" and stop saving that player's results.
+Profile.VERSION = 1
 Profile.RECENT_MAX = 10 -- matches kept in `recent`
 local MAX_CANDIDATES = 64 -- most perCandidate entries kept (garbage defense)
 local MAX_ID = 32 -- longest candidate id kept
@@ -88,7 +97,13 @@ function Profile.new(config: Config?): Profile
 		perCandidate = {},
 		recent = {},
 		practice = { games = 0, wins = 0, losses = 0 },
+		color = nil,
 	}
+end
+
+-- True if `value` is one of the six player colors (Candidates.colors).
+function Profile.isColor(value: any): boolean
+	return type(value) == "string" and table.find(Candidates.colors, value) ~= nil
 end
 
 local function count(value: any): number?
@@ -185,6 +200,10 @@ function Profile.migrate(raw: any, config: Config?): Profile
 		out.practice.losses = count(raw.practice.losses) or 0
 		out.practice.games = math.max(count(raw.practice.games) or 0, out.practice.wins + out.practice.losses)
 	end
+
+	if Profile.isColor(raw.color) then
+		out.color = raw.color
+	end
 	return out
 end
 
@@ -258,6 +277,17 @@ function Profile.applyResult(profile: Profile, result: Result, config: Config?):
 		table.remove(out.recent, 1)
 	end
 	return out, { before = profile.rating, after = after, rated = true }
+end
+
+-- The profile with `color` as the chosen color (nil = back to auto). A name that
+-- is not one of the six is refused: returns the profile unchanged and false.
+function Profile.withColor(profile: Profile, color: string?): (Profile, boolean)
+	if color ~= nil and not Profile.isColor(color) then
+		return profile, false
+	end
+	local out = copy(profile)
+	out.color = color
+	return out, true
 end
 
 function Profile.summary(profile: Profile): Summary
