@@ -2,7 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.9.0: UI overhaul (Oct 23, 2026)
+
+The style v2 foundation (D-050) and its three screen packages (Lobby, Select and the draft; the campaign, decisions and the map; reveals, debates, election night, results and help) merged together, then one polish pass at all three sizes (D-052). No rule, sim, server or payload changes; no Config numbers changed. Studio checklists: `docs/TESTING.md`, "UI overhaul: the whole flow" first, then one section per package below.
+
+- Version 0.9.0, phase "UI overhaul". The UI audit's pending list is empty: every screen passes the style rules (one primary, at most 4 text sizes, short labels, no walls of text, palette colors only).
+
+### Polish after the merge (D-052)
+
+- **Debate and reveal map:** a state that changes leader says just "FLIP" (its points are in the panel), so the debate map no longer stacks wide "+1.0 FLIP" tags over its neighbours.
+- **Plain words:** the reveal's top line is one line ("You: Rally in Texas"); events say "20% more" instead of "×1.2"; action costs say "Flight $2.0"; Results' full breakdown and Help's "All the numbers" say votes and actions instead of EV and AP; the debate's "every state also got" line drops a side that got nothing.
+- **Layout:** Results cards put votes and states on their own lines (no "20 / states" break on a phone); the map reveal on a wide screen hides the empty draft board (the Strongholds card says it); the waiting line on the private-match screen gets room above Cancel; an empty plan takes no extra gap; the stance and focus status lines fit on one line ("Stance C · kept secret").
 
 ### The primary color is pink (D-051)
 

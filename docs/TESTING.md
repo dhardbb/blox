@@ -527,7 +527,7 @@ Strongholds are no longer drafted: each player gets their five strongest-leaning
 
 **Send back:** a screenshot of the map reveal (step 1) on the phone and at 16:9, the draft time from step 4, and your notes from step 5 (is there still one obvious home?). Plus the Output lines starting with `[270] UI audit Draft` (should say `0 problem(s)`).
 
-## UI style v2 foundation (unreleased)
+## UI style v2 foundation (v0.9.0)
 
 Agents: `lune run tests/ui/snap.luau` and look at `build/snaps/`; `lune run tests KitStyle` and `lune run tests Style`.
 
@@ -538,7 +538,7 @@ In Studio (one player is enough; Practice):
 3. Play to the first debate focus screen and wait out the timer without picking. **Expect:** the orange "No focus in time" line, Lock in still says "Pick a topic". Check the Output for lines starting `[270] UI audit`: lines with "pending" are expected; send back any line starting with `WARN`.
 4. Optional: on the iPad, repeat 1. **Expect:** the same orange; the text is readable.
 
-## UI style v2: Lobby, Select, map reveal and draft (unreleased)
+## UI style v2: Lobby, Select, map reveal and draft (v0.9.0)
 
 Agents: `lune run tests/ui/snap.luau -- 0` (shots 01 to 06b) and look at `build/snaps/`; `lune run tests Lobby`, `lune run tests Select`, `lune run tests Draft`, `lune run tests Words.Setup`.
 
@@ -552,7 +552,7 @@ In Studio (one player is enough; do 1 to 6 on the Mac, then 1, 3 and 6 again on 
 6. Draft round. **Expect:** "Round 1 of 3" (on wide screens "Home state" next to it), a tip "Tap a state to claim it…", a "Home state" pill with "Ties go to …", the 1st / 2nd boxes, 8 states with "N votes" and a colored lean pill, "Show all states". Tap a state. **Expect:** the tip goes away, the line says "Add a backup, or Lock in". Tap Show all states. **Expect:** every state, the ones you can't pick faded. Lock in. Send back a screenshot of the round and of the reveal ("You got …", "<name> got …").
 7. Check the Output for lines starting `[270] UI audit`: send back any line starting with `WARN`.
 
-## UI style v2: reveals, election night, results, help (WP-C, unreleased)
+## UI style v2: reveals, election night, results, help (WP-C, v0.9.0)
 
 Agents: `lune run tests/ui/snap.luau -- <16..27>` and look at `build/snaps/`; `lune run tests Words`, `lune run tests Help`, `lune run tests Election`, `lune run tests Results`, `lune run tests Stances`.
 
@@ -568,7 +568,7 @@ In Studio, Practice, once at 16:9 and once on the iPad (or a phone in portrait):
 
 **Send back:** screenshots of steps 1, 3, 4, 5 and 6 on both devices, and whether the reveal makes it obvious why a state changed hands.
 
-## UI style v2: campaign, decisions and the map (unreleased)
+## UI style v2: campaign, decisions and the map (v0.9.0)
 
 Agents: `lune run tests/ui/snap.luau -- campaign`, `-- decision`, `-- lens` and look at `build/snaps/`; `lune run tests Campaign`, `lune run tests Decision`, `lune run tests Lens`.
 
@@ -584,3 +584,19 @@ In Studio, Practice, once on the iPad (or Device emulation at 1024x768) and once
 8. Watch a resolve and a debate reveal. **Expect:** the header's line shows the latest result; the map labels only flips and the biggest moves.
 
 **Send back:** screenshots of steps 2, 4, 5 (Polls lens) and 6 on the iPad and on the phone, anything clipped or overlapping, and any Output line starting with `[270] UI audit` that says `WARN`.
+
+## UI overhaul: the whole flow (v0.9.0, D-051, D-052)
+
+Agents: `lune run tests/ui/snap.luau` (every shot at 390x844, 1024x768, 1280x720) and read `build/snaps/`; `build/snaps/audit.txt` should list 0 findings for every shot.
+
+In Studio, one Practice match from the lobby to the results, once on the Mac at 16:9 and once on the iPad. Then the three package checklists above for detail.
+
+1. **The pink primary.** On every screen the one filled button (Play vs Bot, Next, Lock in, Skip, Play again) is pink with dark text, and so are the selection outlines, the timer and the coach-tip outlines. **Expect:** nothing else is pink; if you drew Amber, your name, votes and states are orange-gold and never look like a button. Send back one screenshot where you are Amber.
+2. **The map reveal on the Mac.** **Expect:** the Strongholds card on the right, the legend note under the map, and no "home — · battlegrounds —" lines under it until the first draft round.
+3. **A week's results.** **Expect:** the line under the header reads like "You: Rally in Texas" on one line, even on the iPad in portrait.
+4. **A Windfall, Spotlight or Regional week.** **Expect:** the event says "20% more" / "50% more", never "×1.2".
+5. **The first debate.** **Expect:** states that change leader say just "FLIP" on the map, and the map has no wide "+1.0 FLIP" tags covering their neighbours. Send back a screenshot.
+6. **Results.** **Expect:** each card shows "280 votes" and "20 states" on separate lines. "Full breakdown →" says votes, never "EV". Open **?** → Actions → All the numbers: **expect** "3 actions (unused actions are lost)", never "AP".
+7. Output: send back any line starting with `WARN [270] UI audit`.
+
+**Send back:** screenshots of steps 1, 5 and 6 on both devices, and anything that is cut off, overlapping or hard to read.
