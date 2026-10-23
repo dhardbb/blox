@@ -14,6 +14,7 @@ type Config = ConfigModule.Config
 
 export type Moment =
 	"Select" -- character select, nothing chosen yet
+	| "SelectColor" -- the same for a Color Pass owner: you hold Violet, Rex claimed Teal (D-061)
 	| "MapReveal" -- leans shown
 	| "Draft" -- a nomination round in progress, homes picked and strongholds assigned
 	| "Plan" -- week 3 plan, with history behind it
@@ -30,6 +31,7 @@ local Fixtures = {}
 
 Fixtures.MOMENTS = table.freeze({
 	"Select",
+	"SelectColor",
 	"MapReveal",
 	"Draft",
 	"Plan",
@@ -110,6 +112,20 @@ local function play(config: Config, moment: Moment, s: number, candidate: string
 	return nil
 end
 
+-- Select for a Color Pass owner (D-061): two owners, you with Violet saved,
+-- the opponent with Teal saved, and the opponent holding Rex Calloway.
+local function selectColor(config: Config, s: number): Session.StatePayload
+	local session = Session.new(config, "fixture", s, {
+		{ id = "you", kind = "Human", colorPass = true, color = "Violet" },
+		{ id = "rex", kind = "Human", colorPass = true, color = "Teal" },
+	}, 0)
+	local ok, reason = Session.claim(session, 2, session.step, "calloway", 0)
+	assert(ok, `fixture claim rejected: {reason}`)
+	Session.update(session, 0)
+	Session.drain(session)
+	return Session.payload(session, 1)
+end
+
 -- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
 -- as candidate `candidate` (default Dana Okafor) against Rex Calloway. Stance,
 -- ChoiceWeek and ChoiceResolve try the next seeds in turn until one deals a Choice event
@@ -121,6 +137,9 @@ function Fixtures.payload(
 	candidate: string?
 ): Session.StatePayload
 	local first = seed or 18 -- 7 -> 18 with the 24-card deck (D-039): weeks 3 and 8 are still Windfalls
+	if moment == "SelectColor" then
+		return selectColor(config, first)
+	end
 	local tries = if moment == "Stance" or moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
 	for k = 0, tries - 1 do
 		local payload = play(config, moment, first + k, candidate)

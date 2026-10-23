@@ -453,6 +453,70 @@ describe("Select style v2: details one tap away", function()
 	end)
 end)
 
+describe("Select color picker (D-061)", function()
+	local COLORS = { "Crimson", "Cobalt", "Emerald", "Amber", "Violet", "Teal" }
+	local SIZES = { { x = 390, y = 844 }, { x = 1024, y = 768 }, { x = 1280, y = 720 } }
+
+	local function swatch(peer: FakeRoblox.Peer, color: string): any
+		return Rig.need(peer, "Select", `ColorSwatch_{color}`)
+	end
+
+	it("is hidden from a player without the Color Pass", function()
+		local _world, peer = Rig.fixture("Select", nil)
+		expect(Rig.shown(Rig.need(peer, "Select", "ColorPicker"), "Select")):toBe(false)
+		check(Rig.shown(Rig.need(peer, "Select", "ColorLine"), "Select"), "no color line")
+	end)
+
+	it("shows six swatches to an owner: theirs outlined, the opponent's dimmed and Taken", function()
+		local _world, peer = Rig.fixture("SelectColor", nil)
+		check(Rig.shown(Rig.need(peer, "Select", "ColorPicker"), "Select"), "no picker for an owner")
+		for _, color in COLORS do
+			check(Rig.shown(swatch(peer, color), "Select"), `no {color} swatch`)
+		end
+		expect(swatch(peer, "Violet"):GetAttribute("Selected")):toBe(true)
+		expect(swatch(peer, "Emerald"):GetAttribute("Selected")):toBe(false)
+		local taken = swatch(peer, "Teal")
+		expect(taken.Active):toBe(false)
+		local name = Rig.need(peer, "Select", "Cell_Teal"):FindFirstChild("ColorName")
+		expect(tostring(name.Text)):toBe(Words.COLOR_TAKEN_TAG)
+		local mono = taken:FindFirstChild("Monogram", true)
+		check(mono ~= nil and mono.BackgroundTransparency > 0, "the taken swatch is not dimmed")
+		expect(tostring(Rig.need(peer, "Select", "ColorLine").Text)):toBe("Your color: Violet")
+	end)
+
+	it("claims a free color on a tap, and a taken one does nothing", function()
+		local world, peer = Rig.fixture("SelectColor", nil)
+		Rig.tap(world, peer, "Select", "ColorSwatch_Teal")
+		expect(Rig.count(peer, "DEBUG_UI claimColor")):toBe(0)
+		Rig.tap(world, peer, "Select", "ColorSwatch_Emerald", 0.5)
+		expect(Rig.count(peer, "DEBUG_UI claimColor Emerald")):toBe(1)
+		expect(Rig.payloadOf(world, peer).view.players[1].color):toBe("Emerald")
+		expect(swatch(peer, "Emerald"):GetAttribute("Selected")):toBe(true)
+		expect(swatch(peer, "Violet"):GetAttribute("Selected")):toBe(false)
+		expect(tostring(Rig.need(peer, "Select", "ColorLine").Text)):toBe("Your color: Emerald")
+		-- Tapping your own color again sends nothing.
+		Rig.tap(world, peer, "Select", "ColorSwatch_Emerald", 0.5)
+		expect(Rig.count(peer, "DEBUG_UI claimColor")):toBe(1)
+		Rig.noErrors(world)
+	end)
+
+	it("keeps the picker on step 2, and the screen audit-clean at every size", function()
+		for _, size in SIZES do
+			local world, peer = Rig.fixture("SelectColor", size)
+			check(#Rig.audit(peer, "Select") == 0, `audit findings at {size.x}x{size.y}`)
+			Rig.claim(world, peer)
+			check(Rig.shown(Rig.need(peer, "Select", "ColorPicker"), "Select"), "no picker on step 2")
+			check(#Rig.audit(peer, "Select") == 0, `step 2 audit findings at {size.x}x{size.y}`)
+			Rig.noErrors(world)
+		end
+	end)
+
+	it("words the ColorTaken notice with the opponent and the color", function()
+		expect(Words.colorTaken("Rex", "Crimson")):toBe("Rex took Crimson first. Pick another color.")
+		expect(Words.colorTaken(nil, nil)):toBe("Your opponent took that color first. Pick another color.")
+	end)
+end)
+
 describe("Select polish", function()
 	local function settled(peer: FakeRoblox.Peer)
 		for _, inst in Rig.need(peer, "Screens", "Select"):GetDescendants() do

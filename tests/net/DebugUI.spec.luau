@@ -60,6 +60,8 @@ describe("Commands.parse", function()
 		expect(Commands.parse("select nobody teal jobs transit farms").kind):toBe("Error")
 		expect(Commands.parse("select hale teal jobs").kind):toBe("Error")
 		expect(Commands.parse("claim Venkat")):toEqual({ kind = "Request", op = "Claim", input = "venkat" })
+		expect(Commands.parse("color teal")):toEqual({ kind = "Request", op = "ClaimColor", color = "Teal" })
+		expect(Commands.parse("color gold").kind):toBe("Error")
 		expect(Commands.parse("claim nobody").kind):toBe("Error")
 	end)
 

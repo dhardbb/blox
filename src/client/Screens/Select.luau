@@ -12,8 +12,13 @@
 --   boost, what a rally or ad on it earns there once it is on your platform
 --   (View.platformMults: niche issues hit harder, D-047).
 --
--- Your color is dealt when the match is made (red or blue, or your Color Pass
--- pick, D-055) and shown as a dot and a line in both steps. The opponent's platform stays hidden until both have locked.
+-- Your color is shown as a dot and a line in both steps: red or blue, dealt
+-- (D-055). A Color Pass owner (view.canPickColor) also gets a row of six
+-- swatches under it (D-061): your color outlined, the one your opponent
+-- claimed dimmed with "Taken", and a tap on any other claims it (Net.claimColor,
+-- first come, first served; a same-moment clash comes back as the ColorTaken
+-- notice). Owners may change color until Select ends, also after locking in.
+-- The opponent's platform stays hidden until both have locked.
 --
 -- Layout (docs/UI-STYLE.md §4.2): the standard Header with the "what to do now"
 -- line and the timer, a scroll area (a coach tip, the cards or chips, then the
@@ -28,10 +33,13 @@
 --
 -- Stable names: Candidate_<id> (with Name, Archetype, Perk, Drawback, Taken),
 -- Issue_<issue> (with IssueName, IssueLine), Candidates, Issues, ColorRow,
--- ColorDot, ColorLine, Details, CandidateSheet, IssuesHelp, IssuesSheet, LockIn,
+-- ColorDot, ColorLine, ColorPicker (ColorSwatch_<Color>, each with ColorName),
+-- Details, CandidateSheet, IssuesHelp, IssuesSheet, LockIn,
 -- BarStatus, BarOpponent, NowText, Timer.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Players = game:GetService("Players")
 
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
@@ -63,6 +71,9 @@ local ISSUE_H = 68 -- px, an issue chip: the name over "154 votes · +41% boost"
 local ISSUE_H_PORTRAIT = 86 -- px, on a phone the votes and the boost take a line each
 local DOT = 24 -- px, the color line's monogram (your candidate's initials in your color)
 local DETAILS_W = 180 -- px, the ghost button beside the color line
+local SWATCH = 36 -- px, a color swatch's monogram (Color Pass owners, D-061)
+local SWATCH_CELL_MAX = 72 -- px, widest a swatch's cell gets (six in a row; a phone gives each about 56)
+local SWATCH_NAME_H = 18 -- px, the color name (or "Taken") under a swatch
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
 local PICKED = Kit.glyph.bullet .. " " -- before a picked issue's name
 local TAKEN_FADE = 0.5 -- a taken card's fill and text transparency
@@ -485,6 +496,78 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		mono.Parent = slot
 	end
 
+	-- ------------------------------------------------------------ color picker (D-061)
+
+	-- Six swatches in a row for a Color Pass owner, each a 44 px round chip with
+	-- a monogram in that color over its name. Hidden for everyone else.
+	local colorPending: string? = nil -- a color claim sent and not yet answered
+	local messageAtColor = 0 -- id of the newest message when it was sent
+	local picker = Kit.box({
+		Name = "ColorPicker",
+		LayoutOrder = 10,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH + SWATCH_NAME_H),
+		Visible = false,
+		Parent = content,
+	})
+	local swatchRow = Kit.box({ Name = "Swatches", Size = UDim2.fromScale(1, 1), Parent = picker })
+	Kit.new("UISizeConstraint", {
+		MaxSize = Vector2.new(SWATCH_CELL_MAX * #Candidates.colors, math.huge),
+		Parent = swatchRow,
+	})
+	Kit.list("Horizontal", 0).Parent = swatchRow
+	type Swatch = { cell: Frame, button: TextButton, slot: Frame, name: TextLabel }
+	local swatches: { [string]: Swatch } = {}
+	local claimColor: (color: string) -> ()
+	for k, color in Candidates.colors do
+		local cell = Kit.box({
+			Name = `Cell_{color}`,
+			LayoutOrder = k,
+			Size = UDim2.fromScale(1 / #Candidates.colors, 1),
+			Parent = swatchRow,
+		})
+		local button = Kit.chip("", function()
+			claimColor(color)
+		end, {
+			Name = `ColorSwatch_{color}`,
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0),
+			Size = UDim2.fromOffset(Kit.MIN_TOUCH, Kit.MIN_TOUCH),
+			Parent = cell,
+		})
+		button.BackgroundTransparency = 1
+		local corner = button:FindFirstChildOfClass("UICorner")
+		if corner then
+			corner.CornerRadius = UDim.new(0.5, 0)
+		end
+		local pad = button:FindFirstChildOfClass("UIPadding")
+		if pad then
+			pad:Destroy()
+		end
+		local slot = Kit.box({
+			Name = "Slot",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(SWATCH, SWATCH),
+			Parent = button,
+		})
+		local name = Kit.caption(color, {
+			Name = "ColorName",
+			AutomaticSize = Enum.AutomaticSize.None,
+			Position = UDim2.new(0, 0, 1, -SWATCH_NAME_H),
+			Size = UDim2.new(1, 0, 0, SWATCH_NAME_H),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextScaled = true,
+			TextWrapped = false,
+			Parent = cell,
+		})
+		Kit.new("UITextSizeConstraint", {
+			MaxTextSize = Kit.size.caption,
+			MinTextSize = Kit.MIN_TEXT,
+			Parent = name,
+		})
+		swatches[color] = { cell = cell, button = button, slot = slot, name = name }
+	end
+
 	-- Each card's monogram: in your color (the face you'd play), the taken
 	-- one in your opponent's; grey until colors are dealt.
 	local function renderMonograms()
@@ -514,6 +597,85 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 	end
 
+	-- Who holds a color: "mine", "theirs" or nil (free, or only dealt).
+	local function colorHolder(color: string): string?
+		local current = payload
+		local claims = if current then current.view.colorClaims else nil
+		local owner = if claims then claims[color] else nil
+		if owner == nil then
+			return nil
+		end
+		return if owner == (current :: Session.StatePayload).you then "mine" else "theirs"
+	end
+
+	local function canPick(): boolean
+		local current = payload
+		return current ~= nil and current.view.canPickColor == true
+	end
+
+	claimColor = function(color: string)
+		local current = payload
+		if current == nil or not canPick() or colorPending ~= nil or colorHolder(color) == "theirs" then
+			return
+		end
+		if current.view.players[current.you].color == color then
+			return
+		end
+		colorPending = color
+		messageAtColor = Messages.lastId(ctx.store.get())
+		local send = ctx.net.claimColor
+		if send then
+			send(color)
+		end
+		Motion.pop(swatches[color].button, PICK_FROM)
+		refresh()
+	end
+
+	-- The local player's name, for the swatches before a candidate is picked.
+	local function playerName(): string
+		local player = Players.LocalPlayer
+		local display = if player then (player :: any).DisplayName else nil
+		if type(display) == "string" and display ~= "" then
+			return display
+		end
+		return if player then player.Name else "You"
+	end
+
+	local function renderPicker(mineName: string?)
+		local shown = canPick()
+		picker.Visible = shown
+		if not shown then
+			return
+		end
+		local id = candidate
+		local label = if id then Candidates.profile(ctx.config, id).name else playerName()
+		local theirsLabel = "?"
+		for _, other in Candidates.ids do
+			if holder(other) == "theirs" then
+				theirsLabel = Candidates.profile(ctx.config, other).name
+			end
+		end
+		local selected = colorPending or mineName
+		for color, swatch in swatches do
+			local taken = colorHolder(color) == "theirs"
+			local tint = Kit.color(Colors.of(color))
+			paintMonogram(swatch.slot, "Monogram", if taken then theirsLabel else label, tint, SWATCH)
+			local mono = swatch.slot:FindFirstChild("Monogram") :: Frame?
+			if mono then
+				mono.BackgroundTransparency = if taken then TAKEN_FADE else 0
+				local letters = mono:FindFirstChild("Initials") :: TextLabel?
+				if letters then
+					letters.TextTransparency = if taken then TAKEN_FADE else 0
+				end
+			end
+			Kit.setSelected(swatch.button, color == selected)
+			Kit.setEnabled(swatch.button, not taken and colorPending == nil)
+			swatch.button.BackgroundTransparency = 1
+			swatch.name.Text = if taken then Words.COLOR_TAKEN_TAG else color
+			swatch.name.TextColor3 = if color == selected then Kit.colors.text else Kit.colors.muted
+		end
+	end
+
 	local function renderColor()
 		local current = payload
 		local me = if current then current.view.players[current.you] else nil
@@ -522,6 +684,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local label = if id then Candidates.profile(ctx.config, id).name else "?"
 		paintMonogram(dotSlot, "ColorDot", label, Kit.color(Colors.of(name)), DOT)
 		colorLine.Text = if name then `Your color: {name}` else "Your color: red or blue"
+		renderPicker(name)
 	end
 
 	-- ------------------------------------------------------------ layout
@@ -795,6 +958,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				elseif answer ~= nil and answer.rejected then
 					claiming = nil
 					rejection = answer.text
+				end
+			end
+			-- A color claim is answered by the next payload: granted (your color),
+			-- taken first by the opponent, or turned down (a message; the toast says why).
+			local wanted = colorPending
+			if wanted ~= nil and current ~= nil then
+				local answer = Messages.newestAfter(state, messageAtColor)
+				local me = current.view.players[current.you]
+				if
+					(me ~= nil and me.color == wanted)
+					or colorHolder(wanted) == "theirs"
+					or not canPick()
+					or answer ~= nil
+				then
+					colorPending = nil
 				end
 			end
 			-- A rejected lock-in leaves a message and no lock: say why (the global

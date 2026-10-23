@@ -367,6 +367,34 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Select", "Issue_Health")
 		end,
 	},
+	{
+		-- A Color Pass owner (D-061): Violet held, Teal claimed by Rex.
+		name = "03b-select-color",
+		moment = "SelectColor",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+		end,
+	},
+	{
+		name = "03c-select-color-change",
+		moment = "SelectColor",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+			tapIf(world, peer, "Select", "ColorSwatch_Emerald", 0.5)
+		end,
+	},
+	{
+		name = "04b-select-color-issues",
+		moment = "SelectColor",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+			tapIf(world, peer, "Select", "LockIn", 0.5)
+			tapIf(world, peer, "Select", "Issue_Jobs")
+		end,
+	},
 	{ name = "05-map-reveal", moment = "MapReveal", screen = "Draft" },
 	{
 		name = "06-draft",

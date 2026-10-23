@@ -279,7 +279,14 @@ local function command(text: string)
 		end
 	else
 		local op = parsed.op :: string
-		if op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
+		if op == "ClaimColor" then
+			local payload = current
+			if payload == nil or payload.stage == "Over" then
+				say("not in a match (ClaimColor)")
+			else
+				request({ op = op, matchId = payload.matchId, step = payload.step, color = parsed.color })
+			end
+		elseif op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
 			if op == "Submit" then
 				lastSubmit = parsed.input
 			end
@@ -300,6 +307,7 @@ local NOTICES = {
 	OpponentDisconnected = "Opponent disconnected: their moves auto-submit after the grace period.",
 	OpponentReconnected = "Opponent reconnected.",
 	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
+	ColorTaken = "Your opponent took that color first. Pick another color (color NAME).",
 }
 
 toClient.OnClientEvent:Connect(function(message: Remotes.Message)

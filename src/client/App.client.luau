@@ -153,6 +153,41 @@ if type(fixture) == "string" then
 			Store.setPayload(copy)
 		end
 	end
+	fakeNet.claimColor = function(color: string)
+		print("[270] DEBUG_UI claimColor", color)
+		-- Offline: grant a color nobody else claimed (D-061). Whoever was only
+		-- dealt it gets your old color, so colors stay distinct.
+		local payload = Store.get().payload
+		if payload == nil or not payload.view.canPickColor then
+			return
+		end
+		local owner = payload.view.colorClaims[color]
+		if owner ~= nil and owner ~= payload.you then
+			return
+		end
+		local copy = table.clone(payload)
+		copy.view = table.clone(payload.view)
+		local claims = table.clone(payload.view.colorClaims)
+		local players = table.clone(payload.view.players)
+		local old = players[payload.you].color
+		for name, p in payload.view.colorClaims do
+			if p == payload.you then
+				claims[name] = nil
+			end
+		end
+		claims[color] = payload.you
+		for p, seat in players do
+			if seat.color == color and p ~= payload.you then
+				players[p] = table.clone(seat)
+				players[p].color = old
+			end
+		end
+		players[payload.you] = table.clone(players[payload.you])
+		players[payload.you].color = color
+		copy.view.colorClaims = claims
+		copy.view.players = players
+		Store.setPayload(copy)
+	end
 	fakeNet.bank = function()
 		print("[270] DEBUG_UI bank")
 	end

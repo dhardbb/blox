@@ -28,7 +28,17 @@ Setup.COLOR_TITLE = "Your color"
 Setup.COLOR_AUTO = "Auto: red or blue"
 Setup.COLOR_LOCKED = "Pick your color with the Color Pass."
 Setup.COLOR_OWNED = "Tap a color. You get it every match."
-Setup.COLOR_TIE = "Same pick as your opponent? A coin flip decides."
+Setup.COLOR_TIE = "Same color as your opponent? Whoever claims it first gets it."
+Setup.COLOR_TAKEN_TAG = "Taken" -- under the opponent's claimed swatch on Select (D-061)
+
+-- The ColorTaken notice (D-061): "Rex took Crimson first. Pick another color."
+-- `who` is the opponent's first name (nil before they hold a candidate),
+-- `color` the color this player asked for (nil if unknown).
+function Setup.colorTaken(who: string?, color: string?): string
+	local name = who or "Your opponent"
+	local what = color or "that color"
+	return `{name} took {what} first. Pick another color.`
+end
 Setup.COLOR_BUY = "Get the Color Pass"
 
 -- The Lobby button: "Color: Emerald", or "Color: red or blue" with no pick.

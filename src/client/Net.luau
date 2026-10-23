@@ -6,7 +6,10 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
+local Config = require(ReplicatedStorage.Shared.Sim.Config)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
+local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Store = require(script.Parent.Store)
 
 local Net = {}
@@ -63,6 +66,7 @@ local REASONS: { [string]: string } = {
 	UnknownColor = "Pick one of the six colors.",
 	NoColorPass = "Picking a color needs the Color Pass.",
 	NotSaved = "Your saved data didn't load, so your color can't be saved.",
+	ColorTaken = "Your opponent has that color. Pick another.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -77,6 +81,37 @@ local NOTICES: { [string]: string } = {
 	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
 	OpponentForfeited = "Your opponent left the match. You win by forfeit.",
 }
+
+-- The color this player last asked for (Net.claimColor) and in which match,
+-- for the ColorTaken notice.
+local lastColorClaim: string? = nil
+local lastColorMatch: string? = nil
+
+-- "Rex took Crimson first. Pick another color." (D-061): the opponent by their
+-- candidate's first name once they hold one; the color last asked for, else the
+-- saved favorite (a tie as Select opened).
+local function colorTakenText(): string
+	local state = Store.get()
+	local payload = state.payload
+	local who: string? = nil
+	if payload and payload.view.claims then
+		for id, owner in payload.view.claims do
+			if owner ~= payload.you and Candidates.exists(id) then
+				who = Words.firstName(Candidates.profile(Config.defaults, id).name)
+			end
+		end
+	end
+	local lobby = state.lobby
+	local asked = if payload and payload.matchId == lastColorMatch then lastColorClaim else nil
+	return Words.colorTaken(who, asked or (if lobby then lobby.color else nil))
+end
+
+local function noticeText(code: string?): string
+	if code == "ColorTaken" then
+		return colorTakenText()
+	end
+	return NOTICES[code or ""] or (code or "Notice")
+end
 
 function Net.reasonText(reason: string?): string
 	return REASONS[reason or ""] or `Rejected: {reason or "unknown"}`
@@ -98,7 +133,7 @@ function Net.start()
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Notice" then
-			Store.say(NOTICES[message.notice or ""] or (message.notice or "Notice"))
+			Store.say(noticeText(message.notice))
 		elseif message.kind == "Rejected" then
 			Store.say(Net.reasonText(message.reason), true, message.reason)
 		end
@@ -135,6 +170,17 @@ end
 -- Select step 1: claim a candidate (D-048).
 function Net.claim(candidate: string)
 	matchRequest("Claim", candidate)
+end
+
+-- Select: a Color Pass owner claims a color, first come, first served (D-061).
+function Net.claimColor(color: string)
+	local payload = Store.get().payload
+	if payload == nil or payload.stage == "Over" then
+		return
+	end
+	lastColorClaim = color
+	lastColorMatch = payload.matchId
+	Net.send("ClaimColor", { matchId = payload.matchId, step = payload.step, color = color })
 end
 
 -- Saves a chosen color (Color Pass owners, D-055); nil goes back to auto. The

@@ -5,7 +5,8 @@
 --   practice [easy|medium|hard|extreme] | queue | host [noevents] | join CODE | leave | resync | bank | skip | help
 --   pick CANDIDATE ISSUE ISSUE ISSUE     (pre-pick in the lobby)
 --   claim CANDIDATE                      (Select step 1: hold a candidate, D-048)
---   select CANDIDATE ISSUE ISSUE ISSUE   (during Select; claims the candidate too; colors are dealt, D-055)
+--   select CANDIDATE ISSUE ISSUE ISSUE   (during Select; claims the candidate too)
+--   color COLOR                          (Select, Color Pass owners: claim a color, D-061)
 --   draft STATE [STATE]
 --   plan ACTION; ACTION; ...   with actions:
 --     rally ST ISSUE | fund ST | ad ST ISSUE | attack ad ST ISSUE | poll ST
@@ -29,6 +30,7 @@ export type Parsed = {
 	difficulty: string?, -- Practice: the bot's level, e.g. "Hard" for "practice hard" (D-057)
 	pick: any?, -- PrePick
 	input: any?, -- Submit
+	color: string?, -- ClaimColor: one of Candidates.colors, as typed in any case (D-061)
 	action: string?, -- Local: "auto" | "autoplay" | "show" | "help" | "rules"
 	arg: string?, -- Local argument
 	message: string?, -- Error
@@ -216,6 +218,12 @@ function Commands.parse(text: string): Parsed
 			return err(`claim needs a candidate; try: {table.concat(Candidates.ids, ", ")}`)
 		end
 		return { kind = "Request", op = "Claim", input = c }
+	elseif head == "color" then
+		local c = color(w[2])
+		if c == nil then
+			return err(`color needs a color; try: {table.concat(Candidates.colors, ", ")}`)
+		end
+		return { kind = "Request", op = "ClaimColor", color = c }
 	elseif head == "pick" or head == "select" then
 		local pick, message = selection(w)
 		if pick == nil then
@@ -287,6 +295,7 @@ end
 Commands.HELP = table.concat({
 	"Lobby: practice [easy|hard|extreme] | queue | host [noevents] | join CODE | leave | pick CANDIDATE ISSUE ISSUE ISSUE",
 	"Select: claim CANDIDATE, then select CANDIDATE ISSUE ISSUE ISSUE      Draft: draft OH PA",
+	"        color Teal (Color Pass owners pick a color, first come, first served)",
 	"Plan: plan rally OH Jobs; fund PA; ad MI Jobs; attack ad IA Farms; poll OH; rpoll Pacific;",
 	"      gotv OH 2; pivot Schools Farms      pass = empty plan",
 	"Decision (before the plan): focus Jobs (debate weeks) | choice b (Choice weeks)",
