@@ -1,5 +1,5 @@
 --!strict
--- Leans (D-008) and the blind draft (D-007, D-009).
+-- Leans (D-008), assigned strongholds and the blind draft (D-007, D-009, D-045).
 
 local Test = require("@testlib/Test")
 local Fixtures = require("@testlib/Fixtures")
@@ -10,6 +10,7 @@ local Match = require("@sim/Match")
 local Rng = require("@sim/Rng")
 local State = require("@sim/State")
 local StateData = require("@sim/StateData")
+local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -64,7 +65,14 @@ describe("Leans", function()
 	end)
 end)
 
--- A match in the draft with leans cleared, so bonuses can be checked exactly.
+-- Fixed strongholds for `drafting`, so the specs do not depend on the seed's leans.
+local STRONGHOLDS = {
+	{ "WI", "MN", "IA", "KS", "NE" },
+	{ "TX", "AZ", "NV", "NM", "UT" },
+}
+
+-- A match in the draft with leans cleared and the strongholds above, so bonuses
+-- can be checked exactly.
 local function drafting(): State.MatchState
 	local match = Fixtures.selected({ seed = 3 })
 	match = Match.advance(C, match, {})
@@ -73,21 +81,154 @@ local function drafting(): State.MatchState
 		s.lean, s.leanTo = 0, nil
 		s.support = { C.BASE_SUPPORT, C.BASE_SUPPORT }
 		s.undecided = C.BASE_UNDECIDED
+		s.owner = nil
+	end
+	for p, ids in STRONGHOLDS do
+		match.players[p].strongholds = table.clone(ids)
+		for _, id in ids do
+			State.get(match, id).owner = p
+		end
 	end
 	return match
 end
+
+-- A multiset of numbers as a sorted list.
+local function sorted(list: { number }): { number }
+	local copy = table.clone(list)
+	table.sort(copy)
+	return copy
+end
+
+describe("Strongholds (D-045)", function()
+	it("each player gets their strongest-leaning states when Select ends", function()
+		for seed = 1, 40 do
+			local match = Fixtures.selected({ seed = seed })
+			expect(match.phase):toBe("MapReveal")
+			for p, player in match.players do
+				expect(#player.strongholds):toBe(C.STRONGHOLD_COUNT)
+				local weakest = math.huge
+				for _, id in player.strongholds do
+					local s = State.get(match, id)
+					expect(s.owner):toBe(p)
+					expect(s.leanTo):toBe(p)
+					weakest = math.min(weakest, s.lean)
+				end
+				-- Nothing left over leans to p harder than the weakest stronghold.
+				for _, s in match.states do
+					if s.leanTo == p and s.owner == nil then
+						expect(s.lean <= weakest):toBe(true)
+					end
+				end
+			end
+			-- No homes and no battlegrounds yet: those are still drafted.
+			for _, s in match.states do
+				expect(s.isHome or s.battleground):toBe(false)
+			end
+		end
+	end)
+
+	it("give both players the same lean magnitudes and nearly the same EV", function()
+		local total, worst = 0, 0
+		local seeds = 200
+		for seed = 1, seeds do
+			local match = Fixtures.selected({ seed = seed })
+			local leans, evs = { {}, {} }, { 0, 0 }
+			for p, player in match.players do
+				for _, id in player.strongholds do
+					local s = State.get(match, id)
+					table.insert(leans[p], s.lean)
+					evs[p] += s.ev
+				end
+			end
+			expect(sorted(leans[1])):toEqual(sorted(leans[2]))
+			local gap = math.abs(evs[1] - evs[2])
+			total += gap
+			worst = math.max(worst, gap)
+		end
+		expect(total / seeds <= 5):toBe(true)
+		expect(worst <= 20):toBe(true)
+	end)
+
+	it("favor no seat: mirroring every lean mirrors the strongholds", function()
+		for seed = 1, 20 do
+			local match = Match.new(C, seed, { "a", "b" })
+			local mirror = State.clone(match)
+			for _, s in mirror.states do
+				if s.leanTo ~= nil then
+					s.leanTo = 3 - s.leanTo
+				end
+			end
+			Draft.assignStrongholds(C, match)
+			Draft.assignStrongholds(C, mirror)
+			expect(mirror.players[1].strongholds):toEqual(match.players[2].strongholds)
+			expect(mirror.players[2].strongholds):toEqual(match.players[1].strongholds)
+		end
+	end)
+
+	it("are deterministic by seed", function()
+		local a = Fixtures.selected({ seed = 9 })
+		local b = Fixtures.selected({ seed = 9 })
+		expect(a.players[1].strongholds):toEqual(b.players[1].strongholds)
+		expect(a.players[2].strongholds):toEqual(b.players[2].strongholds)
+	end)
+
+	it("are hidden during Select and shown to both players from the map reveal", function()
+		local fresh = Match.new(C, 4, { "a", "b" })
+		for p = 1, 2 do
+			local view = View.build(C, fresh, p)
+			expect(#view.players[1].strongholds + #view.players[2].strongholds):toBe(0)
+			for _, sv in view.states do
+				expect(sv.owner):toBe(nil)
+			end
+		end
+		local match = Fixtures.selected({ seed = 4 })
+		for p = 1, 2 do
+			local view = View.build(C, match, p)
+			for q = 1, 2 do
+				expect(view.players[q].strongholds):toEqual(match.players[q].strongholds)
+				for _, id in match.players[q].strongholds do
+					expect(view.states[State.indexOf[id]].owner):toBe(q)
+				end
+			end
+		end
+	end)
+
+	it("cannot be a home but can be nominated", function()
+		local match = Match.advance(C, Fixtures.selected({ seed = 5 }), {})
+		local mine = match.players[1].strongholds[1]
+		local theirs = match.players[2].strongholds[1]
+		expect(Draft.isLegal(C, match, 1, 0, mine)):toBe(false)
+		expect(Draft.isLegal(C, match, 1, 0, theirs)):toBe(false)
+		expect(Draft.isLegal(C, match, 1, 1, theirs)):toBe(true)
+		local ok, reason = Match.validate(C, match, 1, { choices = { theirs } })
+		expect(ok):toBe(false)
+		expect(reason):toBe("IllegalChoice")
+	end)
+
+	it("give a player fewer than STRONGHOLD_COUNT only when fewer states lean their way", function()
+		local match = Match.new(C, 6, { "a", "b" })
+		for _, s in match.states do
+			if s.leanTo == 2 then
+				s.lean, s.leanTo = 0, nil
+			end
+		end
+		Draft.assignStrongholds(C, match)
+		expect(#match.players[1].strongholds):toBe(C.STRONGHOLD_COUNT)
+		expect(#match.players[2].strongholds):toBe(0)
+	end)
+end)
 
 local function pick(match: State.MatchState, a: { string }, b: { string }): State.MatchState
 	return (Match.advance(C, match, { { choices = a }, { choices = b } }))
 end
 
 describe("Draft", function()
-	it("priority follows A B B A B A A B from the seeded A", function()
+	it("priority follows A B B from the seeded A: A for the home, B for both nominations", function()
 		local match = drafting()
 		local a = match.priorityA
 		local b = 3 - a
-		local expected = { a, b, b, a, b, a, a, b }
-		for round = 0, 7 do
+		local expected = { a, b, b }
+		for round = 0, 2 do
 			expect(Draft.priorityPlayer(C, match, round)):toBe(expected[round + 1])
 		end
 	end)
@@ -147,22 +288,20 @@ describe("Draft", function()
 		expect((Match.validate(C, match, 1, { choices = { "OH" } }))):toBe(true)
 	end)
 
-	it("home states cannot be nominated; drafted states cannot be re-drafted", function()
+	it("home states cannot be nominated; a battleground cannot be nominated twice", function()
 		local match = pick(drafting(), { "OH" }, { "PA" })
 		expect(Draft.isLegal(C, match, 1, 1, "OH")):toBe(false)
+		expect(Draft.isLegal(C, match, 1, 1, "PA")):toBe(false)
 		expect(Draft.isLegal(C, match, 1, 1, "MI")):toBe(true)
-		expect(Draft.isLegal(C, match, 1, 6, "OH")):toBe(false)
-		expect(Draft.isLegal(C, match, 1, 6, "MI")):toBe(true)
+		expect(Draft.isLegal(C, match, 1, 1, "TX")):toBe(true) -- the opponent's stronghold
+		match = pick(match, { "MI" }, { "GA" })
+		expect(Draft.isLegal(C, match, 1, 2, "MI")):toBe(false)
+		expect(Draft.isLegal(C, match, 1, 2, "GA")):toBe(false)
 	end)
 
 	it("applies home, stronghold and big-state bonuses; battlegrounds reset to the lean", function()
 		local match = drafting()
 		match = pick(match, { "OH" }, { "CA" }) -- homes: OH (17 EV), CA (54 EV)
-		match = pick(match, { "WI" }, { "TX" }) -- strongholds
-		match = pick(match, { "MN" }, { "AZ" })
-		match = pick(match, { "IA" }, { "NV" })
-		match = pick(match, { "KS" }, { "NM" })
-		match = pick(match, { "NE" }, { "UT" })
 		match.states[State.indexOf.AZ].lean = 4
 		match.states[State.indexOf.AZ].leanTo = 2
 		match.states[State.indexOf.AZ].support = { 33, 37 }
@@ -196,9 +335,7 @@ describe("Draft", function()
 
 	it("a nomination clash falls back to the second choice", function()
 		local match = drafting()
-		for _ = 1, 6 do
-			match = Match.advance(C, match, {})
-		end
+		match = Match.advance(C, match, {})
 		expect(Draft.kind(C, match.draftRound)):toBe("Nominate")
 		local p = Draft.priorityPlayer(C, match, match.draftRound)
 		local q = 3 - p

@@ -1,6 +1,8 @@
 --!strict
--- The blind state draft (D-007, D-009). Round 0 picks home states, the next
--- STRONGHOLD_ROUNDS pick strongholds, the last NOMINATION_ROUNDS nominate
+-- The state draft (D-007, D-009, D-045). Strongholds are not drafted: when the
+-- map is revealed each player is given their STRONGHOLD_COUNT strongest-leaning
+-- states (Draft.assignStrongholds), so both see them before any pick. Then the
+-- blind rounds: round 0 picks home states, the next NOMINATION_ROUNDS nominate
 -- battlegrounds. Every round each player submits a ranked top 2; on a clash the
 -- round's priority player gets their choice and the other falls back.
 -- Bonuses are applied once, after the last round (Draft.applyBonuses).
@@ -13,28 +15,71 @@ local Support = require("./Support")
 type Config = ConfigModule.Config
 type MatchState = State.MatchState
 
-export type Kind = "Home" | "Stronghold" | "Nominate"
+export type Kind = "Home" | "Nominate"
 
 local Draft = {}
 
 Draft.CHOICES = 2 -- ranked choices per round
 
 function Draft.rounds(config: Config): number
-	return 1 + config.STRONGHOLD_ROUNDS + config.NOMINATION_ROUNDS
+	return 1 + config.NOMINATION_ROUNDS
 end
 
-function Draft.kind(config: Config, round: number): Kind
+function Draft.kind(_config: Config, round: number): Kind
 	if round == 0 then
 		return "Home"
-	elseif round <= config.STRONGHOLD_ROUNDS then
-		return "Stronghold"
 	end
 	return "Nominate"
 end
 
--- Can player p take this state in this round? Homes and strongholds need an
--- undrafted state; nominations need a state that is not a home and not already a
--- battleground (any player's stronghold is fair game, D-007).
+-- Player p's strongholds-to-be: the states leaning toward p, strongest lean
+-- first, then the bigger state, then by id; at most STRONGHOLD_COUNT. Each
+-- player's list comes only from their own leans, so the order players are served
+-- in cannot matter (D-001), and leans come in mirrored pairs (D-008), so in a 1v1
+-- both lists hold the same lean magnitudes.
+function Draft.strongholdsFor(config: Config, match: MatchState, p: number): { string }
+	local list: { number } = {}
+	for i, s in match.states do
+		if s.leanTo == p and s.lean > 0 and s.owner == nil and not s.battleground then
+			table.insert(list, i)
+		end
+	end
+	table.sort(list, function(a, b)
+		local sa, sb = match.states[a], match.states[b]
+		if sa.lean ~= sb.lean then
+			return sa.lean > sb.lean
+		end
+		if sa.ev ~= sb.ev then
+			return sa.ev > sb.ev
+		end
+		return sa.id < sb.id
+	end)
+	local ids = {}
+	for k = 1, math.min(config.STRONGHOLD_COUNT, #list) do
+		ids[k] = match.states[list[k]].id
+	end
+	return ids
+end
+
+-- Gives every player their strongholds (D-045). Called once, when Select ends,
+-- so the map reveal and every draft round show them.
+function Draft.assignStrongholds(config: Config, match: MatchState)
+	local chosen = {}
+	for p in match.players do
+		chosen[p] = Draft.strongholdsFor(config, match, p)
+	end
+	for p, ids in chosen do
+		local player = match.players[p]
+		for _, id in ids do
+			State.get(match, id).owner = p
+			table.insert(player.strongholds, id)
+		end
+	end
+end
+
+-- Can player p take this state in this round? A home needs a state nobody owns
+-- (not a stronghold); nominations need a state that is not a home and not already
+-- a battleground (any player's stronghold is fair game, D-007).
 function Draft.isLegal(config: Config, match: MatchState, _p: number, round: number, id: string): boolean
 	local i = State.indexOf[id]
 	if i == nil then
@@ -194,9 +239,6 @@ function Draft.resolveRound(
 			s.isHome = true
 			player.home = pick.state
 			player.location = pick.state
-		elseif kind == "Stronghold" then
-			s.owner = pick.player
-			table.insert(player.strongholds, pick.state)
 		else
 			s.battleground = true
 			table.insert(player.nominations, pick.state)

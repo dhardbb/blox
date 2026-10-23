@@ -1,16 +1,19 @@
 --!strict
--- Draft screen: the map reveal, then eight blind draft rounds (PLAN.md "Draft").
--- Each round the player fills a ranked top 2 by tapping the map or the state list
--- and locks it in; after the round both picks are revealed together. The screen
--- reads only the player's own View and sends only { choices = { first, second? } }.
+-- Draft screen: the map reveal (leans and the strongholds they give each player,
+-- D-045), then three blind draft rounds: home state, then two battleground
+-- nominations (PLAN.md "Draft"). Each round the player fills a ranked top 2 by
+-- tapping the map or the state list and locks it in; after the round both picks
+-- are revealed together. The screen reads only the player's own View and sends
+-- only { choices = { first, second? } }.
 --
 -- Layout (docs/UI-OVERHAUL.md §3.3), every big box explicitly positioned:
---   Header     "Round 4 of 8 · Stronghold" · the round's help line · timer
+--   Header     "Round 2 of 3 · Nominate" · the round's help line · timer
 --   16:9       map 65 % on the left (legend and draft board under it, in Below),
 --              panel 35 % on the right
 --   portrait   map on top, min(width / ASPECT, 34 % of the height) px tall, the
 --              panel right under it (pixel math, no dead band)
---   panel      priority line → slots row (1st / 2nd chips, each with a ×) → the
+--   panel      priority line → both players' strongholds → slots row (1st / 2nd
+--              chips, each with a ×) → the
 --              state list → (portrait) a collapsed "Draft board" card at the end.
 --              The map reveal shows the legend and how the draft works instead;
 --              a round's reveal shows both picks above the list.
@@ -18,8 +21,8 @@
 --              illegal tap, until the next tap), opponent, primary "Lock in".
 --
 -- Stable names for tests and agents: LockIn (the primary), Choice1, Choice2,
--- Clear1, Clear2, Row_<id>, the map nodes by id, Priority, Explain (the header
--- subtitle), Timer, StateList, Board, Legend, BoardCard, RevealBox, YouPick,
+-- Clear1, Clear2, Row_<id>, the map nodes by id, Priority, Strongholds, Explain
+-- (the header subtitle), Timer, StateList, Board, Legend, BoardCard, RevealBox, YouPick,
 -- ThemPick, ClashNote, HowItWorks, BarStatus, BarOpponent, MapArea, Panel.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -53,12 +56,13 @@ local MAP_SHARE_PORTRAIT = 0.34 -- of the height at most, phones
 -- Panel order (PanelScroll's list).
 local ORDER = {
 	priority = 1,
-	slots = 2,
-	howItWorks = 3,
-	legend = 4, -- map reveal only
-	reveal = 5,
-	list = 6,
-	boardCard = 7, -- portrait only, always last
+	strongholds = 2,
+	slots = 3,
+	howItWorks = 4,
+	legend = 5, -- map reveal only
+	reveal = 6,
+	list = 7,
+	boardCard = 8, -- portrait only, always last
 }
 
 type Mode = "Map" | "Input" | "Reveal"
@@ -138,6 +142,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- ------------------------------------------------------------ panel contents
 
 	local priority = Kit.caption("", { Name = "Priority", LayoutOrder = ORDER.priority, Parent = scroll })
+	-- Both players' strongholds, assigned at the map reveal (D-045), so every pick
+	-- can react to them.
+	local strongholds = Kit.caption("", {
+		Name = "Strongholds",
+		TextColor3 = Kit.colors.text,
+		LayoutOrder = ORDER.strongholds,
+		Visible = false,
+		Parent = scroll,
+	})
 
 	-- The ranked top 2: one row of two chips, each with a × once it is filled.
 	local slots = Kit.box({
@@ -189,7 +202,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 
 	-- The map reveal: how the draft works.
-	local howItWorks = Kit.caption(Logic.howItWorks(totalRounds), {
+	local howItWorks = Kit.caption(Logic.howItWorks(config), {
 		Name = "HowItWorks",
 		TextColor3 = Kit.colors.text,
 		LayoutOrder = ORDER.howItWorks,
@@ -489,7 +502,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local priorityLine = ""
 		if mode == "Map" then
 			header:setSubtitle(
-				"Each state leans a few points toward one candidate. Leans are exact and public."
+				"Each state leans a few points toward one candidate. Your strongest leans are your strongholds."
 			)
 			priorityLine = Logic.priorityIn(Logic.priorityPlayer(config, view, 0), you, 0)
 		elseif mode == "Input" and kind ~= nil then
@@ -509,6 +522,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		priority.Text = priorityLine
 		priority.Visible = priorityLine ~= ""
+		local strongholdText = Logic.strongholdsLine(view, you)
+		strongholds.Text = strongholdText or ""
+		strongholds.Visible = strongholdText ~= nil
 		howItWorks.Visible = mode == "Map"
 
 		-- The ranked slots.

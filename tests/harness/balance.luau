@@ -101,6 +101,13 @@ local stanceTaken: { [string]: number } = {}
 local tossupDraft, tossupElection, spread = 0, 0, 0
 local leaned, flipped = 0, 0
 local leanX, winY = {}, {}
+-- Draft shape: how long it is, how often first choices clash, how predictable the
+-- picks are (the playtest complaint: "a clear correct choice for both players").
+local draftRounds, draftClashes, homeClashes = 0, 0, 0
+local homeCount: { [string]: number } = {}
+local strongholdCount: { [string]: number } = {}
+local strongholdEV, strongholdGaps = 0, {}
+local richerWins, richerGames = 0, 0
 
 for seed = 1, N do
 	local cands = pairFor(seed)
@@ -174,6 +181,26 @@ for seed = 1, N do
 	flipped += r.leanedFlipped
 	table.insert(leanX, r.leanEV[1] - r.leanEV[2])
 	table.insert(winY, if r.winner == 1 then 1 else 0)
+	draftRounds += r.draftRounds
+	draftClashes += r.draftClashes
+	if r.homeClash then
+		homeClashes += 1
+	end
+	for p = 1, 2 do
+		homeCount[r.homes[p]] = (homeCount[r.homes[p]] or 0) + 1
+		for _, id in r.strongholds[p] do
+			strongholdCount[id] = (strongholdCount[id] or 0) + 1
+		end
+		strongholdEV += r.strongholdEV[p] / 2
+	end
+	local gap = r.strongholdEV[1] - r.strongholdEV[2]
+	table.insert(strongholdGaps, math.abs(gap))
+	if gap ~= 0 then
+		richerGames += 1
+		if (gap > 0) == (r.winner == 1) then
+			richerWins += 1
+		end
+	end
 end
 local mainSeconds = os.clock() - started
 
@@ -298,6 +325,50 @@ local flipRate = flipped / math.max(1, leaned)
 line("Leaned states that flip", pct(flipRate), "20-40%", flipRate >= 0.2 and flipRate <= 0.4)
 local r = correlation(leanX, winY)
 line("Correlation: leaned-EV edge vs win", string.format("%.3f", r), "|r| < 0.05", math.abs(r) < 0.05)
+
+header("Draft")
+local roundsPerMatch = draftRounds / N
+line(
+	"Draft rounds / seconds (reveal + rounds)",
+	string.format(
+		"%.0f / %.0fs",
+		roundsPerMatch,
+		config.TIMER_MAP_REVEAL + roundsPerMatch * (config.TIMER_DRAFT_ROUND + config.DRAFT_REVEAL)
+	)
+)
+line("Home: both first choices the same state", pct(homeClashes / N))
+line("Any round: first choices clash", pct(draftClashes / math.max(1, draftRounds)))
+local function top(counts: { [string]: number }, total: number, k: number): string
+	local list = {}
+	for id, count in counts do
+		table.insert(list, { id = id, count = count })
+	end
+	table.sort(list, function(a, b)
+		if a.count ~= b.count then
+			return a.count > b.count
+		end
+		return a.id < b.id
+	end)
+	local parts = {}
+	for n = 1, math.min(k, #list) do
+		table.insert(parts, `{list[n].id} {string.format("%.0f", 100 * list[n].count / total)}`)
+	end
+	return table.concat(parts, " ")
+end
+line("Most picked homes (% of homes)", top(homeCount, 2 * N, 4))
+line("Most common strongholds (% of matches)", top(strongholdCount, N, 4))
+table.sort(strongholdGaps)
+line(
+	"Stronghold EV per player / gap p50 p90 max",
+	string.format(
+		"%.1f / %d %d %d",
+		strongholdEV / N,
+		strongholdGaps[math.ceil(N / 2)],
+		strongholdGaps[math.max(1, math.floor(0.9 * N))],
+		strongholdGaps[N]
+	)
+)
+line("Win rate, side with more stronghold EV", pct(richerWins / math.max(1, richerGames)))
 
 header("Rubber band")
 local wrongRate = underdogWrong / math.max(1, underdogWeeks)

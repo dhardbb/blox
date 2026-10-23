@@ -1,6 +1,6 @@
 --!strict
--- The match state machine: Select -> MapReveal -> Draft (rounds) -> week n ->
--- ... -> Election -> Done, where a week is
+-- The match state machine: Select -> MapReveal (strongholds assigned, D-045) -> Draft
+-- (home, then nominations) -> week n -> ... -> Election -> Done, where a week is
 --   [Decision "Focus" -> Debate] -> [Decision "Stance"] -> Plan
 -- (the focus only in debate weeks, the stance only in Choice weeks; D-044, Sim/Decision).
 --
@@ -297,6 +297,9 @@ function Match.advance(
 
 	if phase == "Select" then
 		events = resolveSelect(config, match, collect(config, match, given))
+		-- Strongholds come from the leans, which are shown from the map reveal on
+		-- (D-045): both players see them before the home round.
+		Draft.assignStrongholds(config, match)
 		match.phase = "MapReveal"
 	elseif phase == "MapReveal" then
 		match.phase = "Draft"

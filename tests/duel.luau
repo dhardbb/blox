@@ -38,6 +38,7 @@ local FakeRoblox = require("@testlib/FakeRoblox")
 local Support = require("./e2e/Support")
 local Candidates = require("@shared/Sim/Candidates")
 local Config = require("@shared/Sim/Config")
+local Draft = require("@shared/Sim/Draft")
 local Issues = require("@shared/Sim/Issues")
 local Drafted = require("@shared/UI/Drafted")
 local Events = require("@shared/Sim/Events")
@@ -173,7 +174,7 @@ local peers = Support.players(rig, 2)
 export type Turn = {
 	key: string, -- "matchId:step" of the stage this player is answering
 	step: number,
-	label: string, -- "Select", "Draft round 2/8 (Stronghold)", "Week 3 Plan"
+	label: string, -- "Select", "Draft round 2/3 (Nominate)", "Week 3 Plan"
 	phase: string, -- View phase: Select, Draft, Decision or Plan
 	attempts: number, -- rejected command files so far
 	shownAt: number, -- real time the current screen appeared
@@ -279,7 +280,7 @@ local function stageLabel(view: any): string
 	if view.phase == "Select" then
 		return "Select"
 	elseif view.phase == "Draft" then
-		return `Draft round {view.draftRound + 1}/8 ({view.draftKind})`
+		return `Draft round {view.draftRound + 1}/{Draft.rounds(Config.defaults)} ({view.draftKind})`
 	end
 	if view.phase == "Decision" then
 		return `Week {view.week} Decision: {if view.decision == "Focus" then "debate focus" else "stance"}`
@@ -449,17 +450,21 @@ local function draftGuide(payload: any): { string }
 	local rule
 	if kind == "Home" then
 		rule =
-			`HOME: +{C.HOME_BONUS} support there (+{C.HOME_BONUS_BIG} if {C.BIG_STATE_EV}+ EV); your fundraisers there yield x{C.HOME_FUNDRAISE_MULT} all game; your candidate starts the campaign there.`
-	elseif kind == "Stronghold" then
-		rule =
-			`STRONGHOLD: +{C.STRONGHOLD_BONUS} support there (+{C.STRONGHOLD_BONUS_BIG} if {C.BIG_STATE_EV}+ EV).`
+			`HOME: +{C.HOME_BONUS} support there (+{C.HOME_BONUS_BIG} if {C.BIG_STATE_EV}+ EV); your fundraisers there yield x{C.HOME_FUNDRAISE_MULT} all game; your candidate starts the campaign there. A stronghold cannot be a home.`
 	else
 		rule =
 			`NOMINATE a battleground: it loses ALL draft bonuses (back to {C.BASE_SUPPORT}/{C.BASE_SUPPORT}/{C.BASE_UNDECIDED} plus its lean) and gets x{C.BATTLEGROUND_MULT} on every campaign effect all game, for both players. A home state cannot be nominated; an opponent's stronghold can.`
 	end
 	local priority = view.draftPriority
+	local them = if you == 1 then 2 else 1
+	local function ids(list: { string }?): string
+		return if list and #list > 0 then table.concat(list, " ") else "none"
+	end
 	local out = {
-		`STAGE: State draft, round {view.draftRound + 1} of 8: {kind}. Blind and simultaneous; picks are revealed together afterwards.`,
+		`STAGE: State draft, round {view.draftRound + 1} of {Draft.rounds(C)}: {kind}. Blind and simultaneous; picks are revealed together afterwards.`,
+		`STRONGHOLDS are not drafted: each player was given their {C.STRONGHOLD_COUNT} strongest-leaning states (+{C.STRONGHOLD_BONUS} support each, +{C.STRONGHOLD_BONUS_BIG} if {C.BIG_STATE_EV}+ EV, applied after the draft). Yours: {ids(
+			me.strongholds
+		)}. Theirs: {ids(view.players[them].strongholds)}.`,
 		rule,
 		`Clash priority this round: P{priority} {if priority == you
 			then "(YOU win a clash on the same first choice)"

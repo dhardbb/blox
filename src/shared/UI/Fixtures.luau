@@ -15,7 +15,7 @@ type Config = ConfigModule.Config
 export type Moment =
 	"Select" -- character select, nothing chosen yet
 	| "MapReveal" -- leans shown
-	| "Draft" -- a draft round in progress, some picks made
+	| "Draft" -- a nomination round in progress, homes picked and strongholds assigned
 	| "Plan" -- week 3 plan, with history behind it
 	| "Stance" -- the Decision screen in a Choice week: stances A / B / C (D-044)
 	| "ChoiceWeek" -- the plan that follows a stance (the stance taken in one line)
@@ -51,7 +51,7 @@ local function reached(session: Session.Session, moment: Moment): boolean
 	elseif moment == "MapReveal" then
 		return phase == "MapReveal"
 	elseif moment == "Draft" then
-		return phase == "Draft" and session.match.draftRound == 3 and stage == "Input"
+		return phase == "Draft" and session.match.draftRound == 1 and stage == "Input"
 	elseif moment == "Plan" then
 		return phase == "Plan" and session.match.week == 3 and stage == "Input"
 	elseif moment == "Stance" then

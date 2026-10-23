@@ -1,5 +1,5 @@
 --!strict
--- The Draft screen (map reveal + 8 blind rounds) on the fake Roblox engine:
+-- The Draft screen (map reveal + 3 blind rounds) on the fake Roblox engine:
 -- fixtures render offline with a clean UI audit in 16:9 and phone portrait, the
 -- list and map pickers fill the ranked top 2, illegal states are refused, Lock In
 -- submits, reveals show both picks, and a live practice match drafts through the
@@ -114,12 +114,12 @@ local function draftPayload(): Session.StatePayload
 	return Fixtures.payload(Config.defaults, "Draft")
 end
 
--- Two states a stronghold round allows, and one it does not.
+-- Two states the fixture's nomination round allows, and one it does not (a home).
 local function sampleStates(payload: Session.StatePayload): (string, string, string)
 	local legal: { string } = {}
 	local taken: string? = nil
 	for _, sv in payload.view.states do
-		if sv.owner == nil and not sv.battleground then
+		if not sv.isHome and not sv.battleground then
 			table.insert(legal, sv.id)
 		elseif taken == nil then
 			taken = sv.id
@@ -145,18 +145,18 @@ local function revealOf(base: Session.StatePayload, mine: string, theirs: string
 	payload.reveal = "Draft"
 	local round = payload.view.draftRound
 	payload.events = {
-		{ kind = "Pick", player = payload.you, state = mine, issue = "Stronghold" },
-		{ kind = "Pick", player = 3 - payload.you, state = theirs, issue = "Stronghold" },
+		{ kind = "Pick", player = payload.you, state = mine, issue = "Nominate" },
+		{ kind = "Pick", player = 3 - payload.you, state = theirs, issue = "Nominate" },
 	}
 	for _, pick in payload.events do
 		table.insert(
 			payload.view.draftLog,
-			{ round = round, player = pick.player, state = pick.state, kind = "Stronghold" }
+			{ round = round, player = pick.player, state = pick.state, kind = "Nominate" }
 		)
-		table.insert(payload.view.players[pick.player].strongholds, pick.state)
+		table.insert(payload.view.players[pick.player].nominations, pick.state)
 		for _, sv in payload.view.states do
 			if sv.id == pick.state then
-				sv.owner = pick.player
+				sv.battleground = true
 			end
 		end
 	end
@@ -191,14 +191,22 @@ describe("Draft screen: fixtures", function()
 		expect(need(peer, "Slots").Visible):toBe(false)
 		expect(need(peer, "ActionBar").Visible):toBe(false)
 		check(contains(textOf(peer, "Priority"), "priority"), textOf(peer, "Priority"))
+		-- Strongholds are assigned before the draft and shown for both players (D-045).
+		local line = need(peer, "Strongholds")
+		expect(line.Visible):toBe(true)
+		check(contains(tostring(line.Text), "Your strongholds: "), tostring(line.Text))
+		check(contains(tostring(line.Text), "theirs: "), tostring(line.Text))
+		check(contains(textOf(peer, "HowItWorks"), "strongest-leaning"), textOf(peer, "HowItWorks"))
+		check(contains(textOf(peer, "HowItWorks"), "3 blind rounds"), textOf(peer, "HowItWorks"))
 	end)
 
 	it("describes the round and who has priority", function()
 		local _world, peer = mount("Draft")
 		local header = titleOf(peer)
-		check(contains(header, "Round 4 of 8"), header)
-		check(contains(header, "Stronghold"), header)
-		check(contains(textOf(peer, "Explain"), "+8"), textOf(peer, "Explain"))
+		check(contains(header, "Round 2 of 3"), header)
+		check(contains(header, "Nominate"), header)
+		check(contains(textOf(peer, "Explain"), "×1.5"), textOf(peer, "Explain"))
+		expect(need(peer, "Strongholds").Visible):toBe(true)
 		local priority = textOf(peer, "Priority")
 		check(contains(priority, "have priority"), priority)
 		expect(need(peer, "ActionBar").Visible):toBe(true)
@@ -286,7 +294,37 @@ describe("Draft screen: picking", function()
 		expect(textOf(peer, "Choice1")):toBe("1st: —")
 		tap(world, peer, taken)
 		expect(textOf(peer, "Choice1")):toBe("1st: —")
-		check(contains(textOf(peer, "BarStatus"), "already"), textOf(peer, "BarStatus"))
+		check(contains(textOf(peer, "BarStatus"), "can't nominate"), textOf(peer, "BarStatus"))
+		noErrors(world)
+	end)
+
+	it("refuses a stronghold in the home round (D-045)", function()
+		local world, peer = mount("Draft")
+		-- The fixture's round turned back into the home round: no homes yet.
+		local home = deepCopy(draftPayload())
+		home.step += 1
+		home.view.draftRound = 0
+		home.view.draftKind = "Home"
+		home.view.draftPriority = home.view.priorityA
+		for _, sv in home.view.states do
+			if sv.isHome then
+				sv.isHome = false
+				sv.owner = nil
+			end
+			sv.battleground = false
+		end
+		for _, player in home.view.players do
+			player.home = nil
+			player.nominations = {}
+		end
+		push(world, peer, home)
+		check(contains(titleOf(peer), "Round 1 of 3"), titleOf(peer))
+		for _, p in { home.you, 3 - home.you } do
+			local stronghold = home.view.players[p].strongholds[1]
+			tap(world, peer, `Row_{stronghold}`)
+			expect(textOf(peer, "Choice1")):toBe("1st: —")
+			expect(textOf(peer, "BarStatus")):toBe(`{stronghold}: a stronghold, can't be a home`)
+		end
 		noErrors(world)
 	end)
 
@@ -350,7 +388,7 @@ describe("Draft screen: reveal and rounds", function()
 		local a, b = sampleStates(base)
 		push(world, peer, revealOf(base, a, b))
 		noErrors(world)
-		expect(titleOf(peer)):toBe("Round 4 of 8 · picks revealed")
+		expect(titleOf(peer)):toBe("Round 2 of 3 · picks revealed")
 		expect(need(peer, "RevealBox").Visible):toBe(true)
 		expect(need(peer, "ActionBar").Visible):toBe(false)
 		expect(need(peer, "Slots").Visible):toBe(false)
@@ -388,25 +426,23 @@ describe("Draft screen: reveal and rounds", function()
 		local nextRound = deepCopy(base)
 		nextRound.step += 2
 		nextRound.view.draftRound += 1
-		nextRound.view.draftKind = "Stronghold"
+		nextRound.view.draftKind = "Nominate"
 		for _, sv in nextRound.view.states do
-			if sv.id == a then
-				sv.owner = nextRound.you
-			elseif sv.id == b then
-				sv.owner = 3 - nextRound.you
+			if sv.id == a or sv.id == b then
+				sv.battleground = true
 			end
 		end
 		push(world, peer, nextRound)
-		check(contains(titleOf(peer), "Round 5 of 8"), titleOf(peer))
+		check(contains(titleOf(peer), "Round 3 of 3"), titleOf(peer))
 		expect(textOf(peer, "Choice1")):toBe("1st: —")
 		expect(textOf(peer, "LockIn") ~= "Locked in"):toBe(true)
-		-- The two states just drafted are no longer pickable.
+		-- The two states just nominated are no longer pickable.
 		tap(world, peer, `Row_{a}`)
 		expect(textOf(peer, "Choice1")):toBe("1st: —")
 		noErrors(world)
 	end)
 
-	it("shows the final reveal after round 8, when the match is already in week 1", function()
+	it("shows the final reveal after round 3, when the match is already in week 1", function()
 		local world, peer = mount("Draft")
 		local base = draftPayload()
 		local a, b = sampleStates(base)
@@ -415,15 +451,15 @@ describe("Draft screen: reveal and rounds", function()
 		last.view.week = 1
 		last.view.draftKind = nil
 		last.view.draftPriority = nil
-		last.view.draftRound = 7
+		last.view.draftRound = 2
 		for _, pick in last.view.draftLog do
-			if pick.round == 3 then
-				pick.round = 7
+			if pick.round == 1 then
+				pick.round = 2
 			end
 		end
 		push(world, peer, last)
 		noErrors(world)
-		expect(titleOf(peer)):toBe("Round 8 of 8 · picks revealed")
+		expect(titleOf(peer)):toBe("Round 3 of 3 · picks revealed")
 		check(contains(textOf(peer, "Explain"), "campaign"), textOf(peer, "Explain"))
 	end)
 end)
@@ -660,11 +696,11 @@ describe("Draft screen: UI overhaul (WP4)", function()
 		local a, _b, taken = sampleStates(draftPayload())
 		tap(world, peer, `Row_{taken}`)
 		local reason = textOf(peer, "BarStatus")
-		check(contains(reason, taken) and contains(reason, "already"), reason)
+		check(contains(reason, taken) and contains(reason, "can't nominate"), reason)
 		FakeRoblox.run(world, 6)
 		expect(textOf(peer, "BarStatus")):toBe(reason)
 		tap(world, peer, `Row_{a}`)
-		check(not contains(textOf(peer, "BarStatus"), "already"), textOf(peer, "BarStatus"))
+		check(not contains(textOf(peer, "BarStatus"), "can't"), textOf(peer, "BarStatus"))
 	end)
 
 	it("has 44x44 × buttons and no Clear both", function()
