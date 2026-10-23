@@ -1,5 +1,5 @@
 --!strict
--- The global leaderboard (docs/DESIGN.md D-056): players ranked by their saved
+-- The global leaderboard (docs/DESIGN.md D-059): players ranked by their saved
 -- rating. Pure: the server's LeaderboardService does the OrderedDataStore and
 -- name lookups and uses these helpers to read a page, keep its cached top list
 -- and build what one viewer sees (message kind "Leaderboard").

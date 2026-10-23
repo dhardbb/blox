@@ -1,5 +1,5 @@
 --!strict
--- Copy for the start screen's extras (docs/DESIGN.md D-056): the bot level
+-- Copy for the start screen's extras (docs/DESIGN.md D-059): the bot level
 -- picker, the global leaderboard, "How to play" for brand-new players, and the
 -- "Leave match" confirmation. Plain words, labels of at most 8 words, any text
 -- block at most 30 words (the UI audit's wallOfText). Numbers come from Config,

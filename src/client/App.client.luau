@@ -117,7 +117,7 @@ local ctx: Types.Ctx = {
 -- The "How it works" overlay: above the screens, below the toast (ZIndex 40 < 50).
 local help = Help.mount(background, ctx)
 ctx.help = help.open
--- "Leave match" (D-056): above Help, below the toast (ZIndex 45).
+-- "Leave match" (D-059): above Help, below the toast (ZIndex 45).
 ctx.leave = LeaveMatch.mount(background, ctx).open
 
 local fixture = workspace:GetAttribute("DebugScreen")

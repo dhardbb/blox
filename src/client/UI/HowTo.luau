@@ -1,5 +1,5 @@
 --!strict
--- "How to play" for brand-new players (docs/DESIGN.md D-056): the Lobby's
+-- "How to play" for brand-new players (docs/DESIGN.md D-059): the Lobby's
 -- ghost button opens this sheet of five short pages, one idea each: the goal
 -- (270 votes), a week (plan, both reveal, the map moves), the actions, debates
 -- and events, election night. Each page is a title, a small picture built from

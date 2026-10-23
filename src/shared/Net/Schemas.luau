@@ -3,6 +3,7 @@
 -- Checks the envelope only: game inputs (selections, draft picks, plans) are
 -- validated later against the match by Match.validate. Never throws.
 
+local Bot = require("../Sim/Bot")
 local Remotes = require("./Remotes")
 
 local Schemas = {}
@@ -95,6 +96,10 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			return false, "BadCode", nil
 		end
 		request.code = raw.code
+	elseif op == "Practice" then
+		-- Optional bot difficulty (D-057): absent or not one of the four names
+		-- plays Medium, the standard bot. Never a rejection.
+		request.difficulty = Bot.difficulty(raw.difficulty)
 	elseif op == "PrePick" then
 		if type(raw.pick) ~= "table" then
 			return false, "BadShape", nil

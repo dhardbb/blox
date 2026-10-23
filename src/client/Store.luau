@@ -25,8 +25,8 @@ export type State = {
 	resultSeen: boolean, -- the player dismissed the last match's result screen
 	prePick: any?, -- the selection remembered for the next Select
 	rating: Remotes.RatingChange?, -- the rating change after the last rated match
-	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-056)
-	leaving: string?, -- the match this player chose to leave: its end skips Results (D-056)
+	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-059)
+	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 }
 
 local Store = {}
@@ -106,7 +106,7 @@ function Store.setLeaderboard(board: Leaderboard.Board)
 	changed()
 end
 
--- The player confirmed leaving match `matchId` (D-056): when the server ends it,
+-- The player confirmed leaving match `matchId` (D-059): when the server ends it,
 -- the Lobby shows instead of the Results screen.
 function Store.leave(matchId: string)
 	state.leaving = matchId

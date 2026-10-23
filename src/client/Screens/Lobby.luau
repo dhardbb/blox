@@ -6,12 +6,12 @@
 --
 -- Layout (docs/UI-STYLE.md §4.1): one centered column, at most 480 px wide, that
 -- does not scroll: the "270" hero, a one-line tagline, the record, then Play vs
--- Bot (the one primary) with the bot level chips under it (UI/BotLevel, D-056),
+-- Bot (the one primary) with the bot level chips under it (UI/BotLevel, D-059),
 -- "Find match" and "Play a friend" side by side, and a ghost "How to play"
--- (UI/HowTo, five short pages, D-056), then the Sound and Reduce motion chips
+-- (UI/HowTo, five short pages, D-059), then the Sound and Reduce motion chips
 -- (UI/Settings, session only), and once the Color Pass is set up the "Color"
 -- button (UI/ColorPick, D-055: red or blue, or your pick with the pass). The
--- global leaderboard (UI/Leaderboard, D-056) sits beside the column on a wide
+-- global leaderboard (UI/Leaderboard, D-059) sits beside the column on a wide
 -- screen (top 10, or top 3 when short) and at the end of it on a phone (top 3,
 -- or just "You" and See all on a short phone: the column never scrolls).
 -- "Play a friend" opens a sheet with

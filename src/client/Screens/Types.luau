@@ -25,8 +25,8 @@ export type State = {
 	resultSeen: boolean,
 	prePick: any?,
 	rating: any?, -- Remotes.RatingChange after the last rated match
-	leaderboard: any?, -- Net/Leaderboard.Board, the global leaderboard (D-056)
-	leaving: string?, -- the match this player chose to leave: its end skips Results (D-056)
+	leaderboard: any?, -- Net/Leaderboard.Board, the global leaderboard (D-059)
+	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 }
 
 export type Net = {
@@ -37,7 +37,7 @@ export type Net = {
 	buyPass: ((passId: number) -> ())?, -- Roblox's purchase prompt for a pass (D-055)
 	bank: () -> (),
 	skip: () -> (),
-	forfeit: (() -> ())?, -- leave the current match and lose it (D-056)
+	forfeit: (() -> ())?, -- leave the current match and lose it (D-059)
 	reasonText: (reason: string?) -> string,
 }
 
@@ -46,7 +46,7 @@ export type Store = {
 	dismissResult: () -> (),
 	setPrePick: (pick: any) -> (),
 	say: (text: string, rejected: boolean?, reason: string?) -> (),
-	leave: ((matchId: string) -> ())?, -- the player is leaving this match: skip its Results (D-056)
+	leave: ((matchId: string) -> ())?, -- the player is leaving this match: skip its Results (D-059)
 }
 
 export type Ctx = {
@@ -56,7 +56,7 @@ export type Ctx = {
 	now: () -> number, -- server time (workspace:GetServerTimeNow())
 	portrait: () -> boolean, -- true when the screen is taller than wide (phones)
 	help: (() -> ())?, -- opens the "How it works" overlay (UI/Help), when App mounted one
-	leave: (() -> ())?, -- opens the "Leave match" confirmation (UI/LeaveMatch, D-056)
+	leave: (() -> ())?, -- opens the "Leave match" confirmation (UI/LeaveMatch, D-059)
 }
 
 export type Screen = {

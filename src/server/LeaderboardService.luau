@@ -1,5 +1,5 @@
 --!strict
--- The global leaderboard (docs/DESIGN.md D-056): players ranked by their saved
+-- The global leaderboard (docs/DESIGN.md D-059): players ranked by their saved
 -- rating, in an OrderedDataStore ("Leaderboard_v1", key "Player_<UserId>",
 -- the rating as a whole number). Net/Leaderboard holds the pure rules.
 --

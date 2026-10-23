@@ -43,6 +43,7 @@ export type Seat = {
 	prePick: any?, -- lobby pre-pick, used if Select times out
 	botCandidate: string?,
 	botStyle: Bot.Style?,
+	botDifficulty: Bot.Difficulty?, -- practice difficulty (D-057); nil for a harness bot with an explicit style
 	botRng: Rng.Rng?,
 }
 
@@ -59,6 +60,7 @@ export type SeatInfo = {
 	skip: boolean,
 	bank: number,
 	graceUntil: number?,
+	difficulty: Bot.Difficulty?, -- a bot seat's practice difficulty (D-057)
 }
 
 export type StatePayload = {
@@ -110,7 +112,8 @@ export type SeatSpec = {
 	prePick: any?, -- Human: optional lobby pre-pick
 	color: string?, -- Human: their Color Pass pick (the server sends it only for owners, D-055)
 	candidate: string?, -- Bot: candidate to play
-	style: Bot.Style?, -- Bot: play style
+	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
+	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
 }
 
 local Session = {}
@@ -128,7 +131,7 @@ Session.Reason = table.freeze({
 
 -- Notice sent to a player whose claim lost a same-step coin flip (D-048).
 Session.CANDIDATE_TAKEN = "CandidateTaken"
--- Notice sent to the others when a player leaves the match (D-056).
+-- Notice sent to the others when a player leaves the match (D-059).
 Session.OPPONENT_FORFEITED = "OpponentForfeited"
 
 local function isBot(seat: Seat): boolean
@@ -168,6 +171,7 @@ function Session.payload(session: Session, p: number): StatePayload
 			skip = seat.skip,
 			bank = seat.bank,
 			graceUntil = if seat.connected then nil else seat.graceUntil,
+			difficulty = seat.botDifficulty,
 		}
 	end
 	local deadline = if session.stage == "Input"
@@ -489,6 +493,12 @@ function Session.new(
 		if spec.color then
 			colorPicks[spec.id] = spec.color
 		end
+		-- A practice bot's level (D-057); an explicit style (the harness) wins.
+		local difficulty: Bot.Difficulty? = if spec.kind == "Bot"
+				and spec.style == nil
+				and spec.difficulty ~= nil
+			then Bot.difficulty(spec.difficulty)
+			else nil
 		seats[p] = {
 			id = spec.id,
 			kind = spec.kind,
@@ -503,7 +513,8 @@ function Session.new(
 			missed = 0,
 			prePick = spec.prePick,
 			botCandidate = spec.candidate,
-			botStyle = spec.style,
+			botStyle = spec.style or (if difficulty then Bot.styleFor(difficulty) else nil),
+			botDifficulty = difficulty,
 			botRng = if spec.kind == "Bot" then Rng.new(seed * 31 + p) else nil,
 		}
 	end
@@ -707,7 +718,7 @@ function Session.reconnect(session: Session, p: number, now: number)
 	Session.update(session, now)
 end
 
--- A player chose to leave (D-056): the match ends at once as a forfeit, won by
+-- A player chose to leave (D-059): the match ends at once as a forfeit, won by
 -- the other seat, the same result as missing FORFEIT_MISSED_WEEKS weeks. The
 -- others are told why. Returns (false, "Over") once the match has ended, so a
 -- repeated request changes nothing.

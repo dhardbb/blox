@@ -152,7 +152,7 @@ function Net.buyPass(passId: number)
 	end)
 end
 
--- Leaves the match in progress and loses it (D-056). The server ends the match
+-- Leaves the match in progress and loses it (D-059). The server ends the match
 -- and sends this player back to the lobby; Store.leave skips its Results.
 function Net.forfeit()
 	local payload = Store.get().payload

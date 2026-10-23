@@ -1,5 +1,5 @@
 --!strict
--- "Leave match" (docs/DESIGN.md D-056): the confirmation before a player leaves
+-- "Leave match" (docs/DESIGN.md D-059): the confirmation before a player leaves
 -- the match in progress. Every in-match header's "?" opens the Help sheet, and
 -- its last button, "Leave match" (HelpLeave), opens this. Against a person it
 -- asks "Leave and forfeit?" (it counts as a loss); against the bot "Leave this

@@ -1,5 +1,5 @@
 --!strict
--- The start screen's extras (D-056) on the fake engine: the bot level picker
+-- The start screen's extras (D-059) on the fake engine: the bot level picker
 -- and the Practice request it shapes, How to play, the leaderboard card and
 -- sheet, and "Leave match" from an in-match "?" against the bot and a person.
 
@@ -49,7 +49,7 @@ local function shownIn(peer: FakeRoblox.Peer, screen: string, name: string): boo
 	return inst ~= nil and Rig.shown(inst, screen)
 end
 
-describe("Lobby: the bot level (D-056)", function()
+describe("Lobby: the bot level (D-059)", function()
 	it("starts on Medium and outlines the level tapped", function()
 		local world, peer = Rig.fixture("Lobby", PHONE)
 		local BotLevel = FakeRoblox.require(world, peer, "src/client/UI/BotLevel.luau")
@@ -90,9 +90,55 @@ describe("Lobby: the bot level (D-056)", function()
 		expect(need(peer, "Lobby", "BotLevel"):GetAttribute("Level")):toBe("Extreme")
 		Rig.noErrors(world)
 	end)
+
+	-- End to end (D-057, D-059): the chip the player taps reaches the server's
+	-- bot seat; a level the server does not know plays Medium.
+	it("the level tapped is the level the bot seat plays; an unknown one is Medium", function()
+		local world, peer = Rig.practice(52)
+		local BotLevel = FakeRoblox.require(world, peer, "src/client/UI/BotLevel.luau")
+		BotLevel.set("Medium") -- the module outlives a world: start clean
+		FakeRoblox.run(world, 0.2)
+		local function botSeat(): any
+			local payload = Rig.payloadOf(world, peer)
+			for _, seat in (payload and payload.seats) or {} do
+				if seat.difficulty ~= nil then
+					return seat
+				end
+			end
+			return nil
+		end
+
+		tap(world, peer, "Lobby", "Level_Hard")
+		tap(world, peer, "Lobby", "Practice")
+		check(FakeRoblox.find(peer, "Select") ~= nil, "the Hard practice match did not start")
+		expect(Rig.count(world.server, "match m1 started (Practice)")):toBe(1)
+		expect(serverSaid(world, "bot Hard")):toBe(true)
+		local seat = botSeat()
+		expect(seat and seat.difficulty):toBe("Hard")
+
+		-- Leave it, then ask for a level that does not exist.
+		local net = Rig.netOf(world, peer)
+		world.current = peer
+		net.forfeit()
+		world.current = nil
+		FakeRoblox.run(world, 2)
+		check(FakeRoblox.find(peer, "Lobby") ~= nil, "not back in the lobby")
+		world.current = peer
+		net.send("Practice", { difficulty = "Nightmare" })
+		world.current = nil
+		FakeRoblox.run(world, 1)
+		check(FakeRoblox.find(peer, "Select") ~= nil, "the second practice match did not start")
+		expect(Rig.count(world.server, "match m2 started (Practice)")):toBe(1)
+		expect(serverSaid(world, "bot Medium")):toBe(true)
+		seat = botSeat()
+		expect(seat and seat.difficulty):toBe("Medium")
+		expect(serverSaid(world, "rejected")):toBe(false)
+		BotLevel.set("Medium")
+		Rig.noErrors(world)
+	end)
 end)
 
-describe("Lobby: How to play (D-056)", function()
+describe("Lobby: How to play (D-059)", function()
 	it("opens five short pages and steps through them to Got it", function()
 		local world, peer = Rig.fixture("Lobby", PHONE)
 		tap(world, peer, "Lobby", "HowToPlay")
@@ -130,7 +176,7 @@ describe("Lobby: How to play (D-056)", function()
 	end)
 end)
 
-describe("Lobby: the leaderboard (D-056)", function()
+describe("Lobby: the leaderboard (D-059)", function()
 	it("shows the top 3 inside the column on a phone", function()
 		local world, peer = Rig.fixture("Lobby", PHONE)
 		local card = need(peer, "Lobby", "LeaderboardCard")
@@ -214,7 +260,7 @@ describe("Lobby: the leaderboard (D-056)", function()
 	end)
 end)
 
-describe("Leave match (D-056)", function()
+describe("Leave match (D-059)", function()
 	it("against the bot: ? > Leave match asks about practice, Keep playing stays, Leave ends it", function()
 		local world, peer = Rig.practice(53)
 		tap(world, peer, "Lobby", "Practice")
@@ -286,7 +332,7 @@ describe("Leave match (D-056)", function()
 	end)
 end)
 
-describe("Lobby words (D-056)", function()
+describe("Lobby words (D-059)", function()
 	it("keeps every How to play page to a title and at most 30 words", function()
 		local pages = Words.howTo(Config.defaults)
 		check(#pages >= 3 and #pages <= 5, `{#pages} pages`)

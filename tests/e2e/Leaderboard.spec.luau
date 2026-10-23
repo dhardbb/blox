@@ -1,5 +1,5 @@
 --!strict
--- End to end: the global leaderboard (D-056) and leaving a match (D-056). The
+-- End to end: the global leaderboard (D-059) and leaving a match (D-059). The
 -- real server and client on the fake engine, whose OrderedDataStore is
 -- world.data.ordered (its own failure switch: world.data.orderedFailures) and
 -- whose Players:GetNameFromUserIdAsync answers from world.userNames.

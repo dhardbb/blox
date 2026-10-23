@@ -1,5 +1,5 @@
 --!strict
--- The bot level picker (docs/DESIGN.md D-056): a row of four chips, Easy,
+-- The bot level picker (docs/DESIGN.md D-059): a row of four chips, Easy,
 -- Medium, Hard and Extreme, under the Lobby's "Play vs Bot". The picked one is
 -- outlined; Medium until the player picks. The pick lasts for the session (this
 -- module stays loaded while the screens come and go), so Results' "Play vs Bot

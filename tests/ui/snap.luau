@@ -191,7 +191,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- Bot level picker (D-056): Hard picked.
+		-- Bot level picker (D-059): Hard picked.
 		name = "01c-lobby-bot-hard",
 		moment = "Lobby",
 		screen = "Lobby",
@@ -200,7 +200,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- The leaderboard (D-056) for a ranked player outside the top 50.
+		-- The leaderboard (D-059) for a ranked player outside the top 50.
 		name = "01d-lobby-board-unlisted",
 		moment = "Lobby",
 		screen = "Lobby",
@@ -508,7 +508,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- "Leave match" at the end of the Help sheet (D-056), in a live match.
+		-- "Leave match" at the end of the Help sheet (D-059), in a live match.
 		name = "28-help-leave",
 		moment = "Plan",
 		screen = "HelpOverlay",

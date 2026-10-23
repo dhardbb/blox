@@ -1,6 +1,6 @@
 --!strict
--- The global leaderboard's pure rules (Net/Leaderboard, D-056), leaving a match
--- (Session.forfeit, D-056) and the requests behind both (Net/Schemas).
+-- The global leaderboard's pure rules (Net/Leaderboard, D-059), leaving a match
+-- (Session.forfeit, D-059) and the requests behind both (Net/Schemas).
 
 local Test = require("@testlib/Test")
 local Config = require("@sim/Config")
@@ -181,7 +181,7 @@ describe("Requests: Leaderboard and Forfeit", function()
 	end)
 end)
 
-describe("Session: leaving a match (D-056)", function()
+describe("Session: leaving a match (D-059)", function()
 	local function humans(): Session.Session
 		return Session.new(C, "m1", 7, {
 			{ id = "100", kind = "Human" },

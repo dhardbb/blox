@@ -4,14 +4,20 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
-### Start screen: leaderboard, bot levels, How to play, leaving a match (D-056)
+### Start screen: leaderboard, bot levels, How to play, leaving a match (D-059)
 
 Server, net and client. No Config numbers changed. Studio checklist: `docs/TESTING.md`, "Start screen: leaderboard, bot levels, How to play, leaving a match".
 
 - **Global leaderboard on the start screen.** Players ranked by rating: the top 10 beside the buttons on the iPad and the Mac, the top 3 on a phone, **See all** for the top 50. Your own row is highlighted, with "You: #4" (or "not in the top 50" and your rating). Only matches against players count, so playing the bot never moves you. Needs saved data (Studio: Enable Studio Access to API Services); otherwise it says "Leaderboard unavailable".
-- **Bot levels.** Easy, Medium, Hard and Extreme chips under **Play vs Bot** (Medium to start; your pick is kept until you leave the game, and "Play vs Bot again" uses it too). What each level does arrives with the bot-level server work.
+- **Bot levels.** Easy, Medium, Hard and Extreme chips under **Play vs Bot** (Medium to start; your pick is kept until you leave the game, and "Play vs Bot again" uses it too). What each level does: "Bot difficulty" below (D-057).
 - **How to play** on the start screen is now five short pages for new players: the goal, a week, the actions, debates and events, election night. The full rules stay in the **?** during a match.
 - **Leave a match.** **? → Leave match** on every match screen. Against a person it asks "Leave and forfeit?" and counts as a loss (rated, like a disconnect forfeit); your opponent is told they won by forfeit. Against the bot it just ends the practice match. Either way you go straight back to the start screen.
+
+### Bot difficulty (D-057)
+
+Sim, net and server.
+
+- **Bot difficulty: Easy, Medium, Hard, Extreme** (D-057). A practice match can ask for a level: `{ op = "Practice", difficulty = "Easy" | "Medium" | "Hard" | "Extreme" }` (absent or unknown = Medium, today's bot, unchanged). Easy misjudges which states matter and picks half its debate focuses and stances at random; Hard predicts your plan from the public board and plays for the chance of reaching 270; Extreme pushes that further. Every level sees only what a human sees, and none gets extra money. Against the Medium bot: Easy wins about 19%, Hard 66%, Extreme 78%. Practice stays unrated. The State payload shows the level on the bot's seat (`seats[i].difficulty`) and the server log says `bot Hard`. Pick the level with the chips under **Play vs Bot** (above). Debug panel: `practice hard`. Studio checklist: `docs/TESTING.md`, "Bot difficulty".
 
 ## 0.11.0: Colors: red, blue and the Color Pass (Oct 23, 2026)
 

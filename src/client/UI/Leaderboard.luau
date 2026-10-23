@@ -1,5 +1,5 @@
 --!strict
--- The global leaderboard on the Lobby (docs/DESIGN.md D-056): a card with the
+-- The global leaderboard on the Lobby (docs/DESIGN.md D-059): a card with the
 -- best players by rating (rank, name, rating; the viewer's own row raised and
 -- bold) and "See all", which opens a sheet with the top 50. Under the list,
 -- where the viewer stands: "You: #4 · 1444", "You: not in the top 50 · 1004",

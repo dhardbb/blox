@@ -108,7 +108,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		onPrimary = function()
 			ctx.store.dismissResult()
 			if againBot then
-				ctx.net.send("Practice", { difficulty = BotLevel.get() }) -- the level picked in the Lobby (D-056)
+				ctx.net.send("Practice", { difficulty = BotLevel.get() }) -- the level picked in the Lobby (D-059)
 			else
 				ctx.net.send("Queue")
 			end

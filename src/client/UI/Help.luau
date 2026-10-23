@@ -25,7 +25,7 @@
 --   HelpMoreButton_<tab>, HelpMore_<tab>, HelpSection_<id>, HelpTitle_<id>,
 --   HelpText_<id> (one per Explain.help section), HelpSettings (the label
 --   HelpSettingsLabel and the row Settings with SoundChip and MotionChip),
---   HelpLeave (D-056: "Leave match" at the end, only in a live match and only
+--   HelpLeave (D-059: "Leave match" at the end, only in a live match and only
 --   when App gave ctx.leave; it closes Help and opens the confirmation).
 --   Help.art.<tab>(frame, config) draws a tab's picture (the Lobby's How to
 --   play reuses them).
@@ -435,7 +435,7 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		})
 	end
 
-	-- Leaving the match (D-056): the last thing in the sheet, in a live match only.
+	-- Leaving the match (D-059): the last thing in the sheet, in a live match only.
 	local leave = Kit.button(LobbyWords.LEAVE, function()
 		local openLeave = ctx.leave
 		sheet:close()

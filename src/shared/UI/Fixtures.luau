@@ -138,7 +138,7 @@ Fixtures.COLOR_PASS_ID = 1234567
 local FIRST = { "Maple", "Quiet", "Pixel", "Nova", "River", "Tiny", "Copper", "Mossy", "Sunny", "Bright" }
 local SECOND = { "Fox", "Comet", "Harbor", "Bean", "Sketch" }
 
--- A leaderboard as the server sends it (Net/Leaderboard.Board, D-056).
+-- A leaderboard as the server sends it (Net/Leaderboard.Board, D-059).
 -- `options.count` entries (default 50); `options.you` is the viewer's rank in
 -- the list (default 4), or 0 for a ranked viewer outside it, or -1 for a
 -- viewer with no rated games; `options.status` overrides "Ok".
