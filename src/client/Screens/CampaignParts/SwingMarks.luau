@@ -9,13 +9,16 @@
 -- labels at once.
 --
 -- Preview (a stance in a Choice week, your side only): a gain glows in your
--- color ("+1.5" badge if it is one of the biggest); a loss is red; a state
--- whose public-poll leader would change says FLIP (your color if it comes to
--- you, red if you lose it) with a strong glow; a state the stance does not move
--- is dimmed.
+-- color ("+1.5" on a tag filled in your color if it is one of the biggest); a
+-- loss glows orange ("−0.5" on an orange tag with a dark number: Kit.colors.loss,
+-- never red, which is a player's color, D-056); a state whose public-poll leader
+-- would change says FLIP (a dark tag edged in your color if it comes to you, in
+-- orange if you lose it) with a strong glow; a state the stance does not
+-- move is dimmed.
 -- Reveal (a debate topic or both stances, after the fact): each moved state
 -- glows toward whoever gained (badge: the net points toward you, in your color,
--- or toward them, in theirs); a flip says just FLIP in the new leader's color.
+-- or toward them, in theirs: ownership, not a loss); a flip says just FLIP,
+-- edged in the new leader's color.
 --
 --   SwingMarks.preview(view, preview, keep) -> marks
 --   SwingMarks.reveal(view, net, flips, keep) -> marks
@@ -90,7 +93,7 @@ function SwingMarks.preview(
 		if points == nil or points == 0 then
 			mark.dim = true
 		else
-			local color = if points > 0 then mine else Kit.colors.danger
+			local color = if points > 0 then mine else Kit.colors.loss
 			mark.halo = color
 			if labelled[s.id] then
 				mark.badge = Numbers.signed(points)
@@ -106,11 +109,11 @@ function SwingMarks.preview(
 			local points = preview.effects[flip.state]
 			if points and points ~= 0 and mark.badge == nil then
 				mark.badge = Numbers.signed(points)
-				mark.badgeColor = if good then mine else Kit.colors.danger
+				mark.badgeColor = if good then mine else Kit.colors.loss
 			end
 			mark.note = FLIP
-			mark.noteColor = if good then mine else Kit.colors.danger
-			mark.halo = if good then mine else Kit.colors.danger
+			mark.noteColor = if good then mine else Kit.colors.loss
+			mark.halo = if good then mine else Kit.colors.loss
 			mark.haloStrong = true
 		end
 	end

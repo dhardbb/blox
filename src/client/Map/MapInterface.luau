@@ -11,13 +11,14 @@ local View = require(ReplicatedStorage.Shared.Sim.View)
 export type Mark = {
 	ring: Color3?, -- outline color (e.g. a drafted state's owner)
 	badge: string?, -- one short glyph in the tag on the node's top edge (e.g. "H" home, "B" battleground, "+1.5")
-	badgeColor: Color3?, -- the badge's color (default: accent)
+	badgeColor: Color3?, -- the badge's fill (default: accent); the map picks a readable text color
 	dim: boolean?, -- fade the node (e.g. not pickable this round)
 	-- Momentum: a ▲ (or ▼) under the node. Show it for the leader only, in their color.
 	arrow: ("up" | "down")?,
 	arrowColor: Color3?, -- the arrow's color (default: the text color)
 	-- A short word in the node's tag, after the badge (e.g. "FLIP" when the poll
-	-- leader changes); the tag is then filled with noteColor (default: the text color).
+	-- leader changes); the tag is then a dark plate edged 2 px in noteColor
+	-- (default: a hairline), white text.
 	note: string?,
 	noteColor: Color3?,
 	-- A glow behind the circle (a state a stance or a debate moves), stronger
@@ -31,6 +32,9 @@ export type LensPart = {
 	text: string,
 	color: Color3?, -- the text's color (default: the text color)
 	filled: boolean?, -- fill the pill in `color` instead (e.g. an issue on your platform)
+	-- Outline the pill in `color` (a 1 px edge on the dark plate, text in
+	-- `color`): a battleground's votes, "★13"
+	outline: boolean?,
 }
 
 -- What the current lens shows under a state's label. Empty `parts` shows nothing.

@@ -38,6 +38,21 @@
 -- button would do ("+4.1") as a see-through tag on the node ("GhostTag"), nil
 -- hides it; setLens(lines, true) fades the lens pills in (a lens switch, 0.15 s).
 -- Nodes never move.
+--
+-- The stage (front-page pass, docs/DESIGN.md D-056): a navy glow behind the
+-- whole board (StageGlow), a soft contact shadow under every circle (the
+-- Shadows layer, under the lines' ends and every node), a visible top light on
+-- the circle, a breathing accent glow under the selected state (SelectGlow),
+-- and solid tags: lens values on a dark field plate in Fredoka (a battleground's
+-- "★13" outlined in white: a white fill means only "selected"), marks filled
+-- in their color with readable text (a loss orange with a dark number), a FLIP
+-- a dark plate with a 2 px edge in the new leader's color. Every glow and
+-- shadow is Decor (UI/Kit glow).
+--
+-- The drawn circle keeps its layout size (CIRCLE_SHARE of the layout diameter)
+-- even where the 36 px tap minimum makes the tap target bigger than the layout
+-- (a phone): the circle shrinks inside its grown target, so neighbors' rings
+-- and letters never overlap.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -63,35 +78,62 @@ local LABEL_H = 0.4 -- label band height, share of the tap target
 local BAND_H = 0.3 -- arrow band (bottom), share of the tap target
 local TAG_H = Kit.size.caption + 5 -- px, the tag's height
 local TAG_PAD = 4 -- px, the tag's side padding
+local TAG_DIP = 8 -- px a tag reaches into its circle's rim
+local TAG_TOP = 0.06 -- a circle whose top is this close to the map's top (box heights) pins its tag there
 local DIM_FILL = 0.45 -- circle transparency of a dimmed state
 local DIM_TEXT = 0.3 -- label transparency of a dimmed state
 local ARROWS = { up = "▲", down = "▼" }
-local HALO_SCALE = 1.45 -- the glow's diameter, share of the circle's (at most the tap target)
-local HALO_SOFT = 0.6 -- glow transparency for a state that moves
-local HALO_STRONG = 0.2 -- glow transparency for a state whose poll leader changes
-local PART_H = Kit.size.caption + 5 -- px, a lens pill's height
+local HALO_SCALE = 1.32 -- a moved state's aura disc, share of the circle (at most the tap target)
+local HALO_SOFT = 0.55 -- aura transparency for a state that moves
+local HALO_STRONG = 0.25 -- aura transparency for a state whose poll leader changes
+local BLOOM_SCALE = 2.6 -- the soft bloom under a moved state, share of the circle's diameter
+local BLOOM_SOFT = 0.4 -- bloom transparency for a state that moves
+local BLOOM_STRONG = 0.1 -- bloom transparency for a state whose poll leader changes
+local PART_H = Kit.size.caption + 2 -- px, a lens plate's height (snug, so code and value fit a 30 px circle)
 local PART_PAD = 3 -- px, a lens pill's side padding
 local PART_GAP = 2 -- px, between two lens pills
 local LABEL_Y = 0.5 -- the label's center, share of the tap target
-local LABEL_UP = 0.2 -- with a lens value: the label's center above the middle, share of the circle
-local VALUE_DOWN = 0.2 -- ... the value's center below the middle, share of the circle
+local LABEL_UP = 0.21 -- with a lens value: the label's center above the middle, share of the circle
+local VALUE_DOWN = 0.21 -- ... the value's center below the middle, share of the circle
 local LABEL_H_LENS = 0.36 -- ... the label's height, share of the circle
 local PULSE_FROM = 1.15 -- a pulse's starting scale (it settles to 1)
 local PLAN_BADGE_PX = 16 -- px, the planned-action badge
-local BORDER_FADE = 0.4 -- land borders' transparency, so the nodes stand out
-local TOP_SHADE = 0.08 -- the circle's transparency at its bottom (a top light of about 8 %)
+local BORDER_FADE = 0.55 -- land borders' transparency, so the nodes stand out
+local TOP_SHADE = 0.22 -- the circle's transparency at its bottom: the darker lip shows through (a top light)
+local LIP_DY = 3 -- px, the lip under a circle
+local LIP_SHADE = 0.55 -- the lip: the ring's color this far toward the background
+local STAGE_GLOW = 1.35 -- the board's backdrop glow, share of the map (an ellipse)
+local STAGE_GLOW_FADE = 0.3 -- its transparency
+local SHADOW_SCALE = 1.7 -- a node's contact shadow, share of the circle's diameter
+local SHADOW_DY = 5 -- px the contact shadow drops below the circle
+local SHADOW_FADE = 0.25 -- the contact shadow's transparency (the glow image fades fast)
+local SELECT_GLOW = 2.6 -- the selected state's accent glow, share of the circle's diameter
+local SELECT_GLOW_FADE = 0.15 -- its transparency at its brightest
+local SELECT_GLOW_DIM = 0.45 -- ... and at the low point of its breath
+local SELECT_BREATH = 0.9 -- s, one breath of the selected glow (decorative)
+local TAG_RADIUS = 6 -- px, a tag's and a lens plate's corners
+local PART_EDGE = 0.5 -- a lens plate's hairline transparency
+local LABEL_STROKE = 0.55 -- the state code's dark outline, so it reads on a pale fill
+local FLIP_EDGE = 2 -- px, a FLIP tag's edge in the new leader's color
 local RING_DRAW = 0.1 -- s, the selected ring drawing in
 local LENS_FADE = 0.15 -- s, the lens pills fading in on a lens switch
-local PART_BG = 0.15 -- a lens pill's backing transparency at rest
+local PART_BG = 0 -- a lens plate's backing transparency at rest
 local GHOST_STROKE = 0.5 -- the ghost tag's outline transparency
+local GHOST_BG = 0.3 -- the ghost tag's backing transparency
 
 type Node = {
 	id: string,
+	x: number, -- center, box widths
+	y: number, -- center, box heights
 	r: number, -- layout radius, box widths
-	k: number, -- the drawn circle's share of the tap target
+	h: number, -- the tap target's half side, box widths (MapLayout.hitRadius)
+	k: number, -- the drawn circle's share of the tap target as laid out
 	hit: TextButton,
 	circle: Frame,
 	halo: Frame,
+	bloom: ImageLabel,
+	shadow: ImageLabel,
+	lip: Frame,
 	ring: UIStroke,
 	label: TextLabel,
 	badge: TextLabel,
@@ -99,7 +141,27 @@ type Node = {
 	arrow: TextLabel,
 	lensRow: Frame,
 	parts: { TextLabel },
+	edges: { UIStroke },
 }
+
+-- The edge of a solid tag in `fill`: the loss orange's own edge token, else
+-- the fill 35 % toward the background (as Kit.pill's data-colored edge).
+local function edgeOf(fill: Color3): Color3
+	if fill == Kit.colors.loss then
+		return Kit.colors.lossEdge
+	elseif fill == Kit.colors.text then
+		return Kit.colors.line
+	end
+	return Kit.color(Colors.tint(Kit.rgb(fill), Colors.background, 0.35))
+end
+
+-- The readable text on a solid `fill` (dark on light, white on dark).
+local function onFill(fill: Color3): Color3
+	if fill == Kit.colors.loss then
+		return Kit.colors.onLoss
+	end
+	return Kit.color(Colors.onColor(Kit.rgb(fill)))
+end
 
 -- A thin rotated frame from (x1, y1) to (x2, y2) in box fractions.
 local function segment(
@@ -147,51 +209,79 @@ local function newLensRow(hit: Instance, k: number): Frame
 end
 
 -- One pill of a lens row (made on first use, then reused).
-local function newPart(row: Frame, k: number): TextLabel
+-- Where a node's tag sits: on the drawn circle's top edge, dipping TAG_DIP px
+-- into it, so it rarely covers the state's code; a circle at the very top of
+-- the map pins its tag to the map's top edge instead (it stays inside the map).
+-- Its x anchor follows the node across the map, so a wide tag near a side edge
+-- grows inward and stays inside the map.
+local function tagPlace(n: MapLayout.Node): (Vector2, UDim2)
+	local top = n.y - n.r * CIRCLE_SHARE * MapLayout.ASPECT -- the drawn circle's top, box heights
+	local ax = math.clamp(n.x, 0, 1)
+	if top < TAG_TOP then
+		return Vector2.new(ax, 0), UDim2.fromScale(n.x, 0)
+	end
+	return Vector2.new(ax, 1), UDim2.new(n.x, 0, top, TAG_DIP)
+end
+
+-- A dark field plate with a hairline and a Fredoka number (the EV tag).
+local function newPart(row: Frame, k: number): (TextLabel, UIStroke)
 	local part = Kit.text("", {
 		Name = `Part{k}`,
 		LayoutOrder = k,
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, PART_H),
 		TextSize = Kit.size.caption,
-		Font = Kit.font.bold,
-		BackgroundColor3 = Kit.colors.background,
+		Font = Kit.font.display,
+		BackgroundColor3 = Kit.colors.field,
 		BackgroundTransparency = PART_BG,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextWrapped = false,
 		ZIndex = 6,
 		Parent = row,
 	})
-	Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = part })
+	Kit.new("UICorner", { CornerRadius = UDim.new(0, TAG_RADIUS), Parent = part })
 	Kit.new("UIPadding", {
 		PaddingLeft = UDim.new(0, PART_PAD),
 		PaddingRight = UDim.new(0, PART_PAD),
 		Parent = part,
 	})
-	return part
+	local edge = Kit.stroke(Kit.colors.line, 1)
+	edge.Name = "Edge"
+	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	edge.Transparency = PART_EDGE
+	edge.Parent = part
+	return part, edge
 end
 
 -- Fills a node's lens row from `line` (nil or no parts, or a circle too small
 -- for two lines: hidden).
-local function paintLens(node: Node, line: MapInterface.LensLine?, roomy: boolean)
+-- `k` is the drawn circle's share of the tap target.
+local function paintLens(node: Node, line: MapInterface.LensLine?, roomy: boolean, k: number)
 	local parts: { MapInterface.LensPart } = if line and roomy then line.parts else {}
-	for k, spec in parts do
-		if k > #node.parts then
-			table.insert(node.parts, newPart(node.lensRow, k))
+	for i, spec in parts do
+		if i > #node.parts then
+			local part, edge = newPart(node.lensRow, i)
+			table.insert(node.parts, part)
+			table.insert(node.edges, edge)
 		end
-		local part = node.parts[k]
+		local part, edge = node.parts[i], node.edges[i]
 		local color = spec.color or Kit.colors.text
 		part.Visible = true
 		part.Text = spec.text
-		part.TextColor3 = if spec.filled then Kit.colors.background else color
-		part.BackgroundColor3 = if spec.filled then color else Kit.colors.background
+		-- Filled: a solid plate in the color with readable text and its edge
+		-- (an issue of yours, a poll lead).
+		-- Outlined: the dark plate edged in the color (a battleground).
+		part.TextColor3 = if spec.filled then onFill(color) else color
+		part.BackgroundColor3 = if spec.filled then color else Kit.colors.field
+		edge.Color = if spec.filled then edgeOf(color) elseif spec.outline then color else Kit.colors.line
+		edge.Transparency = if spec.filled or spec.outline then 0 else PART_EDGE
 	end
-	for k = #parts + 1, #node.parts do
-		node.parts[k].Visible = false
+	for i = #parts + 1, #node.parts do
+		node.parts[i].Visible = false
 	end
 	local shown = #parts > 0
 	node.lensRow.Visible = shown
-	local k = node.k
+	node.lensRow.Position = UDim2.fromScale(0.5, 0.5 + VALUE_DOWN * k)
 	node.label.Position = UDim2.fromScale(0.5, if shown then 0.5 - LABEL_UP * k else LABEL_Y)
 	node.label.Size = UDim2.fromScale(MapLayout.LABEL_SCALE * k, if shown then LABEL_H_LENS * k else LABEL_H)
 end
@@ -205,11 +295,29 @@ function NodeMap.new(): MapInterface.Map
 	})
 	Kit.new("UIAspectRatioConstraint", { AspectRatio = MapLayout.ASPECT, Parent = root })
 
+	-- The stage: a wide navy glow under everything, so the board reads as a lit table.
+	local stage = Kit.glow(root, Kit.colors.glow, {
+		scale = STAGE_GLOW,
+		transparency = STAGE_GLOW_FADE,
+		stretch = true,
+	})
+	if stage then
+		stage.Name = "StageGlow"
+	end
 	local lines = Kit.box({ Name = "Lines", ZIndex = 1, Parent = root })
 	local leaders = Kit.box({ Name = "Leaders", ZIndex = 1, Parent = root })
-	local routeLayer = Kit.box({ Name = "Route", ZIndex = 2, Parent = root })
-	local nodeLayer = Kit.box({ Name = "Nodes", ZIndex = 3, Parent = root })
-	local tagLayer = Kit.box({ Name = "Tags", ZIndex = 4, Parent = root })
+	-- Contact shadows and the selected glow: under every node, so a glow never
+	-- tints a neighbor's circle.
+	local shadowLayer = Kit.box({ Name = "Shadows", ZIndex = 2, Parent = root })
+	local routeLayer = Kit.box({ Name = "Route", ZIndex = 3, Parent = root })
+	local nodeLayer = Kit.box({ Name = "Nodes", ZIndex = 4, Parent = root })
+	local tagLayer = Kit.box({ Name = "Tags", ZIndex = 5, Parent = root })
+	local selectGlow =
+		Kit.glow(shadowLayer, Kit.colors.accent, { transparency = SELECT_GLOW_FADE }) :: ImageLabel
+	selectGlow.Name = "SelectGlow"
+	selectGlow.ZIndex = 2
+	selectGlow.Visible = false
+	local stopBreath: () -> () = function() end
 
 	local layout = MapLayout.nodes()
 	-- Borders between projected states; a ladder state gets its leader instead.
@@ -265,13 +373,47 @@ function NodeMap.new(): MapInterface.Map
 			Parent = nodeLayer,
 		})
 		Kit.new("UISizeConstraint", { MinSize = Vector2.new(MIN_TAP, MIN_TAP), Parent = hit })
-		-- The glow sits behind the circle (lower ZIndex among the node's children).
+		-- The contact shadow: in the Shadows layer, sized to the drawn circle in
+		-- map units (the circle never grows past its layout size), dropped a little.
+		local reach = 2 * n.r * CIRCLE_SHARE * SHADOW_SCALE
+		local shadow =
+			Kit.glow(shadowLayer, Kit.colors.background, { transparency = SHADOW_FADE }) :: ImageLabel
+		shadow.Name = `Shadow{n.id}`
+		shadow.Position = UDim2.new(n.x, 0, n.y, SHADOW_DY)
+		shadow.Size = UDim2.fromScale(reach, reach * MapLayout.ASPECT)
+		shadow.ZIndex = 1
+		-- The lip: a darker disc (the ring's color, toward the background) just
+		-- below the circle, so a node reads as a chunky token, like Kit's buttons.
+		local lip = Kit.new("Frame", {
+			Name = `Lip{n.id}`,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(n.x, 0, n.y, LIP_DY),
+			Size = UDim2.new(
+				2 * n.r * CIRCLE_SHARE,
+				2 * RING_PX,
+				2 * n.r * CIRCLE_SHARE * MapLayout.ASPECT,
+				2 * RING_PX
+			),
+			BackgroundColor3 = Kit.colors.raisedLip,
+			BorderSizePixel = 0,
+			ZIndex = 2,
+			Parent = shadowLayer,
+		})
+		Kit.round().Parent = lip
+		-- A state a stance or a debate moves: a soft bloom in the Shadows layer
+		-- (under every node, so it never tints a neighbor) and an aura disc just
+		-- behind the circle (lower ZIndex among the node's children); paint sizes it.
+		local bloomReach = 2 * n.r * CIRCLE_SHARE * BLOOM_SCALE
+		local bloom = Kit.glow(shadowLayer, Kit.colors.accent, { transparency = BLOOM_SOFT }) :: ImageLabel
+		bloom.Name = `Bloom{n.id}`
+		bloom.Position = UDim2.fromScale(n.x, n.y)
+		bloom.Size = UDim2.fromScale(bloomReach, bloomReach * MapLayout.ASPECT)
+		bloom.ZIndex = 0
+		bloom.Visible = false
 		local halo = Kit.new("Frame", {
 			Name = "Halo",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			-- Never wider than the tap target, so it stays inside the map.
-			Size = UDim2.fromScale(math.min(1, k * HALO_SCALE), math.min(1, k * HALO_SCALE)),
 			BackgroundColor3 = Kit.colors.accent,
 			BackgroundTransparency = HALO_SOFT,
 			BorderSizePixel = 0,
@@ -279,7 +421,6 @@ function NodeMap.new(): MapInterface.Map
 			Visible = false,
 			Parent = hit,
 		})
-		Kit.new("UIAspectRatioConstraint", { AspectRatio = 1, Parent = halo })
 		Kit.round().Parent = halo
 		local circle = Kit.new("Frame", {
 			Name = "Circle",
@@ -293,8 +434,8 @@ function NodeMap.new(): MapInterface.Map
 		})
 		Kit.new("UIAspectRatioConstraint", { AspectRatio = 1, Parent = circle })
 		Kit.round().Parent = circle
-		-- Lit from the top: the fill (data) at the top; toward the bottom the dark
-		-- board shows through a little, a shade darker. (Transparency, not Color, so
+		-- Lit from the top: the fill (data) at the top; toward the bottom the darker
+		-- lip under it shows through, a shade darker. (Transparency, not Color, so
 		-- the fill stays the data color and no color literal is needed.)
 		Kit.new("UIGradient", {
 			Name = "Depth",
@@ -312,38 +453,37 @@ function NodeMap.new(): MapInterface.Map
 			TextScaled = true,
 			TextSize = Kit.size.heading,
 			Font = Kit.font.bold,
+			TextStrokeColor3 = Kit.colors.background,
+			TextStrokeTransparency = LABEL_STROKE,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			TextWrapped = false,
 			ZIndex = 4,
 			Parent = hit,
 		})
-		-- The tag straddles the circle's top edge (or hangs inside it at the top
-		-- of the map); its anchor follows the node across the map, so a wide tag
-		-- near a side edge grows inward and stays inside the map.
-		local rimY = n.y - n.r * MapLayout.ASPECT
+		local anchor, place = tagPlace(n)
 		local badge = Kit.text("", {
 			Name = n.id,
 			AutomaticSize = Enum.AutomaticSize.X,
 			Size = UDim2.fromOffset(0, TAG_H),
-			AnchorPoint = Vector2.new(math.clamp(n.x, 0, 1), if rimY < 0.06 then 0 else 0.5),
-			Position = UDim2.fromScale(n.x, math.max(rimY, 0)),
+			AnchorPoint = anchor,
+			Position = place,
 			TextSize = Kit.size.caption,
-			Font = Kit.font.bold,
-			TextColor3 = Kit.colors.accent,
-			BackgroundColor3 = Kit.colors.background,
-			BackgroundTransparency = 0.1,
+			Font = Kit.font.display,
+			TextColor3 = Kit.colors.onAccent,
+			BackgroundColor3 = Kit.colors.accent,
+			BackgroundTransparency = 0,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			TextWrapped = false,
 			Visible = false,
 			Parent = tagLayer,
 		})
-		Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = badge })
+		Kit.new("UICorner", { CornerRadius = UDim.new(0, TAG_RADIUS), Parent = badge })
 		Kit.new("UIPadding", {
 			PaddingLeft = UDim.new(0, TAG_PAD),
 			PaddingRight = UDim.new(0, TAG_PAD),
 			Parent = badge,
 		})
-		local badgeStroke = Kit.stroke(Kit.colors.accent, 1)
+		local badgeStroke = Kit.stroke(Kit.colors.accentEdge, 1)
 		badgeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		badgeStroke.Parent = badge
 		local arrow = Kit.text("", {
@@ -364,11 +504,17 @@ function NodeMap.new(): MapInterface.Map
 		})
 		local node: Node = {
 			id = n.id,
+			x = n.x,
+			y = n.y,
 			r = n.r,
+			h = h,
 			k = k,
 			hit = hit,
 			circle = circle,
 			halo = halo,
+			bloom = bloom,
+			shadow = shadow,
+			lip = lip,
 			ring = ring,
 			label = label,
 			badge = badge,
@@ -376,6 +522,7 @@ function NodeMap.new(): MapInterface.Map
 			arrow = arrow,
 			lensRow = newLensRow(hit, k),
 			parts = {},
+			edges = {},
 		}
 		nodes[i] = node
 		byId[n.id] = node
@@ -397,15 +544,31 @@ function NodeMap.new(): MapInterface.Map
 		return width <= 0 or 2 * node.r * CIRCLE_SHARE * width >= TWO_LINES
 	end
 
+	-- The drawn circle's share of the tap target as laid out: k, unless the
+	-- 36 px minimum grew the target past its layout size (a phone), where the
+	-- circle keeps its layout size inside it.
+	local function shareOf(node: Node): number
+		local width = root.AbsoluteSize.X
+		if width <= 0 then
+			return node.k
+		end
+		local natural = 2 * node.h * width
+		return node.k * natural / math.max(natural, MIN_TAP)
+	end
+
 	local function paint(node: Node)
 		local mark = marks[node.id]
 		local line = lens[node.id]
 		local isSelected = selected == node.id
 		local dim = (mark ~= nil and mark.dim == true) or (line ~= nil and line.dim == true)
+		local k = shareOf(node)
+		node.circle.Size = UDim2.fromScale(k, k)
 		node.circle.BackgroundColor3 = fills[node.id] or Kit.color(Colors.neutral)
 		node.circle.BackgroundTransparency = if dim then DIM_FILL else 0
 		node.label.TextTransparency = if dim then DIM_TEXT else 0
-		paintLens(node, line, roomy(node))
+		node.label.TextStrokeTransparency = if dim then 1 else LABEL_STROKE
+		node.shadow.ImageTransparency = if dim then 1 - (1 - SHADOW_FADE) / 2 else SHADOW_FADE
+		paintLens(node, line, roomy(node), k)
 		if isSelected then
 			node.ring.Color = Kit.colors.accent
 			node.ring.Thickness = SELECTED_RING_PX
@@ -416,29 +579,49 @@ function NodeMap.new(): MapInterface.Map
 			node.ring.Color = Kit.color(Colors.undecided)
 			node.ring.Thickness = RING_PX
 		end
-		-- One tag holds the badge and the word: "+1.5", "FLIP" or "+1.5 FLIP".
-		-- A word fills the tag in its color, so a flip reads at a glance.
+		node.lip.BackgroundColor3 =
+			Kit.color(Colors.tint(Kit.rgb(node.ring.Color), Colors.background, LIP_SHADE))
+		node.lip.BackgroundTransparency = if dim then DIM_FILL else 0
+		-- One solid tag holds the badge and the word: "+1.5", "FLIP" or "+1.5 FLIP".
+		-- A badge fills the tag in its color with readable text (a loss: orange
+		-- with a dark number); a word makes it a dark plate with a 2 px edge in
+		-- its color, so a flip reads at a glance.
 		local badge = if mark then mark.badge else nil
 		local word = if mark then mark.note else nil
 		local tag = if badge and word then `{badge} {word}` else badge or word
 		node.badge.Visible = tag ~= nil
 		node.badge.Text = tag or ""
-		local color = if mark and mark.badgeColor then mark.badgeColor else Kit.colors.accent
 		if word then
-			local fill = if mark and mark.noteColor then mark.noteColor else Kit.colors.text
-			node.badge.BackgroundColor3 = fill
-			node.badge.TextColor3 = Kit.colors.background
-			node.badgeStroke.Color = fill
+			local note = if mark then mark.noteColor else nil
+			node.badge.BackgroundColor3 = Kit.colors.field
+			node.badge.TextColor3 = Kit.colors.text
+			node.badgeStroke.Color = note or Kit.colors.line
+			node.badgeStroke.Thickness = FLIP_EDGE
 		else
-			node.badge.BackgroundColor3 = Kit.colors.background
-			node.badge.TextColor3 = color
-			node.badgeStroke.Color = color
+			local fill = if mark and mark.badgeColor then mark.badgeColor else Kit.colors.accent
+			node.badge.BackgroundColor3 = fill
+			node.badge.TextColor3 = onFill(fill)
+			node.badgeStroke.Color = edgeOf(fill)
+			node.badgeStroke.Thickness = 1
 		end
 		local halo = if mark then mark.halo else nil
+		local strong = mark ~= nil and mark.haloStrong == true
 		node.halo.Visible = halo ~= nil
+		-- An accent ring (the screen's own highlight: the next call on election
+		-- night, a draft pick) blooms in the accent too, as the selection does.
+		local lit = halo == nil and mark ~= nil and mark.ring == Kit.colors.accent and not isSelected
+		node.bloom.Visible = halo ~= nil or lit
+		if lit then
+			node.bloom.ImageColor3 = Kit.colors.accent
+			node.bloom.ImageTransparency = SELECT_GLOW_FADE
+		end
 		if halo then
+			local size = math.min(1, k * HALO_SCALE)
+			node.halo.Size = UDim2.fromScale(size, size)
 			node.halo.BackgroundColor3 = halo
-			node.halo.BackgroundTransparency = if mark and mark.haloStrong then HALO_STRONG else HALO_SOFT
+			node.halo.BackgroundTransparency = if strong then HALO_STRONG else HALO_SOFT
+			node.bloom.ImageColor3 = halo
+			node.bloom.ImageTransparency = if strong then BLOOM_STRONG else BLOOM_SOFT
 		end
 		local glyph = if mark and mark.arrow then ARROWS[mark.arrow] else nil
 		node.arrow.Visible = glyph ~= nil
@@ -543,11 +726,29 @@ function NodeMap.new(): MapInterface.Map
 		if id and byId[id] then
 			local node = byId[id]
 			paint(node)
+			-- The accent glow under the selected state, breathing (decorative).
+			local reach = 2 * node.r * CIRCLE_SHARE * SELECT_GLOW
+			selectGlow.Position = UDim2.fromScale(node.x, node.y)
+			selectGlow.Size = UDim2.fromScale(reach, reach * MapLayout.ASPECT)
+			selectGlow.Visible = true
 			if id ~= old then
 				-- The accent ring draws in (instant under reduced motion).
 				node.ring.Thickness = 0
 				Motion.tween(node.ring, { Thickness = SELECTED_RING_PX }, RING_DRAW)
+				stopBreath()
+				selectGlow.ImageTransparency = SELECT_GLOW_FADE
+				stopBreath = Motion.breathe(
+					selectGlow,
+					"ImageTransparency",
+					SELECT_GLOW_FADE,
+					SELECT_GLOW_DIM,
+					SELECT_BREATH
+				)
 			end
+		else
+			stopBreath()
+			stopBreath = function() end
+			selectGlow.Visible = false
 		end
 	end
 
@@ -605,13 +806,16 @@ function NodeMap.new(): MapInterface.Map
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.95, 0.05),
 			Size = UDim2.fromOffset(PLAN_BADGE_PX, PLAN_BADGE_PX),
-			BackgroundColor3 = Kit.colors.background,
+			BackgroundColor3 = Kit.colors.field,
 			BorderSizePixel = 0,
 			ZIndex = 7,
 			Parent = node.hit,
 		})
 		badge:SetAttribute("Overhang", true)
 		Kit.round().Parent = badge
+		local edge = Kit.stroke(Kit.colors.accent, 1)
+		edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		edge.Parent = badge
 		local glyph = Kit.icon(icon, PLAN_BADGE_PX, Kit.colors.accent)
 		glyph.Size = UDim2.fromScale(1, 1)
 		glyph.ZIndex = 8
@@ -636,16 +840,16 @@ function NodeMap.new(): MapInterface.Map
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromOffset(0, TAG_H),
 				TextSize = Kit.size.caption,
-				Font = Kit.font.bold,
+				Font = Kit.font.display,
 				TextColor3 = Kit.colors.text,
-				BackgroundColor3 = Kit.colors.background,
-				BackgroundTransparency = 0.3,
+				BackgroundColor3 = Kit.colors.field,
+				BackgroundTransparency = GHOST_BG,
 				TextXAlignment = Enum.TextXAlignment.Center,
 				TextWrapped = false,
 				ZIndex = 9,
 				Parent = tagLayer,
 			})
-			Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = made })
+			Kit.new("UICorner", { CornerRadius = UDim.new(0, TAG_RADIUS), Parent = made })
 			Kit.new("UIPadding", {
 				PaddingLeft = UDim.new(0, TAG_PAD),
 				PaddingRight = UDim.new(0, TAG_PAD),
@@ -660,10 +864,9 @@ function NodeMap.new(): MapInterface.Map
 		end
 		local ghost = tag :: TextLabel
 		-- Above the node's circle, growing inward near a side edge.
-		local n = layout[table.find(nodes, node) or 1]
-		local rimY = n.y - n.r * MapLayout.ASPECT
-		ghost.AnchorPoint = Vector2.new(math.clamp(n.x, 0, 1), if rimY < 0.06 then 0 else 0.5)
-		ghost.Position = UDim2.fromScale(n.x, math.max(rimY, 0))
+		local anchor, place = tagPlace(layout[table.find(nodes, node) or 1])
+		ghost.AnchorPoint = anchor
+		ghost.Position = place
 		ghost.Text = text
 		ghost.Visible = true
 	end
@@ -680,6 +883,7 @@ function NodeMap.new(): MapInterface.Map
 
 	function map.destroy(_self: any)
 		handlers = {}
+		stopBreath()
 		root:Destroy()
 	end
 
