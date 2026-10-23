@@ -21,6 +21,9 @@
 --   Words.stateLine(id) -> string                       "Ohio · 17 votes"
 --   Words.callLine(result, names) -> string             "Dana by 2.9 points"
 --   Words.keyReasons(config, view, winner, names) -> { string }   at most 3, the winner's side
+--   Words.nextTime(config, view, winner, names) -> string?  the loser's one "Try next time" line
+--   Words.revealFirst(view) -> (player, trails)         whose actions land first in a week's reveal
+--   Words.orderLine(view, first, trails, them) -> string "Rex trails, so Rex's actions land first"
 --   Words.help(config) -> { Tab }                       the five Help tabs
 --
 -- `them` is the opponent's display name ("Rex"); `names` is display names by
@@ -471,12 +474,13 @@ end
 
 -- ---------------------------------------------------------------- results
 
-type Reason = { text: string, weight: number }
+-- `tip`: what the loser could try next time against this reason (Words.nextTime).
+type Reason = { text: string, weight: number, tip: string }
 
--- At most three short reasons the winner won, biggest first, from what both
--- players saw: debate topics and the flips debates and stances made, close
--- races, the biggest prize, your own ground game, and the state count.
-function Words.keyReasons(config: Config, view: View, winner: number, names: { string }): { string }
+-- Every reason the winner won, biggest first, from what both players saw:
+-- debate topics and the flips debates and stances made, close races, the
+-- biggest prize, your own ground game, and the state count.
+local function reasonsFor(config: Config, view: View, winner: number, names: { string }): { Reason }
 	local election = view.election
 	if election == nil or winner <= 0 then
 		return {}
@@ -511,7 +515,11 @@ function Words.keyReasons(config: Config, view: View, winner: number, names: { s
 		if flipEV > 0 then
 			text ..= ` (+{flipEV} votes)`
 		end
-		table.insert(reasons, { text = text, weight = 10 * (topics - theirTopics) + math.max(0, flipEV) })
+		table.insert(reasons, {
+			text = text,
+			weight = 10 * (topics - theirTopics) + math.max(0, flipEV),
+			tip = "pick a debate focus that fits your issues",
+		})
 	end
 
 	-- Stances: the flips both stances made, toward the winner.
@@ -531,6 +539,7 @@ function Words.keyReasons(config: Config, view: View, winner: number, names: { s
 		table.insert(reasons, {
 			text = `Stances flipped {plural(stanceFlips, "state")} to {whom}`,
 			weight = stanceEV,
+			tip = "pick stances your big states care about",
 		})
 	end
 
@@ -554,6 +563,7 @@ function Words.keyReasons(config: Config, view: View, winner: number, names: { s
 		table.insert(reasons, {
 			text = `{who} held {nameOf(r.state)} by {string.format("%.1f", r.margin)} points`,
 			weight = evOf(r.state),
+			tip = `ground game in close states like {nameOf(r.state)}`,
 		})
 	elseif #close > 1 then
 		local ev = 0
@@ -563,12 +573,14 @@ function Words.keyReasons(config: Config, view: View, winner: number, names: { s
 		table.insert(reasons, {
 			text = `{who} won {#close} close races (+{ev} votes)`,
 			weight = ev,
+			tip = "ground game in the closest states",
 		})
 	end
 	if biggest then
 		table.insert(reasons, {
 			text = `{who} carried {nameOf(biggest)}, worth {evOf(biggest)} votes`,
 			weight = 0.6 * evOf(biggest),
+			tip = `fight for {nameOf(biggest)} early`,
 		})
 	end
 
@@ -590,22 +602,82 @@ function Words.keyReasons(config: Config, view: View, winner: number, names: { s
 			local text = if #swung == 1
 				then `Your ground game won {nameOf(swung[1])}`
 				else `Your ground game won {#swung} states (+{ev} votes)`
-			table.insert(reasons, { text = text, weight = ev })
+			table.insert(reasons, { text = text, weight = ev, tip = "ground game where you are close" })
 		end
 	end
 
 	-- Always something: the state count.
 	local lost = election.statesWon[loser] or 0
-	table.insert(reasons, { text = `{who} carried {won} states to {lost}`, weight = 1 })
+	table.insert(reasons, {
+		text = `{who} carried {won} states to {lost}`,
+		weight = 1,
+		tip = "rally in states where the polls are close",
+	})
 
 	table.sort(reasons, function(a: Reason, b: Reason): boolean
-		return a.weight > b.weight
+		if a.weight ~= b.weight then
+			return a.weight > b.weight
+		end
+		return a.text < b.text
 	end)
+	return reasons
+end
+
+-- At most three short reasons the winner won, biggest first.
+function Words.keyReasons(config: Config, view: View, winner: number, names: { string }): { string }
+	local reasons = reasonsFor(config, view, winner, names)
 	local out: { string } = {}
 	for k = 1, math.min(3, #reasons) do
 		table.insert(out, reasons[k].text)
 	end
 	return out
+end
+
+-- One line for the player who lost, against the biggest reason they lost:
+-- "Try next time: ground game in the closest states". Nil when you won or
+-- nobody did (a winner sees no advice).
+function Words.nextTime(config: Config, view: View, winner: number, names: { string }): string?
+	if winner <= 0 or winner == view.you then
+		return nil
+	end
+	local top = reasonsFor(config, view, winner, names)[1]
+	return if top then `Try next time: {top.tip}` else nil
+end
+
+-- ---------------------------------------------------------------- reveal order
+
+-- Whose actions land first in a week's reveal: the player behind on the
+-- public polls of `view` (votes of the states each leads), so the leader's
+-- answer comes last. On a tie each player sees their own first, so neither
+-- screen favors a seat. Returns the player and whether they trail.
+function Words.revealFirst(view: View): (number, boolean)
+	local rival = rivalOf(view)
+	local votes = { [view.you] = 0, [rival] = 0 }
+	for _, s in view.states do
+		local margin = marginOf(view, s)
+		if margin then
+			local leader = leaderOf(view, margin)
+			if leader ~= 0 then
+				votes[leader] += evOf(s.id)
+			end
+		end
+	end
+	if votes[view.you] < votes[rival] then
+		return view.you, true
+	elseif votes[rival] < votes[view.you] then
+		return rival, true
+	end
+	return view.you, false
+end
+
+-- The line under "Both plans are in": who goes first, and why.
+function Words.orderLine(view: View, first: number, trails: boolean, them: string): string
+	if first ~= view.you then
+		return `{them} trails, so {them}'s actions land first`
+	elseif trails then
+		return "You trail, so your actions land first"
+	end
+	return "Your actions land first"
 end
 
 -- ---------------------------------------------------------------- help
