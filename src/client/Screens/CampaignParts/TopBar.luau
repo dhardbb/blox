@@ -18,6 +18,11 @@
 -- focus", "Take a stance") is kept on the hidden StageLabel: the now line says
 -- the same thing as an instruction.
 --
+-- Motion (docs/DESIGN.md D-053): when a side's projected votes or the money
+-- left change, the number counts to its new value (Motion.countTo), the vote
+-- bar slides (0.5 s), and a small "+12" / "-$3.0" chip ("Delta", decorative)
+-- rises 12 px from it and fades. Under reduced motion the numbers just change.
+--
 --   local top = TopBar.new(parent, model)
 --   top:place(portrait)      -- lays the rows out; returns the height
 --   top:render(now) -> bool  -- true when the height changed (the notice came or went)
@@ -36,6 +41,7 @@ local Words = require(ReplicatedStorage.Shared.UI.Words.Campaign)
 local Header = require(script.Parent.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Model = require(script.Parent.Model)
+local Motion = require(script.Parent.Parent.Parent.UI.Motion)
 
 local TopBar = {}
 
@@ -46,6 +52,43 @@ local SCORE_START = 0.24 -- share of the row where the score strip starts (wide)
 local PORTRAIT_SCORE_START = 0.25 -- ... on a phone, after the short "Week 3"
 local BUDGET_SHARE = 0.44 -- share of the now line the actions and money take
 local MID_W = 2 -- px, the halfway tick on the vote bar
+local DELTA_RISE = 12 -- px, a delta chip rises this far
+local DELTA_SECONDS = 0.6 -- s, ... while it fades
+local DELTA_H = Kit.size.caption + 4 -- px, a delta chip's height
+
+-- A "+12" chip under `anchor` that rises and fades, then removes itself
+-- (decorative: none under reduced motion; the number itself still changes).
+local function deltaChip(anchor: GuiObject, text: string, color: Color3)
+	if Motion.reduced() then
+		return
+	end
+	local chip = Kit.text(text, {
+		Name = "Delta",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 1),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, DELTA_H),
+		TextSize = Kit.size.caption,
+		Font = Kit.font.bold,
+		TextColor3 = color,
+		TextWrapped = false,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		BackgroundColor3 = Kit.colors.background,
+		BackgroundTransparency = 0.2,
+		ZIndex = 10,
+		Parent = anchor,
+	})
+	chip:SetAttribute("Decor", true)
+	Kit.corner(4).Parent = chip
+	Motion.tween(chip, {
+		Position = UDim2.new(0.5, 0, 1, -DELTA_RISE),
+		TextTransparency = 1,
+		BackgroundTransparency = 1,
+	}, DELTA_SECONDS, Motion.ease.soft)
+	task.delay(DELTA_SECONDS, function()
+		chip:Destroy()
+	end)
+end
 
 local TOTAL_EV = 0
 for _, record in StateData.list do
@@ -167,6 +210,30 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 
 	local portrait = false
 	local scoreShown = true
+	-- What the score and money showed at the last render (nil before the first).
+	local shownMine: number?, shownTheirs: number? = nil, nil
+	local shownCash: number? = nil
+	local namesShown = ""
+
+	-- Shows `value` on `label` as format(value): counts there from `before`
+	-- (with a delta chip) when the value changed, else sets it.
+	local function show(
+		label: TextLabel,
+		before: number?,
+		value: number,
+		format: (number) -> string,
+		delta: string?,
+		color: Color3
+	)
+		if before ~= nil and before ~= value then
+			Motion.countTo(label, before, value, format)
+			if delta then
+				deltaChip(label, delta, color)
+			end
+		elseif before == nil then
+			label.Text = format(value)
+		end
+	end
 
 	local function height(): number
 		return header.height + (if notice.Visible then NOTICE_H else 0)
@@ -269,10 +336,26 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			local planning = Model.planning(p)
 			budget.Visible = planning
 			local ap, cash = PlanDraft.remaining(config, view, model.draft)
-			local n = math.max(0, ap)
-			apLabel.Text = `{n} {if n == 1 then "action" else "actions"} left`
+			local actionsLeft = math.max(0, ap)
+			apLabel.Text = `{actionsLeft} {if actionsLeft == 1 then "action" else "actions"} left`
 			apLabel.TextColor3 = if ap < 0 then Kit.colors.danger else Kit.colors.text
-			moneyLabel.Text = Model.money(cash)
+			local cashBefore = shownCash
+			local moneyNow = Model.money(cash)
+			if planning and cashBefore ~= nil and Model.money(cashBefore) ~= moneyNow then
+				local change = cash - cashBefore
+				show(
+					moneyLabel,
+					cashBefore,
+					cash,
+					Model.money,
+					if change > 0 then `+{Model.money(change)}` else Model.money(change),
+					if change > 0 then Kit.colors.good else Kit.colors.danger
+				)
+			elseif cashBefore == nil or Model.money(cashBefore) ~= moneyNow or not planning then
+				Motion.cancel(moneyLabel)
+				moneyLabel.Text = moneyNow
+			end
+			shownCash = if planning then cash else nil
 			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.danger else Kit.colors.good
 
 			-- The score: on a phone the Decision title needs the whole row.
@@ -287,15 +370,40 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 				then Model.firstName(config, view, me)
 				else Model.candidateName(config, view, me)
 			local theirName = if portrait then theirFirst else Model.candidateName(config, view, rival)
-			you.Text = `{myName} {mine}`
-			them.Text = `{theirs} {theirName}`
 			local myColor, theirColor = Kit.playerColor(view, me), Kit.playerColor(view, rival)
+			local function myText(n: number): string
+				return `{myName} {math.floor(n + 0.5)}`
+			end
+			local function theirText(n: number): string
+				return `{math.floor(n + 0.5)} {theirName}`
+			end
+			local function signed(n: number): string
+				return if n > 0 then `+{n}` else tostring(n)
+			end
+			local names = `{myName}|{theirName}`
+			if names ~= namesShown then
+				-- A new layout (phone names) or a new match: no count, just the values.
+				namesShown = names
+				shownMine, shownTheirs = nil, nil
+				Motion.cancel(you)
+				Motion.cancel(them)
+			end
+			local mineBefore, theirsBefore = shownMine, shownTheirs
+			show(you, mineBefore, mine, myText, signed(mine - (mineBefore or mine)), myColor)
+			show(them, theirsBefore, theirs, theirText, signed(theirs - (theirsBefore or theirs)), theirColor)
+			shownMine, shownTheirs = mine, theirs
 			you.TextColor3 = myColor
 			them.TextColor3 = theirColor
 			youBar.BackgroundColor3 = myColor
 			themBar.BackgroundColor3 = theirColor
-			youBar.Size = UDim2.fromScale(math.clamp(mine / TOTAL_EV, 0, 1), 1)
-			themBar.Size = UDim2.fromScale(math.clamp(theirs / TOTAL_EV, 0, 1), 1)
+			local youSize = UDim2.fromScale(math.clamp(mine / TOTAL_EV, 0, 1), 1)
+			local themSize = UDim2.fromScale(math.clamp(theirs / TOTAL_EV, 0, 1), 1)
+			if mineBefore == nil or mineBefore ~= mine then
+				Motion.tween(youBar, { Size = youSize }, Motion.t.count, Motion.ease.soft)
+			end
+			if theirsBefore == nil or theirsBefore ~= theirs then
+				Motion.tween(themBar, { Size = themSize }, Motion.t.count, Motion.ease.soft)
+			end
 
 			local seat = p.seats[rival]
 			local away = seat ~= nil and not seat.connected

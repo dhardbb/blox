@@ -9,15 +9,24 @@
 --   local plan = PlanList.new(parent, model, order)
 --   plan:render(p) · plan:tick(now) · plan.root (Frame "PlanList")
 --
+-- Motion and sound (docs/DESIGN.md D-053): a new row (or a ground-game row
+-- gaining a unit) slides in with the "planAdd" cue; a removed row fades out
+-- where it was ("PlanItemLeaving", decorative) with "planRemove". One cue per
+-- change, whichever part of the screen made it (the state card, the pivot
+-- chooser, ×, Clear). A new draft (a new week) starts quietly.
+--
 -- Element names: PlanTitle, ClearButton, PlanItems, PlanItem<k>, RemoveItem<k>,
 -- PlanEmpty.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Plan = require(ReplicatedStorage.Shared.Sim.Plan)
 local PlanDraft = require(ReplicatedStorage.Shared.UI.PlanDraft)
 
+local Audio = require(script.Parent.Parent.Parent.UI.Audio)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Model = require(script.Parent.Model)
+local Motion = require(script.Parent.Parent.Parent.UI.Motion)
 
 local PlanList = {}
 
@@ -92,6 +101,27 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 		end
 	end
 
+	-- What the rows showed at the last render, to spot what changed: each action
+	-- (by identity) with its units, its row's text and place.
+	type Seen = { units: number, text: string, k: number }
+	local seenDraft: PlanDraft.Draft? = nil
+	local seen: { [Plan.Action]: Seen } = {}
+
+	-- A removed row fading out where it was (layout orders: rows 2k, this 2k-1).
+	local function leaving(entry: Seen)
+		local row = Kit.text(entry.text, {
+			Name = "PlanItemLeaving",
+			LayoutOrder = 2 * entry.k - 1,
+			Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+			TextColor3 = Kit.colors.muted,
+			Parent = items,
+		})
+		row:SetAttribute("Decor", true)
+		Motion.exit(row, function()
+			row:Destroy()
+		end)
+	end
+
 	local function renderClear(canEdit: boolean, now: number)
 		local armed = armedUntil ~= nil and now <= armedUntil
 		if not armed then
@@ -110,6 +140,7 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 			root.Visible = show
 			if not show then
 				armedUntil = nil
+				seenDraft = nil
 				return
 			end
 			local canEdit = Model.editable(model, p)
@@ -121,18 +152,32 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 				flights[stop.index] = stop.flight
 			end
 			clearItems()
+			local quiet = seenDraft ~= model.draft
+			seenDraft = model.draft
+			local was = seen
+			seen = {}
+			local added = false
 			for k, action in model.draft.actions do
+				local text = `{k}. {Model.actionText(config, action, flights[k] == true)}`
+				local before = was[action]
+				local units = action.units or 0
+				seen[action] = { units = units, text = text, k = k }
 				local row = Kit.box({
 					Name = `PlanItemRow{k}`,
-					LayoutOrder = k,
+					LayoutOrder = 2 * k,
 					Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 					Parent = items,
 				})
-				Kit.text(`{k}. {Model.actionText(config, action, flights[k] == true)}`, {
+				local label = Kit.text(text, {
 					Name = `PlanItem{k}`,
 					Size = UDim2.new(1, -(Kit.MIN_TOUCH + Kit.space.sm), 1, 0),
 					Parent = row,
 				})
+				if not quiet and (before == nil or units > before.units) then
+					-- New (or one more unit): the line slides up into its row.
+					added = true
+					Motion.enter(label)
+				end
 				local remove = Kit.iconButton("×", function()
 					local now = model.payload
 					if now == nil or not Model.editable(model, now) or model.draft.actions[k] == nil then
@@ -148,9 +193,24 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 				})
 				Kit.setEnabled(remove, canEdit)
 			end
+			local removed = false
+			if not quiet then
+				for action, entry in was do
+					if seen[action] == nil then
+						removed = true
+						leaving(entry)
+					end
+				end
+			end
+			if added then
+				Audio.play("planAdd")
+			elseif removed then
+				Audio.play("planRemove")
+			end
 			empty.Visible = #model.draft.actions == 0 and canEdit
-			-- An empty list takes no gap of its own under the title.
-			items.Visible = #model.draft.actions > 0
+			-- An empty list takes no gap of its own under the title (a row still
+			-- fading out keeps it open).
+			items.Visible = #model.draft.actions > 0 or removed
 			renderClear(canEdit, model.ctx.now())
 		end,
 		tick = function(_self: PlanList, now: number)

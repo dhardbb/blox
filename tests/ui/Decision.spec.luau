@@ -226,3 +226,31 @@ describe("Decision screen: a live practice match", function()
 		Rig.noErrors(world)
 	end)
 end)
+
+describe("Decision motion", function()
+	it("pops a new decision's options in, and not under Reduce Motion", function()
+		for _, moment in { "Stance", "Focus" } do
+			local world, peer = Rig.fixture(moment, nil)
+			local options = {}
+			for _, inst in Rig.need(peer, "Screens", "Decision"):GetDescendants() do
+				if string.match(inst.Name, "^Choice[ABC]$") or string.match(inst.Name, "^FocusTopic") then
+					if inst.Visible ~= false and inst:IsA("GuiButton") then
+						table.insert(options, inst)
+					end
+				end
+			end
+			check(#options >= 2, `{moment}: {#options} options`)
+			for _, option in options do
+				local scale = option:FindFirstChild("MotionScale")
+				check(scale ~= nil, `{moment}: {option.Name} did not pop in`)
+				expect(scale.Scale):toBe(1)
+			end
+			Rig.noErrors(world)
+			local calm, calmPeer = Rig.fixture(moment, nil, { reducedMotion = true })
+			for _, inst in Rig.need(calmPeer, "Screens", "Decision"):GetDescendants() do
+				check(inst.Name ~= "MotionScale", `{moment}: {inst.Parent.Name} moved under Reduce Motion`)
+			end
+			Rig.noErrors(calm)
+		end
+	end)
+end)

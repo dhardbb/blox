@@ -16,6 +16,11 @@
 -- rest. On a phone every option is on the first screen. Nothing else: no state
 -- card, plan list or week card.
 --
+-- Motion and sound (docs/DESIGN.md D-053): a new decision's options pop in one
+-- after another; a choice the server turns down shakes the action bar with the
+-- "error" cue; the opponent's line names them ("Rex: thinking…", "Rex: locked
+-- in ✓", which rises and pops in).
+--
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:
 -- { focus = topic } or { choice = "A"|"B"|"C" }. The server validates it
 -- (Sim/Decision); a timer that runs out sends the selection if there is one.
@@ -31,6 +36,7 @@ local Swing = require(Shared.UI.Swing)
 local ViewModule = require(Shared.Sim.View)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local Audio = require(script.Parent.Parent.UI.Audio)
 local AutoLock = require(script.Parent.Common.AutoLock)
 local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
@@ -39,6 +45,7 @@ local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local Messages = require(script.Parent.Common.Messages)
 local Model = require(script.Parent.CampaignParts.Model)
+local Motion = require(script.Parent.Parent.UI.Motion)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local SwingMarks = require(script.Parent.CampaignParts.SwingMarks)
@@ -55,6 +62,7 @@ local CAPTION_H = 20 -- px, the map key above the map
 local DOT = 12 -- px, a key dot
 local MAP_SHARE = 0.55 -- share of the width the map takes on 16:9 (the panel gets more room than on the plan screen)
 local PORTRAIT_MAP_MAX = 0.3 -- most of the body height the map may take on phones (the options come first)
+local LOCKED_RISE = 4 -- px, the opponent's "locked in ✓" line rises this far
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local config = ctx.config
@@ -286,16 +294,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		map:setRoute({}, {})
 	end
 
+	local opponentWas: string? = nil -- the opponent's state at the last bar render
+
 	local function renderBar(p: Payload)
 		local them = Model.opponentOf(p.view)
 		local seat = p.seats[them]
-		bar:setOpponent(
-			if seat == nil
-				then nil
-				elseif not seat.connected then "Opponent: disconnected"
-				elseif seat.locked then "Opponent: locked in"
-				else "Opponent: thinking"
-		)
+		local state = if seat == nil
+			then nil
+			elseif not seat.connected then "disconnected"
+			elseif seat.locked then Model.OPPONENT_LOCKED
+			else "thinking"
+		local name = Model.firstName(config, p.view, them)
+		bar:setOpponent(if state then Model.opponentLine(name, state, ctx.now(), Motion.reduced()) else nil)
+		if state ~= opponentWas then
+			if state == Model.OPPONENT_LOCKED and opponentWas ~= nil then
+				-- They just locked in: the line rises into place and pops.
+				Motion.enter(bar.opponent, LOCKED_RISE)
+				Motion.pop(bar.opponent)
+			end
+			opponentWas = state
+		end
 		bar:setSecondary(nil, false)
 		local kind = Model.deciding(p)
 		if kind == nil then
@@ -357,7 +375,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.messages = state.messages
 		model.payload = p
 		relayout()
+		local fresh = false
+		local refused = false
 		if Model.deciding(p) ~= nil and model.draftStep ~= p.step then
+			fresh = true
 			-- A new decision: nothing picked for the focus (the default is no focus);
 			-- the hedge (C), the server's default, starts selected for a stance.
 			model.draftStep = p.step
@@ -372,9 +393,29 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if turnedDown ~= nil then
 				model.lockStep = nil
 				rejection = { step = p.step, text = ctx.net.reasonText(turnedDown.reason) }
+				refused = true
 			end
 		end
 		render()
+		if fresh then
+			-- A new decision: its options pop in one after another.
+			local options: { GuiObject } = {}
+			for _, inst in side:GetDescendants() do
+				local isOption = string.match(inst.Name, "^Choice[ABC]$") ~= nil
+					or string.match(inst.Name, "^FocusTopic") ~= nil
+				if isOption and inst:IsA("GuiButton") and (inst :: GuiButton).Visible then
+					table.insert(options, inst :: GuiButton)
+				end
+			end
+			Motion.stagger(options, function(option: GuiObject, _index: number, delay: number)
+				Motion.pop(option, Motion.POP_FROM, delay)
+			end)
+		end
+		if refused then
+			Motion.shake(bar.root)
+			Motion.flash(bar.status, Kit.colors.text)
+			Audio.play("error")
+		end
 	end
 
 	relayout(true)
