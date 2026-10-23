@@ -25,18 +25,19 @@ local CoachTip = {}
 
 local MAX_W = 360 -- px, widest a tip gets
 
--- The copy for every tip, by id. Plain words, one sentence, at most ~12 words.
+-- The copy for every tip, by id: plain words, at most 12 words (KitStyle.spec),
+-- one per key moment of the first match (docs/UI-STYLE.md §3.4).
 CoachTip.TIPS = table.freeze({
-	["select.candidate"] = "Each candidate has one strength and one weakness. Pick one.",
-	["select.issues"] = "Pick 3 issues. Rallies and ads on them count for more.",
-	["draft.pick"] = "Tap a state to claim it. Bigger numbers mean more votes.",
-	["decision.stance"] = "Pick a side. States that care about this issue react.",
-	["decision.focus"] = "Pick one debate topic to prepare. You get a bonus on it.",
-	["campaign.map"] = "Tap a state to see how it's leaning and act there.",
-	["campaign.actions"] = "Spend your actions and money, then press Lock in.",
-	["campaign.lens"] = "These buttons change what the map shows.",
-	["reveal.week"] = "Here's what both of you did this week.",
-	["election.night"] = "States are called one by one. 270 votes wins.",
+	["select.candidate"] = "Pick your candidate. Each has one big strength and one weakness.",
+	["select.issues"] = "Choose 3 issues. Rallies and ads on them hit harder.",
+	["draft.pick"] = "Claim a state! Bigger numbers mean more votes.",
+	["decision.stance"] = "Take a side, or stay out. States that care will react.",
+	["decision.focus"] = "Prep one topic. Win it and its states swing your way.",
+	["campaign.map"] = "Tap any state to see who's ahead there.",
+	["campaign.actions"] = "Pick your actions, then Lock in. Your plan stays secret.",
+	["campaign.lens"] = "These buttons switch the map: votes, issues, polls, money.",
+	["reveal.week"] = "Both plans are out! Marked states moved the most.",
+	["election.night"] = "States are called one by one. First to 270 wins!",
 } :: { [string]: string })
 
 export type Store = {
@@ -105,8 +106,8 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 		LayoutOrder = options.order or 0,
 		BackgroundColor3 = Kit.colors.raised,
 		Size = if inList then UDim2.fromScale(1, 0) else UDim2.fromOffset(options.width or MAX_W, 0),
-		Position = options.position or UDim2.new(),
-		AnchorPoint = options.anchorPoint or Vector2.new(),
+		Position = options.position or UDim2.fromOffset(0, 0),
+		AnchorPoint = options.anchorPoint or Vector2.new(0, 0),
 		ZIndex = 20,
 	})
 	root:SetAttribute("TipId", id)
