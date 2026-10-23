@@ -2,6 +2,6 @@
 -- Build version shown in logs and the lobby. Bump with each CHANGELOG entry.
 
 return {
-	VERSION = "0.10.0",
-	PHASE = "Polish: motion and sound",
+	VERSION = "0.11.0",
+	PHASE = "Colors: red, blue and the Color Pass",
 }

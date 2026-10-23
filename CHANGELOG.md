@@ -2,6 +2,16 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## 0.11.0: Colors: red, blue and the Color Pass (Oct 23, 2026)
+
+The designers asked for red and blue by default and a color pick for Robux (D-055). Sim, server, client. No Config numbers changed; the balance report is identical. Studio checklist: `docs/TESTING.md`, "Colors: red, blue and the Color Pass".
+
+- **Red and blue by default.** Two players who did not pick a color are always one red (Crimson) and one blue (Cobalt), a coin flip deciding who gets which. With more players, the other four follow.
+- **Color Pass (Game Pass, Robux).** Owners pick any of the six colors in the Lobby: **Color** opens a sheet with the six swatches and "Auto: red or blue". The color is saved and used every match. If both players picked the same color, a coin flip decides and the other gets red or blue. Without the pass the swatches are greyed and **Get the Color Pass** opens Roblox's purchase prompt.
+- The server checks ownership with Roblox itself, never the client; if the check fails, the player gets red or blue.
+- Select's color line no longer says colors are drawn at random.
+- **Needed from the humans:** create the pass and send its id (`docs/TESTING.md`, "Setting up the Color Pass"). Until then the color option is hidden and every match is red and blue. The id goes in `src/shared/Net/Products.luau`, `COLOR_PASS_ID`.
+
 ## 0.10.0: Polish: motion and sound (Oct 23, 2026)
 
 The polish foundation (D-053) and its three packages (the board and the map; reveals, election night and results; setup, help, settings and icons) merged together, the twelve icon images uploaded, then one pass over every snapshot at all three sizes (D-054). No rule, sim, server or payload changes; no Config numbers changed. Studio checklists: `docs/TESTING.md`, "Polish: the whole flow" first, then one section per package below.

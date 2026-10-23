@@ -351,6 +351,8 @@ phone                                   wide (centered column, max 480)
 ```
 Keep: hero, Play vs Bot as the primary, Find match. Change: "Host Private Match" and the code row become one "Play a friend" secondary that opens a small sheet with two choices ("Make a code" / "Enter a code" + the 5-letter field). Add a ghost "How to play" that opens the Help sheet (`ctx.help`). Tagline ≤ 8 words. Hosting state as today (hero code, "Tell your friend this code", danger Cancel), plus "Waiting for your friend…" as the now line.
 
+Color (D-055, `UI/ColorPick`): once the Color Pass is set up, a full-width secondary "Color: Teal" / "Color: red or blue" under the settings chips opens the "Your color" sheet (six swatches in rows of three, "Auto: red or blue"; greyed with one line and "Get the Color Pass" without the pass). Hidden while `Net/Products.COLOR_PASS_ID` is 0.
+
 ### 4.2 Select (WP-A)
 
 ```

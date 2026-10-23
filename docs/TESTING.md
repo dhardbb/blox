@@ -697,3 +697,33 @@ In Studio, one Practice match from the lobby to the results with sound on, once 
 6. Output: send back any line starting with `WARN [270] audio` or `WARN [270] UI audit`.
 
 **Send back:** the screenshots from 1 and 2, anything that sounded harsh or too loud, and whether a full match still fits in about 15 minutes.
+
+## Colors: red, blue and the Color Pass (v0.11.0, D-055)
+
+Agents: `lune run tests "color pass"` (the Match, Profile and server/client specs), `lune run tests/ui/snap.luau -- color` (shots `01b`, `02c`, `02d`; 0 audit findings at all three sizes).
+
+### Setting up the Color Pass (once, for the humans)
+
+The color option stays hidden until this is done; until then every match is red and blue.
+
+1. Go to the [Creator Dashboard](https://create.roblox.com/dashboard/creations) and open the experience of place **133510178057620**.
+2. **Monetization → Passes → Create pass.** Name: **Pick Your Color**. Description, for example: "Choose your color: Crimson, Cobalt, Emerald, Amber, Violet or Teal. Yours every match." Upload a square icon (up to 512x512, keep it inside the circle). **Create pass.**
+3. Open the new pass, put it **on sale** (in its sales settings) and set a price in Robux. **Save.**
+4. Back on **Passes**: hover the pass, click **⋯ → Copy Asset ID**. Send that number to Claude. (Or put it yourself in `src/shared/Net/Products.luau`, line 17: `Products.COLOR_PASS_ID = <the number>`.)
+5. After the new build is published (File → Publish to Roblox), the Lobby shows **Color**.
+
+### In Studio (after the pass id is in the build)
+
+Studio purchase prompts are **test purchases**: the prompt says so and nothing is charged. A test purchase counts for that Studio session only; your real account does not get the pass. DataStores need **Game Settings → Security → Enable Studio Access to API Services** to remember your color between sessions (otherwise it lasts the session).
+
+1. **Play (F5)** alone. **Expect:** in the Lobby, under Sound and Reduce motion, a full-width **Color: red or blue** button.
+2. Tap **Color**. **Expect:** a sheet "Your color": "Pick your color with the Color Pass.", six greyed swatches in rows of three (Crimson, Cobalt, Emerald / Amber, Violet, Teal), **Auto: red or blue** outlined, and **Get the Color Pass**. Tapping a greyed swatch does nothing.
+3. Tap **Get the Color Pass**. **Expect:** Roblox's purchase prompt for "Pick Your Color" with its price, marked as a test purchase. Press **Cancel**: nothing changes. Tap it again and **Buy**. **Expect:** after the prompt closes, the swatches light up, the buy button goes, and the line reads "Tap a color. You get it every match."
+4. Tap **Emerald**. **Expect:** Emerald gets the pink outline and the Lobby button reads **Color: Emerald** with a green dot.
+5. Close the sheet, **Play vs Bot**. **Expect:** Select says "Your color: Emerald"; the bot is Crimson or Cobalt. Your states on the map are green.
+6. Back in the Lobby, **Color → Auto: red or blue**, then **Play vs Bot** again. **Expect:** you are Crimson or Cobalt, the bot the other.
+7. **Two players without the pass** (Test → Clients and Servers → Local Server, 2 Players; or the published game with a partner), **Find match** on both, three times. **Expect:** every match, one player is Crimson and the other Cobalt, not always the same way round.
+8. **Two owners, same color** (published game, both bought the pass, both picked Teal). **Expect:** one of you is Teal, the other Crimson or Cobalt; over a few matches each of you gets Teal sometimes.
+9. Output: any line with `Color Pass check` (a failed ownership check) or `rejected SetColor`.
+
+**Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
