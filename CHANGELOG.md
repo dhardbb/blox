@@ -6,6 +6,9 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 Five branches merged for playtest 4 (`docs/DESIGN.md` D-044 to D-049). Each was tuned on its own; the combined harness numbers are below. Studio checklists: `docs/TESTING.md`, one section per feature below.
 
+- **Combined harness** (2,000 matches, all five together): priority A 51.2%, comeback 37.5%, median margin 52 EV (40+ EV 60.8%, 100+ EV 20.8%); debates change the winner 25.9%, stances 11.5%, GOTV 8.9%; NoFocus 26.6%, RandomStance 28.9%, NeverPoll 53.0%, TopIssues / NicheIssues 49.6 / 48.0%; draft 3 rounds / 71 s; 0 invalid bot inputs. Red: Calloway 57.4%, Venkat 55.1%, Alvarado 43.1%, Okafor vs Hale 65%, the D-020 underdog flags (16.9% / 3.13) and GOTV 8.9%, all red before or within noise of the separate runs. No numbers were tuned in the merge.
+- Version 0.8.0, phase "Playtest 4: cleaner choices".
+
 ### Decision screens and the debate focus (D-044)
 
 - **Stances and debates get their own screen.** In a Choice week the stance is taken on its own screen before the plan, with its own 20 s timer (no stance in time: C). Right before each debate, a second screen asks for your debate focus. Each shows only the decision, the map preview, the countdown and Lock in; when both players lock in it moves on at once. The plan screen keeps its 50 s and loses the prep panel and the stance chips; it says "Your stance: A · …" in one line.
