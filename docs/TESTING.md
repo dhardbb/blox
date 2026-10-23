@@ -24,6 +24,26 @@ Two-player tests use **Test → Clients and Servers → Local Server, 2 Players 
 
 ---
 
+## Playing online with a partner (Mac + iPad, different networks)
+
+Studio's local 2-player test only works on one computer. To play from two places, publish the game to Roblox as a private experience and invite your partner as an early tester.
+
+**Once, on the Mac (in Studio, with the latest build synced):**
+1. Clear any debug attribute: Workspace → Properties → Attributes should not list `DebugScreen` or `DebugText`.
+2. **File → Publish to Roblox**. Give it a name (e.g. "270 playtest"), pick a genre, **Save**. It stays private: only you and invited testers can play.
+3. Be Roblox friends with your partner. **File → Invite early testers**, search for them, **Invite**. Roblox may ask you to verify your age first.
+4. Optional, to keep ratings between sessions: Creator Dashboard → your experience → keep it private; DataStores work automatically in live servers.
+
+**Each session:**
+1. Mac: open the experience from the Creator Dashboard (or roblox.com → Create → your experience) and press **Play**. Studio is not needed.
+2. iPad: open the Roblox app, find you in Friends, and press **Join** on your profile so you land in the same server (the in-game lobby only matches players in one server). If Join is greyed out, they can open the experience from the invite and you both retry until you are in one server; the lobby's queue count shows 1 when the other is there.
+3. One of you presses **Host Private Match** and reads the 5-letter code out; the other types it under "Have a code?" and joins. (Or both press **Queue**.)
+4. Play. A match is about 15 minutes.
+
+**After updating the game:** Claude pushes code; Rojo syncs it into Studio; then **File → Publish to Roblox** again. Players in an old server keep the old version until they leave and rejoin.
+
+**What to send back:** who won and by how much, the moment that felt best and the one that felt worst, any stance you regretted (and why), and screenshots of anything that looked wrong. Note which device saw it (iPad touch vs Mac).
+
 ## Phase 0: Scaffold (v0.0.1)
 
 1. Open `270.rbxl` and press **Play** (F5).
