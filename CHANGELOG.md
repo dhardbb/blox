@@ -17,6 +17,15 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - Debate verdicts are filled tags: green "You win", orange "Rex wins".
 - **Needed from the humans:** upload `assets/ui/ui-shadow.png` and `assets/ui/ui-glow.png` as images and send the two ids (they go in `src/client/UI/Assets.luau`; `assets/ui/README.md`). Until then there are no shadows or glows in the game; nothing breaks.
 
+### Front-page moments: reveal, debate, election night, results (D-056, WP-3)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Front-page moments".
+
+- **Week results** open with a small "WEEK 3 RESULTS" line over "You vs Rex", and end on a headline of who flipped what ("You flipped 4 · Rex flipped 7"). Each side's group has the candidate's initials in a colored circle. "What changed" lines are in the new leader's color with a green ▲ (went your way) or an orange ▼ (went against you); the biggest moves are filled green or orange tags.
+- **Debates:** the score is in the round display font, and "You won 2 of 3 topics!" lands as a tilted stamp: green when you won the debate, orange when Rex did, grey when even.
+- **Election night:** the score strip is a lit card with a thicker race bar and big round numbers. Each call flashes its state white on the map and slaps a "CALLED" stamp in the winner's color on the spotlight card, which shows the winner's initials. The suspense line reads "TOO CLOSE TO CALL" in orange and the state everyone waits on glows. The call that reaches 270 flashes the tick and, a moment later, stamps "270!" over the bar; that state keeps a white ring all night. Feed rows have a bar in the winner's color. The final banner has an "ELECTION NIGHT" line and glows in the winner's color.
+- **Results:** "You won" is a green stamp and "You lost" an orange one (dark text, no red anywhere), with the winner's glow behind; the vote bar is the race bar with the 270 tick; each player's card shows big initials, and the winner's card is edged in their color. Confetti adds white. In Full breakdown, the closest states are in readable player colors.
+
 ## 0.11.0: Colors: red, blue and the Color Pass (Oct 23, 2026)
 
 The designers asked for red and blue by default and a color pick for Robux (D-055). Sim, server, client. No Config numbers changed; the balance report is identical. Studio checklist: `docs/TESTING.md`, "Colors: red, blue and the Color Pass".
