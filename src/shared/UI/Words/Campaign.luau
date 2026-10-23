@@ -13,6 +13,7 @@
 --   Words.reason(code) -> string              a greyed-out button's reason
 --   Words.planLine(actions) -> string         "Rally OH · Ad PA · Poll TX"
 --   Words.stanceEffect(preview) -> string     "+4 states · −2 states"
+--   Words.stanceParts(preview) -> (string?, string?)   "+4 states", "−2 states"
 --   Words.focusHead(config, view, info) -> string   "Schools · 14 states"
 --   Words.focusOdds(info) -> string           "You win 81%"
 --   Words.key(id) -> { string }               the map key's lines for a lens
@@ -211,6 +212,20 @@ function Words.stanceEffect(preview: { gains: { string }, losses: { string } }):
 		table.insert(parts, `−{#preview.losses} {if #preview.losses == 1 then "state" else "states"}`)
 	end
 	return if #parts == 0 then "No change" else table.concat(parts, " · ")
+end
+
+-- The same in two parts, for a line that colors them apart: the gain ("+4
+-- states", or "No change" when there is neither) and the loss ("−2 states") or nil.
+function Words.stanceParts(preview: { gains: { string }, losses: { string } }): (string?, string?)
+	local function count(n: number): string
+		return `{n} {if n == 1 then "state" else "states"}`
+	end
+	local gain = if #preview.gains > 0 then `+{count(#preview.gains)}` else nil
+	local loss = if #preview.losses > 0 then `−{count(#preview.losses)}` else nil
+	if gain == nil and loss == nil then
+		return "No change", nil
+	end
+	return gain, loss
 end
 
 -- A debate topic's card title: "Schools · 14 states".

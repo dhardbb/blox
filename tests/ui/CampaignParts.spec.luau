@@ -297,6 +297,11 @@ describe("Campaign parts: the header", function()
 				`{size.name}: the score strip is not in the header row`
 			)
 			check(Rig.contains(textOf(peer, "YouLabel"), " "), textOf(peer, "YouLabel"))
+			check(tonumber(textOf(peer, "YouVotes")) ~= nil, textOf(peer, "YouVotes"))
+			check(
+				need(peer, "EvBar"):FindFirstChild("Track") ~= nil,
+				`{size.name}: the score has no race bar`
+			)
 			expect(textOf(peer, "NowText")):toBe("Tap a state on the map")
 			expect(textOf(peer, "APLabel")):toBe("3 actions left")
 			check(Rig.contains(textOf(peer, "MoneyLabel"), "$"), textOf(peer, "MoneyLabel"))
@@ -532,8 +537,8 @@ describe("Campaign board motion and sound", function()
 		expect(chip.Text):toBe("+12")
 		check(chip:GetAttribute("Decor") == true, "the delta chip is not decorative")
 		FakeRoblox.run(world, 1)
-		local you = textOf(peer, "YouLabel")
-		check(string.sub(you, -#tostring(before + 12)) == tostring(before + 12), you)
+		local you = textOf(peer, "YouVotes")
+		expect(you):toBe(tostring(before + 12))
 		check(Rig.findIn(peer, "Campaign", "Delta") == nil, "the delta chip stays")
 		Rig.noErrors(world)
 	end)

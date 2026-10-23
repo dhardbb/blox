@@ -448,7 +448,9 @@ describe("Campaign screen", function()
 			local stanceA = event.stances[1]
 			expect(text(peer, "ChoiceA")):toBe(`A · {stanceA.name}`)
 			local view = Fixtures.payload(C, "Stance").view
-			expect(text(peer, "ChoiceAEffect")):toBe(Words.stanceEffect(Swing.stance(C, view, "A")))
+			local gain, loss = Words.stanceParts(Swing.stance(C, view, "A"))
+			expect(text(peer, "ChoiceAEffect")):toBe(gain or "")
+			expect(text(peer, "ChoiceALoss")):toBe(loss or "")
 			-- The hedge (C) starts selected: it alone looks different.
 			check(attack.BackgroundColor3 == defend.BackgroundColor3, "attack and defend differ")
 			check(ignore.BackgroundColor3 ~= defend.BackgroundColor3, "Ignore is not selected by default")
