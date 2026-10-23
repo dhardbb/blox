@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased: polls reveal ground game (D-044)
+
+- A paid internal poll (state or region) now also shows the opponent's ground-game units in each polled state, exactly, as of the end of the week you polled. Only the player who polled sees it. Before this, nothing showed ground game until election night.
+- The state card keeps your latest reading ("Their ground game here: 3 units, -4.5 for you on election night (your poll, end of week 8)"), or says "hidden. A poll shows it" where you never polled. The map tags those states "opp G3". The week card's internal-poll line, the F2 board and the duel harness show the same.
+- Results: "What decided it" adds "Your polls found their ground game in OH (3 units; you had 4, won it)".
+- The Poll and Region poll previews and the help screen now say what a poll is for: seeing their hidden ground game before election night.
+- Ground game costs $2.5 a unit (was $2): at $1.33 a point of margin it was the cheapest point in the game. Walt Begay still pays $1.
+- Bots scout close states from week 7 (not while the opponent's cash shows Low), count what they see against their own margin there, and start ground game a week earlier.
+- Harness (2,000 matches): GOTV changes the winner 10.4%, average GOTV spend $7.7, candidates 45.8–55.3%. The never-poll bot still wins about 55% against the polling bot: see D-044 for why the bots cannot use the information and what would change it.
+- Test: `docs/TESTING.md`, "Polls reveal ground game". Nothing needed from the humans.
+
 ## 0.7.0: your base hears your stance (D-043)
 
 - Choice events: a side (A or B) now counts double in your own home state and strongholds. The hedge (C) no longer gives anything; it costs 0.5 in each of your home and strongholds where the issue is a top issue. Stance moves are capped at 3 a state (was 2).

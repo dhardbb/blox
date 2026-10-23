@@ -347,6 +347,25 @@ Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on
 
 **Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
 
+## Polls reveal ground game (unreleased)
+
+`DESIGN.md` D-044. A paid internal poll now also shows the opponent's ground game in the polled states, and a ground-game unit costs $2.5 (was $2). Two-player test (**Test → Clients and Servers, 2 players**); do step 4 on the iPad or a phone too.
+
+1. **The poll says what it is for.** On client 1, tap a state, then hover or read the preview under **Poll** and **Region poll**.
+   - Poll: "next week you see their hidden ground game here (it counts only on election night) and true support within ±1; $1.0". Region poll: "their hidden ground game and true support in all N … states, next week; $3.0".
+   - The state card has a grey line "Their ground game here: hidden. A poll shows it before election night."
+2. **Their units show up where you poll.** On client 2, put **3** ground-game units in Ohio (the card says $2.5 each). On client 1, **Poll** Ohio. Both lock in.
+   - Next week on client 1, Ohio's card reads in red "Their ground game here: 3 units, -4.5 for you on election night (your poll, end of week N)." The map tag on Ohio reads "opp G3". The week card's internal-poll line ends "OH … (their ground game 3)".
+   - Client 2 sees nothing about client 1's poll, and its own Ohio card still says their (client 1's) ground game is hidden.
+3. **The reading stays, and ages.** Do not poll Ohio again for two weeks.
+   - The card keeps the reading and adds "they may have added more since". Poll Ohio again after client 2 adds a unit: the card now says 4 units and the new week.
+4. **A poll that sees none says so.** Poll a state where client 2 has no units: "Their ground game here: none when you polled (end of week N)." No map tag.
+5. **Election night credits it.** Finish the match. On Results, "What decided it" has a line "Your polls found their ground game in OH (3 units; you had …, won it / lost it)."
+6. **Help.** Tap **?** → Ground game and Polls: both say an internal poll is the only way to see their ground game before election night, and Ground game explains the "opp G3" tag.
+7. **F2 / duel.** The F2 board shows "Your internal polls: OH … their gotv 3" and "Their gotv your polls saw: OH 3 (wk N)". `show OH` ends with the same "Their ground game here" line.
+
+**Send back:** a screenshot of step 2 (card and map tag) on 16:9 and on the iPad, the Results line from step 5, and whether you changed a plan because of a reading (and which).
+
 ## Screens for stances and debates (v0.6.0)
 
 The screens for D-039 to D-041 (`DESIGN.md` D-042). **Play vs Bot** is enough; do each step once on 16:9 (Studio window) and once on a phone (**Test → Device → an iPhone**, portrait, then landscape).
