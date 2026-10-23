@@ -116,7 +116,35 @@ describe("Results layout", function()
 		local bar = Rig.need(peer, "Results", "EVBar")
 		local tick = Rig.need(peer, "Results", "Marker270")
 		expect(tick.Parent):toBe(bar)
-		expect(bar.AbsoluteSize.Y):toBe(14)
+		-- Kit.raceBar: a 14 px track; the tick overhangs it.
+		expect(bar:FindFirstChild("Track").AbsoluteSize.Y):toBe(14)
+		Rig.noErrors(world)
+	end)
+
+	it("stamps You won in green and You lost in orange with dark text (D-056)", function()
+		local world, peer = Rig.fixture("Over", nil)
+		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
+		local you = Rig.payloadOf(world, peer).you
+		local function plate(): any
+			return Rig.need(peer, "Results", "BannerStamp"):FindFirstChild("Plate")
+		end
+		withResult(world, peer, you)
+		expect(plate().BackgroundColor3):toBe(Kit.colors.good)
+		withResult(world, peer, 3 - you)
+		expect(plate().BackgroundColor3):toBe(Kit.colors.loss)
+		check(
+			Rig.need(peer, "Results", "Banner").TextColor3 ~= Kit.colors.loss,
+			"orange text on the orange stamp"
+		)
+		Rig.noErrors(world)
+	end)
+
+	it("puts a monogram on each player card", function()
+		local world, peer = Rig.fixture("Over", nil)
+		for _, name in { "Player_You", "Player_Opponent" } do
+			local card = Rig.need(peer, "Results", name)
+			check(card:FindFirstChild("Monogram") ~= nil, `{name} has no monogram`)
+		end
 		Rig.noErrors(world)
 	end)
 

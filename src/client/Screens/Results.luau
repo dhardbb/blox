@@ -5,13 +5,18 @@
 --
 -- Layout: a scrolling column over the pinned ActionBar ("Play vs Bot again" /
 -- "Play again" primary, "Back to lobby" secondary):
---   Banner        "You won" / "You lost" (hero, good / bad)
+--   BannerBox     a stamp, "You won" (green) / "You lost" (orange, dark text: no
+--                 red anywhere on a loss), hero size, tilted, with the winner's
+--                 glow behind it; its label is Banner (D-056)
 --   Reason        "280 votes to 258" (or the tiebreak, a forfeit)
 --   RatingSlot    the rating change, once the server sends it (rated matches)
---   EVBar         both players' votes in their colors, the 270 tick (data colors)
---   Versus        two cards: color dot + name, "280 votes", "20 states", debate
---                 topics won. Player colors stay on the dot and the bar, never
---                 on big numbers next to the primary button (D-047, D-051).
+--   EVBar         Kit.raceBar, 14 px: you from the left, them from the right,
+--                 the 270 tick (Marker270) with its caption (data colors)
+--   Versus        two player cards: a 64 px monogram over the name, You /
+--                 Opponent, "280 votes" in Fredoka, "20 states", debate topics
+--                 won; the winner's card is edged in their color. Player colors
+--                 stay on the monogram, the edge and the bar, never on big
+--                 numbers next to the primary button (D-047, D-051).
 --   WhyHead       "Why you won" / "Why Rex won" and three bullets Reason_<k>
 --                 (Shared/UI/Words/Reveal.keyReasons); after a loss, one more
 --                 line NextTime ("Try next time: …", Words.nextTime)
@@ -20,10 +25,10 @@
 --                 (Closest, Closest_<id>) and every debate (Debates, Debate_<k>).
 -- Four text sizes: hero, heading, body, caption.
 --
--- The moment (docs/UI-STYLE.md §2.7, D-053), once per match: a win pops the
--- banner from BANNER_FROM, counts both vote totals up, drops confetti in both
--- players' colors and plays "victory"; a loss fades the banner in, counts the
--- votes, and plays "defeat". Nothing else moves, and nothing waits on it.
+-- The moment (docs/UI-STYLE.md §2.7, D-053), once per match: the banner stamp
+-- slams in (Motion.stamp; at once under reduced motion), both vote totals count
+-- up and the bar fills; a win drops confetti in both players' colors and white
+-- and plays "victory"; a loss plays "defeat". Nothing waits on it.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -48,11 +53,11 @@ local MAX_WIDTH = 640 -- px
 local CLOSEST_STATES = 5
 local TOTAL_EV = 538
 local WIN_EV = 270
-local EV_BAR_H = 14 -- px
-local TICK_W = 2 -- px, the 270 mark on the EV bar
-local DOT = 14 -- px, a player's color dot
-local BANNER_FROM = 0.8 -- a won banner's starting scale (it springs to 1)
-local LOSS_FADE = 0.5 -- s, a lost banner fading in
+local EV_BAR_H = 14 -- px, the race bar's thickness
+local PORTRAIT = 64 -- px, a player's monogram on their card
+local STAMP_SLACK = 36 -- px over the banner stamp's height in its row: room for its tilt
+local BANNER_GLOW = 0.6 -- the glow behind the banner, in the winner's color (transparency)
+local BANNER_GLOW_W = 1.1 -- the glow's width, a share of the column
 local COUNT_SECONDS = 0.6 -- s, the vote totals counting up
 local CONFETTI = 50 -- pieces on a win
 
@@ -153,64 +158,69 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local election = view.election
 		local mine = player == current.you
 		local entry = view.players[player]
+		local color = Kit.playerColor(view, player)
+		local center = Enum.TextXAlignment.Center
 		local card = Kit.card({
 			Name = if mine then "Player_You" else "Player_Opponent",
 			LayoutOrder = order,
 			Size = UDim2.new(0.5, -Kit.space.sm / 2, 0, 0),
 			Parent = into,
 		})
-		local nameRow = Kit.box({
-			Name = "NameRow",
-			LayoutOrder = 1,
-			Size = UDim2.new(1, 0, 0, Kit.size.heading + 8),
-			Parent = card,
-		})
-		local dot = Kit.box({
-			Name = "Swatch",
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.fromScale(0, 0.5),
-			Size = UDim2.fromOffset(DOT, DOT),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = Kit.playerColor(view, player),
-			Parent = nameRow,
-		})
-		Kit.round().Parent = dot
-		Kit.text(Data.candidateName(ctx.config, if entry then entry.candidate else nil), {
+		local list = card:FindFirstChildOfClass("UIListLayout")
+		if list then
+			list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		end
+		-- The winner's card is edged in their color.
+		local result = current.result
+		if result and result.winner == player then
+			Kit.bevel(card, color, 2, 1)
+		end
+		local name = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
+		local portrait = Kit.monogram(name, color, PORTRAIT)
+		portrait.LayoutOrder = 1
+		portrait.Parent = card
+		Kit.text(name, {
 			Name = "Candidate",
-			Position = UDim2.fromOffset(DOT + Kit.space.sm, 0),
-			Size = UDim2.new(1, -(DOT + Kit.space.sm), 1, 0),
+			LayoutOrder = 2,
+			Size = UDim2.new(1, 0, 0, Kit.size.heading + 8),
 			Font = Kit.font.bold,
 			TextSize = Kit.size.heading,
 			TextScaled = true,
-			Parent = nameRow,
+			TextXAlignment = center,
+			Parent = card,
 		})
 		label(card, if mine then "You" else "Opponent", {
 			Name = "Tag",
-			LayoutOrder = 2,
+			LayoutOrder = 3,
 			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.muted,
+			TextXAlignment = center,
 		})
 		local votes: TextLabel? = nil
 		if election then
 			votes = label(card, plural(election.ev[player], "vote"), {
 				Name = "EV",
-				LayoutOrder = 3,
-				Font = Kit.font.bold,
+				LayoutOrder = 4,
+				Font = Kit.font.display,
+				TextSize = Kit.size.heading,
+				TextXAlignment = center,
 			})
 			-- Its own line, so a phone never breaks "20 states" in two.
 			label(card, plural(election.statesWon[player], "state"), {
 				Name = "States",
-				LayoutOrder = 4,
+				LayoutOrder = 5,
 				TextSize = Kit.size.caption,
 				TextColor3 = Kit.colors.muted,
+				TextXAlignment = center,
 			})
 		end
 		if #view.debates > 0 then
 			label(card, `{plural(topicsWon(view, player), "debate topic")} won`, {
 				Name = "Topics",
-				LayoutOrder = 5,
+				LayoutOrder = 6,
 				TextSize = Kit.size.caption,
 				TextColor3 = Kit.colors.muted,
+				TextXAlignment = center,
 			})
 		end
 		return votes
@@ -261,7 +271,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					Name = `Closest_{r.state}`,
 					LayoutOrder = row,
 					TextSize = Kit.size.caption,
-					TextColor3 = if r.winner == 0 then Kit.colors.muted else Kit.playerColor(view, r.winner),
+					TextColor3 = if r.winner == 0 then Kit.colors.muted else Kit.playerText(view, r.winner),
 				})
 			end
 		end
@@ -305,29 +315,42 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Kit.list("Vertical", Kit.space.md).Parent = column
 		details = column
 
-		-- Banner.
-		local bannerText, bannerColor = "No result", Kit.colors.muted
+		-- Banner: a stamp, green for a win, orange (dark text) for a loss.
+		local bannerText, bannerColor = "No result", Kit.colors.raisedHover
 		if result and result.winner == you then
 			bannerText, bannerColor = "You won", Kit.colors.good
 		elseif result and result.winner ~= 0 then
-			bannerText, bannerColor = "You lost", Kit.colors.danger
+			bannerText, bannerColor = "You lost", Kit.colors.loss
 		end
 		local order = 0
 		local function nextOrder(): number
 			order += 1
 			return order
 		end
-		local banner = Kit.text(bannerText, {
-			Name = "Banner",
+		local bannerBox = Kit.box({
+			Name = "BannerBox",
 			LayoutOrder = nextOrder(),
-			Size = UDim2.new(1, 0, 0, Kit.size.hero + 8),
-			Font = Kit.font.bold,
-			TextSize = Kit.size.hero,
-			TextScaled = true,
-			TextColor3 = bannerColor,
-			TextXAlignment = Enum.TextXAlignment.Center,
+			Size = UDim2.new(1, 0, 0, Kit.size.hero + 20 + STAMP_SLACK),
 			Parent = column,
 		})
+		if result and result.winner ~= 0 then
+			Kit.glow(
+				bannerBox,
+				Kit.playerColor(view, result.winner),
+				{ scale = BANNER_GLOW_W, stretch = true, transparency = BANNER_GLOW }
+			)
+		end
+		local stamp = Kit.stamp(bannerText, bannerColor, {
+			size = Kit.size.hero,
+			Name = "BannerStamp",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			ZIndex = 2,
+			Parent = bannerBox,
+		})
+		local banner = stamp:FindFirstChild("Plate"):FindFirstChild("Label") :: TextLabel
+		banner.Name = "Banner"
+		banner.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
 		label(column, reasonText(current, election), {
 			Name = "Reason",
 			LayoutOrder = nextOrder(),
@@ -351,47 +374,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Parent = slot,
 		})
 
-		-- Electoral vote bar.
+		-- The race to 270: you from the left, your opponent from the right (it
+		-- fills as the screen comes in).
+		local them = if you == 1 then 2 else 1
 		if election then
-			local evBar = Kit.dataColor(Kit.box({
-				Name = "EVBar",
-				LayoutOrder = nextOrder(),
-				Size = UDim2.new(1, 0, 0, EV_BAR_H),
-				BackgroundTransparency = 0,
-				BackgroundColor3 = Kit.colors.surface,
-				ClipsDescendants = true,
-				Parent = column,
-			}))
-			Kit.corner(EV_BAR_H / 2).Parent = evBar
-			local left = 0
-			local players: { number } = { you }
-			for player = 1, #view.players do
-				if player ~= you then
-					table.insert(players, player)
-				end
-			end
-			for _, player in players do
-				local share = election.ev[player] / TOTAL_EV
-				Kit.box({
-					Name = `EVBar_{player}`,
-					Position = UDim2.fromScale(left, 0),
-					Size = UDim2.fromScale(share, 1),
-					BackgroundTransparency = 0,
-					BackgroundColor3 = Kit.playerColor(view, player),
-					Parent = evBar,
-				})
-				left += share
-			end
-			Kit.box({
-				Name = "Marker270",
-				AnchorPoint = Vector2.new(0.5, 0),
-				Position = UDim2.fromScale(WIN_EV / TOTAL_EV, 0),
-				Size = UDim2.new(0, TICK_W, 1, 0),
-				BackgroundTransparency = 0,
-				BackgroundColor3 = Kit.colors.text,
-				ZIndex = 2,
-				Parent = evBar,
+			local race = Kit.raceBar(column, {
+				h = EV_BAR_H,
+				mark = WIN_EV / TOTAL_EV,
+				caption = tostring(WIN_EV),
+				name = "EVBar",
+				order = nextOrder(),
 			})
+			race.tick.Name = "Marker270"
+			race:setColors(Kit.playerColor(view, you), Kit.playerColor(view, them))
+			race:set(election.ev[you] / TOTAL_EV, election.ev[them] / TOTAL_EV)
 		end
 
 		-- You and your opponent, side by side.
@@ -479,21 +475,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				end, COUNT_SECONDS)
 			end
 		end
+		Motion.stamp(stamp)
 		if result.winner == you then
-			if not Motion.reduced() then
-				local scale = Motion.scale(banner)
-				scale.Scale = BANNER_FROM
-				Motion.tween(scale, { Scale = 1 }, Motion.t.hero, Motion.ease.back)
-			end
 			local colors: { Color3 } = {}
 			for player = 1, #view.players do
 				table.insert(colors, Kit.playerColor(view, player))
 			end
+			table.insert(colors, Kit.colors.text)
 			Motion.confetti(parent, colors, CONFETTI)
 			Audio.play("victory")
 		else
-			banner.TextTransparency = 1
-			Motion.tween(banner, { TextTransparency = 0 }, LOSS_FADE, Motion.ease.out)
 			Audio.play("defeat")
 		end
 	end
