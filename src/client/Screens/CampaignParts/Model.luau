@@ -1,9 +1,10 @@
 --!strict
--- What the Campaign screen and its parts (TopBar, StateCard, PlanList, Prep,
--- EventCard, Reveal) share: the screen's model (the payload, the plan being
--- built, what is selected) and the text helpers every part writes with.
+-- What the Campaign and Decision screens and their parts (TopBar, StateCard,
+-- PlanList, Focus, EventCard, Reveal) share: the screen's model (the payload,
+-- the plan or decision being built, what is selected) and the text helpers every
+-- part writes with.
 --
--- Campaign.luau owns the model; parts read it and change it through its fields,
+-- The screen owns the model; parts read it and change it through its fields,
 -- then call model.render(). Nothing here touches instances.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -48,8 +49,11 @@ export type Model = {
 	skipStep: number?, -- step we pressed Skip for
 	sortMode: StateOrder.Mode,
 	portrait: boolean,
+	choice: SharedTypes.Choice?, -- Decision screen: the stance selected (nil until one is tapped; the server's default is C)
+	focus: Issue?, -- Decision screen: the debate topic selected (nil until one is tapped; the default is no focus)
 	peekChoice: SharedTypes.Choice?, -- a stance chip being held: previewed, not selected
-	stanceMap: boolean, -- the event card is open in a Choice week, so the map previews a stance
+	peekFocus: Issue?, -- a focus topic being held: previewed, not selected
+	stanceMap: boolean, -- the stance chips are showing, so the map previews a stance
 	revealSwing: RevealSwing?, -- what a reveal shows moved on the map, else nil
 	messages: { Types.Message },
 	render: () -> (),
@@ -70,21 +74,22 @@ function Part.planning(p: Payload): boolean
 	return p.stage == "Input" and p.view.phase == "Plan" and p.reveal == nil
 end
 
-function Part.editable(model: Model, p: Payload): boolean
-	return Part.planning(p) and not Part.isLocked(model, p)
+-- The Decision step before the plan (D-044): "Focus" or "Stance", else nil.
+function Part.deciding(p: Payload): ("Focus" | "Stance")?
+	if p.stage == "Input" and p.view.phase == "Decision" and p.reveal == nil then
+		return p.view.decision
+	end
+	return nil
 end
 
--- Is debate prep due in this plan (the week before a debate)?
-function Part.prepWanted(view: View): boolean
-	local debate = view.nextDebate
-	return view.phase == "Plan" and debate ~= nil and debate.week == view.week + 1
+function Part.editable(model: Model, p: Payload): boolean
+	return (Part.planning(p) or Part.deciding(p) ~= nil) and not Part.isLocked(model, p)
 end
 
 -- The problem the draft would have with `action` added.
 function Part.trial(model: Model, view: View, action: Plan.Action): string?
 	local draft = model.draft
-	local test: PlanDraft.Draft =
-		{ actions = table.clone(draft.actions), prep = draft.prep, choice = draft.choice }
+	local test: PlanDraft.Draft = { actions = table.clone(draft.actions) }
 	table.insert(test.actions, action)
 	return PlanDraft.problem(model.config, view, test)
 end
@@ -93,8 +98,7 @@ end
 function Part.extraCash(model: Model, view: View, action: Plan.Action): number
 	local draft = model.draft
 	local base = PlanDraft.cost(model.config, view, draft).cash
-	local test: PlanDraft.Draft =
-		{ actions = table.clone(draft.actions), prep = draft.prep, choice = draft.choice }
+	local test: PlanDraft.Draft = { actions = table.clone(draft.actions) }
 	table.insert(test.actions, action)
 	return PlanDraft.cost(model.config, view, test).cash - base
 end
@@ -206,21 +210,30 @@ function Part.actionText(config: Config, action: Plan.Action, flight: boolean): 
 	return text
 end
 
--- The stance the map previews in a Choice week: the one held, else the one
+-- The stance the map previews on the stance screen: the one held, else the one
 -- selected, else the hedge. Nil when there is nothing to preview.
 function Part.previewStance(model: Model, p: Payload): SharedTypes.Choice?
-	if not Part.planning(p) or not PlanDraft.isChoiceWeek(p.view) or not model.stanceMap then
+	if Part.deciding(p) ~= "Stance" or not PlanDraft.isChoiceWeek(p.view) or not model.stanceMap then
 		return nil
 	end
 	local held: SharedTypes.Choice? = model.peekChoice
 	if held then
 		return held
 	end
-	local chosen: SharedTypes.Choice? = model.draft.choice
+	local chosen: SharedTypes.Choice? = model.choice
 	if chosen then
 		return chosen
 	end
 	return "C"
+end
+
+-- The topic the map previews on the focus screen: the one held, else the one
+-- selected. Nil when there is nothing to preview.
+function Part.previewFocus(model: Model, p: Payload): Issue?
+	if Part.deciding(p) ~= "Focus" then
+		return nil
+	end
+	return model.peekFocus or model.focus
 end
 
 -- This week's event, or nil while any reveal plays: the Resolve reveal carries

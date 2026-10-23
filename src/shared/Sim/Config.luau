@@ -98,8 +98,7 @@ local Config = {
 
 	-- Debates (D-010, D-011)
 	DEBATE_TOPICS = 3, -- topics per debate
-	DEBATE_PREP = 6, -- default prep points per debate
-	DEBATE_MAX_PER_TOPIC = 4, -- prep cap on one topic
+	DEBATE_FOCUS = 2, -- score added to the one topic a candidate focuses on (D-044: replaces the 6-point prep spread)
 	DEBATE_PLATFORM_BONUS = 2, -- score bonus when the topic is in your platform
 	DEBATE_ROLL_MAX = 3, -- seeded roll 0..this added to each topic score (2 -> 6 in D-019, 6 -> 3 in D-033: a 2-point prep edge wins 81%, a 1-point edge 62%)
 	DEBATE_STAT = 1, -- default debate stat
@@ -108,7 +107,7 @@ local Config = {
 	DEBATE_TOPIC_NATIONAL = 0.1, -- flat support points in every state per topic won (the small national part, D-040)
 	DEBATE_SWEEP = 0.2, -- flat national points in every state for a 3-0 sweep (D-040)
 	DEBATE_SWEEP_MOMENTUM = 2, -- momentum in every battleground for a sweep
-	DEBATE_GAFFE = 0.6, -- support points lost in every state where the topic is a top issue, for losing an unprepped topic (D-040)
+	DEBATE_GAFFE = 0.6, -- support points lost in every state where the topic is a top issue, for each topic lost with no focus taken at all (D-040, D-044)
 
 	-- Anti-snowball (D-006)
 	CLOSING_MULT = 1.15, -- rallies and media in the closing weeks
@@ -150,6 +149,7 @@ local Config = {
 	TIMER_DRAFT_ROUND = 20, -- per blind draft round
 	DRAFT_REVEAL = 2, -- reveal after each draft round
 	TIMER_PLAN = 50, -- weekly plan
+	TIMER_DECISION = 20, -- the debate focus or a Choice stance, each on its own screen before the plan (D-044: one pick, so well under TIMER_PLAN)
 	TIME_BANK = 30, -- extra plan time per player per match
 	TIME_BANK_CHUNK = 15, -- bank is taken in chunks of this size
 	TIMER_RESOLVE = 8, -- resolve animation

@@ -277,3 +277,39 @@ describe("Swing: resolved Choice weeks and the result", function()
 		check(has(lines[3], "Final gap: "), lines[3])
 	end)
 end)
+
+describe("Swing: the debate focus (D-044)", function()
+	it("lists a topic's states and EV, the ones you need, and the odds a focus gives", function()
+		local view = viewAt("Focus")
+		expect(view.decision):toBe("Focus")
+		calm(view)
+		local topics = view.nextDebate.topics
+		local topic = topics[1]
+		local states = Debate.topicStates(topic)
+		local need, needEV = states[1], StateData.byId[states[1]].ev
+		setPoll(view, need, 40, 40)
+		local info = Swing.focus(C, view, topic)
+		local total = 0
+		for _, id in states do
+			total += StateData.byId[id].ev
+		end
+		expect(info.ev):toBe(total)
+		expect(#info.states):toBe(#states)
+		expect(#info.need):toBe(1)
+		expect(info.needEV):toBe(needEV)
+		check(has(info.head, `{#states} states, {total} EV`), info.head)
+		check(has(info.needLine, `You need 1 of them ({needEV} EV): tied {need}`), info.needLine)
+		-- The odds: your focus edge on top of platform and stat, against theirs without a focus.
+		expect(info.mine - info.theirs >= info.edge - 2 * C.DEBATE_PLATFORM_BONUS):toBe(true)
+		check(info.win > info.winBoth, "their focus on the same topic cancels yours")
+		check(has(info.oddsLine, "You win"), info.oddsLine)
+		-- The map preview: a win's points in every one of its states, and the flip it makes.
+		expect(info.effects[need]):toBe(C.DEBATE_TOPIC_WIN)
+		expect(#info.flips):toBe(1)
+		expect(info.flips[1].state):toBe(need)
+		check(has(info.winLine, `could flip {need}`), info.winLine)
+		-- Nothing close: nothing needed.
+		calm(view)
+		check(has(Swing.focus(C, view, topic).needLine, "You need none of them"), "no need")
+	end)
+end)

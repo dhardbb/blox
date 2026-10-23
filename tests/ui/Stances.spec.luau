@@ -29,17 +29,26 @@ local RESOLVE_DONE = 30 -- s, the resolve reveal has listed every event by then
 
 local check = Rig.check
 
+-- The screen the helpers look in: the stance is taken on the Decision screen
+-- (D-044), everything else here is on Campaign. `open` sets it.
+local SCREEN = "Campaign"
+
+local function open(moment: string, screen: { x: number, y: number }?): (FakeRoblox.World, FakeRoblox.Peer)
+	SCREEN = if moment == "Stance" or moment == "Focus" then "Decision" else "Campaign"
+	return Rig.fixture(moment, screen)
+end
+
 local function need(peer: FakeRoblox.Peer, name: string): any
-	return Rig.need(peer, "Campaign", name)
+	return Rig.need(peer, SCREEN, name)
 end
 local function textOf(peer: FakeRoblox.Peer, name: string): string
-	return Rig.textOf(peer, "Campaign", name)
+	return Rig.textOf(peer, SCREEN, name)
 end
 local function shown(inst: any): boolean
-	return Rig.shown(inst, "Campaign")
+	return Rig.shown(inst, SCREEN)
 end
 local function tap(world: FakeRoblox.World, peer: FakeRoblox.Peer, name: string)
-	Rig.tap(world, peer, "Campaign", name, 0.1)
+	Rig.tap(world, peer, SCREEN, name, 0.1)
 end
 
 local function same(a: any, b: any): boolean
@@ -120,7 +129,7 @@ end
 
 describe("Stances: the Choice week", function()
 	it("labels each stance chip and the hedge, with C selected by default", function()
-		local world, peer = Rig.fixture("ChoiceWeek", nil)
+		local world, peer = open("Stance", nil)
 		local view = viewOf(world, peer)
 		for _, stance in view.event.stances do
 			local text = textOf(peer, `Choice{stance.id}`)
@@ -134,7 +143,7 @@ describe("Stances: the Choice week", function()
 	end)
 
 	it("previews the selected stance on the map: gains in your color, losses in red", function()
-		local world, peer = Rig.fixture("ChoiceWeek", nil)
+		local world, peer = open("Stance", nil)
 		local Kit = kitOf(world, peer)
 		local view = viewOf(world, peer)
 		tap(world, peer, "ChoiceA")
@@ -156,7 +165,7 @@ describe("Stances: the Choice week", function()
 	end)
 
 	it("calls out a state the stance would flip", function()
-		local world, peer = Rig.fixture("ChoiceWeek", nil)
+		local world, peer = open("Stance", nil)
 		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
 		local view = payload.view
 		local id, state = flippable(view)
@@ -177,7 +186,7 @@ describe("Stances: the Choice week", function()
 	end)
 
 	it("previews a stance while it is held, without selecting it", function()
-		local world, peer = Rig.fixture("ChoiceWeek", nil)
+		local world, peer = open("Stance", nil)
 		local view = viewOf(world, peer)
 		local chip = need(peer, "ChoiceB")
 		world.current = peer
@@ -195,7 +204,7 @@ describe("Stances: the Choice week", function()
 	end)
 
 	it("gives the normal map back when the event card is collapsed", function()
-		local world, peer = Rig.fixture("ChoiceWeek", nil)
+		local world, peer = open("Stance", nil)
 		local view = viewOf(world, peer)
 		tap(world, peer, "ChoiceA")
 		local preview = Swing.stance(C, view, "A")
@@ -209,7 +218,7 @@ end)
 
 describe("Stances: the debate reveal", function()
 	it("names the states each topic swung, and every flip", function()
-		local world, peer = Rig.fixture("Debate", nil)
+		local world, peer = open("Debate", nil)
 		FakeRoblox.run(world, DEBATE_DONE)
 		local Kit = kitOf(world, peer)
 		local view = viewOf(world, peer)
@@ -239,7 +248,7 @@ describe("Stances: the debate reveal", function()
 	end)
 
 	it("calls out a gaffe in the topic's states", function()
-		local world, peer = Rig.fixture("Debate", nil)
+		local world, peer = open("Debate", nil)
 		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
 		local view = payload.view
 		local result = view.debates[#view.debates]
@@ -257,7 +266,7 @@ end)
 
 describe("Stances: the resolve reveal after a Choice week", function()
 	it("says what both stances moved and flipped, on the panel and the map", function()
-		local world, peer = Rig.fixture("ChoiceResolve", nil)
+		local world, peer = open("ChoiceResolve", nil)
 		FakeRoblox.run(world, RESOLVE_DONE)
 		local view = viewOf(world, peer)
 		local entry = Swing.lastChoice(view) :: any
@@ -276,7 +285,7 @@ end)
 
 describe("Stances: Results", function()
 	it("says what debates and stances decided", function()
-		local world, peer = Rig.fixture("Over", nil)
+		local world, peer = open("Over", nil)
 		local view = viewOf(world, peer)
 		local lines = Swing.decided(C, view)
 		check(Rig.shown(Rig.need(peer, "Results", "Decided"), "Results"), "no What decided it section")
@@ -289,26 +298,38 @@ end)
 
 describe("Stances: strict UI audit", function()
 	for _, size in SIZES do
-		it(`keeps the Choice week, both reveals and Results strict ({size.name})`, function()
-			local world, peer = Rig.fixture("ChoiceWeek", size.screen)
-			tap(world, peer, "ChoiceA")
-			local problems = strict(world, peer, "Campaign")
-			check(#problems == 0, "ChoiceWeek: " .. table.concat(problems, "; "))
+		it(
+			`keeps the stance and focus screens, the Choice week, both reveals and Results strict ({size.name})`,
+			function()
+				local world, peer = open("Stance", size.screen)
+				tap(world, peer, "ChoiceA")
+				local problems = strict(world, peer, "Decision")
+				check(#problems == 0, "Stance: " .. table.concat(problems, "; "))
 
-			world, peer = Rig.fixture("Debate", size.screen)
-			FakeRoblox.run(world, DEBATE_DONE)
-			problems = strict(world, peer, "Campaign")
-			check(#problems == 0, "Debate: " .. table.concat(problems, "; "))
+				world, peer = open("Focus", size.screen)
+				tap(world, peer, "FocusTopic2")
+				problems = strict(world, peer, "Decision")
+				check(#problems == 0, "Focus: " .. table.concat(problems, "; "))
 
-			world, peer = Rig.fixture("ChoiceResolve", size.screen)
-			FakeRoblox.run(world, RESOLVE_DONE)
-			problems = strict(world, peer, "Campaign")
-			check(#problems == 0, "ChoiceResolve: " .. table.concat(problems, "; "))
+				world, peer = open("ChoiceWeek", size.screen)
+				problems = strict(world, peer, "Campaign")
+				check(#problems == 0, "ChoiceWeek: " .. table.concat(problems, "; "))
 
-			world, peer = Rig.fixture("Over", size.screen)
-			local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
-			expect(Audit.run(Rig.need(peer, "Screens", "Results"), "Results", { strict = true })):toBe(0)
-			Rig.noErrors(world)
-		end)
+				world, peer = open("Debate", size.screen)
+				FakeRoblox.run(world, DEBATE_DONE)
+				problems = strict(world, peer, "Campaign")
+				check(#problems == 0, "Debate: " .. table.concat(problems, "; "))
+
+				world, peer = open("ChoiceResolve", size.screen)
+				FakeRoblox.run(world, RESOLVE_DONE)
+				problems = strict(world, peer, "Campaign")
+				check(#problems == 0, "ChoiceResolve: " .. table.concat(problems, "; "))
+
+				world, peer = open("Over", size.screen)
+				local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
+				expect(Audit.run(Rig.need(peer, "Screens", "Results"), "Results", { strict = true })):toBe(0)
+				Rig.noErrors(world)
+			end
+		)
 	end
 end)

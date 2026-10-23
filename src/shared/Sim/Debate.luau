@@ -1,15 +1,19 @@
 --!strict
--- Debates (docs/PLAN.md "Debates", D-010, D-040). Topics are drawn from the seed
--- when the match starts; prep comes from the plan of the week before. Resolves at
--- the start of the debate week.
+-- Debates (docs/PLAN.md "Debates", D-010, D-040, D-044). Topics are drawn from
+-- the seed when the match starts; each candidate's focus topic comes from the
+-- Focus decision that opens the debate week (Sim/Decision). Resolves right after
+-- it, before the week's plan.
 --
--- topicScore(P) = prep + platform bonus + debate stat + seeded roll (0..DEBATE_ROLL_MAX)
--- The unique highest score wins the topic; an exact tie gives it to nobody.
+-- topicScore(P) = focus + platform bonus + debate stat + seeded roll (0..DEBATE_ROLL_MAX)
+-- where focus is the candidate's focusEdge on the one topic they focused on and
+-- 0 on the others. The unique highest score wins the topic; an exact tie gives
+-- it to nobody.
 --
 -- Debates move states, not an average (D-040). Winning a topic adds
 -- DEBATE_TOPIC_WIN support in every state where the topic is a top issue
 -- (Debate.topicStates: fixed data, the same every match) plus a flat
--- DEBATE_TOPIC_NATIONAL in every state. Losing a topic with no prep is a gaffe:
+-- DEBATE_TOPIC_NATIONAL in every state. A candidate who took no focus at all
+-- (the Focus decision timed out) gaffes on every topic they lose:
 -- -DEBATE_GAFFE in the topic's states. Winning every topic adds a flat
 -- DEBATE_SWEEP everywhere and momentum in every battleground. Every point asked
 -- for is public arithmetic, recorded in DebateResult.moves; the public polls are
@@ -18,7 +22,6 @@
 
 local ConfigModule = require("./Config")
 local Issues = require("./Issues")
-local Plan = require("./Plan")
 local Polls = require("./Polls")
 local Rng = require("./Rng")
 local State = require("./State")
@@ -68,7 +71,7 @@ function Debate.topicStates(topic: Types.Issue): { string }
 	return out
 end
 
--- Chance to win, tie and lose a topic when your fixed score (prep + platform +
+-- Chance to win, tie and lose a topic when your fixed score (focus + platform +
 -- stat) leads the opponent's by `edge`, against two uniform 0..DEBATE_ROLL_MAX rolls.
 function Debate.odds(config: Config, edge: number): (number, number, number)
 	local faces = config.DEBATE_ROLL_MAX + 1
@@ -131,9 +134,15 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 	local rng = Rng.fork(match.rng, `debate:{week}`)
 
 	local prep: { { number } } = {}
+	local focus: { number } = {}
 	local scores: { { number } } = {}
 	for p, player in match.players do
-		prep[p] = player.debatePrep or Plan.defaultPrep(config, player.profile.debatePrep)
+		local chosen = player.debateFocus
+		focus[p] = if chosen then table.find(topics, chosen) or 0 else 0
+		prep[p] = table.create(#topics, 0)
+		if focus[p] > 0 then
+			prep[p][focus[p]] = player.profile.focusEdge
+		end
 		scores[p] = {}
 	end
 	for t, topic in topics do
@@ -166,7 +175,7 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 			wins[winner] += 1
 			national[winner] += config.DEBATE_TOPIC_NATIONAL
 			for p = 1, n do
-				if p ~= winner and prep[p][t] == 0 then
+				if p ~= winner and focus[p] == 0 then
 					gaffes[p][t] = true
 				end
 			end
@@ -213,11 +222,12 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 	local flips = Polls.refresh(match)
 
 	for _, player in match.players do
-		player.debatePrep = nil
+		player.debateFocus = nil
 	end
 	local result: State.DebateResult = {
 		week = week,
 		topics = topics,
+		focus = focus,
 		prep = prep,
 		scores = scores,
 		winners = winners,

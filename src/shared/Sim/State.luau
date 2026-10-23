@@ -10,7 +10,11 @@ local Rng = require("./Rng")
 local StateData = require("./StateData")
 local Types = require("../Types")
 
-export type Phase = "Select" | "MapReveal" | "Draft" | "Plan" | "Debate" | "Election" | "Done"
+export type Phase = "Select" | "MapReveal" | "Draft" | "Decision" | "Plan" | "Debate" | "Election" | "Done"
+
+-- What a Decision phase asks for (D-044): the debate topic to focus on, right
+-- before the debate, or a stance on this week's Choice event, right before the plan.
+export type DecisionKind = "Focus" | "Stance"
 
 -- A public poll as shown to everyone: whole-number shares that sum to 100.
 export type Poll = {
@@ -88,7 +92,8 @@ export type PlayerState = {
 	lead: number?, -- smoothed projected-EV lead over the best opponent (negative = trailing)
 	underdogTier: number, -- 0, 1 or 2
 	frontrunner: boolean, -- the candidate's frontrunner drawback is active
-	debatePrep: { number }?, -- prep for the next debate (hidden until it resolves)
+	debateFocus: Types.Issue?, -- topic focused on for this week's debate, set in its Decision phase (hidden until the debate resolves; nil = no focus)
+	stance: Types.Choice?, -- stance on this week's Choice event, set in its Decision phase (hidden until the week resolves)
 	internalPolls: { InternalPoll }, -- results from last week's plan (private)
 	raised: number, -- money raised by fundraisers last week (private)
 	card: WeekCard?, -- last week's public actions
@@ -104,10 +109,11 @@ export type DraftPick = {
 export type DebateResult = {
 	week: number,
 	topics: { Types.Issue },
-	prep: { { number } }, -- by player, revealed after the debate
+	focus: { number }, -- by player: the topic index focused on, 0 = no focus (revealed after the debate)
+	prep: { { number } }, -- [player][topic]: score the focus added (the focus edge on one topic, 0 elsewhere)
 	scores: { { number } }, -- [player][topic]
 	winners: { number }, -- by topic; 0 = tie
-	gaffes: { { boolean } }, -- [player][topic]: lost it with no prep
+	gaffes: { { boolean } }, -- [player][topic]: lost it with no focus taken at all
 	national: { number }, -- flat points each player gained in every state (topic wins and a sweep)
 	moves: { StateMove }, -- the state-targeted points (topic wins and gaffes), in StateData order
 	flips: { PollFlip }, -- states whose public-poll leader changed when the polls were republished after the debate
@@ -141,6 +147,7 @@ export type MatchState = {
 	seed: number,
 	rng: Rng.Rng, -- root stream; never advanced, every system forks a labeled child
 	phase: Phase,
+	decision: DecisionKind?, -- during a Decision phase: what it asks for
 	week: number, -- campaign week, 0 before week 1
 	draftRound: number, -- 0-based round while drafting
 	priorityA: number, -- player index with clash priority in "A" rounds

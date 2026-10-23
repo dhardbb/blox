@@ -39,6 +39,10 @@ local function clean(candidates: { string }?): State.MatchState
 end
 
 local function run(match: State.MatchState, a: { any }, b: { any }): State.MatchState
+	-- A Choice week opens with its Decision phase (D-044): take the defaults.
+	if match.phase == "Decision" then
+		match = Match.advance(C, match, {})
+	end
 	for p, actions in { a, b } do
 		local ok, reason = Match.validate(C, match, p, { actions = actions })
 		assert(ok, `plan {p} rejected: {reason}`)

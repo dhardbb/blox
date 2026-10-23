@@ -35,7 +35,7 @@ export type Profile = {
 	frontrunnerRallyMult: number,
 	frontrunnerFundMult: number,
 	debateStat: number,
-	debatePrep: number,
+	focusEdge: number, -- score added to the debate topic this candidate focuses on (D-044)
 }
 
 type Entry = {
@@ -76,9 +76,9 @@ local ROSTER: { Entry } = {
 		id = "hale",
 		name = "Marcus Hale",
 		archetype = "The Debater",
-		perk = "7 debate prep points instead of 6",
+		perk = "Debate focus +3 instead of +2",
 		drawback = "Starts with no money",
-		overrides = { debatePrep = 7, startCash = 0 },
+		overrides = { focusEdge = 3, startCash = 0 },
 	},
 	{
 		id = "alvarado",
@@ -174,7 +174,7 @@ function Candidates.profile(config: Config, id: string): Profile
 		frontrunnerRallyMult = 1,
 		frontrunnerFundMult = 1,
 		debateStat = config.DEBATE_STAT,
-		debatePrep = config.DEBATE_PREP,
+		focusEdge = config.DEBATE_FOCUS,
 	}
 	local writable = profile :: any
 	for key, value in entry.overrides do

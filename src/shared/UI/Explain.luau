@@ -13,7 +13,7 @@
 --   Explain.leanText(view, s) · momentumNote · backlashNote · underdogText
 --   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
 --   Explain.debateOdds(config, edge) -> (win, tie, lose)
---   Explain.debateParts / debateLine (a resolved topic, split into prep, platform, stat, roll)
+--   Explain.debateParts / debateLine (a resolved topic, split into focus, platform, stat, roll)
 --   Explain.choiceLines(config, event?, platform?, base?) (each stance of a Choice event and the states it moves)
 --   Explain.leadWinChance(config, pollLead)
 --   Explain.help(config, view?) -> { Section } (the "How it works" screen)
@@ -106,6 +106,9 @@ local function profileOf(config: Config, view: View, p: number): Profile
 		else Candidates.ids[1]
 	return Candidates.profile(config, id)
 end
+
+-- Player p's candidate profile, from the public candidate id.
+Explain.profileOf = profileOf
 
 -- The underdog multipliers for player p: Polls.underdogMults reads only the
 -- player's tier and profile, so a minimal stand-in keeps them identical.
@@ -636,7 +639,7 @@ end
 
 -- ---------------------------------------------------------------- debates
 
--- Exact chances for one topic when your fixed score (prep + platform + stat)
+-- Exact chances for one topic when your fixed score (focus + platform + stat)
 -- beats theirs by `edge`: both roll 0..DEBATE_ROLL_MAX, the higher total wins.
 function Explain.debateOdds(config: Config, edge: number): (number, number, number)
 	local faces = config.DEBATE_ROLL_MAX + 1
@@ -658,8 +661,8 @@ end
 export type TopicParts = { prep: number, platform: number, stat: number, roll: number, score: number }
 
 -- Player p's score on topic t of a resolved debate, split into its parts. The
--- roll is what is left after prep, platform bonus and debate stat (the debate
--- result carries prep and the total). Meant for the debate week, before any
+-- roll is what is left after the focus, platform bonus and debate stat (the
+-- debate result carries the focus edge per topic as `prep`, and the total). Meant for the debate week, before any
 -- later pivot changes the platform.
 function Explain.debateParts(
 	config: Config,
@@ -677,11 +680,15 @@ function Explain.debateParts(
 end
 
 local function partsText(config: Config, parts: TopicParts): string
-	local text = `{parts.prep} prep`
-	if parts.platform > 0 then
-		text ..= ` + {parts.platform} platform`
+	local terms: { string } = {}
+	if parts.prep > 0 then
+		table.insert(terms, `{parts.prep} focus`)
 	end
-	text ..= ` + {parts.stat} stat`
+	if parts.platform > 0 then
+		table.insert(terms, `{parts.platform} platform`)
+	end
+	table.insert(terms, `{parts.stat} stat`)
+	local text = table.concat(terms, " + ")
 	if parts.roll >= 0 and parts.roll <= config.DEBATE_ROLL_MAX then
 		text ..= ` + roll {parts.roll}`
 	else
@@ -690,36 +697,13 @@ local function partsText(config: Config, parts: TopicParts): string
 	return `{text} = {parts.score}`
 end
 
--- "you 2 prep + 2 platform + 1 stat + roll 3 = 8 · them 4 prep + 1 stat + roll 5 = 10"
+-- "you 2 focus + 2 platform + 1 stat + roll 3 = 8 · them 1 stat + roll 2 = 3"
 function Explain.debateLine(config: Config, view: View, result: SimState.DebateResult, t: number): string
 	local me, rival = view.you, opponentOf(view)
 	return `you {partsText(config, Explain.debateParts(config, view, result, me, t))} · them {partsText(
 		config,
 		Explain.debateParts(config, view, result, rival, t)
 	)}`
-end
-
--- One prep row's known score: "You: 2 prep + 2 platform + 1 stat = 5, plus a
--- roll 0 to 6 · them: 1 stat + their hidden prep (6 points)". Their prep stays
--- hidden until the debate; their platform and candidate are public.
-function Explain.prepLine(config: Config, view: View, topic: Types.Issue, prep: number): string
-	local me, rival = view.you, opponentOf(view)
-	local function bonus(p: number): number
-		local platform: { Types.Issue } = view.players[p].platform or {}
-		return if table.find(platform, topic) then config.DEBATE_PLATFORM_BONUS else 0
-	end
-	local mine, theirs = profileOf(config, view, me), profileOf(config, view, rival)
-	local myFixed = prep + bonus(me) + mine.debateStat
-	local text = `You: {prep} prep`
-	if bonus(me) > 0 then
-		text ..= ` + {bonus(me)} platform`
-	end
-	text ..= ` + {mine.debateStat} stat = {myFixed}, plus a roll 0 to {config.DEBATE_ROLL_MAX} · them: `
-	if bonus(rival) > 0 then
-		text ..= `{bonus(rival)} platform + `
-	end
-	return text
-		.. `{theirs.debateStat} stat + their hidden prep ({theirs.debatePrep} points in all), plus a roll`
 end
 
 -- ---------------------------------------------------------------- Choice events
@@ -854,7 +838,7 @@ type Numbersheet = {
 	gotvCost: number,
 	gotvMaxUnits: number,
 	momentumDecay: number,
-	debatePrep: number,
+	focusEdge: number,
 	debateStat: number,
 }
 
@@ -877,7 +861,7 @@ local function sheet(config: Config, view: View?): Numbersheet
 			gotvCost = p.gotvCost,
 			gotvMaxUnits = p.gotvMaxUnits,
 			momentumDecay = p.momentumDecay,
-			debatePrep = p.debatePrep,
+			focusEdge = p.focusEdge,
 			debateStat = p.debateStat,
 		}
 	end
@@ -896,7 +880,7 @@ local function sheet(config: Config, view: View?): Numbersheet
 		gotvCost = config.GOTV_COST,
 		gotvMaxUnits = config.GOTV_MAX_UNITS,
 		momentumDecay = config.MOMENTUM_DECAY,
-		debatePrep = config.DEBATE_PREP,
+		focusEdge = config.DEBATE_FOCUS,
 		debateStat = config.DEBATE_STAT,
 	}
 end
@@ -1023,13 +1007,15 @@ function Explain.help(config: Config, view: View?): { Section }
 		table.insert(debateWeeks, tostring(week))
 	end
 	section("debates", "Debates", {
-		`Debates open weeks {table.concat(debateWeeks, " and ")}, on {c.DEBATE_TOPICS} topics shown in advance. In the week before, spread {me.debatePrep} prep points over them (at most {c.DEBATE_MAX_PER_TOPIC} on one).`,
-		`Each topic: prep + {c.DEBATE_PLATFORM_BONUS} if it is on your platform + debate stat ({me.debateStat}) + a roll of 0 to {c.DEBATE_ROLL_MAX}. Higher total wins the topic; a tie gives it to nobody.`,
+		`Debates open weeks {table.concat(debateWeeks, " and ")}, on {c.DEBATE_TOPICS} topics shown in advance. Right before each, on its own screen, pick one topic to focus on: +{me.focusEdge} on that topic. The screen lists each topic's states, their EV and the ones you need.`,
+		`Each topic: your focus (+{me.focusEdge}, on one topic) + {c.DEBATE_PLATFORM_BONUS} if it is on your platform + debate stat ({me.debateStat}) + a roll of 0 to {c.DEBATE_ROLL_MAX}. Higher total wins the topic; a tie gives it to nobody.`,
 		`Winning a topic: {signed(c.DEBATE_TOPIC_WIN)} in every state where it is a top issue, plus {signed(
 			c.DEBATE_TOPIC_NATIONAL
 		)} in every state. Winning all: {signed(c.DEBATE_SWEEP)} more in every state and +{num(
 			c.DEBATE_SWEEP_MOMENTUM
-		)} momentum in every battleground. Losing a topic you gave 0 prep: {signed(-c.DEBATE_GAFFE)} in its states (a gaffe).`,
+		)} momentum in every battleground. No focus picked in time: every topic you lose costs {signed(
+			-c.DEBATE_GAFFE
+		)} in its states (a gaffe).`,
 		`The roll is big. Level: {oddsText(c, 0)}. 2 points ahead: {oddsText(c, 2)}. 4 ahead: {oddsText(c, 4)}.`,
 		"The polls are republished right after the debate. The debate screen names the states each topic swung, badges them on the map, and calls out every state whose poll leader flipped (FLIP).",
 	})
@@ -1042,11 +1028,11 @@ function Explain.help(config: Config, view: View?): { Section }
 		)}. Windfall: fundraisers {times(c.EVENT_WINDFALL_MULT)} in states where you trail in the public poll. An event adds at most {num(
 			c.EVENT_CAP
 		)} per state per week.`,
-		"Choice: a dispute over one issue; both take a stance (A, B or C) in secret. States where the issue is a top issue react by their other top issue; every other state hears a side a little through its own top issues:",
+		"Choice: a dispute over one issue; before the week's plan, on its own screen with its own timer, both take a stance (A, B or C) in secret (no stance in time: C). States where the issue is a top issue react by their other top issue; every other state hears a side a little through its own top issues:",
 		choice[1],
 		choice[2],
 		choice[3],
-		`The event card shows a stance on the map: badges in your color where you gain, red where you lose, FLIP where the poll leader would change (on today's polls, before their stance). It lists the states you need: within {Explain.IN_PLAY} points in the public poll, either way. Hold a stance to peek at it; collapse the card for the normal map.`,
+		`The stance screen shows a stance on the map: badges in your color where you gain, red where you lose, FLIP where the poll leader would change (on today's polls, before their stance). It lists the states you need: within {Explain.IN_PLAY} points in the public poll, either way. Hold a stance to peek at it; collapse the card for the normal map.`,
 	})
 
 	section("election", "Election night", {

@@ -1,8 +1,7 @@
 --!strict
 -- The redesigned campaign screen (UI overhaul WP3, src/client/Screens/
 -- CampaignParts) on the fake engine: Lock in pinned in the action bar on both
--- screen sizes, debate prep above the plan (B2), no event card during the
--- debate (B1), the Region poll button (B3), one-tap message chips, two-tap
+-- screen sizes, no event card during the debate (B1), the Region poll button (B3), one-tap message chips, two-tap
 -- Clear, the read-only state card during the resolve reveal, the header, and
 -- the strict UI audit on every campaign moment.
 
@@ -19,7 +18,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local C = Config.defaults
 local WIDE = { x = 1280, y = 720 }
 local SIZES = { { name = "16:9", screen = WIDE }, { name = "phone", screen = Rig.PHONE } }
-local MOMENTS = { "Plan", "ChoiceWeek", "Resolve", "DebatePrep", "Debate" }
+local MOMENTS = { "Plan", "ChoiceWeek", "Resolve", "Debate" }
 
 local check = Rig.check
 local need = function(peer: FakeRoblox.Peer, name: string): any
@@ -143,49 +142,6 @@ describe("Campaign parts: the pinned action bar", function()
 	end)
 end)
 
-describe("Campaign parts: debate prep (B2)", function()
-	for _, size in SIZES do
-		it(`sits above the plan and above Lock in ({size.name})`, function()
-			local world, peer = Rig.fixture("DebatePrep", size.screen)
-			local prep, plan, lock = need(peer, "PrepPanel"), need(peer, "PlanList"), need(peer, "LockIn")
-			check(shown(prep), "no debate prep in the week before a debate")
-			check(prep.LayoutOrder < plan.LayoutOrder, "prep is listed after the plan")
-			-- The state card is tall; below it, prep would be scrolled out of sight (Studio, v0.4.0).
-			check(
-				prep.LayoutOrder < need(peer, "StateCard").LayoutOrder,
-				"prep is listed after the state card"
-			)
-			check(prep.AbsolutePosition.Y < lock.AbsolutePosition.Y, "prep is below Lock in")
-			check(
-				prep.AbsolutePosition.Y >= 0 and prep.AbsolutePosition.Y < size.screen.y,
-				"prep is off screen"
-			)
-			for _, name in { "PrepPlus1", "PrepMinus1" } do
-				local button = need(peer, name)
-				expect(button.AbsoluteSize.X):toBe(44)
-				expect(button.AbsoluteSize.Y):toBe(44)
-			end
-			Rig.noErrors(world)
-		end)
-	end
-
-	it("says why a stepper is greyed out and shows the split on the bar", function()
-		local world, peer = Rig.fixture("DebatePrep", nil)
-		check(Rig.contains(textOf(peer, "BarStatus"), "prep 2/2/2"), textOf(peer, "BarStatus"))
-		tap(world, peer, "PrepPlus1")
-		tap(world, peer, "PrepPlus1")
-		expect(textOf(peer, "PrepValue1")):toBe(tostring(C.DEBATE_MAX_PER_TOPIC))
-		check(need(peer, "PrepPlus1").Active == false, "+ is enabled at the maximum")
-		check(shown(need(peer, "PrepNote1")), "no reason under a greyed +")
-		check(
-			Rig.contains(textOf(peer, "PrepNote1"), `max {C.DEBATE_MAX_PER_TOPIC}`),
-			textOf(peer, "PrepNote1")
-		)
-		check(Rig.contains(textOf(peer, "BarStatus"), "prep 4/1/1"), textOf(peer, "BarStatus"))
-		Rig.noErrors(world)
-	end)
-end)
-
 describe("Campaign parts: the debate reveal (B1)", function()
 	it("hides the event card and has nothing to press", function()
 		local world, peer = Rig.fixture("Debate", nil)
@@ -199,29 +155,6 @@ describe("Campaign parts: the debate reveal (B1)", function()
 		check(not shown(need(peer, "SkipButton")), "a primary button shows during the debate")
 		check(FakeRoblox.find(peer, "Campaign"):GetAttribute("PrimaryOptional") == true, "no PrimaryOptional")
 		check(Rig.contains(textOf(peer, "BarStatus"), "Debate · topic"), textOf(peer, "BarStatus"))
-		Rig.noErrors(world)
-	end)
-end)
-
-describe("Campaign parts: Choice weeks", function()
-	it("puts the expanded event card first, with the hedge (C) outlined", function()
-		local world, peer = Rig.fixture("ChoiceWeek", nil)
-		local event = need(peer, "EventCard")
-		local first: any = nil
-		for _, child in need(peer, "Side"):GetChildren() do
-			if child:IsA("GuiObject") and child.Visible ~= false then
-				if first == nil or child.LayoutOrder < first.LayoutOrder then
-					first = child
-				end
-			end
-		end
-		check(first == event, `the first side panel is {if first then first.Name else "nothing"}`)
-		check(shown(need(peer, "ChoiceRow")), "the answers are hidden")
-		local Kit = kitOf(world, peer)
-		local ignore = need(peer, "ChoiceC")
-		check(ignore:GetAttribute("Selected") == true, "C is not preselected")
-		check(not same(ignore.BackgroundColor3, Kit.colors.accent), "C is accent-filled")
-		check(same(ignore.VariantStroke.Color, Kit.colors.accent), "C's outline is not accent")
 		Rig.noErrors(world)
 	end)
 end)

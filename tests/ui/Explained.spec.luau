@@ -153,10 +153,11 @@ describe("Explained: the help overlay", function()
 	end
 
 	for _, size in SIZES do
-		it(`keeps the Campaign moments strict with the help button ({size.name})`, function()
-			for _, moment in { "Plan", "ChoiceWeek", "Resolve", "DebatePrep", "Debate" } do
+		it(`keeps the Campaign and Decision moments strict with the help button ({size.name})`, function()
+			for _, moment in { "Plan", "Stance", "ChoiceWeek", "Resolve", "Focus", "Debate" } do
 				local world, peer = Rig.fixture(moment, size.screen)
-				local problems = strict(world, peer, "Campaign")
+				local screen = if moment == "Stance" or moment == "Focus" then "Decision" else "Campaign"
+				local problems = strict(world, peer, screen)
 				check(#problems == 0, `{moment}: ` .. table.concat(problems, "; "))
 			end
 		end)
@@ -165,7 +166,7 @@ end)
 
 describe("Explained: events and debates", function()
 	it("shows where each stance of the week's Choice event moves support", function()
-		local world, peer = Rig.fixture("ChoiceWeek", nil)
+		local world, peer = Rig.fixture("Stance", nil)
 		local view = Rig.payloadOf(world, peer).view
 		for k, line in
 			Explain.choiceLines(
@@ -175,14 +176,14 @@ describe("Explained: events and debates", function()
 				Events.baseOf(view.players[view.you])
 			)
 		do
-			local label = need(peer, `ChoicePay{k}`)
+			local label = Rig.need(peer, "Decision", `ChoicePay{k}`)
 			expect(label.Text):toBe(line)
-			check(Rig.shown(label, "Campaign"), `ChoicePay{k} is hidden`)
+			check(Rig.shown(label, "Decision"), `ChoicePay{k} is hidden`)
 		end
 		Rig.noErrors(world)
 	end)
 
-	it("splits each debate topic into prep, platform, stat and roll", function()
+	it("splits each debate topic into focus, platform, stat and roll", function()
 		local world, peer = Rig.fixture("Debate", nil)
 		FakeRoblox.run(world, 8)
 		local view = Rig.payloadOf(world, peer).view
@@ -193,10 +194,10 @@ describe("Explained: events and debates", function()
 		Rig.noErrors(world)
 	end)
 
-	it("shows each prep topic's fixed score and the roll", function()
-		local world, peer = Rig.fixture("DebatePrep", nil)
-		local text = textOf(peer, "PrepScore1")
-		check(Rig.contains(text, "stat"), text)
+	it("shows what a focus on each topic gives: the fixed score and the roll", function()
+		local world, peer = Rig.fixture("Focus", nil)
+		local text = Rig.textOf(peer, "Decision", "FocusOdds1")
+		check(Rig.contains(text, "Focus here:"), text)
 		check(Rig.contains(text, `roll 0 to {C.DEBATE_ROLL_MAX}`), text)
 		Rig.noErrors(world)
 	end)

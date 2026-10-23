@@ -8,7 +8,8 @@
 -- whatever Session.drain returns. Nothing here touches Roblox, so it is tested
 -- headlessly (tests/net/Session.spec.luau).
 --
--- Stages: "Input" (players submit for a Select, Draft or Plan phase), "Show"
+-- Stages: "Input" (players submit for a Select, Draft, Decision or Plan phase;
+-- a Decision has its own TIMER_DECISION and no reveal after it, D-044), "Show"
 -- (map reveal, election night), "Reveal" (draft reveal, resolve animation,
 -- debate sequence), "Over". Every stage change bumps `step`; clients stamp each
 -- request with the step they saw, and stale requests are rejected.
@@ -140,6 +141,8 @@ local function inputDuration(config: Config, phase: State.Phase): number
 		return config.TIMER_SELECT
 	elseif phase == "Draft" then
 		return config.TIMER_DRAFT_ROUND
+	elseif phase == "Decision" then
+		return config.TIMER_DECISION
 	end
 	return config.TIMER_PLAN
 end
@@ -256,7 +259,7 @@ end
 enterPhase = function(session: Session, now: number)
 	local config = session.config
 	local phase = session.match.phase
-	if phase == "Select" or phase == "Draft" or phase == "Plan" then
+	if phase == "Select" or phase == "Draft" or phase == "Decision" or phase == "Plan" then
 		for _, seat in session.seats do
 			seat.locked = false
 			seat.input = nil

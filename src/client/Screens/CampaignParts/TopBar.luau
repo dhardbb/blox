@@ -1,6 +1,7 @@
 --!strict
 -- The Campaign header (UI overhaul §3.4, move 3): one Kit.HEADER_H row on 16:9,
--- two rows on phones.
+-- two rows on phones. The Decision screen (D-044) uses it too: the stage says
+-- "Debate focus" or "Take a stance", and money and AP are left out.
 --
 --   16:9      Week 3 of 12 · Plan your week   Dana Okafor 261 ▬▬  ▬▬ 251 Rex Calloway  $4.5  3 AP   0:28
 --   portrait  Week 3 of 12 · Plan your week                                          0:28
@@ -172,7 +173,13 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			local me, rival = view.you, Model.opponentOf(view)
 			local week = view.week
 			local stage = "Plan your week"
-			if p.reveal == "Resolve" then
+			local deciding = Model.deciding(p)
+			if deciding ~= nil then
+				stage = if Model.isLocked(model, p)
+					then "Locked in"
+					elseif deciding == "Focus" then "Debate focus"
+					else "Take a stance"
+			elseif p.reveal == "Resolve" then
 				week -= 1
 				stage = "Results"
 			elseif p.reveal == "Debate" then
@@ -187,6 +194,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			-- Only an open input step warns: reveals end on their own.
 			header:setTimer(p.deadline - now, if p.stage == "Input" then Kit.TIMER_WARN else 0)
 
+			moneyLabel.Visible = deciding == nil
+			apLabel.Visible = deciding == nil
 			local ap, cash = PlanDraft.remaining(config, view, model.draft)
 			moneyLabel.Text = Model.money(cash)
 			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.danger else Kit.colors.good

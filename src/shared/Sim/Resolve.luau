@@ -3,7 +3,8 @@
 -- media and attacks, pivots, the Choice event's stances, momentum, drift, then
 -- upkeep and polls. This week's event (Sim/Events) boosts rallies, media and
 -- fundraisers within EVENT_CAP per player, state and week (D-027); a Choice
--- event's stances move the states that react to them (D-039).
+-- event's stances, taken in the week's Decision phase before the plan (D-044),
+-- move the states that react to them (D-039).
 --
 -- Every step reads one start-of-step snapshot and applies all players' effects
 -- together (D-001), so the order of players in the match never matters.
@@ -296,15 +297,16 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 		Support.national(config, match.states, national)
 	end
 
-	-- 5b. The Choice event (D-039): every player's secret stance moves the states
-	-- that react to it, all from one snapshot. Every event is logged publicly.
+	-- 5b. The Choice event (D-039): every player's secret stance, taken in the
+	-- week's Decision phase (D-044), moves the states that react to it, all from
+	-- one snapshot. Every event is logged publicly.
 	if event ~= nil then
 		local result: State.EventResult =
 			{ week = week, id = event.id, choices = nil, moves = nil, flips = nil }
 		if event.kind == "Choice" then
 			local choices: { Types.Choice } = {}
 			for p in match.players do
-				choices[p] = plans[p].choice or Events.defaultChoice()
+				choices[p] = match.players[p].stance or Events.defaultChoice()
 			end
 			local bases: { { string } } = {}
 			for p, player in match.players do
@@ -390,20 +392,17 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 		end
 	end
 
-	-- 8. Upkeep: backlash decay, pool refill, income, debate prep, week card.
+	-- 8. Upkeep: backlash decay, pool refill, income, week card; the stance is spent.
 	for _, s in match.states do
 		for p = 1, n do
 			s.backlash[p] = math.max(0, s.backlash[p] - config.BACKLASH_DECAY)
 		end
 		s.pool = math.min(s.capacity, s.pool + s.capacity * config.POOL_REFILL)
 	end
-	local wantsPrep = Plan.wantsPrep(config, match)
 	for p, player in match.players do
 		player.cash += player.profile.passiveIncome
 		player.card = cards[p]
-		if wantsPrep then
-			player.debatePrep = plans[p].prep or Plan.defaultPrep(config, player.profile.debatePrep)
-		end
+		player.stance = nil
 	end
 
 	-- 9. Public polls, the rubber band, and internal polls (end-of-week truth).

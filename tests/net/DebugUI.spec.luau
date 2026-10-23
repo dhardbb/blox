@@ -55,7 +55,7 @@ describe("Commands.parse", function()
 
 	it("parses a full plan into Plan.validate's shape", function()
 		local parsed = Commands.parse(
-			"plan rally OH jobs; fund PA, media MI health; attack IA farms; poll OH; rpoll pacific; gotv OH 2; pivot schools farms; prep 4 2 0"
+			"plan rally OH jobs; fund PA, media MI health; attack IA farms; poll OH; rpoll pacific; gotv OH 2; pivot schools farms"
 		)
 		expect(parsed.kind):toBe("Request")
 		expect(parsed.input):toEqual({
@@ -69,8 +69,10 @@ describe("Commands.parse", function()
 				{ kind = "Gotv", state = "OH", units = 2 },
 				{ kind = "Pivot", drop = "Schools", add = "Farms" },
 			},
-			prep = { 4, 2, 0 },
 		})
+		-- The debate focus and a stance are their own Decision step (D-044).
+		expect(Commands.parse("plan rally OH jobs; prep 4 2 0").kind):toBe("Error")
+		expect(Commands.parse("plan choice b").kind):toBe("Error")
 		expect(Commands.parse("plan rally OH").kind):toBe("Error")
 		expect(Commands.parse("plan dance OH").kind):toBe("Error")
 		expect(Commands.parse("pass")):toEqual({ kind = "Request", op = "Submit", input = { actions = {} } })
@@ -88,17 +90,25 @@ describe("Commands.parse", function()
 		expect(ok):toBe(true)
 	end)
 
-	it("parses a Choice stance, and the validator takes it in a Choice week", function()
-		local parsed = Commands.parse("plan choice b; poll OH")
-		expect(parsed.input):toEqual({ actions = { { kind = "Poll", state = "OH" } }, choice = "B" })
-		expect(Commands.parse("plan choice surrender").kind):toBe("Error")
-		expect(Commands.parse("plan choice attack").kind):toBe("Error")
+	it("parses a stance and a debate focus, and the validator takes them in their Decision step", function()
+		expect(Commands.parse("choice b").input):toEqual({ choice = "B" })
+		expect(Commands.parse("choice surrender").kind):toBe("Error")
+		expect(Commands.parse("focus jobs").input):toEqual({ focus = "Jobs" })
+		expect(Commands.parse("focus nothing").kind):toBe("Error")
 		local match = Match.new(C, 3, { "a", "b" })
 		while not (match.phase == "Plan" and match.week == 2) do
 			match = Match.advance(C, match, {})
 		end
 		match.eventDeck[2] = "plant"
-		local ok, reason = Match.validate(C, match, 1, Commands.parse("plan choice A").input)
+		match.phase, match.decision = "Decision", "Stance"
+		local ok, reason = Match.validate(C, match, 1, Commands.parse("choice A").input)
+		expect(reason):toBe(nil)
+		expect(ok):toBe(true)
+		while not (match.phase == "Decision" and match.decision == "Focus") do
+			match = Match.advance(C, match, {})
+		end
+		local topic = match.debateTopics[match.week][2]
+		ok, reason = Match.validate(C, match, 1, Commands.parse(`focus {topic}`).input)
 		expect(reason):toBe(nil)
 		expect(ok):toBe(true)
 	end)
@@ -125,7 +135,9 @@ describe("Commands.parse", function()
 			) ~= nil
 		):toBe(true)
 		match = Match.advance(C, match, {})
-		session.match = Match.advance(C, match, { { actions = {}, choice = "A" } })
+		expect(match.phase == "Decision" and match.decision == "Stance"):toBe(true)
+		match = Match.advance(C, match, { { choice = "A" } })
+		session.match = Match.advance(C, match, {})
 		board = Format.board(Session.payload(session, 1), 0)
 		local moved = #(session.match.eventLog[#session.match.eventLog].moves :: { State.StateMove })
 		expect(
@@ -270,7 +282,8 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 			{
 				week = 9,
 				topics = { "Transit", "Environment", "Safety" },
-				prep = { { 4, 2, 0 }, { 2, 2, 2 } },
+				focus = { 1, 3 },
+				prep = { { 2, 0, 0 }, { 0, 0, 2 } },
 				scores = { { 8, 5, 3 }, { 8, 7, 6 } },
 				winners = { 0, 2, 2 },
 				national = { -0.2, 0.4 },
@@ -278,7 +291,7 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 			1
 		)
 		expect(text):toBe(
-			"Debate week 9: Transit tie (prep 4/2), Environment them (prep 2/2), Safety them (prep 0/2); national -0.2 you, +0.4 them"
+			"Debate week 9: Transit tie (your focus), Environment them, Safety them (their focus); national -0.2 you, +0.4 them"
 		)
 	end)
 end)

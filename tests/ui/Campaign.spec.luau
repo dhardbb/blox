@@ -1,8 +1,9 @@
 --!strict
 -- The campaign screen (src/client/Screens/Campaign.luau) on the fake engine:
 -- every campaign fixture mounts cleanly in 16:9 and phone portrait, the plan can
--- be built and locked in by pressing buttons, debate prep keeps its total, the
--- reveals play, and a whole autoplayed practice match runs through the screen.
+-- be built and locked in by pressing buttons, the reveals play, and a whole
+-- autoplayed practice match runs through the screen. The Decision screen (debate
+-- focus and stances, D-044) has its own checks here and in tests/ui/Decision.spec.
 -- Also the v0.3.1 bug-hunt cases for this screen: the state list and its
 -- ordering, auto-submit, retries after a rejection, the forfeit countdown, and
 -- readable rejection codes (Net).
@@ -26,7 +27,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
 local PHONE = { x = 390, y = 844 }
-local MOMENTS = { "Plan", "ChoiceWeek", "Resolve", "DebatePrep", "Debate" }
+local MOMENTS = { "Plan", "ChoiceWeek", "Resolve", "Debate" }
 
 -- Fails the spec with a readable message.
 local function check(condition: boolean, message: string)
@@ -74,7 +75,7 @@ end
 -- Shown: this element and every ancestor up to the screen holder are Visible.
 local function shown(inst: any): boolean
 	local node = inst
-	while node ~= nil and node.Name ~= "Campaign" do
+	while node ~= nil and node.Name ~= "Campaign" and node.Name ~= "Decision" do
 		if node.Visible == false then
 			return false
 		end
@@ -86,9 +87,9 @@ end
 -- A stricter audit than the router's (which the fake engine lets skip anything
 -- without an explicit Visible): every shown button outside the map is at least
 -- 44 px tall, and every shown text either wraps, scales, or fits.
-local function audit(peer: FakeRoblox.Peer): { string }
+local function audit(peer: FakeRoblox.Peer, screen: string?): { string }
 	local problems = {}
-	local holder = find(peer, "Campaign")
+	local holder = find(peer, screen or "Campaign")
 	for _, inst in holder:GetDescendants() do
 		local inMap = false
 		local node = inst
@@ -114,33 +115,18 @@ end
 
 local function mountsCleanly(
 	moment: string,
-	screen: { x: number, y: number }?
+	screen: { x: number, y: number }?,
+	name: string?
 ): (FakeRoblox.World, FakeRoblox.Peer)
 	local world, peer = fixture(moment, screen)
 	FakeRoblox.run(world, 1)
 	noErrors(world)
-	check(said(peer, `screen Campaign`), `fixture {moment} did not route to Campaign`)
-	check(said(peer, "UI audit Campaign: 0 problem(s)"), `no clean UI audit for {moment}`)
-	local problems = audit(peer)
+	local holder = name or "Campaign"
+	check(said(peer, `screen {holder}`), `fixture {moment} did not route to {holder}`)
+	check(said(peer, `UI audit {holder}: 0 problem(s)`), `no clean UI audit for {moment}`)
+	local problems = audit(peer, holder)
 	check(#problems == 0, `{moment}: ` .. table.concat(problems, "; "))
 	return world, peer
-end
-
--- Values of the three prep steppers.
-local function prepValues(peer: FakeRoblox.Peer): { number }
-	local values = {}
-	for t = 1, C.DEBATE_TOPICS do
-		values[t] = tonumber(text(peer, `PrepValue{t}`)) :: number
-	end
-	return values
-end
-
-local function sum(list: { number }): number
-	local total = 0
-	for _, v in list do
-		total += v
-	end
-	return total
 end
 
 describe("Campaign screen", function()
@@ -149,7 +135,7 @@ describe("Campaign screen", function()
 			local _, peer = mountsCleanly(moment)
 			check(shown(find(peer, "TopBar")), "no top bar")
 			check(string.find(text(peer, "WeekLabel"), "of 12", 1, true) ~= nil, "no week label")
-			if moment == "Plan" or moment == "DebatePrep" or moment == "ChoiceWeek" then
+			if moment == "Plan" or moment == "ChoiceWeek" then
 				check(shown(find(peer, "LockIn")), "Lock in is hidden while planning")
 				check(shown(find(peer, "StateCard")), "the state card is hidden while planning")
 				check(
@@ -160,10 +146,10 @@ describe("Campaign screen", function()
 				check(shown(find(peer, "RevealPanel")), "the reveal panel is hidden")
 				check(FakeRoblox.find(peer, "LockIn") == nil, "Lock in shows during a reveal")
 			end
-			-- Both plan fixtures (weeks 3 and 8) are the week before a debate.
-			if moment == "Plan" or moment == "DebatePrep" then
-				check(shown(find(peer, "PrepPanel")), "debate prep is hidden the week before a debate")
-			end
+			-- The debate focus and the stance have their own screen (D-044): never here.
+			check(FakeRoblox.find(peer, "FocusPanel") == nil, "a focus panel on the plan screen")
+			local chip = FakeRoblox.find(peer, "ChoiceA")
+			check(chip == nil or not shown(chip), "stance chips on the plan screen")
 		end)
 	end
 
@@ -283,25 +269,16 @@ describe("Campaign screen", function()
 		noErrors(world)
 	end)
 
-	it("debate prep steppers keep the total", function()
-		local world, peer = fixture("DebatePrep")
-		local points = sum(prepValues(peer))
-		check(points == C.DEBATE_PREP, `default prep totals {points}`)
-		expect(prepValues(peer)):toEqual({ 2, 2, 2 })
-		for _ = 1, 4 do
-			press(world, peer, "PrepPlus1")
-			check(sum(prepValues(peer)) == points, "plus changed the total")
-		end
-		expect(prepValues(peer)[1]):toBe(C.DEBATE_MAX_PER_TOPIC)
-		for _ = 1, 6 do
-			press(world, peer, "PrepMinus1")
-			check(sum(prepValues(peer)) == points, "minus changed the total")
-		end
-		expect(prepValues(peer)[1]):toBe(0)
-		press(world, peer, "PrepPlus3")
-		check(sum(prepValues(peer)) == points, "plus on topic 3 changed the total")
-		press(world, peer, "LockIn")
-		check(said(peer, "[270] DEBUG_UI submit"), "Lock in sent nothing")
+	it("says the stance you took in one line in a Choice week's plan (D-044)", function()
+		local world, peer = mountsCleanly("ChoiceWeek")
+		local view = Fixtures.payload(C, "ChoiceWeek").view
+		check(view.stance ~= nil, "the fixture took no stance")
+		check(shown(find(peer, "ChoiceTaken")), "no stance line on the plan screen")
+		check(
+			string.find(text(peer, "ChoiceTaken"), `Your stance: {view.stance}`, 1, true) ~= nil,
+			"stance line: " .. text(peer, "ChoiceTaken")
+		)
+		check(not shown(find(peer, "ChoicePayHead")), "the per-state stance lists crowd the plan screen")
 		noErrors(world)
 	end)
 
@@ -402,9 +379,9 @@ describe("Campaign screen", function()
 	end)
 
 	for _, size in { { name = "16:9", screen = nil }, { name = "phone", screen = PHONE } } do
-		it(`offers stances A, B and C in a Choice week ({size.name})`, function()
-			local world, peer = mountsCleanly("ChoiceWeek", size.screen)
-			local event = Fixtures.payload(C, "ChoiceWeek").view.event :: any
+		it(`offers stances A, B and C on the Decision screen in a Choice week ({size.name})`, function()
+			local world, peer = mountsCleanly("Stance", size.screen, "Decision")
+			local event = Fixtures.payload(C, "Stance").view.event :: any
 			check(event.kind == "Choice", "not a Choice week")
 			expect(find(peer, "EventCard"):GetAttribute("EventName")):toBe(event.name)
 			check(find(peer, "EventToggle"):GetAttribute("Expanded") == true, "the Choice card is collapsed")
@@ -444,7 +421,10 @@ describe("Campaign screen", function()
 				attack.BackgroundColor3 ~= defend.BackgroundColor3,
 				"the locked answer is no longer shown selected"
 			)
-			check(#audit(peer) == 0, "audit after locking: " .. table.concat(audit(peer), "; "))
+			check(
+				#audit(peer, "Decision") == 0,
+				"audit after locking: " .. table.concat(audit(peer, "Decision"), "; ")
+			)
 			noErrors(world)
 		end)
 	end
@@ -495,7 +475,11 @@ describe("Campaign screen", function()
 		check(event.kind == "Choice", `{event.name} is not a Choice event`)
 		Support.press(rig, peer, "ChoiceA")
 		Support.press(rig, peer, "LockIn")
-		check(find(peer, "ChoiceA").Active == false, "the stances are still open after Lock in")
+		local chip = FakeRoblox.find(peer, "ChoiceA")
+		check(
+			chip == nil or not shown(chip) or chip.Active == false,
+			"the stances are still open after Lock in"
+		)
 		check(
 			Support.runUntil(rig, function()
 				return shown(find(peer, "RevealPanel"))

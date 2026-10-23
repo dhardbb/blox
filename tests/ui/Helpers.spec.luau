@@ -217,46 +217,18 @@ local function planWeek(seed: number, choice: boolean): Match.MatchState
 end
 
 describe("PlanDraft weekly events", function()
-	it("sends a Choice stance only when one is set, and the server accepts it", function()
+	it("a plan never carries a stance: it is decided on its own screen first (D-044)", function()
 		local match = planWeek(1, true)
 		local view = View.build(C, match, 1)
 		local draft = PlanDraft.new()
 		expect(PlanDraft.isChoiceWeek(view)):toBe(true)
-		expect(PlanDraft.payload(draft).choice):toBe(nil)
-		draft.choice = "A"
-		expect(PlanDraft.payload(draft).choice):toBe("A")
+		expect(PlanDraft.payload(draft)):toEqual({ actions = {} })
 		expect(PlanDraft.problem(C, view, draft)):toBe(nil)
-		for _, answer in Events.CHOICES do
-			draft.choice = answer
-			local ok, reason = Match.validate(C, match, 1, PlanDraft.payload(draft))
-			expect(reason):toBe(nil)
-			expect(ok):toBe(true)
-		end
-	end)
-
-	it("rejects a Choice stance in any other week, like the server", function()
-		local match = planWeek(1, false)
-		local view = View.build(C, match, 1)
-		expect(PlanDraft.isChoiceWeek(view)):toBe(false)
-		local draft = PlanDraft.new()
-		expect(PlanDraft.problem(C, view, draft)):toBe(nil)
-		draft.choice = "B"
-		expect(PlanDraft.problem(C, view, draft)):toBe(Plan.Reason.UnexpectedChoice)
 		local ok, reason = Match.validate(C, match, 1, PlanDraft.payload(draft))
-		expect(ok):toBe(false)
-		expect(reason):toBe(Plan.Reason.UnexpectedChoice)
-		-- No event at all (week 1) is also not a Choice week.
-		local early = Match.new(C, 1, { "a", "b" })
-		early = Match.advance(C, early, {
-			{ candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } },
-			{ candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } },
-		})
-		while early.phase ~= "Plan" do
-			early = Match.advance(C, early, {})
-		end
-		local earlyView = View.build(C, early, 1)
-		expect(earlyView.event):toBe(nil)
-		expect(PlanDraft.problem(C, earlyView, draft)):toBe(Plan.Reason.UnexpectedChoice)
+		expect(reason):toBe(nil)
+		expect(ok):toBe(true)
+		-- The stance was taken in the Decision step before this plan: the view says which.
+		expect(view.stance):toBe("C")
 	end)
 
 	it("describes each kind of event in plain words with the Config numbers", function()
@@ -284,7 +256,7 @@ describe("PlanDraft weekly events", function()
 				C.STANCE_SPILL
 			)} per top issue a side likes, {PlanDraft.points(-C.STANCE_SPILL)} per one it dislikes. Your home and strongholds count ×{C.STANCE_BASE_MULT}. The hedge (C) moves nothing, but costs {PlanDraft.points(
 				-C.STANCE_HEDGE_COST
-			)} in your home and strongholds with the issue. Running on the issue: ×{C.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
+			)} in your home and strongholds with the issue. Running on the issue: ×{C.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance in time is C.`
 		)
 	end)
 
@@ -311,10 +283,8 @@ describe("PlanDraft weekly events", function()
 	it("reports last week's event with both stances and the points each asked for", function()
 		local match = planWeek(1, true)
 		local week = match.week
-		local after = Match.advance(C, match, {
-			{ actions = {}, choice = "B" },
-			{ actions = {}, choice = "A" },
-		})
+		match.players[1].stance, match.players[2].stance = "B", "A" -- as their Decision step set them
+		local after = Match.advance(C, match, {})
 		while after.phase ~= "Plan" and after.week == week do
 			after = Match.advance(C, after, {})
 		end
@@ -362,7 +332,11 @@ describe("Fixtures", function()
 			elseif moment == "Draft" then
 				expect(payload.view.phase):toBe("Draft")
 				expect(#payload.view.draftLog > 0):toBe(true)
-			elseif moment == "Plan" or moment == "DebatePrep" or moment == "ChoiceWeek" then
+			elseif moment == "Stance" or moment == "Focus" then
+				expect(payload.stage):toBe("Input")
+				expect(payload.view.phase):toBe("Decision")
+				expect(payload.view.decision):toBe(moment)
+			elseif moment == "Plan" or moment == "ChoiceWeek" then
 				expect(payload.stage):toBe("Input")
 				expect(payload.view.phase):toBe("Plan")
 				if moment == "ChoiceWeek" then

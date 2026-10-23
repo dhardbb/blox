@@ -3,8 +3,9 @@
 -- full-screen board, and routes between screens as the server's State changes.
 --
 -- DEBUG_UI mode: set the workspace attribute DebugScreen to a fixture moment
--- ("Lobby", "Select", "MapReveal", "Draft", "Plan", "Resolve", "DebatePrep",
--- "Debate", "Election", "Over") before pressing Play. The client then renders that
+-- ("Lobby", "Select", "MapReveal", "Draft", "Plan", "Stance", "ChoiceWeek",
+-- "Resolve", "ChoiceResolve", "Focus", "Debate", "Election", "Over") before
+-- pressing Play. The client then renders that
 -- screen from a fixture (Shared/UI/Fixtures) without talking to the server, logs
 -- its sizes, and runs the UI audit. Sends are printed instead of fired.
 
@@ -91,7 +92,18 @@ if type(fixture) == "string" then
 		print(`[270] DEBUG_UI send {op}`, fields)
 	end
 	fakeNet.submit = function(input: any)
-		print("[270] DEBUG_UI submit", input)
+		-- One readable line: "focus=Jobs", "choice=B", "actions=[3]".
+		local parts: { string } = {}
+		if type(input) == "table" then
+			for key, value in input do
+				table.insert(
+					parts,
+					if type(value) == "table" then `{key}=[{#value}]` else `{key}={tostring(value)}`
+				)
+			end
+			table.sort(parts)
+		end
+		print("[270] DEBUG_UI submit", table.concat(parts, " "))
 	end
 	fakeNet.bank = function()
 		print("[270] DEBUG_UI bank")

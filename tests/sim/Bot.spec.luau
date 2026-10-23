@@ -10,6 +10,7 @@ local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
 local Election = require("@sim/Election")
 local Events = require("@sim/Events")
+local Match = require("@sim/Match")
 local Rng = require("@sim/Rng")
 local State = require("@sim/State")
 local StateData = require("@sim/StateData")
@@ -167,10 +168,12 @@ describe("Bot", function()
 		expect(lastStopInPacific("coast") > lastStopInPacific(nil)):toBe(true)
 	end)
 
-	-- Week 5 with a Choice event, every state 35/35 in the polls, no draft or lean.
+	-- Week 5's Stance decision (D-044) on a Choice event, every state 35/35 in the
+	-- polls, no draft or lean.
 	local function stanceWeek(id: string): State.MatchState
 		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Plan", 5)
 		match.eventDeck[5] = id
+		match.phase, match.decision = "Decision", "Stance"
 		for _, s in match.states do
 			s.support, s.undecided = { 35, 35 }, 30
 			s.poll = { support = { 35, 35 }, undecided = 30 }
@@ -204,10 +207,10 @@ describe("Bot", function()
 			end
 			local match = stanceWeek("plant")
 			needOnly(match, likedByA)
-			expect(Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice):toBe("A")
-			expect(Bot.plan(C, View.build(C, match, 2), Rng.new(1)).choice):toBe("A")
+			expect(Bot.act(C, View.build(C, match, 1), Rng.new(1), "okafor").choice):toBe("A")
+			expect(Bot.act(C, View.build(C, match, 2), Rng.new(1), "okafor").choice):toBe("A")
 			needOnly(match, likedByB)
-			expect(Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice):toBe("B")
+			expect(Bot.act(C, View.build(C, match, 1), Rng.new(1), "okafor").choice):toBe("B")
 			-- Close everywhere: a side gains where it is liked and loses where it is not,
 			-- and a gain buys more margin than the same loss costs, so a side nets
 			-- something. The hedge moves nothing (and costs in your own base), so it is
@@ -222,7 +225,7 @@ describe("Bot", function()
 			end
 			expect(value("A") > 0 and value("B") > 0):toBe(true)
 			expect(value("C") <= 0):toBe(true)
-			expect(Bot.plan(C, view, Rng.new(1)).choice ~= "C"):toBe(true)
+			expect(Bot.act(C, view, Rng.new(1), "okafor").choice ~= "C"):toBe(true)
 			-- With no base the hedge is worth nothing; with every state your base it costs.
 			expect(Bot.stanceValue(C, estimates, view.event :: any, "C", platform, {})):toBe(0)
 			local everyone: { string } = {}
@@ -265,8 +268,8 @@ describe("Bot", function()
 		match.players[1].home, match.players[1].strongholds = c.id, {}
 		match.players[2].home, match.players[2].strongholds = j.id, {}
 		-- Same polls for both seats: the board is identical, only the bases differ.
-		local one = Bot.plan(C, View.build(C, match, 1), Rng.new(1)).choice
-		local two = Bot.plan(C, View.build(C, match, 2), Rng.new(1)).choice
+		local one = Bot.act(C, View.build(C, match, 1), Rng.new(1), "okafor").choice
+		local two = Bot.act(C, View.build(C, match, 2), Rng.new(1), "okafor").choice
 		expect(one):toBe("A")
 		expect(two):toBe("B")
 		-- And through stanceValue: each seat's own base tips its own answer.
@@ -285,47 +288,46 @@ describe("Bot", function()
 		local seen: { [string]: number } = { A = 0, B = 0, C = 0 }
 		local N = 600
 		for k = 1, N do
-			local plan = Bot.plan(C, View.build(C, match, 1), Rng.new(k), "RandomStance")
-			seen[plan.choice] += 1
+			local decided = Bot.decide(C, View.build(C, match, 1), Rng.new(k), "RandomStance")
+			seen[decided.choice] += 1
 		end
 		for _, id in Events.CHOICES do
 			expect(math.abs(seen[id] / N - 1 / 3) < 0.07):toBe(true)
 		end
 		for _, style in { "Balanced", "Random", "AttackOnly", "RandomStance" } do
-			local plan = Bot.plan(C, View.build(C, match, 1), Rng.new(2), style :: Bot.Style)
-			expect(Events.isChoice(plan.choice)):toBe(true)
+			local decided = Bot.decide(C, View.build(C, match, 1), Rng.new(2), style :: Bot.Style)
+			expect(Events.isChoice(decided.choice)):toBe(true)
 		end
-		match.eventDeck[5] = nil
-		expect(Bot.plan(C, View.build(C, match, 1), Rng.new(2)).choice):toBe(nil)
+		-- The plan that follows carries neither a stance nor prep (D-044).
+		match.phase, match.decision = "Plan", nil
+		local plan = Bot.plan(C, View.build(C, match, 1), Rng.new(2))
+		expect(plan.choice):toBe(nil)
+		expect(plan.focus):toBe(nil)
+		expect((Match.validate(C, match, 1, plan))):toBe(true)
 	end)
 
-	it("preps the topic whose states it needs, within the per-topic cap (D-040)", function()
-		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Plan", 3)
-		expect(match.debateTopics[4] ~= nil):toBe(true)
+	it("focuses on the topic whose states cover the EV it needs (D-040, D-044)", function()
+		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Decision", 4)
+		expect(match.decision):toBe("Focus")
 		local topics = match.debateTopics[4]
 		for t = 1, #topics do
-			local camp: { [string]: boolean } = {}
-			for _, id in StateData.list do
-				camp[id.id] = table.find(id.issues, topics[t]) ~= nil
-			end
 			-- Only this topic's states are close; the rest are decided.
-			for _, s in match.states do
-				s.poll = if camp[s.id]
+			for i, s in match.states do
+				s.poll = if table.find(StateData.list[i].issues, topics[t])
 					then { support = { 35, 35 }, undecided = 30 }
 					else { support = { 60, 20 }, undecided = 20 }
 			end
-			local prep = Bot.plan(C, View.build(C, match, 1), Rng.new(1)).prep :: { number }
-			local total = 0
-			for _, points in prep do
-				expect(points <= C.DEBATE_MAX_PER_TOPIC):toBe(true)
-				total += points
-			end
-			expect(total):toBe(match.players[1].profile.debatePrep)
-			for u = 1, #topics do
-				if u ~= t then
-					expect(prep[t] > prep[u]):toBe(true)
-				end
-			end
+			local decided = Bot.decide(C, View.build(C, match, 1), Rng.new(1))
+			expect(decided.focus):toBe(topics[t])
+			expect((Match.validate(C, match, 1, decided))):toBe(true)
+		end
+		-- RandomFocus picks any of the three.
+		local seen: { [string]: boolean } = {}
+		for k = 1, 60 do
+			seen[Bot.decide(C, View.build(C, match, 1), Rng.new(k), "RandomFocus").focus] = true
+		end
+		for _, topic in topics do
+			expect(seen[topic]):toBe(true)
 		end
 	end)
 end)

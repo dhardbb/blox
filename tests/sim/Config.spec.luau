@@ -3,6 +3,7 @@
 
 local Test = require("@testlib/Test")
 local Config = require("@sim/Config")
+local Events = require("@sim/Events")
 local Candidates = require("@sim/Candidates")
 local StateData = require("@sim/StateData")
 
@@ -60,19 +61,23 @@ describe("Config", function()
 		expect(C.DEBATE_GAFFE > 0 and C.DEBATE_GAFFE <= C.DEBATE_TOPIC_WIN):toBe(true)
 	end)
 
-	it("prep decides topics: a 2-point edge usually wins, a 4-point edge always (D-033)", function()
-		-- The most a 4/2/0 split moves one topic against 2/2/2 is two points. Against the
-		-- old 0..6 roll that tied or lost 3 times in 10 (D-031), so prep felt like noise.
-		local win2, _, lose2 = topicOdds(2)
-		expect(win2 >= 0.75):toBe(true)
-		expect(lose2 <= 0.12):toBe(true)
-		local win4 = topicOdds(4)
-		expect(win4 >= 0.99):toBe(true)
-		-- The roll still matters: a one-point edge is a nudge, not a lock.
-		local win1 = topicOdds(1)
-		expect(win1 <= 0.7):toBe(true)
-		expect(C.DEBATE_ROLL_MAX >= C.DEBATE_PLATFORM_BONUS):toBe(true)
-	end)
+	it(
+		"the focus decides its topic often, not always; Hale's bigger focus more often (D-033, D-044)",
+		function()
+			local win, _, lose = topicOdds(C.DEBATE_FOCUS)
+			expect(win >= 0.6 and win < 0.95):toBe(true)
+			expect(lose <= 0.2):toBe(true)
+			local hale = Candidates.profile(C, "hale").focusEdge
+			expect(hale > C.DEBATE_FOCUS):toBe(true)
+			expect((topicOdds(hale)) > win):toBe(true)
+			local win4 = topicOdds(4)
+			expect(win4 >= 0.99):toBe(true)
+			-- The roll still matters: a one-point edge is a nudge, not a lock.
+			local win1 = topicOdds(1)
+			expect(win1 <= 0.7):toBe(true)
+			expect(C.DEBATE_ROLL_MAX >= C.DEBATE_PLATFORM_BONUS):toBe(true)
+		end
+	)
 
 	it("fundraising is flat, not front-loaded (D-034)", function()
 		-- Pools start part full and come back fast, so no week-1 bonanza and a state
@@ -143,6 +148,28 @@ describe("Config", function()
 		expect(worst):toBeLessThan(17.5 * 60 + 1)
 	end)
 
+	it(
+		"the Decision steps add at most a debate focus per debate and a stance per Choice week (D-044)",
+		function()
+			-- Every timer run out: two focus steps and, with the worst deck, a stance in
+			-- every event week (the deck holds 8 Choice events for 10 event weeks).
+			local eventWeeks = C.EVENT_LAST_WEEK - C.EVENT_FIRST_WEEK + 1
+			local choiceEvents = 0
+			for _, event in Events.deck do
+				if event.kind == "Choice" then
+					choiceEvents += 1
+				end
+			end
+			local most = #C.DEBATE_WEEKS + math.min(eventWeeks, choiceEvents)
+			expect(most):toBe(10)
+			expect(most * C.TIMER_DECISION):toBe(200)
+			-- A typical deck deals about 3.3 Choice events: about 105 s if every
+			-- decision ran to the end, far less when both lock in early.
+			expect(C.TIMER_DECISION >= 15 and C.TIMER_DECISION <= 30):toBe(true)
+			expect(C.TIMER_DECISION < C.TIMER_PLAN):toBe(true)
+		end
+	)
+
 	it("is frozen, nested tables included", function()
 		expect(function()
 			(C :: any).WEEKS = 1
@@ -181,7 +208,7 @@ describe("Candidates", function()
 			seen[id] = true
 			local p = Candidates.profile(C, id)
 			expect(p.id):toBe(id)
-			expect(p.apPerWeek >= 1 and p.debatePrep >= 1 and p.mediaCost >= 1):toBe(true)
+			expect(p.apPerWeek >= 1 and p.focusEdge >= 1 and p.mediaCost >= 1):toBe(true)
 		end
 	end)
 
@@ -198,7 +225,7 @@ describe("Candidates", function()
 		expect(Candidates.profile(C, "calloway").apPerWeek):toBe(4)
 		expect(Candidates.profile(C, "calloway").rallySupport):toBe(2.3)
 		expect(Candidates.profile(C, "hale").debateStat):toBe(C.DEBATE_STAT) -- D-023: prep, not stat
-		expect(Candidates.profile(C, "hale").debatePrep):toBe(7) -- 8 -> 7 in D-037: debates matter now
+		expect(Candidates.profile(C, "hale").focusEdge):toBe(C.DEBATE_FOCUS + 1) -- D-044: was 7 prep points of 6
 		expect(Candidates.profile(C, "hale").startCash):toBe(0)
 		expect(Candidates.profile(C, "venkat").debateStat):toBe(C.DEBATE_STAT) -- D-023: income, not stat
 		expect(Candidates.profile(C, "venkat").passiveIncome):toBe(2) -- 3 -> 2 in D-037

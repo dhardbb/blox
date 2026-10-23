@@ -69,6 +69,8 @@ function Format.status(payload: Session.StatePayload?, lobby: Remotes.LobbyStatu
 	local label = view.phase
 	if payload.reveal == "Draft" then
 		label = "Draft"
+	elseif view.phase == "Decision" then
+		label = `Week {view.week} Decision: {if view.decision == "Focus" then "debate focus" else "stance"}`
 	elseif view.phase == "Plan" or view.phase == "Debate" then
 		label = `Week {view.week} {view.phase}`
 	elseif view.phase == "Draft" then
@@ -126,7 +128,7 @@ function Format.event(event: View.EventView): string
 			C.EVENT_CAP
 		)
 	else
-		rule = 'Choice: add "choice a|b|c" to your plan (default c, the hedge)'
+		rule = 'Choice: "choice a|b|c" in the Decision step before the plan (default c, the hedge)'
 	end
 	return `{event.name} ({rule}). {event.text}`
 end
@@ -209,17 +211,21 @@ function Format.events(events: { State.Event }, you: number): { string }
 	return out
 end
 
--- One resolved debate: who won each topic, both preps, and the national points.
+-- One resolved debate: who won each topic, both focuses, and the national points.
 function Format.debate(debate: State.DebateResult, you: number): string
 	local them = if you == 1 then 2 else 1
 	local parts = {}
 	for t, topic in debate.topics do
 		local w = debate.winners[t]
-		local prep = `{debate.prep[you][t]}/{debate.prep[them][t]}`
-		table.insert(
-			parts,
-			`{topic} {if w == you then "you" elseif w == 0 then "tie" else "them"} (prep {prep})`
-		)
+		local focus: { string } = {}
+		if debate.focus[you] == t then
+			table.insert(focus, "your focus")
+		end
+		if debate.focus[them] == t then
+			table.insert(focus, "their focus")
+		end
+		local tag = if #focus > 0 then ` ({table.concat(focus, ", ")})` else ""
+		table.insert(parts, `{topic} {if w == you then "you" elseif w == 0 then "tie" else "them"}{tag}`)
 	end
 	return `Debate week {debate.week}: {table.concat(parts, ", ")}; national {Numbers.signed(
 		debate.national[you] or 0
@@ -328,7 +334,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 	if view.event then
 		add("Event this week: " .. Format.event(view.event))
 		-- A Choice week: the states you need and what each stance would do (D-042).
-		if view.event.kind == "Choice" and view.phase == "Plan" then
+		if view.event.kind == "Choice" and view.phase == "Decision" and view.decision == "Stance" then
 			add(Swing.needText(Config.defaults, view))
 			for k = 1, #Events.CHOICES do
 				local id: Types.Choice = Events.CHOICES[k]
@@ -358,8 +364,21 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 			add("  " .. line)
 		end
 	end
-	if view.debatePrep then
-		add(`Your prep: {table.concat(view.debatePrep, "/")}`)
+	-- The debate's Decision step: each topic's states, the ones you need, the odds (D-044).
+	if view.phase == "Decision" and view.decision == "Focus" and view.nextDebate then
+		add('Pick a debate focus: "focus TOPIC" (no focus in time: every topic you lose is a gaffe)')
+		for _, topic: Types.Issue in view.nextDebate.topics do
+			local focus = Swing.focus(Config.defaults, view, topic)
+			add(`  {focus.head}`)
+			add(`    {focus.needLine}`)
+			add(`    {focus.oddsLine}`)
+		end
+	end
+	if view.debateFocus then
+		add(`Your debate focus: {view.debateFocus}`)
+	end
+	if view.stance then
+		add(`Your stance this week: {view.stance} (secret until the week resolves)`)
 	end
 	local last = view.debates[#view.debates]
 	if last and last.week == view.week then

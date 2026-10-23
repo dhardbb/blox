@@ -1,6 +1,8 @@
 --!strict
--- The match state machine: Select -> MapReveal -> Draft (rounds) -> Plan (week n)
--- [-> Debate] -> ... -> Election -> Done.
+-- The match state machine: Select -> MapReveal -> Draft (rounds) -> week n ->
+-- ... -> Election -> Done, where a week is
+--   [Decision "Focus" -> Debate] -> [Decision "Stance"] -> Plan
+-- (the focus only in debate weeks, the stance only in Choice weeks; D-044, Sim/Decision).
 --
 -- Pure: Match.new(config, seed, playerIds) builds a match; Match.advance(config,
 -- match, inputs) returns a new state plus events and never mutates its argument.
@@ -11,6 +13,7 @@
 local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
 local Debate = require("./Debate")
+local Decision = require("./Decision")
 local Draft = require("./Draft")
 local Election = require("./Election")
 local Events = require("./Events")
@@ -62,7 +65,8 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 			lead = nil,
 			underdogTier = 0,
 			frontrunner = false,
-			debatePrep = nil,
+			debateFocus = nil,
+			stance = nil,
 			internalPolls = {},
 			raised = 0,
 			card = nil,
@@ -100,6 +104,7 @@ function Match.new(config: Config, seed: number, playerIds: { string }): MatchSt
 		seed = seed,
 		rng = rng,
 		phase = "Select",
+		decision = nil,
 		week = 0,
 		draftRound = 0,
 		priorityA = Rng.nextInt(Rng.fork(rng, "priority"), 1, n),
@@ -116,7 +121,10 @@ end
 
 -- Phases that wait for player input.
 function Match.wantsInput(match: MatchState): boolean
-	return match.phase == "Select" or match.phase == "Draft" or match.phase == "Plan"
+	return match.phase == "Select"
+		or match.phase == "Draft"
+		or match.phase == "Decision"
+		or match.phase == "Plan"
 end
 
 local function validateSelection(
@@ -175,6 +183,8 @@ function Match.validate(config: Config, match: MatchState, p: number, input: any
 		elseif match.phase == "Draft" then
 			local draftOk, draftReason, choices = Draft.validate(config, match, p, input)
 			return draftOk, draftReason, if choices then { choices = choices } else nil
+		elseif match.phase == "Decision" then
+			return Decision.validate(config, match, p, input)
 		elseif match.phase == "Plan" then
 			return Plan.validate(config, match, p, input)
 		end
@@ -199,8 +209,10 @@ function Match.default(config: Config, match: MatchState, p: number): any
 		} :: Selection
 	elseif match.phase == "Draft" then
 		return { choices = Draft.autofill(config, match, p, {}) }
+	elseif match.phase == "Decision" then
+		return Decision.default(config, match, p)
 	elseif match.phase == "Plan" then
-		return Plan.empty(config, match, p)
+		return Plan.empty()
 	end
 	return nil
 end
@@ -254,15 +266,20 @@ local function resolveSelect(config: Config, match: MatchState, selections: { Se
 	return events
 end
 
+-- Opens a decision, or goes straight to the plan when `kind` is nil.
+local function decideOrPlan(match: MatchState, kind: Decision.Kind?)
+	match.decision = kind
+	match.phase = if kind ~= nil then "Decision" else "Plan"
+end
+
 local function enterWeek(config: Config, match: MatchState, week: number)
 	match.week = week
 	if week > config.WEEKS then
+		match.decision = nil
 		match.phase = "Election"
 		match.election = Election.count(config, match)
-	elseif table.find(config.DEBATE_WEEKS, week) then
-		match.phase = "Debate"
 	else
-		match.phase = "Plan"
+		decideOrPlan(match, Decision.opening(config, match, week))
 	end
 end
 
@@ -305,6 +322,14 @@ function Match.advance(
 			table.insert(events, { kind = "Polls" })
 			enterWeek(config, match, 1)
 		end
+	elseif phase == "Decision" then
+		Decision.apply(config, match, collect(config, match, given))
+		if match.decision == "Focus" then
+			match.decision = nil
+			match.phase = "Debate"
+		else
+			decideOrPlan(match, nil)
+		end
 	elseif phase == "Plan" then
 		events = Resolve.week(config, match, collect(config, match, given))
 		enterWeek(config, match, match.week + 1)
@@ -327,7 +352,7 @@ function Match.advance(
 				amount = StateData.byId[flip.state].ev,
 			})
 		end
-		match.phase = "Plan"
+		decideOrPlan(match, Decision.afterDebate(match))
 	elseif phase == "Election" then
 		match.phase = "Done"
 	else

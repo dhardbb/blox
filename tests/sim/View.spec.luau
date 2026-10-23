@@ -98,7 +98,6 @@ local function busyMatch(): State.MatchState
 			{ kind = "Attack", state = "PA", issue = "Farms" },
 			{ kind = "Fundraise", state = match.players[1].location },
 		},
-		prep = { 4, 2, 0 },
 	}
 	local plan2 = table.clone(plan)
 	plan2.actions = table.clone(plan.actions)
@@ -107,7 +106,11 @@ local function busyMatch(): State.MatchState
 		local ok, reason = Match.validate(C, match, p, input)
 		assert(ok, `busy plan {p} rejected: {reason}`)
 	end
-	return (Match.advance(C, match, { plan, plan2 }))
+	match = Match.advance(C, match, { plan, plan2 })
+	-- Week 4 opens with the debate focus, on its own (D-044).
+	assert(match.phase == "Decision" and match.decision == "Focus", "week 4 opens with a Focus decision")
+	local focus = { focus = match.debateTopics[4][2] }
+	return (Match.advance(C, match, { focus, focus }))
 end
 
 describe("View: no leaks", function()
@@ -149,7 +152,10 @@ describe("View: no leaks", function()
 		opponent.cash = if opponent.cash > 10 then opponent.cash + 5 elseif opponent.cash < 4 then 0 else 7
 		opponent.internalPolls = { { state = "CA", support = { 1, 2 }, undecided = 3, momentum = { 0, 0 } } }
 		opponent.raised = 1234
-		opponent.debatePrep = { 0, 3, 3 }
+		opponent.debateFocus = if opponent.debateFocus == secret.debateTopics[4][1]
+			then secret.debateTopics[4][3]
+			else secret.debateTopics[4][1]
+		opponent.stance = "B"
 		opponent.lead = (opponent.lead or 0) + 0.001 -- same tier, different smoothed value
 		secret.seed = 31337
 		secret.rng.s0 = 1
@@ -163,23 +169,30 @@ describe("View: no leaks", function()
 		expect(serialize(View.build(C, secret, 1))):toBe(before)
 	end)
 
-	it("the opponent's pending Choice stance never reaches the other seat (D-027, D-039)", function()
-		-- Stances live only in the submitted plan (the server's seat input) until the
-		-- week resolves; nothing the opponent locks in may change what seat 1 is sent.
-		local function payloadFor(choice: string?): string
+	it("the opponent's pending Choice stance never reaches the other seat (D-027, D-039, D-044)", function()
+		-- A stance lives in the server's seat input during the Decision phase, then
+		-- in the hidden player state until the week resolves; nothing the opponent
+		-- locks in may change what seat 1 is sent, in the Decision or the plan.
+		local function sessionFor(choice: string?)
 			local session = Session.new(C, "m", 3, {
 				{ id = "100", kind = "Human" },
 				{ id = "200", kind = "Human" },
 			}, 0)
 			local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Plan", 2)
 			match.eventDeck[2] = "plant"
+			match.phase, match.decision = "Decision", "Stance"
+			for _, player in match.players do
+				player.stance = nil -- nothing decided yet this week
+			end
 			session.match = match
 			if choice then
-				local ok, reason =
-					Session.submit(session, 2, session.step, { actions = {}, choice = choice }, 0)
+				local ok, reason = Session.submit(session, 2, session.step, { choice = choice }, 0)
 				assert(ok, reason)
 			end
-			local payload = Session.payload(session, 1)
+			return session
+		end
+		local function payloadFor(choice: string?): string
+			local payload = Session.payload(sessionFor(choice), 1)
 			return serialize(payload.view) .. serialize(payload.events)
 		end
 		local before = payloadFor(nil)
@@ -187,6 +200,22 @@ describe("View: no leaks", function()
 			expect(payloadFor(choice)):toBe(before)
 		end
 		expect(string.find(before, "choice=", 1, true)):toBe(nil) -- no stance anywhere yet
+		expect(string.find(before, "stance=", 1, true)):toBe(nil)
+		-- Seat 1 locks in too: the plan opens, seat 1 sees its own stance, never seat 2's.
+		local function planFor(choice: string): (string, any)
+			local session = sessionFor(choice)
+			local ok, reason = Session.submit(session, 1, session.step, { choice = "C" }, 0)
+			assert(ok, reason)
+			local payload = Session.payload(session, 1)
+			return serialize(payload.view) .. serialize(payload.events), payload
+		end
+		local planned, payload = planFor("A")
+		expect(payload.view.phase):toBe("Plan")
+		expect(payload.view.stance):toBe("C")
+		expect(Session.payload(sessionFor("A"), 2).view.stance):toBe(nil)
+		for _, choice in Events.CHOICES do
+			expect((planFor(choice))):toBe(planned)
+		end
 		-- The event's stances and issue are public before anyone answers; the
 		-- per-state preview is a pure function of them.
 		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Plan", 2)
@@ -217,7 +246,10 @@ describe("View: no leaks", function()
 		other.eventDeck[2] = "expo"
 		expect((View.build(C, other, 1).event :: View.EventView).stances):toBe(nil)
 		-- After the week resolves, both stances and their moves are public.
-		match = Match.advance(C, match, { nil :: any, { actions = {}, choice = "A" } })
+		match.phase, match.decision = "Decision", "Stance"
+		match = Match.advance(C, match, { nil :: any, { choice = "A" } })
+		expect(match.phase):toBe("Plan")
+		match = Match.advance(C, match, {})
 		local view = View.build(C, match, 1)
 		checkView(view)
 		local logged = view.eventLog[#view.eventLog]
@@ -233,7 +265,7 @@ describe("View: no leaks", function()
 		expect(#view.internalPolls):toBe(1)
 		expect(view.internalPolls[1].state):toBe("OH")
 		expect(view.players[1].cash):toBe(match.players[1].cash)
-		expect(view.debatePrep):toEqual({ 4, 2, 0 })
+		expect(view.debateFocus):toBe(match.debateTopics[4][2])
 		local oh = view.states[State.indexOf.OH]
 		expect(oh.gotv):toBe(1)
 		expect(View.build(C, match, 2).states[State.indexOf.OH].gotv):toBe(1) -- their own unit, not mine
@@ -280,18 +312,22 @@ describe("View: no leaks", function()
 		expect(View.build(C, match, 2).priorityA):toBe(match.priorityA)
 	end)
 
-	it("debate prep is revealed only after the debate; the debate's moves and flips come with it", function()
-		local match = busyMatch()
-		expect(#View.build(C, match, 1).debates):toBe(0)
-		match = Match.advance(C, match, {})
-		local view = View.build(C, match, 1)
-		checkView(view)
-		expect(view.debates[1].prep[2]):toEqual({ 4, 2, 0 })
-		expect(view.debatePrep):toBe(nil)
-		expect(view.debates[1].moves):toEqual(match.debates[1].moves)
-		expect(view.debates[1].flips):toEqual(match.debates[1].flips)
-		expect(view.debates[1].gaffes):toEqual(match.debates[1].gaffes)
-	end)
+	it(
+		"the debate focus is revealed only after the debate; the debate's moves and flips come with it",
+		function()
+			local match = busyMatch()
+			expect(#View.build(C, match, 1).debates):toBe(0)
+			match = Match.advance(C, match, {})
+			local view = View.build(C, match, 1)
+			checkView(view)
+			expect(view.debates[1].focus):toEqual({ 2, 2 })
+			expect(view.debates[1].prep[2]):toEqual({ 0, C.DEBATE_FOCUS, 0 })
+			expect(view.debateFocus):toBe(nil)
+			expect(view.debates[1].moves):toEqual(match.debates[1].moves)
+			expect(view.debates[1].flips):toEqual(match.debates[1].flips)
+			expect(view.debates[1].gaffes):toEqual(match.debates[1].gaffes)
+		end
+	)
 
 	it("announces the next debate's topics", function()
 		local match = Fixtures.campaign({ seed = 5 })

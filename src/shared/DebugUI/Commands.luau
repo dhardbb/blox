@@ -8,10 +8,11 @@
 --   draft STATE [STATE]
 --   plan ACTION; ACTION; ...   with actions:
 --     rally ST ISSUE | fund ST | ad ST ISSUE | attack ad ST ISSUE | poll ST
---     rpoll REGION | gotv ST UNITS | pivot DROP ADD | prep N N N
+--     rpoll REGION | gotv ST UNITS | pivot DROP ADD
 --     (aliases: fundraise = fund; media = ad; attack = attackad = attack ad,
 --     so the player-facing names of D-030 work as typed)
---     choice a|b|c                             (only in a week with a Choice event)
+--   focus TOPIC                                (the debate's Decision step, D-044)
+--   choice a|b|c                               (a Choice week's Decision step, D-044)
 --   pass                                       (submit an empty plan)
 --   auto | autoplay on|off | show ST | rules  (rules: the "How it works" text)
 
@@ -222,35 +223,34 @@ function Commands.parse(text: string): Parsed
 			return err('draft needs one or two state codes, e.g. "draft OH PA"')
 		end
 		return { kind = "Request", op = "Submit", input = { choices = choices } }
+	elseif head == "focus" then
+		local topic = Commands.issue(w[2])
+		if topic == nil then
+			return err('focus needs one of the debate\'s topics, e.g. "focus Jobs"')
+		end
+		return { kind = "Request", op = "Submit", input = { focus = topic } }
+	elseif head == "choice" then
+		local word = string.upper(w[2] or "")
+		if word ~= "A" and word ~= "B" and word ~= "C" then
+			return err('choice needs a stance a, b or c, e.g. "choice b"')
+		end
+		return { kind = "Request", op = "Submit", input = { choice = word } }
 	elseif head == "pass" then
 		return { kind = "Request", op = "Submit", input = { actions = {} } }
 	elseif head == "plan" then
 		local rest = string.sub(text, (string.find(text, "%S") :: number) + 4)
-		local actions, prep, choice = {}, nil, nil
+		local actions = {}
 		for part in string.gmatch(rest, "[^;,]+") do
 			local pw = words(part)
 			if #pw > 0 then
-				if string.lower(pw[1]) == "prep" then
-					prep = {}
-					for k = 2, #pw do
-						table.insert(prep, tonumber(pw[k]) or -1)
-					end
-				elseif string.lower(pw[1]) == "choice" then
-					local word = string.upper(pw[2] or "")
-					if word ~= "A" and word ~= "B" and word ~= "C" then
-						return err('choice needs a stance a, b or c, e.g. "choice b"')
-					end
-					choice = word
-				else
-					local a, message = action(pw)
-					if a == nil then
-						return err(message :: string)
-					end
-					table.insert(actions, a)
+				local a, message = action(pw)
+				if a == nil then
+					return err(message :: string)
 				end
+				table.insert(actions, a)
 			end
 		end
-		return { kind = "Request", op = "Submit", input = { actions = actions, prep = prep, choice = choice } }
+		return { kind = "Request", op = "Submit", input = { actions = actions } }
 	elseif head == "auto" or head == "help" or head == "rules" then
 		return { kind = "Local", action = head }
 	elseif head == "autoplay" then
@@ -273,7 +273,8 @@ Commands.HELP = table.concat({
 	"Lobby: practice | queue | host [noevents] | join CODE | leave | pick CANDIDATE COLOR ISSUE ISSUE ISSUE",
 	"Select: select CANDIDATE COLOR ISSUE ISSUE ISSUE      Draft: draft OH PA",
 	"Plan: plan rally OH Jobs; fund PA; ad MI Jobs; attack ad IA Farms; poll OH; rpoll Pacific;",
-	"      gotv OH 2; pivot Schools Farms; prep 2 2 2; choice b (Choice weeks)      pass = empty plan",
+	"      gotv OH 2; pivot Schools Farms      pass = empty plan",
+	"Decision (before the plan): focus Jobs (debate weeks) | choice b (Choice weeks)",
 	"Any time: auto (bot fills this step) | autoplay on/off | bank | skip | show OH | rules | resync",
 	"  show OH = a state's numbers and what each action does there; rules = how everything works",
 }, "\n")

@@ -18,10 +18,10 @@ local ViewModule = require("../Sim/View")
 type Config = ConfigModule.Config
 type View = ViewModule.View
 
+-- The weekly plan only: the debate focus and a Choice stance are decided on the
+-- Decision screen before it (D-044).
 export type Draft = {
 	actions: { Plan.Action },
-	prep: { number }?,
-	choice: Types.Choice?, -- answer to this week's Choice event (nil in any other week)
 }
 
 -- One stop on the route (rallies and fundraisers), for drawing the path.
@@ -46,7 +46,7 @@ local ISSUES: { Types.Issue } = {
 }
 
 function PlanDraft.new(): Draft
-	return { actions = {}, prep = nil, choice = nil }
+	return { actions = {} }
 end
 
 -- Is this week's event one that asks for a Choice answer?
@@ -73,7 +73,7 @@ local function standIn(config: Config, view: View): any
 end
 
 function PlanDraft.cost(config: Config, view: View, draft: Draft): Plan.Cost
-	return Plan.cost(config, standIn(config, view), view.you, { actions = draft.actions, prep = draft.prep })
+	return Plan.cost(config, standIn(config, view), view.you, { actions = draft.actions })
 end
 
 -- AP and money left after the draft.
@@ -182,9 +182,6 @@ function PlanDraft.problem(config: Config, view: View, draft: Draft): string?
 				return Plan.Reason.PivotUsed
 			end
 		end
-	end
-	if draft.choice ~= nil and not PlanDraft.isChoiceWeek(view) then
-		return Plan.Reason.UnexpectedChoice
 	end
 	local ap, cash = PlanDraft.remaining(config, view, draft)
 	if ap < 0 then
@@ -335,11 +332,7 @@ function PlanDraft.payload(draft: Draft): any
 	for k, action in draft.actions do
 		actions[k] = table.clone(action)
 	end
-	return {
-		actions = actions,
-		prep = if draft.prep then table.clone(draft.prep) else nil,
-		choice = draft.choice,
-	}
+	return { actions = actions }
 end
 
 -- ------------------------------------------------------------ weekly events (D-027)
@@ -409,7 +402,7 @@ function PlanDraft.choiceNote(config: Config): string
 		-config.STANCE_SPILL
 	)} per one it dislikes. Your home and strongholds count ×{config.STANCE_BASE_MULT}. The hedge (C) moves nothing, but costs {points(
 		-config.STANCE_HEDGE_COST
-	)} in your home and strongholds with the issue. Running on the issue: ×{config.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance is C.`
+	)} in your home and strongholds with the issue. Running on the issue: ×{config.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance in time is C.`
 end
 
 PlanDraft.points = points

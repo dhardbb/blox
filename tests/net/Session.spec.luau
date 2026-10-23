@@ -273,6 +273,108 @@ describe("Session: requests", function()
 	end)
 end)
 
+describe("Session: the Decision stage (D-044)", function()
+	-- Plays (everyone locks the bot's choice) until the first Focus decision opens.
+	local function toDecision(kind: string): (Session.Session, number)
+		local session = humans()
+		local t = 0
+		for _ = 1, 400 do
+			if
+				session.match.phase == "Decision"
+				and session.match.decision == kind
+				and session.stage == "Input"
+			then
+				return session, t
+			end
+			if session.stage == "Input" then
+				lockAll(session, t)
+			else
+				t = Session.nextWake(session)
+				Session.update(session, t)
+			end
+		end
+		error(`no {kind} decision came up`)
+	end
+
+	it("opens with its own absolute deadline, then the debate, with no reveal of its own", function()
+		local session, t = toDecision("Focus")
+		expect(session.deadline):toBe(t + C.TIMER_DECISION)
+		local messages = Session.drain(session)
+		local state = messages[#messages].state :: Session.StatePayload
+		expect(state.view.decision):toBe("Focus")
+		expect(state.deadline):toBe(t + C.TIMER_DECISION)
+		-- The time bank is for plans only.
+		expect(select(2, Session.bank(session, 1, session.step, t))):toBe("NotInput")
+		lockAll(session, t + 1)
+		expect(session.stage):toBe("Reveal")
+		expect(session.reveal):toBe("Debate")
+	end)
+
+	it("both locking in ends it early; the opponent's pick never reaches the other seat", function()
+		local session, t = toDecision("Focus")
+		local topics = session.match.debateTopics[session.match.week]
+		Session.drain(session)
+		expect((Session.submit(session, 2, session.step, { focus = topics[3] }, t + 1))):toBe(true)
+		expect(session.stage):toBe("Input")
+		for _, message in Session.drain(session) do
+			if message.seat == 1 and message.state then
+				expect(message.state.view.debateFocus):toBe(nil)
+			end
+		end
+		expect((Session.submit(session, 1, session.step, { focus = topics[1] }, t + 2))):toBe(true)
+		expect(session.reveal):toBe("Debate")
+		local debate = session.match.debates[#session.match.debates]
+		expect(debate.focus):toEqual({ 1, 3 })
+	end)
+
+	it("rejects a bad decision with a reason code and leaves the seat open", function()
+		local session, t = toDecision("Focus")
+		local ok, reason = Session.submit(session, 1, session.step, { focus = "Nothing" }, t)
+		expect(ok):toBe(false)
+		expect(reason):toBe("BadFocus")
+		expect(session.seats[1].locked):toBe(false)
+		ok, reason = Session.submit(session, 1, session.step, { actions = {} }, t)
+		expect(reason):toBe("BadFocus")
+	end)
+
+	it("auto-submits the defaults when its timer runs out: no focus, the hedge", function()
+		local session, t = toDecision("Focus")
+		Session.update(session, t + C.TIMER_DECISION - 0.01)
+		expect(session.match.phase):toBe("Decision")
+		Session.update(session, t + C.TIMER_DECISION)
+		expect(session.reveal):toBe("Debate")
+		expect(session.match.debates[#session.match.debates].focus):toEqual({ 0, 0 })
+
+		session, t = toDecision("Stance")
+		expect(session.deadline):toBe(t + C.TIMER_DECISION)
+		Session.update(session, t + C.TIMER_DECISION)
+		expect(session.match.phase):toBe("Plan")
+		expect(session.stage):toBe("Input")
+		expect(session.match.players[1].stance):toBe("C")
+		expect(session.match.players[2].stance):toBe("C")
+		expect(session.deadline):toBe(t + C.TIMER_DECISION + C.TIMER_PLAN)
+	end)
+
+	it("a bot seat decides by itself", function()
+		local session = practice()
+		local t = 0
+		for _ = 1, 400 do
+			if session.match.phase == "Decision" and session.stage == "Input" then
+				break
+			end
+			if session.stage == "Input" then
+				lockAll(session, t)
+			else
+				t = Session.nextWake(session)
+				Session.update(session, t)
+			end
+		end
+		expect(session.match.phase):toBe("Decision")
+		expect(session.seats[2].locked):toBe(true)
+		expect(session.seats[2].input ~= nil):toBe(true)
+	end)
+end)
+
 describe("Session: disconnects", function()
 	-- Advances a two-human session to its first Plan stage.
 	local function toPlan(): (Session.Session, number)

@@ -15,6 +15,7 @@ local SCREENS: { [string]: { mount: (Frame, Types.Ctx) -> Types.Screen } } = {
 	Lobby = require(script.Parent.Screens.Lobby),
 	Select = require(script.Parent.Screens.Select),
 	Draft = require(script.Parent.Screens.Draft),
+	Decision = require(script.Parent.Screens.Decision),
 	Campaign = require(script.Parent.Screens.Campaign),
 	Election = require(script.Parent.Screens.Election),
 	Results = require(script.Parent.Screens.Results),
@@ -22,7 +23,7 @@ local SCREENS: { [string]: { mount: (Frame, Types.Ctx) -> Types.Screen } } = {
 
 local Router = {}
 
-export type Name = "Lobby" | "Select" | "Draft" | "Campaign" | "Election" | "Results"
+export type Name = "Lobby" | "Select" | "Draft" | "Decision" | "Campaign" | "Election" | "Results"
 
 -- Which screen a state belongs on.
 function Router.pick(state: Types.State): Name
@@ -38,6 +39,8 @@ function Router.pick(state: Types.State): Name
 		return "Select"
 	elseif phase == "MapReveal" or phase == "Draft" or payload.reveal == "Draft" then
 		return "Draft"
+	elseif phase == "Decision" and payload.stage == "Input" then
+		return "Decision" -- debate focus or a stance, on its own before the plan (D-044)
 	elseif phase == "Election" and payload.stage == "Show" then
 		return "Election"
 	end

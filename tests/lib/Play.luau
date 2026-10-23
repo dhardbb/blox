@@ -49,6 +49,9 @@ export type Record = {
 	noiseSpread: number, -- sd of player 1's EV from election noise alone
 	debateTopicsWon: { number },
 	debateTopicsPlayed: number,
+	focusWon: number, -- debate topics won by a player who focused on them (D-044)
+	focusPlayed: number, -- focuses taken (players x debates)
+	sameFocus: number, -- debates where both players focused on the same topic
 	match: State.MatchState,
 }
 
@@ -108,7 +111,8 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 			for p = 1, 2 do
 				local view = View.build(config, match, p)
 				local input = Bot.act(config, view, rngs[p], candidates[p], styleOf[p])
-				local ok = Match.validate(config, match, p, input)
+				-- nil: the bot sends nothing (NoFocus), so the default applies.
+				local ok = input == nil or Match.validate(config, match, p, input)
 				if not ok then
 					invalid += 1
 				end
@@ -195,12 +199,24 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	end
 
 	local topicsWon, topicsPlayed = { 0, 0 }, 0
+	local focusWon, focusPlayed, sameFocus = 0, 0, 0
 	for _, debate in match.debates do
 		for _, w in debate.winners do
 			topicsPlayed += 1
 			if w > 0 then
 				topicsWon[w] += 1
 			end
+		end
+		for p, t in debate.focus do
+			if t > 0 then
+				focusPlayed += 1
+				if debate.winners[t] == p then
+					focusWon += 1
+				end
+			end
+		end
+		if debate.focus[1] > 0 and debate.focus[1] == debate.focus[2] then
+			sameFocus += 1
 		end
 	end
 
@@ -237,6 +253,9 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		noiseSpread = spread,
 		debateTopicsWon = topicsWon,
 		debateTopicsPlayed = topicsPlayed,
+		focusWon = focusWon,
+		focusPlayed = focusPlayed,
+		sameFocus = sameFocus,
 		match = match,
 	}
 end

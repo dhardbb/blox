@@ -14,10 +14,11 @@
 --
 -- This week's event (View.event) enters the same estimates: a Spotlight issue
 -- and a Regional rally are worth their multiplier, a Windfall fundraiser in a
--- trailing state its bonus, each within EVENT_CAP per state. A Choice event's
--- stance is the one whose public per-state effects (Events.stanceEffects) are
--- worth the most expected EV on this bot's map (Bot.choose, D-039); debate prep
--- goes where a topic win moves the states this bot needs (Bot.prep, D-040). A
+-- trailing state its bonus, each within EVENT_CAP per state. In a Decision phase
+-- (D-044) a Choice event's stance is the one whose public per-state effects
+-- (Events.stanceEffects) are worth the most expected EV on this bot's map
+-- (Bot.choose, D-039); the debate focus goes on the topic whose states cover
+-- the most EV this bot needs (Bot.focus, D-040, D-044). A
 -- candidate who previews next week's event (View.nextEvent) ends the route in a
 -- coming Regional's region.
 --
@@ -25,7 +26,6 @@
 
 local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
-local Debate = require("./Debate")
 local Draft = require("./Draft")
 local Events = require("./Events")
 local Issues = require("./Issues")
@@ -49,6 +49,8 @@ export type Style =
 	| "NeverPoll" -- never buys internal polls
 	| "Sandbag" -- stops investing in a state once it estimates a lead over +4
 	| "RandomStance" -- the standard bot, but takes a random stance on Choice events (the skill check for D-039)
+	| "RandomFocus" -- the standard bot, but focuses on a random debate topic (the skill check for D-044)
+	| "NoFocus" -- the standard bot, but never sends a debate focus (the timeout default: what the focus is worth, D-044)
 
 local Bot = {}
 
@@ -319,20 +321,12 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	local closing = Resolve.closingMult(config, week)
 	local actions: { any } = {}
 	local estimates = buildEstimates(config, view)
-	local prep = nil
-	if table.find(config.DEBATE_WEEKS, week + 1) then
-		prep = Bot.prep(config, view, estimates)
-	end
 
 	local event = view.event
-	local choice: Types.Choice? = nil
-	if event ~= nil and event.kind == "Choice" then
-		choice = Bot.choose(config, view, estimates, rng, style)
-	end
 	local spotlight: Types.Issue? = if event ~= nil and event.kind == "Spotlight" then event.issue else nil
 
 	if style == "Random" then
-		return Bot.randomPlan(config, view, rng, prep, choice)
+		return Bot.randomPlan(config, view, rng)
 	end
 
 	local underdogRally, underdogFund = 1, 1
@@ -623,7 +617,7 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 		end
 	end
 
-	return Bot.merge({ actions = actions, prep = prep, choice = choice })
+	return Bot.merge({ actions = actions })
 end
 
 -- Merges repeated single GOTV units in one state into one action.
@@ -640,7 +634,7 @@ function Bot.merge(plan: any): any
 			end
 		end
 	end
-	return { actions = out, prep = plan.prep, choice = plan.choice }
+	return { actions = out }
 end
 
 -- Expected EV a stance is worth to a candidate with `platform`: each state's
@@ -717,70 +711,53 @@ function Bot.topicValue(config: Config, estimates: { Estimate }, topic: Types.Is
 	return win, gaffe
 end
 
--- Debate prep: the split (at most DEBATE_MAX_PER_TOPIC on a topic) with the most
--- expected EV, from the odds of winning each topic (Debate.odds) against an
--- opponent assumed to spread their prep evenly, the topic's value on this map,
--- and the gaffe a zero risks. Every split is tried: the roll makes returns
--- convex near a big deficit, so a greedy point-by-point split can miss the best one.
-function Bot.prep(config: Config, view: View, estimates: { Estimate }?): { number }?
-	local topics = view.nextDebate and view.nextDebate.topics
-	if topics == nil then
-		return nil
-	end
-	local me, them = view.you, opponentOf(view)
-	local profile, theirProfile = profileOf(config, view, me), profileOf(config, view, them)
-	local mine: { Types.Issue } = view.players[me].platform or {}
-	local theirs: { Types.Issue } = view.players[them].platform or {}
-	local es = estimates or buildEstimates(config, view)
-	local fixed: { number } = {} -- my fixed score minus their expected one, per topic
-	local values: { number } = {}
-	local gaffes: { number } = {}
-	local theirEven = theirProfile.debatePrep / #topics
-	for t = 1, #topics do
-		local topic: Types.Issue = topics[t]
-		fixed[t] = (if table.find(mine, topic) then config.DEBATE_PLATFORM_BONUS else 0)
-			- (if table.find(theirs, topic) then config.DEBATE_PLATFORM_BONUS else 0)
-			+ profile.debateStat
-			- theirProfile.debateStat
-			- theirEven
-		values[t], gaffes[t] = Bot.topicValue(config, es, topic)
-	end
-	local function expected(t: number, points: number): number
-		local win, _, lose = Debate.odds(config, fixed[t] + points)
-		return win * values[t] - (if points == 0 then lose * gaffes[t] else 0)
-	end
-	local best: { number } = Plan.defaultPrep(config, profile.debatePrep)
-	local bestTotal = -math.huge
-	local split = table.create(#topics, 0)
-	local function search(t: number, left: number, total: number)
-		if t > #topics then
-			if left == 0 and total > bestTotal then
-				best, bestTotal = table.clone(split), total
-			end
-			return
-		end
-		local most = math.min(left, config.DEBATE_MAX_PER_TOPIC)
-		local least = if t == #topics
-			then left
-			else math.max(0, left - (#topics - t) * config.DEBATE_MAX_PER_TOPIC)
-		for points = most, least, -1 do
-			split[t] = points
-			search(t + 1, left - points, total + expected(t, points))
-		end
-		split[t] = 0
-	end
-	search(1, profile.debatePrep, 0)
-	return best
-end
-
--- Random legal actions: the floor every real strategy must beat.
-function Bot.randomPlan(
+-- The debate focus (D-044): the topic whose states cover the most EV this bot
+-- needs, i.e. the most expected EV a topic win is worth on its map
+-- (Bot.topicValue); ties go to the first topic. Random and RandomFocus pick
+-- uniformly.
+function Bot.focus(
 	config: Config,
 	view: View,
 	rng: Rng.Rng,
-	prep: { number }?,
-	choice: Types.Choice?
-): any
+	estimates: { Estimate }?,
+	style: Style?
+): Types.Issue?
+	local topics = view.nextDebate and view.nextDebate.topics
+	if topics == nil or #topics == 0 then
+		return nil
+	end
+	if style == "Random" or style == "RandomFocus" then
+		return topics[Rng.nextInt(rng, 1, #topics)]
+	end
+	local es = estimates or buildEstimates(config, view)
+	local best: Types.Issue, bestValue = topics[1], -math.huge
+	for k = 1, #topics do
+		local topic: Types.Issue = topics[k]
+		local value = Bot.topicValue(config, es, topic)
+		if value > bestValue then
+			best, bestValue = topic, value
+		end
+	end
+	return best
+end
+
+-- A Decision phase (D-044): the debate focus right before the debate, or this
+-- week's stance. Every style decides the same way except Random (both uniform),
+-- RandomFocus (Bot.focus) and RandomStance (Bot.choose); NoFocus sends nothing
+-- for the focus, so the server's default (no focus) applies.
+function Bot.decide(config: Config, view: View, rng: Rng.Rng, style: Style?): any
+	if view.decision == "Focus" and style == "NoFocus" then
+		return nil
+	end
+	local estimates = buildEstimates(config, view)
+	if view.decision == "Focus" then
+		return { focus = Bot.focus(config, view, rng, estimates, style) }
+	end
+	return { choice = Bot.choose(config, view, estimates, rng, style) }
+end
+
+-- Random legal actions: the floor every real strategy must beat.
+function Bot.randomPlan(config: Config, view: View, rng: Rng.Rng): any
 	local me = view.you
 	local profile = profileOf(config, view, me)
 	local player = view.players[me]
@@ -808,7 +785,7 @@ function Bot.randomPlan(
 		table.insert(actions, { kind = "Media", state = record.id, issue = issue })
 		cash -= profile.mediaCost
 	end
-	return { actions = actions, prep = prep, choice = choice }
+	return { actions = actions }
 end
 
 -- One call for any phase that wants input (the harness and practice mode use this).
@@ -817,6 +794,8 @@ function Bot.act(config: Config, view: View, rng: Rng.Rng, candidate: string, st
 		return Bot.select(config, view, rng, candidate, style)
 	elseif view.phase == "Draft" then
 		return Bot.draft(config, view, rng, style)
+	elseif view.phase == "Decision" then
+		return Bot.decide(config, view, rng, style)
 	elseif view.phase == "Plan" then
 		return Bot.plan(config, view, rng, style)
 	end

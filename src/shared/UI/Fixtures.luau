@@ -17,10 +17,11 @@ export type Moment =
 	| "MapReveal" -- leans shown
 	| "Draft" -- a draft round in progress, some picks made
 	| "Plan" -- week 3 plan, with history behind it
-	| "ChoiceWeek" -- a plan whose week has a Choice event (stances A / B / C)
+	| "Stance" -- the Decision screen in a Choice week: stances A / B / C (D-044)
+	| "ChoiceWeek" -- the plan that follows a stance (the stance taken in one line)
 	| "Resolve" -- the resolve animation after week 3
 	| "ChoiceResolve" -- the resolve animation right after a Choice week (both stances revealed)
-	| "DebatePrep" -- the week before a debate (prep due)
+	| "Focus" -- the Decision screen before the week 9 debate: pick a focus topic (D-044)
 	| "Debate" -- the debate sequence
 	| "Election" -- election night
 	| "Over" -- the result
@@ -32,10 +33,11 @@ Fixtures.MOMENTS = table.freeze({
 	"MapReveal",
 	"Draft",
 	"Plan",
+	"Stance",
 	"ChoiceWeek",
 	"Resolve",
 	"ChoiceResolve",
-	"DebatePrep",
+	"Focus",
 	"Debate",
 	"Election",
 	"Over",
@@ -52,6 +54,8 @@ local function reached(session: Session.Session, moment: Moment): boolean
 		return phase == "Draft" and session.match.draftRound == 3 and stage == "Input"
 	elseif moment == "Plan" then
 		return phase == "Plan" and session.match.week == 3 and stage == "Input"
+	elseif moment == "Stance" then
+		return phase == "Decision" and session.match.decision == "Stance" and stage == "Input"
 	elseif moment == "ChoiceWeek" then
 		return phase == "Plan" and stage == "Input" and Events.isChoiceWeek(session.match)
 	elseif moment == "Resolve" then
@@ -63,8 +67,11 @@ local function reached(session: Session.Session, moment: Moment): boolean
 			and last ~= nil
 			and last.choices ~= nil
 			and last.week == session.match.week - 1
-	elseif moment == "DebatePrep" then
-		return phase == "Plan" and session.match.week == 8 and stage == "Input"
+	elseif moment == "Focus" then
+		return phase == "Decision"
+			and session.match.decision == "Focus"
+			and session.match.week == 9
+			and stage == "Input"
 	elseif moment == "Debate" then
 		return session.reveal == "Debate"
 	elseif moment == "Election" then
@@ -104,8 +111,8 @@ local function play(config: Config, moment: Moment, s: number, candidate: string
 end
 
 -- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
--- as candidate `candidate` (default Dana Okafor) against Rex Calloway. ChoiceWeek
--- and ChoiceResolve try the next seeds in turn until one deals a Choice event
+-- as candidate `candidate` (default Dana Okafor) against Rex Calloway. Stance,
+-- ChoiceWeek and ChoiceResolve try the next seeds in turn until one deals a Choice event
 -- into a plan week (weeks 2 to 11), so the result is still fixed by the seed given.
 function Fixtures.payload(
 	config: Config,
@@ -114,7 +121,7 @@ function Fixtures.payload(
 	candidate: string?
 ): Session.StatePayload
 	local first = seed or 18 -- 7 -> 18 with the 24-card deck (D-039): weeks 3 and 8 are still Windfalls
-	local tries = if moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
+	local tries = if moment == "Stance" or moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
 	for k = 0, tries - 1 do
 		local payload = play(config, moment, first + k, candidate)
 		if payload then

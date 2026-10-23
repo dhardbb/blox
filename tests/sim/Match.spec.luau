@@ -15,7 +15,8 @@ local function playOut(seed: number): { string }
 	local match = Match.new(C, seed, { "a", "b" })
 	local trail = {}
 	while match.phase ~= "Done" do
-		table.insert(trail, `{match.phase}:{match.week}:{match.draftRound}`)
+		local tag = if match.decision then `:{match.decision}` else ""
+		table.insert(trail, `{match.phase}:{match.week}:{match.draftRound}{tag}`)
 		match = Match.advance(C, match, {})
 		Fixtures.checkSupport(match)
 	end
@@ -23,25 +24,32 @@ local function playOut(seed: number): { string }
 end
 
 describe("Match", function()
-	it("walks Select, MapReveal, 8 draft rounds, 12 weeks with debates, election", function()
+	it("walks Select, MapReveal, 8 draft rounds, 12 weeks with decisions and debates, election", function()
 		local trail = playOut(11)
 		expect(trail[1]):toBe("Select:0:0")
 		expect(trail[2]):toBe("MapReveal:0:0")
 		for round = 0, 7 do
 			expect(trail[3 + round]):toBe(`Draft:0:{round}`)
 		end
-		local weeks, debates = 0, {}
-		for _, step in trail do
+		local weeks, debates, stances = 0, {}, 0
+		for k, step in trail do
 			if string.sub(step, 1, 5) == "Plan:" then
 				weeks += 1
 			elseif string.sub(step, 1, 7) == "Debate:" then
 				table.insert(debates, step)
+				-- Prep is decided right before the debate it feeds (D-044).
+				expect(trail[k - 1]):toBe(`Decision:{string.match(step, "^Debate:(%d+)")}:7:Focus`)
+			elseif string.match(step, ":Stance$") then
+				stances += 1
+				local week = string.match(step, "^Decision:(%d+)")
+				expect(trail[k + 1]):toBe(`Plan:{week}:7`)
 			end
 		end
 		expect(weeks):toBe(C.WEEKS)
 		expect(debates):toEqual({ "Debate:4:7", "Debate:9:7" })
+		expect(stances > 0):toBe(true)
 		expect(trail[#trail]):toBe("Election:13:7")
-		expect(#trail):toBe(2 + 8 + 12 + 2 + 1)
+		expect(#trail):toBe(2 + 8 + 12 + 2 * 2 + stances + 1)
 	end)
 
 	it("is deterministic: same seed and inputs give the same match", function()

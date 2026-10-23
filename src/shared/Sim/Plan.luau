@@ -6,9 +6,12 @@
 --
 -- Rallies and fundraisers form the candidate's route: each stop must be the current
 -- state or adjacent to the previous stop, otherwise it is a flight (FLIGHT_COST, no AP).
+--
+-- The debate focus and Choice stances are not part of a plan: they have their own
+-- Decision phase before it (Sim/Decision, D-044). A plan that carries `focus` or
+-- `choice` is rejected (UnexpectedFocus, UnexpectedChoice).
 
 local ConfigModule = require("./Config")
-local Events = require("./Events")
 local Issues = require("./Issues")
 local State = require("./State")
 local StateData = require("./StateData")
@@ -32,8 +35,6 @@ export type Action = {
 
 export type Plan = {
 	actions: { Action },
-	prep: { number }?, -- debate prep, only in the week before a debate
-	choice: Types.Choice?, -- stance on a Choice event: only in a Choice week, where it defaults to the hedge (Events.defaultChoice)
 }
 
 export type Cost = {
@@ -61,8 +62,9 @@ Plan.Reason = table.freeze({
 	BadPivot = "BadPivot",
 	NotEnoughAP = "NotEnoughAP",
 	NotEnoughMoney = "NotEnoughMoney",
-	BadPrep = "BadPrep",
-	UnexpectedPrep = "UnexpectedPrep",
+	-- Decision phase codes (Sim/Decision), and a plan that carries a focus or a stance.
+	BadFocus = "BadFocus",
+	UnexpectedFocus = "UnexpectedFocus",
 	BadChoice = "BadChoice",
 	UnexpectedChoice = "UnexpectedChoice",
 })
@@ -87,21 +89,6 @@ end
 
 local function isInteger(value: any): boolean
 	return type(value) == "number" and value == math.floor(value) and value == value
-end
-
--- True if the plan for this week must (or may) carry debate prep.
-function Plan.wantsPrep(config: Config, match: MatchState): boolean
-	return table.find(config.DEBATE_WEEKS, match.week + 1) ~= nil
-end
-
--- The default prep: points spread as evenly as possible (2/2/2 for six points).
-function Plan.defaultPrep(config: Config, points: number): { number }
-	local prep = table.create(config.DEBATE_TOPICS, 0)
-	for k = 0, points - 1 do
-		local topic = k % config.DEBATE_TOPICS + 1
-		prep[topic] += 1
-	end
-	return prep
 end
 
 -- Is moving from `from` to `to` free (same state or a land border)?
@@ -220,35 +207,6 @@ local function normalizeAction(match: MatchState, p: number, raw: any): (Action?
 	return action, nil
 end
 
-local function validatePrep(config: Config, match: MatchState, p: number, raw: any): ({ number }?, string?)
-	if type(raw) ~= "table" then
-		return nil, R.BadPrep
-	end
-	local count = 0
-	for key in raw do
-		if type(key) ~= "number" then
-			return nil, R.BadPrep
-		end
-		count += 1
-	end
-	if count ~= config.DEBATE_TOPICS or #raw ~= count then
-		return nil, R.BadPrep
-	end
-	local prep, total = {}, 0
-	for k = 1, count do
-		local value = raw[k]
-		if not isInteger(value) or value < 0 or value > config.DEBATE_MAX_PER_TOPIC then
-			return nil, R.BadPrep
-		end
-		prep[k] = value
-		total += value
-	end
-	if total ~= match.players[p].profile.debatePrep then
-		return nil, R.BadPrep
-	end
-	return prep, nil
-end
-
 -- Validates player p's plan for the current week. Returns (true, nil, plan) with a
 -- normalized plan, or (false, reason, nil).
 function Plan.validate(config: Config, match: MatchState, p: number, input: any): (boolean, string?, Plan?)
@@ -257,6 +215,12 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 	end
 	if type(input) ~= "table" or type(input.actions) ~= "table" then
 		return false, R.BadShape, nil
+	end
+	if input.focus ~= nil then
+		return false, R.UnexpectedFocus, nil
+	end
+	if input.choice ~= nil then
+		return false, R.UnexpectedChoice, nil
 	end
 	local raw = input.actions
 	local count = 0
@@ -305,30 +269,7 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 		table.insert(actions, action)
 	end
 
-	local plan: Plan = { actions = actions, prep = nil, choice = nil }
-	if input.prep ~= nil then
-		if not Plan.wantsPrep(config, match) then
-			return false, R.UnexpectedPrep, nil
-		end
-		local prep, reason = validatePrep(config, match, p, input.prep)
-		if prep == nil then
-			return false, reason, nil
-		end
-		plan.prep = prep
-	end
-	local choiceWeek = Events.isChoiceWeek(match)
-	if input.choice ~= nil then
-		if not choiceWeek then
-			return false, R.UnexpectedChoice, nil
-		end
-		if not Events.isChoice(input.choice) then
-			return false, R.BadChoice, nil
-		end
-		plan.choice = input.choice :: Types.Choice
-	elseif choiceWeek then
-		plan.choice = Events.defaultChoice()
-	end
-
+	local plan: Plan = { actions = actions }
 	local cost = Plan.cost(config, match, p, plan)
 	if cost.ap > player.profile.apPerWeek then
 		return false, R.NotEnoughAP, nil
@@ -340,13 +281,9 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 end
 
 -- The plan submitted for a player who does not lock in: nothing (money banks, AP is
--- lost), with default debate prep where one is due and the hedge in a Choice week.
-function Plan.empty(config: Config, match: MatchState, p: number): Plan
-	local prep = if Plan.wantsPrep(config, match)
-		then Plan.defaultPrep(config, match.players[p].profile.debatePrep)
-		else nil
-	local choice: Types.Choice? = if Events.isChoiceWeek(match) then Events.defaultChoice() else nil
-	return { actions = {}, prep = prep, choice = choice }
+-- lost).
+function Plan.empty(): Plan
+	return { actions = {} }
 end
 
 return table.freeze(Plan)

@@ -5,11 +5,12 @@
 -- it, the action bar with Lock in. The same screen plays the resolve reveal and
 -- the debate reveal.
 --
--- Side column, top to bottom: the reveal panel (during reveals), the event card
--- (first in Choice weeks), the state card, the event card (other weeks), debate
--- prep (the week before a debate), the plan list, the week card. The parts live
--- in Screens/CampaignParts; this file owns the model, the layout, the map, the
--- action bar, and the routing between moments.
+-- Side column, top to bottom: the reveal panel (during reveals), the state
+-- card, the event card, the plan list, the week card. The debate focus and a
+-- Choice stance are not here: they have their own Decision screen before the
+-- plan (Screens/Decision, D-044); the event card repeats the stance you took in
+-- one line. The parts live in Screens/CampaignParts; this file owns the model,
+-- the layout, the map, the action bar, and the routing between moments.
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net.
 -- The plan is previewed with Shared/UI/PlanDraft, which mirrors the server's
@@ -23,8 +24,6 @@ local MapLayout = require(Shared.UI.MapLayout)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local Session = require(Shared.Net.Session)
-local SharedTypes = require(Shared.Types)
-local Swing = require(Shared.UI.Swing)
 local ViewModule = require(Shared.Sim.View)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
@@ -36,7 +35,6 @@ local Messages = require(script.Parent.Common.Messages)
 local Model = require(script.Parent.CampaignParts.Model)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local PlanList = require(script.Parent.CampaignParts.PlanList)
-local Prep = require(script.Parent.CampaignParts.Prep)
 local Reveal = require(script.Parent.CampaignParts.Reveal)
 local StateCard = require(script.Parent.CampaignParts.StateCard)
 local SwingMarks = require(script.Parent.CampaignParts.SwingMarks)
@@ -58,8 +56,6 @@ local BACK_SECONDS = 4 -- how long "Opponent: back" shows after a reconnect
 -- LayoutOrder of each side-column panel.
 local ORDER = {
 	reveal = 0,
-	choiceEvent = 1, -- the event card in a Choice week: the answer comes first
-	prep = 2, -- only shown when prep is due; above the tall state card so it is seen (B2)
 	card = 3,
 	event = 4,
 	plan = 5,
@@ -85,7 +81,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		skipStep = nil,
 		sortMode = "Closest",
 		portrait = false,
+		choice = nil,
+		focus = nil,
 		peekChoice = nil,
+		peekFocus = nil,
 		stanceMap = false,
 		revealSwing = nil,
 		messages = {},
@@ -210,7 +209,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	local eventCard = EventCard.new(side, model)
 	local card = StateCard.new(side, model, ORDER.card)
-	local prep = Prep.new(side, model, ORDER.prep)
 	local planList = PlanList.new(side, model, ORDER.plan)
 	local weekCard = EventCard.week(side, model, ORDER.week)
 
@@ -292,13 +290,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				}
 			end
 		end
-		-- A reveal shows what moved; a Choice week previews the stance (D-042).
+		-- A reveal shows what moved (D-042).
 		local swing = model.revealSwing
-		local stance: SharedTypes.Choice? = if live then Model.previewStance(model, live) else nil
 		if swing then
 			marks = SwingMarks.reveal(view, swing.net, swing.flips, marks)
-		elseif stance then
-			marks = SwingMarks.preview(view, Swing.stance(config, view, stance), marks)
 		end
 		map:setMarks(marks :: any)
 	end
@@ -351,15 +346,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local cost = PlanDraft.cost(config, view, model.draft)
 		local profile = PlanDraft.profile(config, view)
 		local _, cash = PlanDraft.remaining(config, view, model.draft)
-		local text = `AP {cost.ap}/{profile.apPerWeek} · {Model.money(cash)} left · {Model.plural(
+		return `AP {cost.ap}/{profile.apPerWeek} · {Model.money(cash)} left · {Model.plural(
 			cost.flights,
 			"flight"
 		)}`
-		local prepText = prep:summary()
-		if prepText then
-			text ..= ` · {prepText}`
-		end
-		return text
 	end
 
 	-- Why the plan can't lock in. Money problems say what the plan costs and what
@@ -425,11 +415,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		caption.TextColor3 = Kit.colors.muted
-		local stance = Model.previewStance(model, p)
-		if stance then
-			caption.Text =
-				`Map: stance {stance} · badge = support for you · red = a loss · FLIP = poll leader changes`
-		elseif Model.planning(p) and Model.isLocked(model, p) then
+		if Model.planning(p) and Model.isLocked(model, p) then
 			caption.Text = "Locked in · waiting for opponent"
 		elseif Model.planning(p) then
 			caption.Text = "Tap a state to see its polls and plan actions there"
@@ -452,19 +438,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		reveal:render(p)
 		card:render(p)
-		local choosing = Model.planning(p) and PlanDraft.isChoiceWeek(view)
-		eventCard:render(p, if choosing then ORDER.choiceEvent else ORDER.event)
-		-- The open event card in a Choice week turns the map into the stance preview.
-		model.stanceMap = choosing and eventCard:showsStances()
-		if not model.stanceMap then
-			model.peekChoice = nil
-		end
+		eventCard:render(p, ORDER.event)
 		if p.reveal == nil or p.reveal == "Debate" then
 			paintMapFor(view, view)
 			map:select(model.selected)
 		end
 		paintRoute(p)
-		prep:render(p)
 		planList:render(p)
 		weekCard:render(p)
 		renderBar(p, now)
@@ -485,17 +464,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.pivotStage = nil
 		model.pivotDrop = nil
 		local view = p.view
-		if Model.prepWanted(view) then
-			local points = PlanDraft.profile(config, view).debatePrep
-			local saved = view.debatePrep
-			if saved and #saved == config.DEBATE_TOPICS then
-				model.draft.prep = table.clone(saved)
-			else
-				model.draft.prep = Plan.defaultPrep(config, points)
-			end
-		end
-		-- The hedge (C) is what the server assumes for a missing stance, so it starts selected.
-		model.draft.choice = if PlanDraft.isChoiceWeek(view) then "C" else nil
 		if model.selected == nil then
 			model.selected = view.players[view.you].location
 		end

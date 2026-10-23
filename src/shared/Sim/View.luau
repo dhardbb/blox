@@ -4,11 +4,12 @@
 --
 -- Never included: true support or undecided, poll error terms, pool levels, the
 -- seed or RNG state, opponents' exact cash, GOTV units, backlash, internal polls,
--- fundraiser yields, or debate prep before the debate resolves, anyone's
+-- fundraiser yields, anyone's
 -- candidate or platform before the Select phase ends, the event deck beyond the
 -- current week (next week's event only for a candidate whose perk previews it,
--- D-035), or anyone's Choice stance before the week resolves (stances live only
--- in the submitted plans until then). tests/sim/View.spec enforces it.
+-- D-035), or anyone's debate focus or Choice stance but your own before the debate
+-- or the week resolves (they are taken in the Decision phase, D-044, and live in
+-- the hidden player state until then). tests/sim/View.spec enforces it.
 
 local ConfigModule = require("./Config")
 local Debate = require("./Debate")
@@ -78,6 +79,7 @@ export type EventView = {
 export type View = {
 	you: number,
 	phase: State.Phase,
+	decision: State.DecisionKind?, -- during a Decision phase: "Focus" or "Stance" (D-044)
 	week: number,
 	draftRound: number,
 	draftKind: Draft.Kind?, -- during the draft
@@ -89,12 +91,13 @@ export type View = {
 	draftLog: { State.DraftPick },
 	nextDebate: { week: number, topics: { Types.Issue } }?,
 	debates: { State.DebateResult },
-	event: EventView?, -- this week's event, during its Debate and Plan phases
+	event: EventView?, -- this week's event, during its Decision, Debate and Plan phases
 	nextEvent: EventView?, -- next week's event, only for a candidate with eventPreview (D-035)
 	eventLog: { State.EventResult }, -- resolved events, Choice answers revealed
 	internalPolls: { State.InternalPoll }, -- yours, from last week's plan
 	raised: number, -- what your fundraisers raised last week
-	debatePrep: { number }?, -- your prep for the next debate
+	debateFocus: Types.Issue?, -- your focus topic for this week's debate, from its Decision until the debate resolves
+	stance: Types.Choice?, -- your stance on this week's Choice event, from its Decision until the week resolves
 	election: State.ElectionResult?, -- from election night on
 }
 
@@ -201,7 +204,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 	end
 	local event: EventView? = nil
 	local nextEvent: EventView? = nil
-	if match.phase == "Plan" or match.phase == "Debate" then
+	if match.phase == "Decision" or match.phase == "Plan" or match.phase == "Debate" then
 		event = eventView(match.week)
 		-- The Pollster's briefing (D-035): a candidate with eventPreview sees that many
 		-- weeks ahead. Nothing else about the deck leaves the server.
@@ -214,6 +217,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 	return {
 		you = you,
 		phase = match.phase,
+		decision = if match.phase == "Decision" then match.decision else nil,
 		week = match.week,
 		draftRound = match.draftRound,
 		draftKind = if drafting then Draft.kind(config, match.draftRound) else nil,
@@ -230,7 +234,8 @@ function View.build(config: Config, match: MatchState, you: number): View
 		eventLog = copy(match.eventLog),
 		internalPolls = copy(me.internalPolls),
 		raised = me.raised,
-		debatePrep = copy(me.debatePrep),
+		debateFocus = me.debateFocus,
+		stance = me.stance,
 		election = if match.phase == "Election" or match.phase == "Done" then copy(match.election) else nil,
 	}
 end

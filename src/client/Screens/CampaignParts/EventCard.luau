@@ -5,17 +5,17 @@
 -- effect line always under it (so collapsed it is still two lines), and the
 -- flavor text and the map note in its body. Expanded by default in Choice,
 -- Spotlight and Regional weeks, collapsed otherwise; the player's own toggle
--- holds for the rest of the week. Hidden during every reveal (B1). In Choice
--- weeks it moves above the state card.
+-- holds for the rest of the week. Hidden during every reveal (B1).
 --
--- Choice weeks (D-039, D-042): "States you need" (Shared/UI/Swing, from the
--- public poll), the three stances as full-width chips ("A · Side with the
+-- Choice weeks (D-039, D-042, D-044): the stance is taken on the Decision
+-- screen, which shows this card alone: "States you need" (Shared/UI/Swing, from
+-- the public poll), the three stances as full-width chips ("A · Side with the
 -- staff", "C · Offer to mediate (hedge, default)"; the selection is an accent
 -- outline), the one-line summary of the stance on the map, and under "Every
 -- state, stance by stance" the full lists for nerds (Explain.choiceLines).
--- While the card is open the map previews the selected stance; holding a chip
--- previews that one without selecting it. Collapsing the card gives the
--- normal map back.
+-- While the chips show, the map previews the selected stance; holding a chip
+-- previews that one without selecting it. On the plan screen that follows, the
+-- card says the stance you took in one line (ChoiceTaken).
 --
 -- The week card, a Collapsible: last week's public moves by the opponent, their
 -- money bracket, either side's underdog tier and what it gives, last week's
@@ -30,7 +30,7 @@
 --
 -- Element names: EventCard (attributes EventKind, EventName), EventToggle,
 -- EventEffect, EventText, EventMapNote, ChoiceNeed, ChoiceRow, ChoiceA, ChoiceB,
--- ChoiceC, ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3; WeekCard,
+-- ChoiceC, ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3, ChoiceTaken; WeekCard,
 -- WeekToggle, FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog,
 -- FeedEvent, FeedRaised, FeedPolls, FeedLastDebate, FeedDebate, FeedMessages.
 
@@ -102,6 +102,16 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		Parent = card.root,
 	})
 	local flavor = Kit.caption("", { Name = "EventText", LayoutOrder = 1, Parent = card.body })
+	-- On the plan screen after the Decision step: the stance you took, in one line.
+	local taken = Kit.text("", {
+		Name = "ChoiceTaken",
+		LayoutOrder = 5,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Font = Kit.font.medium,
+		Visible = false,
+		Parent = card.root,
+	})
 	local mapNote = Kit.caption("", { Name = "EventMapNote", LayoutOrder = 2, Parent = card.body })
 	local need = Kit.caption("", {
 		Name = "ChoiceNeed",
@@ -130,7 +140,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			if button.Active == false then
 				return
 			end
-			model.draft.choice = answer
+			model.choice = answer
 			model.peekChoice = nil
 			model.render()
 		end, {
@@ -221,14 +231,26 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			local note = PlanDraft.eventMapNote(event)
 			mapNote.Text = note or ""
 			mapNote.Visible = note ~= nil
-			local choosing = event.kind == "Choice" and Model.planning(p)
+			local choosing = event.kind == "Choice" and Model.deciding(p) == "Stance"
 			answerRow.Visible = choosing
 			choiceNote.Visible = choosing
 			need.Visible = choosing
 			summary.Visible = choosing
-			local isChoice = event.kind == "Choice"
+			local isChoice = choosing
 			payHead.Visible = isChoice
 			local view = p.view
+			local mine: SharedTypes.Choice? = view.stance
+			taken.Visible = event.kind == "Choice" and not choosing and mine ~= nil
+			if mine ~= nil then
+				local name = ""
+				local stances: { ViewModule.StanceView } = event.stances or {}
+				for _, entry in stances do
+					if entry.id == mine then
+						name = ` · {entry.name}`
+					end
+				end
+				taken.Text = `Your stance: {mine}{name}. Secret until the week resolves.`
+			end
 			local me = view.players[view.you]
 			for k, line in Explain.choiceLines(config, event, me.platform, Events.baseOf(me)) do
 				local label = payLines[k]
@@ -256,12 +278,10 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 				end
 			end
 			for answer, button in choiceButtons do
-				Kit.setSelected(button, model.draft.choice == answer)
+				Kit.setSelected(button, model.choice == answer)
 				Kit.setEnabled(button, canEdit)
 			end
-			local shownStance: SharedTypes.Choice = model.peekChoice
-				or model.draft.choice
-				or Events.defaultChoice()
+			local shownStance: SharedTypes.Choice = model.peekChoice or model.choice or Events.defaultChoice()
 			summary.Text = Swing.stanceSummary(config, view, Swing.stance(config, view, shownStance))
 		end,
 	}

@@ -40,7 +40,12 @@ local function rivalOf(view: View): number
 	return if view.you == 1 then 2 else 1
 end
 
-function SwingMarks.preview(view: View, preview: Swing.Preview, keep: Marks): Marks
+-- A stance (Swing.Preview) or a debate focus (Swing.Focus): both carry effects and flips.
+function SwingMarks.preview(
+	view: View,
+	preview: { effects: { [string]: number }, flips: { Swing.Flip } },
+	keep: Marks
+): Marks
 	local mine = Kit.playerColor(view, view.you)
 	local marks: Marks = {}
 	for _, s in view.states do

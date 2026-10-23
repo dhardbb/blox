@@ -96,6 +96,7 @@ local raisedEarly, raisedLate = 0, 0 -- weeks 1-3 and 10-12, both players
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
 local gotvDecided, debateDecided, debateShiftEV, projectionWrong = 0, 0, 0, 0
 local stanceDecided, stanceShiftEV, choiceWeeks, sameStance = 0, 0, 0, 0
+local focusWon, focusPlayed, sameFocus, debatesPlayed = 0, 0, 0, 0
 local stanceTaken: { [string]: number } = {}
 local tossupDraft, tossupElection, spread = 0, 0, 0
 local leaned, flipped = 0, 0
@@ -154,6 +155,10 @@ for seed = 1, N do
 		stanceDecided += 1
 	end
 	stanceShiftEV += r.stanceShiftEV
+	focusWon += r.focusWon
+	focusPlayed += r.focusPlayed
+	sameFocus += r.sameFocus
+	debatesPlayed += #r.match.debates
 	choiceWeeks += r.choiceWeeks
 	sameStance += r.sameStance
 	for id, count in r.stances do
@@ -314,6 +319,12 @@ for _, id in ids do
 	local rate = topicWins[id] / math.max(1, topicGames[id])
 	line(`Debate topic win rate: {id}`, pct(rate))
 end
+-- The focus (D-044). Informational: an uncontested focus wins its topic 81% of
+-- the time (Config.spec pins the odds), but two bots that need the same states
+-- focus on the same topic nearly always, and then the focuses cancel.
+local focusRate = focusWon / math.max(1, focusPlayed)
+line("Focused topic won by its focuser", pct(focusRate))
+line("Both focused on the same topic", pct(sameFocus / math.max(1, debatesPlayed)))
 
 -- Choice stances (D-039): the same counterfactual recount with the stances'
 -- shifts subtracted, plus how often the bot takes each slot. Informational: two
@@ -365,6 +376,14 @@ line("Sandbag win rate", pct(sandbag), "<= 50%", sandbag <= 0.5)
 -- bot that reads the map, measurably.
 local randomStance = versus("RandomStance", sideN * 2)
 line("RandomStance win rate", pct(randomStance), "<= 45%", randomStance <= 0.45)
+-- The same for the debate focus (D-044): the topic that covers the EV you need beats a random one.
+-- Informational: two bots that need the same states focus on the same topic
+-- nearly every time, and the focuses cancel, so a random pick does about as
+-- well (D-044). The NoFocus check below is what shows the focus is worth taking.
+local randomFocus = versus("RandomFocus", sideN * 2)
+line("RandomFocus win rate", pct(randomFocus))
+local noFocus = versus("NoFocus", sideN * 2)
+line("NoFocus win rate (the timeout default)", pct(noFocus), "<= 45%", noFocus <= 0.45)
 
 print("")
 print(string.format("Total time %.1fs", os.clock() - started))

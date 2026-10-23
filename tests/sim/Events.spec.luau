@@ -8,6 +8,7 @@ local Fixtures = require("@testlib/Fixtures")
 local Play = require("@testlib/Play")
 local Bot = require("@sim/Bot")
 local Config = require("@sim/Config")
+local Decision = require("@sim/Decision")
 local Election = require("@sim/Election")
 local Events = require("@sim/Events")
 local Issues = require("@sim/Issues")
@@ -57,6 +58,14 @@ local function clean(id: string?): State.MatchState
 	return match
 end
 
+-- A copy of `match` in its week's Stance decision (D-044).
+local function deciding(match: State.MatchState): State.MatchState
+	local copy = State.clone(match)
+	copy.phase = "Decision"
+	copy.decision = "Stance"
+	return copy
+end
+
 -- The same match with this week's event removed.
 local function without(match: State.MatchState): State.MatchState
 	local copy = State.clone(match)
@@ -64,10 +73,17 @@ local function without(match: State.MatchState): State.MatchState
 	return copy
 end
 
+-- Validates each plan. A `choice` in a test input is the stance taken in the
+-- week's Decision phase (D-044): it is set on the player, as Decision.apply does.
 local function normalize(config: Config.Config, match: State.MatchState, inputs: { any }): { Plan.Plan }
 	local plans = {}
 	for p = 1, 2 do
-		local ok, reason, plan = Plan.validate(config, match, p, inputs[p] or { actions = {} })
+		local input = inputs[p] or { actions = {} }
+		if input.choice ~= nil then
+			match.players[p].stance = input.choice
+			input = { actions = input.actions }
+		end
+		local ok, reason, plan = Plan.validate(config, match, p, input)
 		assert(ok and plan, `plan {p} rejected: {reason}`)
 		plans[p] = plan
 	end
@@ -213,12 +229,13 @@ describe("Events: the deck", function()
 		end
 	end)
 
-	it("only the current week's event is public, during its Debate and Plan", function()
+	it("only the current week's event is public, during its Decision, Debate and Plan", function()
 		local match = Match.new(C, 3, { "a", "b" })
 		while match.phase ~= "Done" do
 			local view = View.build(C, match, 1)
 			local id = match.eventDeck[match.week]
-			if (match.phase == "Plan" or match.phase == "Debate") and id then
+			local weekly = match.phase == "Decision" or match.phase == "Plan" or match.phase == "Debate"
+			if weekly and id then
 				expect(view.event and view.event.id):toBe(id)
 				expect(view.event and view.event.week):toBe(match.week)
 			else
@@ -775,11 +792,13 @@ describe("Events: Choice stances (D-039)", function()
 			match.players[1].strongholds = {}
 			match.players[2].home = nil
 			match.players[2].strongholds = {}
-			local ok, _, plan = Plan.validate(C, match, 1, { actions = {} })
-			expect(ok):toBe(true)
-			expect((plan :: Plan.Plan).choice):toBe("C")
-			expect(Plan.empty(C, match, 2).choice):toBe("C")
-			local after = Match.advance(C, match, {})
+			-- Nothing sent in the Decision phase: the hedge.
+			local decided = Match.advance(C, deciding(match), {})
+			expect(decided.phase):toBe("Plan")
+			expect(decided.players[1].stance):toBe("C")
+			expect(decided.players[2].stance):toBe("C")
+			expect(Decision.default(C, deciding(match), 2).choice):toBe("C")
+			local after = Match.advance(C, decided, {})
 			expect(after.eventLog[#after.eventLog].choices):toEqual({ "C", "C" })
 			local moves = after.eventLog[#after.eventLog].moves :: { State.StateMove }
 			-- Health is on both platforms here, so the cost is heard x1.5.
@@ -790,30 +809,30 @@ describe("Events: Choice stances (D-039)", function()
 	)
 
 	it("rejects an invalid stance with a reason code, whole", function()
-		local match = clean("calendar")
+		local match = deciding(clean("calendar"))
 		for _, bad in { "Attack", "Ignore", "a", "", 3, true, { "A" } } do
-			local ok, reason, plan =
-				Plan.validate(C, match, 1, { actions = rallies("OH", "Jobs", 1), choice = bad })
+			local ok, reason, input = Decision.validate(C, match, 1, { choice = bad })
 			expect(ok):toBe(false)
 			expect(reason):toBe(Plan.Reason.BadChoice)
-			expect(plan):toBe(nil)
+			expect(input):toBe(nil)
 		end
 		for _, id in Events.CHOICES do
-			local ok, _, plan = Plan.validate(C, match, 1, { actions = {}, choice = id })
+			local ok, _, input = Decision.validate(C, match, 1, { choice = id })
 			expect(ok):toBe(true)
-			expect((plan :: Plan.Plan).choice):toBe(id)
+			expect((input :: Decision.Input).choice):toBe(id)
 		end
 	end)
 
-	it("a stance is only allowed in a Choice week", function()
+	it("a stance is only asked for in a Choice week, and never in a plan", function()
 		for _, id in { "expo", "lakes", "donors" } do
 			local match = clean(id)
+			expect(Decision.opening(C, match, 2)):toBe(nil)
 			local ok, reason = Plan.validate(C, match, 1, { actions = {}, choice = "A" })
 			expect(ok):toBe(false)
 			expect(reason):toBe(Plan.Reason.UnexpectedChoice)
-			expect(Plan.empty(C, match, 1).choice):toBe(nil)
 		end
-		local ok, reason = Plan.validate(C, clean(nil), 1, { actions = {}, choice = "C" })
+		expect(Decision.opening(C, clean("calendar"), 2)):toBe("Stance")
+		local ok, reason = Plan.validate(C, clean("calendar"), 1, { actions = {}, choice = "C" })
 		expect(ok):toBe(false)
 		expect(reason):toBe(Plan.Reason.UnexpectedChoice)
 	end)

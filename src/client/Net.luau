@@ -29,10 +29,10 @@ local REASONS: { [string]: string } = {
 	DuplicatePoll = "You already poll that state this week.",
 	PivotUsed = "You can only pivot once per match.",
 	BadPivot = "That pivot isn't allowed.",
-	BadPrep = "Debate prep must use all your points, at most 4 per topic.",
-	UnexpectedPrep = "There is no debate to prepare for this week.",
+	BadFocus = "Pick one of this debate's topics to focus on.",
+	UnexpectedFocus = "The debate focus is picked on its own screen, not in the plan.",
 	BadChoice = "That isn't a valid answer to this week's event.",
-	UnexpectedChoice = "This week's event has no question to answer.",
+	UnexpectedChoice = "The stance is picked on its own screen, not in the plan.",
 	-- Session (Session.Reason)
 	StaleStep = "Too late: that step is over.",
 	NotInput = "This part of the match isn't taking input right now.",

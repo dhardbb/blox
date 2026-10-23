@@ -313,18 +313,19 @@ describe("Explain: debates, Choice events, election night", function()
 		check(win2 > win, "an edge helps")
 	end)
 
-	it("splits a debate score into prep, platform, stat and roll", function()
+	it("splits a debate score into focus, platform, stat and roll (D-044)", function()
 		local view = ohio()
 		local me, them = view.you, if view.you == 1 then 2 else 1
 		local prep = { {}, {} } :: { { number } }
 		local scores = { {}, {} } :: { { number } }
-		prep[me], prep[them] = { 2, 2, 2 }, { 4, 1, 1 }
-		-- Jobs is on your platform: 2 prep + 2 platform + 1 stat + roll 3.
-		scores[me] = { 2 + C.DEBATE_PLATFORM_BONUS + C.DEBATE_STAT + 3, 0, 0 }
-		scores[them] = { 4 + C.DEBATE_STAT + 5, 0, 0 }
+		prep[me], prep[them] = { C.DEBATE_FOCUS, 0, 0 }, { 0, C.DEBATE_FOCUS, 0 }
+		-- Jobs is on your platform and your focus: focus + 2 platform + 1 stat + roll 3.
+		scores[me] = { C.DEBATE_FOCUS + C.DEBATE_PLATFORM_BONUS + C.DEBATE_STAT + 3, 0, 0 }
+		scores[them] = { C.DEBATE_STAT + 5 - C.DEBATE_ROLL_MAX + 1, 0, 0 }
 		local result = {
 			week = 4,
 			topics = { "Jobs", "Safety", "Farms" },
+			focus = { 1, 2 },
 			prep = prep,
 			scores = scores,
 			winners = {},
@@ -332,27 +333,15 @@ describe("Explain: debates, Choice events, election night", function()
 		}
 		local mine = Explain.debateParts(C, view, result :: any, me, 1)
 		expect(mine.roll):toBe(3)
+		expect(mine.prep):toBe(C.DEBATE_FOCUS)
 		expect(mine.platform):toBe(C.DEBATE_PLATFORM_BONUS)
 		local theirs = Explain.debateParts(C, view, result :: any, them, 1)
-		expect(theirs.roll):toBe(5)
+		expect(theirs.prep):toBe(0)
 		expect(theirs.platform):toBe(0)
 		local line = Explain.debateLine(C, view, result :: any, 1)
-		has(line, "you 2 prep")
+		has(line, `you {C.DEBATE_FOCUS} focus + {C.DEBATE_PLATFORM_BONUS} platform`)
 		has(line, "roll 3")
-		has(line, "them 4 prep")
-	end)
-
-	it("states a prep topic's known score", function()
-		local view = ohio()
-		local line = Explain.prepLine(C, view, "Jobs", 3)
-		has(
-			line,
-			`You: 3 prep + {C.DEBATE_PLATFORM_BONUS} platform + {C.DEBATE_STAT} stat = {3 + C.DEBATE_PLATFORM_BONUS + C.DEBATE_STAT}`
-		)
-		has(line, `roll 0 to {C.DEBATE_ROLL_MAX}`)
-		has(line, `their hidden prep ({Candidates.profile(C, "calloway").debatePrep} points in all)`)
-		local theirs = Explain.prepLine(C, view, "Safety", 0)
-		has(theirs, `them: {C.DEBATE_PLATFORM_BONUS} platform`)
+		has(line, `them {C.DEBATE_STAT} stat + roll`)
 	end)
 
 	it("shows every stance of a Choice event and the states it moves (D-039, D-043)", function()

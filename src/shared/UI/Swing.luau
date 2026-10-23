@@ -16,6 +16,7 @@
 --   Swing.margin(view, id) -> number?                  you minus best rival, public poll
 --   Swing.inPlay(view) -> { InPlay }                   states within CLOSE, biggest EV first
 --   Swing.needText(config, view) -> string             the "States you need" line
+--   Swing.focus(config, view, topic) -> Focus          one debate topic for the focus screen (D-044)
 --   Swing.stance(config, view, id) -> Preview          one stance on the map, your side only
 --   Swing.stanceSummary(config, view, preview) -> string
 --   Swing.flipPhrase(view, flip) -> string             "PA flipped to you (+19 EV)"
@@ -64,6 +65,27 @@ export type Preview = {
 	needed: { string }, -- gains that are in play
 	leadsHurt: { string }, -- losses in states you lead in the public poll
 	flips: { Flip }, -- leader changes on today's polls from your stance alone
+}
+
+-- One debate topic as the focus screen shows it (D-044): the states that care
+-- about it, the ones you need, and what a focus does to your odds there.
+export type Focus = {
+	topic: Types.Issue,
+	states: { string }, -- the topic's states, biggest EV first
+	ev: number, -- their EV in all
+	need: { InPlay }, -- those within CLOSE in the public poll, biggest EV first
+	needEV: number,
+	mine: number, -- your fixed score with the focus here: focus + platform + stat
+	theirs: number, -- their fixed score without a focus here: platform + stat
+	edge: number, -- your focus edge (Hale's is bigger)
+	win: number, -- chance to win the topic with your focus here, if theirs is elsewhere
+	winBoth: number, -- ... if they focus here too
+	effects: { [string]: number }, -- what a win gives you, per state (the map preview)
+	flips: { Flip }, -- leader changes a win would make on today's polls
+	head: string, -- "Jobs (your platform) · 11 states, 142 EV"
+	needLine: string, -- "You need 4 of them (61 EV): trail OH by 2 · lead PA by 3."
+	oddsLine: string, -- "Focus here: 4 vs their 2, plus a roll 0 to 3 each. You win 81% (38% if ...)"
+	winLine: string, -- "A win: +1.0 in each; could flip PA (+19 EV)"
 }
 
 export type Topic = {
@@ -206,6 +228,126 @@ function Swing.needText(config: Config, view: View): string
 		return `{head}: none right now.{tail}`
 	end
 	return `{head}: {table.concat(parts, " · ")}.{tail}`
+end
+
+-- ---------------------------------------------------------------- debate focus
+
+function Swing.focus(config: Config, view: View, topic: Types.Issue): Focus
+	local me, rival = view.you, rivalOf(view)
+	local states = byEv(Debate.topicStates(topic))
+	local set: { [string]: boolean } = {}
+	local ev = 0
+	for _, id in states do
+		set[id] = true
+		ev += evOf(id)
+	end
+	local need: { InPlay } = {}
+	local needEV = 0
+	for _, entry in Swing.inPlay(view) do
+		if set[entry.state] then
+			table.insert(need, entry)
+			needEV += entry.ev
+		end
+	end
+	local function bonus(p: number): number
+		local platform: { Types.Issue } = view.players[p].platform or {}
+		return if table.find(platform, topic) then config.DEBATE_PLATFORM_BONUS else 0
+	end
+	local mineProfile = Explain.profileOf(config, view, me)
+	local theirProfile = Explain.profileOf(config, view, rival)
+	local edge = mineProfile.focusEdge
+	local mine = edge + bonus(me) + mineProfile.debateStat
+	local theirs = bonus(rival) + theirProfile.debateStat
+	local win = Explain.debateOdds(config, mine - theirs)
+	local winBoth = Explain.debateOdds(config, mine - theirs - theirProfile.focusEdge)
+
+	local tags: { string } = {}
+	if bonus(me) > 0 then
+		table.insert(tags, "your platform")
+	end
+	if bonus(rival) > 0 then
+		table.insert(tags, "their platform")
+	end
+	local head = issueName(topic)
+		.. (if #tags > 0 then ` ({table.concat(tags, ", ")})` else "")
+		.. ` · {plural(#states, "state")}, {ev} EV`
+	local needLine: string
+	if #need == 0 then
+		needLine = `You need none of them right now (none within {Swing.CLOSE} points).`
+	else
+		local trail: { string } = {}
+		local lead: { string } = {}
+		local tied: { string } = {}
+		for _, entry in need do
+			local by = math.abs(entry.margin)
+			if entry.margin > 0 then
+				table.insert(lead, `{entry.state} by {by}`)
+			elseif entry.margin < 0 then
+				table.insert(trail, `{entry.state} by {by}`)
+			else
+				table.insert(tied, entry.state)
+			end
+		end
+		local parts: { string } = {}
+		if #trail > 0 then
+			table.insert(parts, `trail {list(trail)}`)
+		end
+		if #lead > 0 then
+			table.insert(parts, `lead {list(lead)}`)
+		end
+		if #tied > 0 then
+			table.insert(parts, `tied {list(tied)}`)
+		end
+		needLine = `You need {#need} of them ({needEV} EV): {table.concat(parts, " · ")}.`
+	end
+	local function pct(x: number): string
+		return `{math.floor(x * 100 + 0.5)}%`
+	end
+	local effects: { [string]: number } = {}
+	local moves: { SimState.StateMove } = {}
+	for _, id in states do
+		effects[id] = config.DEBATE_TOPIC_WIN
+		local row = table.create(#view.players, 0)
+		row[me] = config.DEBATE_TOPIC_WIN
+		table.insert(moves, { state = id, points = row })
+	end
+	local flips = Swing.flips(Polls.projectFlips({ states = view.states } :: any, moves))
+	local flipText: { string } = {}
+	for _, flip in flips do
+		if flip.to == me then
+			table.insert(flipText, `flip {flip.state} (+{flip.ev} EV)`)
+		elseif flip.to == 0 then
+			table.insert(flipText, `pull level in {flip.state}`)
+		end
+	end
+	local winLine = `A win: {Numbers.signed(config.DEBATE_TOPIC_WIN)} in each`
+		.. (
+			if #flipText > 0
+				then `; could {table.concat(flipText, ", ")}.`
+				else "; no poll leader would change."
+		)
+	local oddsLine =
+		`Focus here: {mine} vs their {theirs}, plus a roll 0 to {config.DEBATE_ROLL_MAX} each. You win {pct(
+			win
+		)} ({pct(winBoth)} if they focus here too).`
+	return {
+		topic = topic,
+		states = states,
+		ev = ev,
+		need = need,
+		needEV = needEV,
+		mine = mine,
+		theirs = theirs,
+		edge = edge,
+		win = win,
+		winBoth = winBoth,
+		effects = effects,
+		flips = flips,
+		head = head,
+		needLine = needLine,
+		oddsLine = oddsLine,
+		winLine = winLine,
+	}
 end
 
 -- ---------------------------------------------------------------- flips
