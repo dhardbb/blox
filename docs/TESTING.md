@@ -621,7 +621,7 @@ In Studio, a Practice match on the Mac, then the same on the iPad. Turn the volu
 
 **Send back:** screenshots from 1 and 9, which sounds you heard in 10, and anything that felt slow or got in the way of a tap.
 
-**Icon images (needed later, WP-3).** Twelve Lucide icons, exported 256x256, white on transparent: `megaphone`, `coins`, `tv`, `zap`, `search`, `footprints`, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles`, `plane`. Upload in Creator Hub (Create → Development items → Images), name each after its Lucide name, and send back the 12 image ids by name. Until then every icon shows a glyph.
+**Icon images.** Twelve Lucide icons, 256x256, white on transparent, are in `assets/icons/` (see "Polish: setup, help, settings and icons" below for the upload).
 
 ## Polish WP-1: board and map (unreleased, D-053)
 
@@ -663,3 +663,22 @@ In Studio, a Practice match (Autoplay off) on the Mac, then the same on the iPad
 12. **Sounds on a non-owner account** in the published game: whoosh, the landing pop, the flip stinger, the debate hit, the call ding, victory and defeat. Tell us any that are silent, harsh or too loud.
 
 **Send back:** a screenshot of step 1 and of step 8 on the iPad, whether the election felt too fast or too slow (and where), and which sounds in 12 you heard.
+
+## Polish: setup, help, settings and icons (unreleased, WP-3)
+
+Agents: `lune run tests Lobby`, `lune run tests Select`, `lune run tests Draft`, `lune run tests Help`, `lune run tests CoachTip`, `lune run tests Icons`, then `lune run tests/ui/snap.luau -- lobby`, `-- select`, `-- draft`, `-- help` (0 audit findings in every shot at all three sizes).
+
+**Icon upload (before step 7).** The lead uploads the twelve PNGs in `assets/icons/` with the Studio MCP `upload_image`; if that is not possible, upload them in Creator Hub (Create → Development items → Images), naming each after its file (`megaphone`, `coins`, `tv`, `zap`, `search`, `footprints`, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles`, `plane`), and send back the 12 image ids by name. `assets/icons/README.md` has the table to fill in; the ids go into `src/client/UI/Icons.luau`.
+
+In Studio, a Practice match on the Mac, then the Lobby, Select and Draft again on the iPad. Volume up.
+
+1. **Lobby arrival.** Open the game. **Expect:** the big "270" pops in, then the lines and buttons fade in top to bottom, quickly; you can press Play vs Bot straight away.
+2. **Settings chips.** Under How to play: **Sound** (outlined) and **Reduce motion**. Tap Sound. **Expect:** its outline goes, the icon turns grey (with a slash or the "off" speaker), and buttons go silent; the ♪ in any header shows muted too. Tap it again: a click, sound is back. Tap Reduce motion. **Expect:** it gets the outline and presses and pops stop (screens only fade). Tap it again.
+3. **Help settings.** In a match tap **?** → How to win. **Expect:** "Settings" with the same two chips at the top, in sync with the Lobby and the ♪ button. Then Actions and Polls: **expect** an icon beside each action name.
+4. **Select.** **Expect:** the eight candidate cards pop in one after another; tapping one pops it and outlines it with a click. After Next, the issue cards pop in the same way, and the issues tip appears with a soft pip. The candidate tip that greets you is silent.
+5. **Draft.** Tap a state in the list or on the map. **Expect:** it pops into the 1st slot, the state bumps on the map, and a soft pop plays; tapping it again takes it back with a lower sound. Tap a state you can't pick: **expect** the reason under the map shakes briefly, with a bonk. After the round, **expect** both "You got / Rex got" cards to pop in, each state rings in its player's color, and a whoosh.
+6. **Toasts.** In the Lobby, Play a friend → type `AB1` → Join. **Expect:** the message box at the top appears in place, shakes, and bonks; after a few seconds it fades out. A notice (not an error) slides down a little instead.
+7. **Icons.** Once the ids are filled in: the header ♪ button, the settings chips and the Help pictures show the drawn icons, never grey boxes, on the Mac and on the iPad.
+8. **Reduce motion** (Roblox Settings or the chip). Repeat 1, 4 and 5. **Expect:** no pops, shakes or rings; everything still ends in the same place and sounds still play.
+
+**Send back:** the 12 image ids by name (if you uploaded them), a screenshot of the Lobby and of **?** → How to win on the iPad, and anything that felt slow, noisy or got in the way of a tap.

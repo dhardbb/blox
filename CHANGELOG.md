@@ -29,6 +29,20 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - **Results.** A win pops "You won", counts both totals up, drops confetti in both colors and plays the victory stinger once; a loss fades in quietly with the defeat sound and adds one line under the reasons: "Try next time: …" (from the biggest reason the other player won). Once per match, never both.
 - Reduce motion: no bumps, rings, pops or confetti; every line and number still arrives.
 
+### Polish: setup, help, settings and icons (WP-3)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish: setup, help, settings and icons".
+
+- **Settings.** Two chips, **Sound** and **Reduce motion**, under How to play in the Lobby and at the top of **?** → How to win. A chip is outlined while its setting is on; both last for the session and follow the header's ♪ button. Roblox's own Reduce Motion setting still counts.
+- **Lobby.** The "270" is in Fredoka One and pops in; the lines below fade in top to bottom.
+- **Select.** Each step's cards pop in one after another; a card pops as you pick it.
+- **Draft.** A state you pick pops into its slot, bumps on the map and plays a soft pop (a lower one when you take it back); a refused state shakes the status line with a bonk. When picks are revealed both cards pop, each state rings in its taker's color, with a whoosh.
+- **Coach tips** pop in with a soft pip (the match's very first tip, on the candidate screen, stays quiet).
+- **Toasts** slide in and fade out; a rejection (a bad code, a refused plan) shakes in place with a bonk.
+- **Help pictures:** Actions and Polls show each action's icon beside its name.
+- **Icons.** The twelve Lucide icons are in `assets/icons/` as 256x256 white PNGs (sources in `assets/icons/src/`, license in `docs/CREDITS.md`). Until they are uploaded and their ids filled in, the game shows the glyphs.
+- **Needed from the humans (or the lead):** upload the 12 PNGs and send back the ids by file name (`assets/icons/README.md`).
+
 ### Polish foundation: motion, sound, type and depth (D-053)
 
 The base the polish packages build on. Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish foundation".

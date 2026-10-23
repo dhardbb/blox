@@ -3,7 +3,9 @@
 -- sheet with five short tabs, each a picture and at most 60 words, the exact
 -- numbers one tap away, the tab for the moment, the step's countdown, closed by
 -- its × or the scrim, never a primary action, and strictly clean (layout and
--- style rules) at phone, iPad and desktop sizes.
+-- style rules) at phone, iPad and desktop sizes. How to win starts with the
+-- Settings row (WP-3): its chips flip Audio.muted() and Motion.reduced() and
+-- follow the header's sound button; the action rows carry their icons.
 
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
@@ -126,6 +128,78 @@ describe("Help: How to play", function()
 		check(overlay(peer).Visible == true, "help did not open again")
 		Rig.tap(world, peer, OVERLAY, "Scrim")
 		check(overlay(peer).Visible == false, "a tap outside did not close help")
+		Rig.noErrors(world)
+	end)
+
+	it("starts How to win with Sound and Reduce motion chips that flip the settings", function()
+		local world, peer = open("Plan", nil)
+		Rig.tap(world, peer, OVERLAY, "HelpTab_win")
+		check(shown(peer, "HelpSettings"), "no Settings row")
+		local Audio = FakeRoblox.require(world, peer, "src/client/UI/Audio.luau")
+		local Motion = FakeRoblox.require(world, peer, "src/client/UI/Motion.luau")
+		local sound = Rig.need(peer, OVERLAY, "SoundChip")
+		local motion = Rig.need(peer, OVERLAY, "MotionChip")
+		expect(Audio.muted()):toBe(false)
+		expect(sound:GetAttribute("On")):toBe(true)
+		expect(sound:GetAttribute("Selected")):toBe(true)
+		expect(Motion.reduced()):toBe(false)
+		expect(motion:GetAttribute("On")):toBe(false)
+
+		Rig.tap(world, peer, OVERLAY, "SoundChip")
+		expect(Audio.muted()):toBe(true)
+		expect(sound:GetAttribute("On")):toBe(false)
+		Rig.tap(world, peer, OVERLAY, "SoundChip")
+		expect(Audio.muted()):toBe(false)
+		expect(sound:GetAttribute("On")):toBe(true)
+
+		Rig.tap(world, peer, OVERLAY, "MotionChip")
+		expect(Motion.reduced()):toBe(true)
+		expect(motion:GetAttribute("On")):toBe(true)
+		expect(motion:GetAttribute("Selected")):toBe(true)
+		Rig.tap(world, peer, OVERLAY, "MotionChip")
+		expect(Motion.reduced()):toBe(false)
+		expect(motion:GetAttribute("On")):toBe(false)
+		Rig.noErrors(world)
+	end)
+
+	it("follows the header's sound button", function()
+		local world, peer = open("Plan", nil)
+		Rig.tap(world, peer, OVERLAY, "HelpTab_win")
+		local chip = Rig.need(peer, OVERLAY, "SoundChip")
+		expect(chip:GetAttribute("On")):toBe(true)
+		Rig.tap(world, peer, OVERLAY, "HelpClose")
+		Rig.tap(world, peer, "Campaign", "SoundButton")
+		Rig.tap(world, peer, "Campaign", "HelpButton")
+		Rig.tap(world, peer, OVERLAY, "HelpTab_win")
+		expect(chip:GetAttribute("On")):toBe(false)
+		expect(chip:GetAttribute("Selected")):toBe(false)
+		local icon = chip:FindFirstChild("Content"):FindFirstChild("Icon")
+		expect(icon:GetAttribute("Icon")):toBe("volume-x")
+		Rig.noErrors(world)
+	end)
+
+	it("shows Reduce motion on when Roblox's setting is on", function()
+		local world, peer = Rig.fixture("Plan", nil, { reducedMotion = true })
+		Rig.tap(world, peer, "Campaign", "HelpButton")
+		Rig.tap(world, peer, OVERLAY, "HelpTab_win")
+		expect(Rig.need(peer, OVERLAY, "MotionChip"):GetAttribute("On")):toBe(true)
+		Rig.noErrors(world)
+	end)
+
+	it("draws each action's icon beside its name", function()
+		local world, peer = open("Plan", nil)
+		Rig.tap(world, peer, OVERLAY, "HelpTab_actions")
+		local art = Rig.need(peer, OVERLAY, "HelpArt_actions")
+		local icons = {}
+		for _, inst in art:GetDescendants() do
+			local name = inst:GetAttribute("Icon")
+			if name then
+				table.insert(icons, name)
+			end
+		end
+		expect(#icons):toBe(6)
+		check(table.find(icons, "megaphone") ~= nil, "no Rally icon")
+		check(table.find(icons, "footprints") ~= nil, "no Ground game icon")
 		Rig.noErrors(world)
 	end)
 

@@ -492,6 +492,11 @@ describe("Campaign board motion and sound", function()
 		Rig.toPlanInput(world, peer)
 		Rig.sabotageSubmits(world, peer, { actions = { { kind = "Zzz" } } })
 		Rig.tap(world, peer, "Campaign", "LockIn", 1)
+		-- Both the toast and the action bar react to the same rejection; the
+		-- cue's cooldown keeps it to one "error", not two.
+		local toast = FakeRoblox.find(peer, "ToastLayer"):FindFirstChild("Toast")
+		expect(toast:GetAttribute("Rejected")):toBe(true)
+		check(toast.Visible, "no rejection toast")
 		expect(count(Rig.sounds(peer), "error")):toBe(1)
 		Rig.noErrors(world)
 	end)

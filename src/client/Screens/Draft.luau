@@ -22,6 +22,12 @@
 --   ActionBar  pinned under the panel while picking: status (tone bad for an
 --              illegal tap, until the next tap), opponent, primary "Lock in".
 --
+-- Motion and sound (docs/UI-STYLE.md §2.7.1): a legal tap pops its slot,
+-- pulses the state and plays "planAdd" ("planRemove" when a tap takes a pick
+-- back); an illegal tap shakes the status line with "error". When a round's
+-- picks are revealed, both cards pop, each state rings in its taker's color,
+-- and "whoosh" plays. Nothing waits on an animation.
+--
 -- Stable names for tests and agents: LockIn (the primary), Choice1, Choice2,
 -- Clear1, Clear2, Row_<id>, the map nodes by id, Priority, RoundPill,
 -- StrongholdsCard (StrongholdsYou, StrongholdsThem), Explain (the header
@@ -39,6 +45,7 @@ local View = require(ReplicatedStorage.Shared.Sim.View)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local Audio = require(script.Parent.Parent.UI.Audio)
 local AutoLock = require(script.Parent.Common.AutoLock)
 local Board = require(script.Parent.DraftParts.Board)
 local CoachTip = require(script.Parent.Parent.UI.CoachTip)
@@ -50,6 +57,7 @@ local LensToggle = require(script.Parent.Parent.Map.LensToggle)
 local Logic = require(script.Parent.DraftParts.Logic)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local Messages = require(script.Parent.Common.Messages)
+local Motion = require(script.Parent.Parent.UI.Motion)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
 local StateList = require(script.Parent.DraftParts.StateList)
@@ -62,6 +70,8 @@ local MAP_SHARE = 0.65 -- of the width, wide screens
 local MAP_HEIGHT_SHARE = 0.66 -- of the map column, wide screens (the rest is Below)
 local MAP_SHARE_PORTRAIT = 0.34 -- of the height at most, phones (before the lens row)
 local LENS_H = LensToggle.HEIGHT + Kit.space.xs -- px, the lens row over the map
+local PICK_FROM = 0.92 -- scale a slot pops from when a state lands in it
+local REVEAL_FROM = 0.85 -- scale the reveal cards pop from
 
 -- Panel order (PanelScroll's list).
 local ORDER = {
@@ -111,6 +121,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local lastKind: Draft.Kind? = nil
 	local showAll = false -- the list shows every state
 	local tip: CoachTip.Tip? = nil
+	local revealedRound = 0 -- the last round whose reveal popped in
 
 	-- ------------------------------------------------------------ layout
 
@@ -432,6 +443,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if not Logic.legal(kind, sv) then
 			hint = Logic.reason(kind, sv)
 			refresh()
+			Motion.shake(bar.status)
+			Audio.play("error")
 			return
 		end
 		dismissTip()
@@ -439,6 +452,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		target = nil
 		hint = nil
 		refresh()
+		local slot = if choices.first == id then 1 elseif choices.second == id then 2 else nil
+		if slot then
+			Motion.pop(choiceButtons[slot], PICK_FROM)
+			map:pulse(id)
+			Audio.play("planAdd")
+		else
+			Audio.play("planRemove")
+		end
 	end
 
 	lockInPressed = function()
@@ -734,6 +755,28 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		map:setMarks(marks)
 		map:setLens(Lens.lines(Lens.current(), { config = config, view = view }))
 		map:select(if mode == "Input" then choices.first elseif mine then mine.state else nil)
+
+		-- A round's picks arriving: both cards pop, each state rings once.
+		if mode == "Reveal" and revealRound ~= nil and revealRound ~= revealedRound then
+			revealedRound = revealRound
+			Motion.stagger({ youCard, themCard }, function(card, _index, delay)
+				Motion.pop(card, REVEAL_FROM, delay)
+			end)
+			local landed: { Logic.Pick } = {}
+			if mine then
+				table.insert(landed, mine)
+			end
+			if theirs then
+				table.insert(landed, theirs)
+			end
+			for _, pick in landed do
+				local color = colors[pick.player]
+				if color then
+					map:ring(pick.state, color)
+				end
+			end
+			Audio.play("whoosh")
+		end
 
 		-- Legend, board and the list.
 		legend:update(view, rgb, opponent)
