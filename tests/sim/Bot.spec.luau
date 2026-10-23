@@ -74,7 +74,7 @@ describe("Bot", function()
 		end
 	end)
 
-	it("banks ground game from week 7, not only in the last weeks (D-021)", function()
+	it("banks ground game by weeks 7-8, not only in the last weeks (D-021, D-044)", function()
 		-- Both players' GOTV spend is recorded as plans are submitted, so a unit placed
 		-- in week 7 or 8 shows up as spend before week 9 in at least one of these games.
 		local early = 0
@@ -96,6 +96,51 @@ describe("Bot", function()
 		end
 		expect(early > 0):toBe(true)
 	end)
+	it("scouts close states for their ground game and counts what it sees (D-044)", function()
+		-- Week 8, Okafor (no free polls) against Hale, three close states, the rest decided.
+		local function board(theirCash: number): State.MatchState
+			local match = Fixtures.advanceTo(
+				Fixtures.campaign({ seed = 9, candidates = { "okafor", "hale" } }),
+				"Plan",
+				8
+			)
+			for _, s in match.states do
+				local close = s.id == "OH" or s.id == "PA" or s.id == "WI"
+				s.poll = if close
+					then { support = { 40, 40 }, undecided = 20 }
+					else { support = { 60, 25 }, undecided = 15 }
+			end
+			match.players[1].cash = 30
+			match.players[2].cash = theirCash
+			return match
+		end
+		local function polls(match: State.MatchState): { string }
+			local out = {}
+			for _, action in Bot.plan(C, View.build(C, match, 1), Rng.new(1), "Balanced").actions do
+				if action.kind == "Poll" then
+					table.insert(out, action.state)
+				elseif action.kind == "RegionPoll" then
+					table.insert(out, action.region)
+				end
+			end
+			return out
+		end
+		local scouted = polls(board(20))
+		expect(#scouted):toBe(1)
+		expect(scouted[1] == "OH" or scouted[1] == "PA" or scouted[1] == "WI"):toBe(true)
+		expect(#polls(board(1))):toBe(0) -- their cash shows Low: no paid scouting
+
+		-- What a poll saw counts against the bot's margin there, and only there.
+		local match = board(20)
+		local before = Bot.estimates(C, View.build(C, match, 1))
+		match.players[1].scouted = { { state = "OH", week = 7, gotv = { 0, 3 } } }
+		local after = Bot.estimates(C, View.build(C, match, 1))
+		local oh, pa = State.indexOf.OH, State.indexOf.PA
+		expect(after[oh].margin):toBeCloseTo(before[oh].margin - 3 * C.GOTV_PER_UNIT, 1e-9)
+		expect(after[oh].theirGotv):toBe(3)
+		expect(after[pa].margin):toBe(before[pa].margin)
+	end)
+
 	-- Counts what the bot plans over several boards, with week `week`'s event set to
 	-- `id` (nil = none), using `count(action, view)` on each action.
 	local function tally(id: string?, count: (action: any, view: View.View) -> number): number

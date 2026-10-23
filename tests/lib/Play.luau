@@ -32,6 +32,8 @@ export type Record = {
 	underdogWeeks: number, -- player-weeks with an underdog tier on
 	underdogWrong: number, -- ... where that player was truly ahead by 20+ EV
 	gotvSpend: { number },
+	pollSpend: { number }, -- money each player paid for internal polls (free ones excluded)
+	scoutedGotv: { number }, -- states where the player's own polls last saw opponent ground game (D-044)
 	gotvDecided: boolean, -- the winner changes if GOTV is removed
 	debateDecided: boolean, -- the winner changes if the debates' support shifts are removed
 	debateShiftEV: number, -- |EV swing| the debates' shifts account for in the final count
@@ -99,6 +101,7 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	local projectionWrong = false
 	local projectedLeader = 0
 	local gotvSpend = { 0, 0 }
+	local pollSpend = { 0, 0 }
 	local raised = { 0, 0 }
 	local raisedByWeek = table.create(config.WEEKS, 0)
 
@@ -113,9 +116,18 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 					invalid += 1
 				end
 				if ok and match.phase == "Plan" then
+					local free = match.players[p].profile.freePolls
 					for _, action in input.actions do
 						if action.kind == "Gotv" then
 							gotvSpend[p] += action.units * match.players[p].profile.gotvCost
+						elseif action.kind == "Poll" then
+							if free > 0 then
+								free -= 1
+							else
+								pollSpend[p] += config.INTERNAL_POLL_COST
+							end
+						elseif action.kind == "RegionPoll" then
+							pollSpend[p] += config.REGION_POLL_COST
 						end
 					end
 				end
@@ -194,6 +206,15 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		end
 	end
 
+	local scoutedGotv = { 0, 0 }
+	for p, player in match.players do
+		for _, scout in player.scouted do
+			if (scout.gotv[3 - p] or 0) > 0 then
+				scoutedGotv[p] += 1
+			end
+		end
+	end
+
 	local topicsWon, topicsPlayed = { 0, 0 }, 0
 	for _, debate in match.debates do
 		for _, w in debate.winners do
@@ -220,6 +241,8 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		underdogWeeks = underdogWeeks,
 		underdogWrong = underdogWrong,
 		gotvSpend = gotvSpend,
+		pollSpend = pollSpend,
+		scoutedGotv = scoutedGotv,
 		gotvDecided = noGotv.winner ~= result.winner,
 		debateDecided = noDebates.winner ~= result.winner,
 		debateShiftEV = math.abs((result.ev[1] - result.ev[2]) - (noDebates.ev[1] - noDebates.ev[2])) / 2,
