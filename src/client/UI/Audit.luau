@@ -16,8 +16,9 @@
 --   typeScale     a text size that is not one of the five Kit.size tokens (TextScaled
 --                 texts are judged by their MaxTextSize)
 --   contained     a visible object pokes more than 1 px outside the screen, outside its
---                 parent (when the parent has no list/grid layout and no AutomaticSize),
---                 or, under a ScrollingFrame, outside the frame's width (vertical
+--                 parent (when the parent has no list/grid layout and no AutomaticSize,
+--                 and the object has no attribute Overhang = true: a map badge on a
+--                 node's rim), or, under a ScrollingFrame, outside the frame's width (vertical
 --                 overflow is what scrolling is for). Rotated objects (map border and
 --                 route segments) are skipped: their AbsoluteSize is the unrotated box.
 --   primary       not exactly one visible button with attribute PrimaryAction (zero is
@@ -394,7 +395,8 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 				then outside(rect, rectOf(scroller), false)
 				else outside(rect, rootRect, true)
 			local parent = inst.Parent
-			if not escapes and parent and parent ~= root and parent:IsA("GuiObject") then
+			local overhangs = inst:GetAttribute("Overhang") == true
+			if not escapes and not overhangs and parent and parent ~= root and parent:IsA("GuiObject") then
 				local p = parent :: GuiObject
 				local laidOut = parent:FindFirstChildOfClass("UIListLayout") ~= nil
 					or parent:FindFirstChildOfClass("UIGridLayout") ~= nil

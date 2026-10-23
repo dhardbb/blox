@@ -156,6 +156,26 @@ describe("UI audit rules", function()
 			Parent = bar,
 		})
 		expectRules(t, { "contained" })
+		-- A marked overhang (a map badge on a node's rim) may leave its parent...
+		t = tree()
+		bar = t.Kit.new("Frame", {
+			Name = "Node",
+			Size = UDim2.fromOffset(28, 28),
+			Position = UDim2.fromOffset(100, 100),
+			Parent = t.root,
+		})
+		local badge = t.Kit.new("Frame", {
+			Name = "Badge",
+			Size = UDim2.fromOffset(16, 16),
+			AnchorPoint = FakeRoblox.types.Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(1, 0),
+			Parent = bar,
+		})
+		badge:SetAttribute("Overhang", true)
+		expectRules(t, {})
+		-- ...but never the screen.
+		bar.Position = UDim2.fromOffset(100, 0) -- the node fits; the badge pokes above the screen
+		expectRules(t, { "contained" })
 	end)
 
 	it("lets a scroll area overflow downwards but not sideways", function()

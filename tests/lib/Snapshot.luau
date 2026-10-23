@@ -14,7 +14,8 @@
 -- Drawn: BackgroundColor3/Transparency, UICorner, UIStroke (border, or text
 -- outline when Contextual on a text), text with color, size, font weight,
 -- X/Y alignment, wrapping, TextScaled (UITextSizeConstraint), TextTruncate,
--- TextStroke; images as labeled boxes. Text widths are estimated (Builder Sans,
+-- TextStroke; images as labeled boxes (a Kit.icon image as its glyph in a
+-- dashed box of its tint). Text widths are estimated (Builder Sans,
 -- Gotham and Fredoka One are drawn as Helvetica), so line breaks are close to Studio, not exact.
 --
 -- Snapshot.svg(peer, options?) -> string
@@ -22,6 +23,8 @@
 --                     the core UI inset (default 58; drawn as a dim strip)
 --   options.square    pad the picture to a square, content centered (qlmanage
 --                     only renders square thumbnails; snap.luau crops it back)
+
+local Icons = require("../../src/client/UI/Icons")
 
 local Snapshot = {}
 
@@ -656,7 +659,40 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number)
 			)
 		)
 	end
-	if c == "ImageLabel" or c == "ImageButton" or c == "ViewportFrame" then
+	local attributes = rawget(inst, "_attributes")
+	local iconName = if attributes then attributes.Icon else nil
+	local icon = if type(iconName) == "string" then Icons[iconName] else nil
+	if c == "ImageLabel" and icon then
+		-- A Kit.icon image: its glyph in its tint, in a dashed box of the same tint.
+		local alpha = 1 - (p.ImageTransparency or 0)
+		if alpha > 0.01 then
+			local tint = hex(p.ImageColor3, "#ffffff")
+			emit(
+				out,
+				string.format(
+					'<rect x="%s" y="%s" width="%s" height="%s" rx="2" fill="none" stroke="%s" stroke-opacity="%s" stroke-dasharray="2 2"/>',
+					num(ax + 0.5),
+					num(ay + 0.5),
+					num(w - 1),
+					num(h - 1),
+					tint,
+					num(alpha * 0.6)
+				)
+			)
+			emit(
+				out,
+				string.format(
+					'<text x="%s" y="%s" font-family="Helvetica" font-size="%s" font-weight="bold" fill="%s" fill-opacity="%s" text-anchor="middle">%s</text>',
+					num(ax + w / 2),
+					num(ay + h / 2 + h * 0.25),
+					num(h * 0.7),
+					tint,
+					num(alpha),
+					esc(icon.glyph)
+				)
+			)
+		end
+	elseif c == "ImageLabel" or c == "ImageButton" or c == "ViewportFrame" then
 		local alpha = 1 - (p.ImageTransparency or 0)
 		if alpha > 0.01 then
 			emit(

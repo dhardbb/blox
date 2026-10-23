@@ -326,14 +326,19 @@ local SHOTS: { Shot } = {
 	},
 	{ name = "23-results", moment = "Over", screen = "Results" },
 	{
-		-- The same match lost: no confetti, and a "Try next time" line.
+		-- The same match seen by the loser: no confetti, and a "Try next time" line.
 		name = "23a-results-loss",
 		moment = "Over",
 		screen = "Results",
 		steps = function(world, peer)
 			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
 			payload.matchId = "snap-loss"
-			payload.result = { winner = 3 - payload.you, reason = "Election" }
+			local winner = payload.you
+			payload.you = 3 - winner
+			if payload.view.you ~= nil then
+				payload.view.you = payload.you
+			end
+			payload.result = { winner = winner, reason = "Election" }
 			Rig.push(world, peer, payload)
 		end,
 	},

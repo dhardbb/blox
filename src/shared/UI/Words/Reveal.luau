@@ -606,10 +606,12 @@ local function reasonsFor(config: Config, view: View, winner: number, names: { s
 		end
 	end
 
-	-- Always something: the state count.
+	-- Always something: the state count (fewer states can still win on votes).
 	local lost = election.statesWon[loser] or 0
 	table.insert(reasons, {
-		text = `{who} carried {won} states to {lost}`,
+		text = if won >= lost
+			then `{who} carried {won} states to {lost}`
+			else `{who} won the bigger states ({won} to {lost})`,
 		weight = 1,
 		tip = "rally in states where the polls are close",
 	})

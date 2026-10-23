@@ -599,14 +599,18 @@ function NodeMap.new(): MapInterface.Map
 		end
 		local badge = Kit.new("Frame", {
 			Name = "PlanBadge",
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.fromScale(1, 0),
+			-- Centered near the top-right corner, so it sits on the ring and leaves
+			-- the state's letters readable on a phone's small circles (it may
+			-- overhang the node, never the screen: Audit's Overhang).
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.95, 0.05),
 			Size = UDim2.fromOffset(PLAN_BADGE_PX, PLAN_BADGE_PX),
 			BackgroundColor3 = Kit.colors.background,
 			BorderSizePixel = 0,
 			ZIndex = 7,
 			Parent = node.hit,
 		})
+		badge:SetAttribute("Overhang", true)
 		Kit.round().Parent = badge
 		local glyph = Kit.icon(icon, PLAN_BADGE_PX, Kit.colors.accent)
 		glyph.Size = UDim2.fromScale(1, 1)
