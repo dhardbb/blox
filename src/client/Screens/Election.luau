@@ -619,7 +619,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		spotLabel.TextColor3 = Kit.colors.muted
 		if count == tipping and latest.winner > 0 then
 			spotLabel.Text = `{shortNames[latest.winner]} reaches {need}!`
-			spotLabel.TextColor3 = Kit.colors.accent
+			spotLabel.TextColor3 = Kit.colors.text
 		end
 		spotState.Text = Words.stateLine(latest.state)
 		if latest.winner > 0 then
@@ -667,7 +667,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end)
 		for k = 0, 3 do
 			task.delay(k * FLASH_270, function()
-				marker.BackgroundColor3 = if k % 2 == 0 then Kit.colors.accent else Kit.colors.text
+				-- D-058: the accent is white like the marker, so it blinks dim and back.
+				marker.BackgroundColor3 = if k % 2 == 0 then Kit.colors.line else Kit.colors.text
 			end)
 		end
 	end

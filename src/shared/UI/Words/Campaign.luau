@@ -258,7 +258,7 @@ function Words.key(id: string): { string }
 		table.insert(lines, "Faded: your plan already empties that state's money.")
 	else
 		table.insert(lines, "The number is how many votes the state is worth.")
-		table.insert(lines, "Orange number: a battleground, where every action counts more.")
+		table.insert(lines, "★ and a white outline: a battleground, where every action counts more.")
 	end
 	table.insert(lines, "Tap a state to see it and act there.")
 	return lines

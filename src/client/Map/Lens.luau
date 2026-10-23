@@ -5,7 +5,7 @@
 -- state card. The fill by public-poll leader is the same in every lens; screens
 -- keep their event and stance badges (the Tags layer).
 --
---   EV      "Votes": the state's electoral votes; orange on a battleground
+--   EV      "Votes": the state's electoral votes; ★ and a white outline on a battleground
 --   Issues  the state's top issue as a short code: the first one on your
 --           platform (filled in your color), else its first top issue
 --   Polls   the public-poll lead ("+3") in the leader's color, "tie", or the
@@ -94,7 +94,7 @@ function Lens.legend(_config: ConfigModule.Config, id: Id): string
 	elseif id == "Money" then
 		return "What one more fundraiser raises"
 	end
-	return "Votes · orange = battleground"
+	return `Votes · {Kit.STAR} = battleground`
 end
 
 -- ---------------------------------------------------------------- helpers
@@ -142,13 +142,14 @@ end
 
 local function evLine(_ctx: Context, s: StateView): Line
 	local record = StateData.byId[s.id]
+	local votes = if record then tostring(record.ev) else "?"
 	return {
 		parts = {
 			{
-				text = if record then tostring(record.ev) else "?",
-				-- A battleground is good news: a white tag, not orange (D-056).
-				color = if s.battleground then Kit.colors.text else nil,
-				filled = if s.battleground then true else nil,
+				text = if s.battleground then Kit.STAR .. votes else votes,
+				-- A battleground is good news (D-056), marked with a star and a white
+				-- outline, never a white fill, which means "press here" (D-058).
+				outlined = if s.battleground then true else nil,
 			},
 		},
 	}

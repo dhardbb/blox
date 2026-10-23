@@ -184,7 +184,24 @@ local function paintLens(node: Node, line: MapInterface.LensLine?, roomy: boolea
 		part.Visible = true
 		part.Text = spec.text
 		part.TextColor3 = if spec.filled then Kit.colors.background else color
-		part.BackgroundColor3 = if spec.filled then color else Kit.colors.background
+		part.BackgroundColor3 = if spec.filled
+			then color
+			elseif spec.outlined then Kit.colors.field
+			else Kit.colors.background
+		-- The battleground mark's outline (D-058), made on first use.
+		local outline = part:FindFirstChild("Outline") :: UIStroke?
+		if spec.outlined and outline == nil then
+			outline = Kit.new("UIStroke", {
+				Name = "Outline",
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+				Color = Kit.colors.text,
+				Thickness = Kit.MARK_STROKE,
+				Parent = part,
+			})
+		end
+		if outline then
+			outline.Enabled = spec.outlined == true
+		end
 	end
 	for k = #parts + 1, #node.parts do
 		node.parts[k].Visible = false

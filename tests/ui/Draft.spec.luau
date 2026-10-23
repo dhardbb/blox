@@ -214,7 +214,8 @@ describe("Draft screen: fixtures", function()
 		local header = titleOf(peer)
 		expect(header):toBe("Round 2 of 3")
 		expect(textOf(peer, "Explain")):toBe("Battleground")
-		expect(textOf(peer, "RoundPill")):toBe("Battleground")
+		-- The battleground mark: a star and a white outline (D-058).
+		expect(textOf(peer, "RoundPill")):toBe("★ Battleground")
 		expect(textOf(peer, "NowText")):toBe("Pick a battleground")
 		-- The battleground rule is one tap away, in plain words (+50%, not ×1.5).
 		check(contains(textOf(peer, "RuleNominate"), "+50% more"), textOf(peer, "RuleNominate"))

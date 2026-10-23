@@ -127,26 +127,33 @@ end
 
 describe("Map lenses", function()
 	it(
-		"starts on Votes: each state shows its votes, a white tag on a battleground, tags keep only the event's *",
+		"starts on Votes: each state shows its votes, a starred outlined tag on a battleground, tags keep only the event's *",
 		function()
 			local world, peer = Rig.fixture("Plan")
 			local _, Kit = modules(world, peer)
 			local view = Fixtures.payload(C, "Plan").view
 			expect(selected(peer, "Campaign")):toEqual({ "EV" })
 			for _, s in view.states do
-				expect(pills(peer, "Campaign", s.id)):toEqual({ tostring(StateData.byId[s.id].ev) })
-				local color = pill(peer, "Campaign", s.id, 1).TextColor3
+				local votes = tostring(StateData.byId[s.id].ev)
+				local part = pill(peer, "Campaign", s.id, 1)
+				local color = part.TextColor3
+				local outline = part:FindFirstChild("Outline")
 				if s.battleground then
-					-- D-056: a battleground is good news, a white tag with a dark number.
+					-- D-058: a battleground is good news: a star and a white outline on
+					-- a field fill, never a white fill (that is the primary button).
+					expect(pills(peer, "Campaign", s.id)):toEqual({ Kit.STAR .. votes })
+					check(same(color, Kit.colors.text), `{s.id}: a battleground's number is not white`)
 					check(
-						same(color, Kit.colors.background),
-						`{s.id}: a battleground's number is not a white tag`
+						same(part.BackgroundColor3, Kit.colors.field),
+						`{s.id}: a battleground's tag is filled`
 					)
 					check(
-						same(pill(peer, "Campaign", s.id, 1).BackgroundColor3, Kit.colors.text),
-						`{s.id}: a battleground's tag is not white`
+						outline ~= nil and outline.Enabled and same(outline.Color, Kit.colors.text),
+						`{s.id}: a battleground's tag has no white outline`
 					)
 				else
+					expect(pills(peer, "Campaign", s.id)):toEqual({ votes })
+					check(outline == nil or not outline.Enabled, `{s.id}: a plain tag is outlined`)
 					check(same(color, Kit.colors.text), `{s.id}: the number is not the text color`)
 				end
 			end

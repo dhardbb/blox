@@ -188,7 +188,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local rowList = Kit.list("Horizontal", Kit.space.sm)
 	rowList.VerticalAlignment = Enum.VerticalAlignment.Center
 	rowList.Parent = priorityRow
-	local roundPill = Kit.pill("", "white", { Name = "RoundPill", LayoutOrder = 1, Parent = priorityRow })
+	local roundPill = Kit.pill("", "text", { Name = "RoundPill", LayoutOrder = 1, Parent = priorityRow })
 	local priority = Kit.text("", {
 		Name = "Priority",
 		LayoutOrder = 2,
@@ -634,6 +634,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		priority.Text = priorityLine
 		roundPill.Text = if kind then Words.roundKind(kind) else ""
+		-- A battleground round wears the battleground mark (★, white outline;
+		-- D-058); the home round is a plain tag.
+		Kit.paintPill(roundPill, if kind ~= nil and kind ~= "Home" then "white" else "text")
 		roundPill.Visible = kind ~= nil
 		priorityRow.Visible = priorityLine ~= "" and mode ~= "Reveal"
 

@@ -19,8 +19,9 @@
 -- a soft "pip" (the "select" cue, pitched up) unless `quiet` is set. Under
 -- reduced motion it only fades; nothing waits on it.
 --
--- Look: a raised card with a 2 px accent outline; a positioned tip also casts
--- a shadow (Kit.shadow).
+-- Look: a raised card with a 2 px muted outline (D-058: not white, which means
+-- "selected"); "Got it" is a lipless secondary button. A positioned tip also
+-- casts a shadow (Kit.shadow).
 --
 -- Placement: in a list layout pass `order` (LayoutOrder); anywhere else pass
 -- `position` and `anchorPoint` (and `width`, default the parent's width, at
@@ -122,7 +123,7 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 		ZIndex = 20,
 	})
 	root:SetAttribute("TipId", id)
-	-- The accent outline is the tip's only stroke (it replaces the card's edge).
+	-- The muted outline is the tip's only stroke (it replaces the card's edge).
 	local edge = root:FindFirstChild("Edge")
 	if edge then
 		edge:Destroy()
@@ -137,7 +138,7 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 	Kit.new("UIStroke", {
 		Name = "TipStroke",
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = Kit.colors.accent,
+		Color = Kit.colors.muted,
 		Thickness = 2,
 		Parent = root,
 	})
@@ -157,12 +158,12 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 	local button = Kit.button("Got it", function()
 		tip:dismiss()
 	end, {
-		variant = "ghost",
+		variant = "secondary",
+		lip = false,
 		Name = "GotIt",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromOffset(96, Kit.MIN_TOUCH),
-		TextColor3 = Kit.colors.accent,
 		Parent = row,
 	})
 	tip = {
