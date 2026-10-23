@@ -26,11 +26,26 @@ export type Mark = {
 	haloStrong: boolean?,
 }
 
+-- One short pill in a state's lens row (Map/Lens): "17", "JOB", "+3", "$2.4".
+export type LensPart = {
+	text: string,
+	color: Color3?, -- the text's color (default: the text color)
+	filled: boolean?, -- fill the pill in `color` instead (e.g. an issue on your platform)
+}
+
+-- What the current lens shows under a state's label. Empty `parts` shows nothing.
+export type LensLine = {
+	parts: { LensPart },
+	dim: boolean?, -- fade the node (e.g. a pool your plan already empties)
+}
+
 export type Map = {
 	root: GuiObject, -- the map box; parent it, size it, it keeps its own aspect ratio
 	-- Fill colors from public polls, undecided rings, leans before polls exist.
 	setView: (self: Map, view: View.View, colors: { Colors.RGB }) -> (),
 	setMarks: (self: Map, marks: { [string]: Mark }) -> (),
+	-- The lens row under each state's label; states missing from `lines` show none.
+	setLens: (self: Map, lines: { [string]: LensLine }) -> (),
 	-- The candidate's planned route, in order; `flights[k]` marks a flown hop into stop k.
 	setRoute: (self: Map, stops: { string }, flights: { boolean }) -> (),
 	select: (self: Map, id: string?) -> (),

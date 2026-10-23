@@ -347,6 +347,22 @@ Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on
 
 **Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
 
+## Map lenses (unreleased)
+
+The map switch (`DESIGN.md` D-046). **Play vs Bot**; do it once in the Studio window (16:9) and once on the iPad (or **Test → Device → iPad**), portrait and landscape.
+
+1. **Draft.** Over the map: a short grey line and four chips, **EV / Issues / Polls / $**. EV is outlined.
+   - Every state shows its electoral votes under its name ("54" under CA); battlegrounds add a gold "B". Draft tags (H, B, 1, 2) still sit on top of the circles.
+2. Tap **Issues**. Each state shows two codes (JOB, HLT, SCH, ENV, SAF, TRN, TEC, FRM); the ones on your platform are filled in your color. The grey line says how to read it. Tap **$**: each state shows a dollar amount.
+3. Draft through to week 1. The campaign map should open on **$** (the lens is remembered). Tap **EV**.
+   - Should: only the fill colors, owner rings, the EV numbers and any "*" from this week's event. No "H B G3" tags, no ▲ arrows. The line left of the chips explains EV and B.
+4. Tap **Polls**. Each state shows the poll lead in the leader's color ("+3", "tie"). After a week with a Poll action, the polled states add "i+…" (your internal poll). Plan **Ground game** in a state: it shows "G1" right away. States with momentum show a ▲ in that side's color.
+5. Tap **$**. Plan two or three **Fundraise** actions in one small state: its number drops with each, and it fades once your plan has used up its pool. The number matches the state card's Fundraise line.
+6. In a Choice week, the stance screen (`Decision`, D-044) has no lens chips: its map shows only the stance preview. Lock in: on the plan screen the lens you picked is back.
+7. **iPad / phone.** The chips are easy to hit with a thumb, nothing overlaps the map, and the pills stay readable on the big states. In the crowded Northeast the pills may overlap their neighbors in the Issues and Polls lenses: say if that makes them unreadable.
+
+**Send back:** a screenshot of each lens on the campaign map (16:9 and iPad), whether the default map now feels calmer, which lens you used most, and the Output lines starting with `[270] UI audit`.
+
 ## Screens for stances and debates (v0.6.0)
 
 The screens for D-039 to D-041 (`DESIGN.md` D-042). **Play vs Bot** is enough; do each step once on 16:9 (Studio window) and once on a phone (**Test → Device → an iPhone**, portrait, then landscape).
@@ -361,7 +377,7 @@ The screens for D-039 to D-041 (`DESIGN.md` D-042). **Play vs Bot** is enough; d
 3. **Hold** B (press and keep the finger or mouse down).
    - The map and the summary show B while you hold; let go and they go back to A. A stays selected.
 4. Tap the event card's title row to collapse it.
-   - The map goes back to the usual H/B/G marks and momentum arrows. Expand it again: the preview is back.
+   - The map goes back to the current lens (EV by default). Expand it again: the preview is back.
 5. Lock in with A. Watch the week's results.
    - Once the stance lines are read out ("…: You took stance A · …"), the panel adds "You took A · …: +X in N states, -Y in M states." and "They took …", then either "On the polls you both saw, the stances flipped: …" (with a big callout line) or "…flipped no state". The map badges the states toward you (your color) or them (their color).
    - Next week's week card says the same under "Last week's event".
