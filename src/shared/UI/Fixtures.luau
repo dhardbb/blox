@@ -134,6 +134,39 @@ end
 -- Made-up pass id for fixtures (the real one lives in Net/Products).
 Fixtures.COLOR_PASS_ID = 1234567
 
+-- Made-up usernames for the leaderboard fixture.
+local FIRST = { "Maple", "Quiet", "Pixel", "Nova", "River", "Tiny", "Copper", "Mossy", "Sunny", "Bright" }
+local SECOND = { "Fox", "Comet", "Harbor", "Bean", "Sketch" }
+
+-- A leaderboard as the server sends it (Net/Leaderboard.Board, D-056).
+-- `options.count` entries (default 50); `options.you` is the viewer's rank in
+-- the list (default 4), or 0 for a ranked viewer outside it, or -1 for a
+-- viewer with no rated games; `options.status` overrides "Ok".
+function Fixtures.leaderboard(options: { count: number?, you: number?, status: string? }?): any
+	local count = if options and options.count then options.count else 50
+	local you = if options and options.you then options.you else 4
+	local entries = {}
+	for k = 1, count do
+		local first = FIRST[(k - 1) % #FIRST + 1]
+		local second = SECOND[(k - 1) // #FIRST % #SECOND + 1]
+		table.insert(
+			entries,
+			{ rank = k, id = tostring(1000 + k), name = `{first}{second}{k}`, rating = 1480 - 9 * k }
+		)
+	end
+	local mine: { rank: number?, rating: number }? = nil
+	if you > 0 and you <= count then
+		mine = { rank = you, rating = entries[you].rating }
+	elseif you == 0 then
+		mine = { rating = 1004 }
+	end
+	return {
+		status = if options and options.status then options.status else "Ok",
+		entries = entries,
+		you = mine,
+	}
+end
+
 -- A lobby status for the lobby screen. `options.colorPass` shows the color
 -- option (D-055) as a non-owner ("locked") or an owner ("owned"); without it the
 -- pass is not set up. `options.color` is the saved pick.

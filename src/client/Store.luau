@@ -5,6 +5,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Leaderboard = require(ReplicatedStorage.Shared.Net.Leaderboard)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
@@ -24,6 +25,8 @@ export type State = {
 	resultSeen: boolean, -- the player dismissed the last match's result screen
 	prePick: any?, -- the selection remembered for the next Select
 	rating: Remotes.RatingChange?, -- the rating change after the last rated match
+	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-056)
+	leaving: string?, -- the match this player chose to leave: its end skips Results (D-056)
 }
 
 local Store = {}
@@ -38,6 +41,8 @@ local state: State = {
 	resultSeen = false,
 	prePick = nil,
 	rating = nil,
+	leaderboard = nil,
+	leaving = nil,
 }
 local listeners: { (State) -> () } = {}
 
@@ -66,6 +71,10 @@ function Store.setPayload(payload: Session.StatePayload)
 	if previous == nil or previous.matchId ~= payload.matchId then
 		state.resultSeen = false
 	end
+	-- The player left this match: its end goes straight back to the lobby.
+	if state.leaving ~= nil and state.leaving == payload.matchId and payload.stage == "Over" then
+		state.resultSeen = true
+	end
 	state.payload = payload
 	changed()
 end
@@ -90,6 +99,17 @@ end
 function Store.dismissResult()
 	state.resultSeen = true
 	changed()
+end
+
+function Store.setLeaderboard(board: Leaderboard.Board)
+	state.leaderboard = board
+	changed()
+end
+
+-- The player confirmed leaving match `matchId` (D-056): when the server ends it,
+-- the Lobby shows instead of the Results screen.
+function Store.leave(matchId: string)
+	state.leaving = matchId
 end
 
 function Store.setRating(change: Remotes.RatingChange)
