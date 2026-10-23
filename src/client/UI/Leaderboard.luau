@@ -47,6 +47,14 @@ local MEDAL = 24 -- px, the top three's rank coin
 local MEDAL_SHADE = 0.8 -- a coin's gradient bottom (lit from the top, like a monogram)
 local YOU_BAR = 3 -- px, the white bar at the left of the viewer's row
 
+export type Board = {
+	card: Frame,
+	sheet: Sheet.Sheet,
+	update: (board: any?) -> (),
+	setRows: (n: number) -> (),
+	open: () -> (),
+}
+
 -- The top three's coins: gold (the Amber player color), silver (the undecided
 -- grey) and a dull bronze. Data colors: a medal, not chrome, and nowhere near
 -- the loss orange.

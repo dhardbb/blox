@@ -787,7 +787,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			"UISizeConstraint",
 			{ MaxSize = Vector2.new(natural.X.Offset, natural.Y.Offset), Parent = stamp }
 		)
-		local label = stamp:FindFirstChild("Plate"):FindFirstChild("Label") :: TextLabel
+		local label = (stamp:FindFirstChild("Plate") :: Frame):FindFirstChild("Label") :: TextLabel
 		label.Name = "DebateHeadline"
 		label.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
 		stamp.Parent = headlineBox
@@ -881,7 +881,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		local text, tone = Words.debateHeadline(view, result, rival)
 		if text ~= headlineText or not headlineBox.Visible then
 			headlineText = text
-			stampHeadline(text, tone)
+			stampHeadline(text, tone :: Words.Tone)
 		end
 		headlineBox.Visible = true
 		if #other > 0 then

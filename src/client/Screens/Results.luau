@@ -353,7 +353,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			ZIndex = 2,
 			Parent = bannerBox,
 		})
-		local banner = stamp:FindFirstChild("Plate"):FindFirstChild("Label") :: TextLabel
+		local banner = (stamp:FindFirstChild("Plate") :: Frame):FindFirstChild("Label") :: TextLabel
 		banner.Name = "Banner"
 		banner.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
 		label(column, reasonText(current, election), {
