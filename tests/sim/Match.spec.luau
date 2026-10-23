@@ -134,34 +134,138 @@ describe("Match", function()
 	end)
 end)
 
-describe("drawn colors (D-047)", function()
+describe("dealt colors: red and blue by default, a Color Pass pick (D-055)", function()
 	local View = require("@sim/View")
 
-	it("gives every player a different color from the seed, shown from Select on", function()
-		for seed = 1, 50 do
-			local match = Match.new(C, seed, { "a", "b" })
-			local one, two = match.players[1].color, match.players[2].color
-			expect(table.find(Candidates.colors, one) ~= nil and table.find(Candidates.colors, two) ~= nil):toBe(
-				true
-			)
-			expect(one ~= two):toBe(true)
-			expect(View.build(C, match, 2).players[1].color):toBe(one)
-			expect(Match.new(C, seed, { "x", "y" }).players[1].color):toBe(one)
+	local function colorsOf(seed: number, ids: { string }, picks: { [string]: string }?): { string }
+		local match = Match.new(C, seed, ids, picks)
+		local out = {}
+		for p, player in match.players do
+			out[p] = player.color
+		end
+		return out
+	end
+
+	it("deals one Crimson and one Cobalt to two players who did not pick, every match", function()
+		for seed = 1, 200 do
+			local one, two = table.unpack(colorsOf(seed, { "a", "b" }))
+			local pair = { [one] = true, [two] = true }
+			expect(pair.Crimson == true and pair.Cobalt == true):toBe(true)
 		end
 	end)
 
-	it("favors no seat: each seat gets each color about equally (D-001)", function()
-		local first: { [string]: number } = {}
-		for seed = 1, 600 do
-			local color = Match.new(C, seed, { "a", "b" }).players[1].color
-			first[color] = (first[color] or 0) + 1
-		end
-		for _, color in Candidates.colors do
-			-- 600 draws over six colors: about 100 each.
-			local n = first[color] or 0
-			expect(n > 60 and n < 140):toBe(true)
+	it("shows the color from Select on, and the same seed and picks deal the same colors", function()
+		for seed = 1, 50 do
+			local match = Match.new(C, seed, { "a", "b" })
+			local one = match.players[1].color
+			expect(View.build(C, match, 2).players[1].color):toBe(one)
+			expect(Match.new(C, seed, { "x", "y" }).players[1].color):toBe(one)
+			local picks = { a = "Emerald", b = "Emerald" }
+			expect(table.concat(colorsOf(seed, { "a", "b" }, picks), ",")):toBe(
+				table.concat(colorsOf(seed, { "a", "b" }, table.clone(picks)), ",")
+			)
 		end
 	end)
+
+	it("favors no seat: each seat gets Crimson about half the time (D-001)", function()
+		local first = 0
+		for seed = 1, 1000 do
+			if colorsOf(seed, { "a", "b" })[1] == "Crimson" then
+				first += 1
+			end
+		end
+		-- 1,000 coin flips: 500 ± 16 is one standard deviation.
+		expect(first > 440 and first < 560):toBe(true)
+	end)
+
+	it("gives a picker their pick, and the other player red or blue", function()
+		for seed = 1, 100 do
+			local colors = colorsOf(seed, { "a", "b" }, { b = "Crimson" })
+			expect(colors[2]):toBe("Crimson")
+			expect(colors[1]):toBe("Cobalt")
+			colors = colorsOf(seed, { "a", "b" }, { a = "Cobalt" })
+			expect(colors[1]):toBe("Cobalt")
+			expect(colors[2]):toBe("Crimson")
+			colors = colorsOf(seed, { "a", "b" }, { a = "Emerald" })
+			expect(colors[1]):toBe("Emerald")
+			expect(colors[2] == "Crimson" or colors[2] == "Cobalt"):toBe(true)
+		end
+	end)
+
+	it("ignores an unknown color and a pick for someone who is not playing", function()
+		for seed = 1, 50 do
+			local plain = table.concat(colorsOf(seed, { "a", "b" }), ",")
+			expect(table.concat(colorsOf(seed, { "a", "b" }, { a = "Gold", b = "red", z = "Teal" }), ",")):toBe(
+				plain
+			)
+		end
+	end)
+
+	it("settles two players who picked the same color with a fair, seeded coin flip", function()
+		local wins = 0
+		for seed = 1, 1000 do
+			local colors = colorsOf(seed, { "a", "b" }, { a = "Violet", b = "Violet" })
+			expect(colors[1] ~= colors[2]):toBe(true)
+			expect(colors[1] == "Violet" or colors[2] == "Violet"):toBe(true)
+			-- The loser is dealt like a player who did not pick: red or blue.
+			local other = if colors[1] == "Violet" then colors[2] else colors[1]
+			expect(other == "Crimson" or other == "Cobalt"):toBe(true)
+			if colors[1] == "Violet" then
+				wins += 1
+			end
+		end
+		expect(wins > 440 and wins < 560):toBe(true)
+	end)
+
+	it("keeps colors distinct for more than two players", function()
+		local ids = { "a", "b", "c", "d", "e", "f" }
+		for seed = 1, 100 do
+			for _, picks in { {}, { a = "Crimson", c = "Crimson", f = "Teal" }, { b = "Amber", d = "Amber" } } do
+				local colors = colorsOf(seed, ids, picks :: any)
+				local seen: { [string]: boolean } = {}
+				for _, color in colors do
+					expect(table.find(Candidates.colors, color) ~= nil):toBe(true)
+					expect(seen[color]):toBe(nil)
+					seen[color] = true
+				end
+			end
+			-- Three non-pickers: red and blue go to two of them, never always the same seats.
+			local three = colorsOf(seed, { "a", "b", "c" })
+			local defaults = 0
+			for _, color in three do
+				if color == "Crimson" or color == "Cobalt" then
+					defaults += 1
+				end
+			end
+			expect(defaults):toBe(2)
+		end
+		local seatThreeRed = 0
+		for seed = 1, 600 do
+			local color = colorsOf(seed, { "a", "b", "c" })[3]
+			if color == "Crimson" or color == "Cobalt" then
+				seatThreeRed += 1
+			end
+		end
+		-- Two of three seats get red or blue: about 400 of 600.
+		expect(seatThreeRed > 340 and seatThreeRed < 460):toBe(true)
+	end)
+
+	it(
+		"changes no other seeded stream: the issue map and leans are the same with or without picks",
+		function()
+			for seed = 1, 20 do
+				local plain = Match.new(C, seed, { "a", "b" })
+				local picked = Match.new(C, seed, { "a", "b" }, { a = "Teal", b = "Amber" })
+				expect(picked.players[1].color):toBe("Teal")
+				expect(picked.players[2].color):toBe("Amber")
+				for i, state in plain.states do
+					expect(picked.states[i].lean):toBe(state.lean)
+					expect(picked.states[i].leanTo):toBe(state.leanTo)
+				end
+				expect(picked.priorityA):toBe(plain.priorityA)
+			end
+		end
+	)
 end)
 
 describe("unique candidates (D-048)", function()

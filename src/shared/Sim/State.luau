@@ -89,7 +89,7 @@ export type PollFlip = {
 export type PlayerState = {
 	id: string, -- opaque id from the server (e.g. a UserId as a string)
 	candidate: string,
-	color: string, -- drawn from the seed when the match is made (D-047), distinct per player
+	color: string, -- dealt when the match is made: red or blue by default, a Color Pass pick (D-055); distinct per player
 	platform: { Types.Issue },
 	profile: Candidates.Profile,
 	cash: number, -- exact cash (opponents see only a bracket)

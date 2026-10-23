@@ -4,7 +4,7 @@
 --   [Decision "Focus" -> Debate] -> [Decision "Stance"] -> Plan
 -- (the focus only in debate weeks, the stance only in Choice weeks; D-044, Sim/Decision).
 --
--- Pure: Match.new(config, seed, playerIds) builds a match; Match.advance(config,
+-- Pure: Match.new(config, seed, playerIds, colorPicks?) builds a match; Match.advance(config,
 -- match, inputs) returns a new state plus events and never mutates its argument.
 -- The server collects one input per player for the current phase (validated with
 -- Match.validate); anyone missing gets Match.default, the same thing the server
@@ -39,21 +39,100 @@ export type Selection = {
 
 local Match = {}
 
+-- The default colors, in the order players without a pick are dealt them
+-- (D-055): red and blue first, so two players who did not pick are always one
+-- Crimson and one Cobalt.
+Match.DEFAULT_COLORS = table.freeze({ "Crimson", "Cobalt" })
+
+-- Deals one distinct color per seat (D-055). `picks` (optional, by player id)
+-- is each Color Pass owner's saved color; the server sends it only for owners,
+-- and a name that is not one of Candidates.colors is ignored. A picker gets
+-- their pick; two players who picked the same color settle it with a seeded
+-- coin flip (fork "colorPicks"), and the loser is dealt like a non-picker.
+-- Non-pickers are dealt, in a seeded seat order, from Crimson and Cobalt (their
+-- order a seeded coin flip) and then the other four in a seeded order (fork
+-- "colors"), skipping colors already taken. No seat is favored (D-001).
+function Match.dealColors(rng: Rng.Rng, playerIds: { string }, picks: { [string]: string }?): { string }
+	local n = #playerIds
+	assert(n <= #Candidates.colors, "more players than colors")
+	local colors: { string } = table.create(n, "")
+	local taken: { [string]: boolean } = {}
+
+	if picks then
+		local wanting: { [string]: { number } } = {}
+		for p, id in playerIds do
+			local pick = picks[id]
+			if type(pick) == "string" and table.find(Candidates.colors, pick) ~= nil then
+				local seats = wanting[pick] or {}
+				table.insert(seats, p)
+				wanting[pick] = seats
+			end
+		end
+		-- In the fixed color order, never the table's, so replays match.
+		local tie = Rng.fork(rng, "colorPicks")
+		for _, color in Candidates.colors do
+			local seats = wanting[color]
+			if seats then
+				local winner = if #seats == 1 then seats[1] else seats[Rng.nextInt(tie, 1, #seats)]
+				colors[winner] = color
+				taken[color] = true
+			end
+		end
+	end
+
+	local deal = Rng.fork(rng, "colors")
+	local order: { string } = table.clone(Match.DEFAULT_COLORS) :: { string }
+	if Rng.nextInt(deal, 1, 2) == 2 then
+		order[1], order[2] = order[2], order[1]
+	end
+	local rest: { string } = {}
+	for _, color in Candidates.colors do
+		if table.find(Match.DEFAULT_COLORS, color) == nil then
+			table.insert(rest, color)
+		end
+	end
+	Rng.shuffle(deal, rest)
+	for _, color in rest do
+		table.insert(order, color)
+	end
+	local open: { number } = {}
+	for p = 1, n do
+		if colors[p] == "" then
+			table.insert(open, p)
+		end
+	end
+	Rng.shuffle(deal, open)
+	local k = 1
+	for _, p in open do
+		while taken[order[k]] do
+			k += 1
+		end
+		colors[p] = order[k]
+		taken[order[k]] = true
+		k += 1
+	end
+	return colors
+end
+
 -- A new match in the Select phase. Leans, the issue map, colors, debate topics and
 -- the event deck are seeded now (the issue map and colors are public from Select,
 -- so players pick a platform against this match's map, D-047; leans are shown from
 -- MapReveal on; each event only in its own week).
+-- `colorPicks` (optional, by player id): Color Pass owners' saved colors (D-055).
 -- A private lobby with events off passes Config.with(config, { EVENTS_ENABLED = false }).
-function Match.new(config: Config, seed: number, playerIds: { string }): MatchState
+function Match.new(
+	config: Config,
+	seed: number,
+	playerIds: { string },
+	colorPicks: { [string]: string }?
+): MatchState
 	local n = #playerIds
 	assert(n >= 2, "a match needs at least two players")
 	local rng = Rng.new(seed)
 	local placeholder = Candidates.ids[1]
-	-- Colors are drawn, not picked (D-047): a seeded shuffle, so they are distinct
-	-- and no seat is favored (D-001).
-	local colors = table.clone(Candidates.colors)
-	Rng.shuffle(Rng.fork(rng, "colors"), colors)
-	assert(n <= #colors, "more players than colors")
+	-- Red and blue by default, a pick with the Color Pass (D-055; replaces D-047's
+	-- shuffle of all six). Distinct, deterministic, no seat favored (D-001).
+	local colors = Match.dealColors(rng, playerIds, colorPicks)
 	local players: { State.PlayerState } = {}
 	for p, id in playerIds do
 		players[p] = {
@@ -232,7 +311,7 @@ local function validateSelection(
 	if type(input) ~= "table" then
 		return false, "BadShape", nil
 	end
-	-- Any other field (an old client's `color`) is ignored: colors are drawn (D-047).
+	-- Any other field (an old client's `color`) is ignored: colors are dealt at Match.new (D-047, D-055).
 	local candidate, platform = input.candidate, input.platform
 	if type(candidate) ~= "string" or not Candidates.exists(candidate) then
 		return false, "UnknownCandidate", nil
@@ -332,7 +411,7 @@ local function collect(config: Config, match: MatchState, inputs: { [number]: an
 	return out
 end
 
--- Reveals every player's candidate and platform (colors were drawn at Match.new).
+-- Reveals every player's candidate and platform (colors were dealt at Match.new).
 -- Candidates are unique (D-048): claims stand; every other selection is settled
 -- in a seeded order (no seat is favored, D-001), and one whose candidate is
 -- already taken gets a free candidate drawn from the seed.

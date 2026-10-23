@@ -43,7 +43,7 @@ export type StateView = {
 export type PlayerView = {
 	id: string,
 	candidate: string?, -- nil until Select ends
-	color: string, -- drawn from the seed (D-047), shown from Select on
+	color: string, -- dealt at Match.new (D-055), shown from Select on
 	platform: { Types.Issue }?,
 	home: string?,
 	strongholds: { string },

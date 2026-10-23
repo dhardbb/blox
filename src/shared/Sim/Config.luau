@@ -153,7 +153,7 @@ local Config = {
 	STANCE_SPILL = 0.5, -- a state without the issue still moves this much per top issue of its own that a side likes (+) or dislikes (-); the hedge spills nothing (D-041: the stakes that make the stance a skill)
 
 	-- Timers (D-005)
-	TIMER_SELECT = 38, -- two steps: claim a candidate, then pick the platform (30 -> 38, D-048: the most the 17.5-minute worst case allows; colors are drawn, D-047)
+	TIMER_SELECT = 38, -- two steps: claim a candidate, then pick the platform (30 -> 38, D-048: the most the 17.5-minute worst case allows; colors are dealt, D-047, D-055)
 	TIMER_MAP_REVEAL = 5, -- leans shown before the draft
 	TIMER_DRAFT_ROUND = 20, -- per blind draft round
 	DRAFT_REVEAL = 2, -- reveal after each draft round

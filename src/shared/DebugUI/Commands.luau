@@ -5,7 +5,7 @@
 --   practice | queue | host [noevents] | join CODE | leave | resync | bank | skip | help
 --   pick CANDIDATE ISSUE ISSUE ISSUE     (pre-pick in the lobby)
 --   claim CANDIDATE                      (Select step 1: hold a candidate, D-048)
---   select CANDIDATE ISSUE ISSUE ISSUE   (during Select; claims the candidate too; colors are drawn, D-047)
+--   select CANDIDATE ISSUE ISSUE ISSUE   (during Select; claims the candidate too; colors are dealt, D-055)
 --   draft STATE [STATE]
 --   plan ACTION; ACTION; ...   with actions:
 --     rally ST ISSUE | fund ST | ad ST ISSUE | attack ad ST ISSUE | poll ST
@@ -104,7 +104,7 @@ local function selection(w: { string }): (any?, string?)
 	if c == nil then
 		return nil, `unknown candidate; try: {table.concat(Candidates.ids, ", ")}`
 	end
-	-- Colors are drawn, not picked (D-047): an old script's color word is skipped.
+	-- Colors are dealt, not picked in Select (D-047, D-055): an old script's color word is skipped.
 	local first = if color(w[3]) ~= nil then 4 else 3
 	local platform = {}
 	for k = first, first + 2 do
