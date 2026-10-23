@@ -55,7 +55,8 @@ local NUMBER = 28 -- px, a step number's circle
 local ART_ROW = 28 -- px, one row of a picture
 local NAME_W = 112 -- px, the name column of the Actions picture
 local BAR_H = 12 -- px, the race bar in the How to win picture
-local ICON = 20 -- px, an action's icon in the Actions and Polls pictures
+local ICON = 24 -- px, an action's icon plate (Kit.iconPlate) in the Actions and Polls pictures
+local TAB_INSET = 3 -- px between the tab track's edge and its tabs
 
 -- The plan action kind (Sim/Plan) behind each name in Words.ACTIONS, for its icon.
 local ACTION_KINDS: { [string]: string } = {
@@ -87,19 +88,28 @@ local function row(parent: Instance, name: string, order: number): Frame
 	})
 end
 
--- How to win: a race bar with the 270 tick.
+-- How to win: the race bar (Kit.raceBar, as in the match) with the 270 tick,
+-- the two totals in Fredoka and the names in their readable player colors.
+local SAMPLE_YOU = 280 -- votes in the picture
+local SAMPLE_THEM = 258
+local SAMPLE_ALL = 538 -- every vote on the map
+
 local function winArt(art: Frame, config: ConfigModule.Config)
 	local you = Kit.color(Colors.player.Cobalt)
 	local them = Kit.color(Colors.player.Crimson)
-	Kit.dataColor(art)
 	local labels = row(art, "Labels", 1)
-	Kit.text("You 280", {
-		Name = "You",
-		Size = UDim2.fromScale(0.4, 1),
-		Font = Kit.font.bold,
-		TextColor3 = you,
-		Parent = labels,
-	})
+	local function side(name: string, text: string, color: Color3, right: boolean)
+		Kit.text(text, {
+			Name = name,
+			Position = UDim2.fromScale(if right then 0.6 else 0, 0),
+			Size = UDim2.fromScale(0.4, 1),
+			Font = Kit.font.display,
+			TextColor3 = Kit.textColor(color),
+			TextXAlignment = if right then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
+			Parent = labels,
+		})
+	end
+	side("You", `You {SAMPLE_YOU}`, you, false)
 	Kit.text(`{config.EV_TO_WIN} to win`, {
 		Name = "Goal",
 		Position = UDim2.fromScale(0.3, 0),
@@ -109,51 +119,12 @@ local function winArt(art: Frame, config: ConfigModule.Config)
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = labels,
 	})
-	Kit.text("258 Rival", {
-		Name = "Them",
-		Position = UDim2.fromScale(0.6, 0),
-		Size = UDim2.fromScale(0.4, 1),
-		Font = Kit.font.bold,
-		TextColor3 = them,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Parent = labels,
-	})
-	local track = Kit.box({
-		Name = "Bar",
-		LayoutOrder = 2,
-		Size = UDim2.new(1, 0, 0, BAR_H),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.raised,
-		ClipsDescendants = true,
-		Parent = art,
-	})
-	Kit.corner(BAR_H // 2).Parent = track
-	Kit.box({
-		Name = "FillYou",
-		Size = UDim2.fromScale(280 / 538, 1),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = you,
-		Parent = track,
-	})
-	Kit.box({
-		Name = "FillThem",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromScale(258 / 538, 1),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = them,
-		Parent = track,
-	})
-	Kit.box({
-		Name = "Tick",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(config.EV_TO_WIN / 538, 0),
-		Size = UDim2.new(0, 2, 1, 0),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.text,
-		ZIndex = 2,
-		Parent = track,
-	})
+	side("Them", `{SAMPLE_THEM} Rival`, them, true)
+	local bar = Kit.raceBar(art, { h = BAR_H, mark = config.EV_TO_WIN / SAMPLE_ALL, name = "Bar", order = 2 })
+	bar.left.Name = "FillYou"
+	bar.right.Name = "FillThem"
+	bar:setColors(you, them)
+	bar:set(SAMPLE_YOU / SAMPLE_ALL, SAMPLE_THEM / SAMPLE_ALL)
 end
 
 -- Your turn: the three steps, numbered.
@@ -172,11 +143,12 @@ local function turnArt(art: Frame, config: ConfigModule.Config)
 			Size = UDim2.fromOffset(NUMBER, NUMBER),
 			BackgroundTransparency = 0,
 			BackgroundColor3 = Kit.colors.raised,
-			Font = Kit.font.bold,
+			Font = Kit.font.display,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Parent = line,
 		})
 		Kit.round().Parent = circle
+		Kit.bevel(circle)
 		Kit.text(text, {
 			Name = "Text",
 			Position = UDim2.fromOffset(NUMBER + Kit.space.sm, 0),
@@ -201,11 +173,11 @@ local function namedRow(
 	local line = row(art, name, order)
 	local left = 0
 	if icon then
-		local glyph = Kit.icon(icon, ICON, Kit.tone(tone))
-		glyph.AnchorPoint = Vector2.new(0, 0.5)
-		glyph.Position = UDim2.fromScale(0, 0.5)
-		glyph.Parent = line
-		left = ICON + Kit.space.xs
+		local plate = Kit.iconPlate(icon, ICON, Kit.tone(tone))
+		plate.AnchorPoint = Vector2.new(0, 0.5)
+		plate.Position = UDim2.fromScale(0, 0.5)
+		plate.Parent = line
+		left = ICON + Kit.space.sm
 	end
 	local box = Kit.box({
 		Name = "NameBox",
@@ -345,17 +317,27 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 	})
 
 	local tabs = Words.help(ctx.config)
-	local tabBar = Kit.box({
+	-- The tabs as one segmented control (like the Lobby's bot level): a field
+	-- track, the open tab raised with the white outline, the others flat with
+	-- muted labels. (Per-corner "folder" tabs need UICorner's per-corner radii,
+	-- still a Studio beta feature, so not here.)
+	local tabBar = Kit.new("Frame", {
 		Name = "HelpTabs",
 		LayoutOrder = 1,
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Kit.colors.field,
+		BorderSizePixel = 0,
 		Parent = sheet.body,
-	})
+	}) :: Frame
+	Kit.corner(Kit.radius.button).Parent = tabBar
+	Kit.bevel(tabBar)
+	Kit.pad(TAB_INSET).Parent = tabBar
 	local grid = Kit.new("UIGridLayout", {
-		CellPadding = UDim2.fromOffset(Kit.space.sm, Kit.space.sm),
-		CellSize = UDim2.new(1 / #tabs, -Kit.space.sm, 0, Kit.MIN_TOUCH),
+		CellPadding = UDim2.fromOffset(TAB_INSET, TAB_INSET),
+		CellSize = UDim2.new(1 / #tabs, -TAB_INSET, 0, Kit.MIN_TOUCH),
 		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		Parent = tabBar,
 	}) :: UIGridLayout
 
@@ -436,7 +418,15 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		})
 	end
 
-	-- Leaving the match (D-059): the last thing in the sheet, in a live match only.
+	-- Leaving the match (D-059): the last thing in the sheet, in a live match
+	-- only, under a rule: a destructive secondary (orange outline, never a primary).
+	local leaveRule = Kit.divider({
+		Name = "HelpLeaveRule",
+		LayoutOrder = 9,
+		BackgroundTransparency = 0.5,
+		Visible = false,
+		Parent = sheet.body,
+	})
 	local leave = Kit.button(LobbyWords.LEAVE, function()
 		local openLeave = ctx.leave
 		sheet:close()
@@ -493,7 +483,10 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		current = tab
 		for id, page in pages do
 			page.Visible = id == tab
-			Kit.setSelected(chips[id], id == tab)
+			local chip = chips[id]
+			Kit.setSelected(chip, id == tab)
+			chip.BackgroundTransparency = if id == tab then 0 else 1
+			chip.TextColor3 = if id == tab then Kit.colors.text else Kit.colors.muted
 		end
 	end
 
@@ -535,10 +528,11 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		fillNumbers()
 		local live = ctx.store.get().payload
 		leave.Visible = ctx.leave ~= nil and live ~= nil and live.stage ~= "Over"
+		leaveRule.Visible = leave.Visible
 		-- Five tabs in a row on a wide screen, three per row on a phone.
 		local size = root.AbsoluteSize
 		local columns = if size.Y > size.X then 3 else #tabs
-		grid.CellSize = UDim2.new(1 / columns, -Kit.space.sm, 0, Kit.MIN_TOUCH)
+		grid.CellSize = UDim2.new(1 / columns, -TAB_INSET, 0, Kit.MIN_TOUCH)
 		showTab(tabForNow())
 		isOpen = true
 		root.Visible = true

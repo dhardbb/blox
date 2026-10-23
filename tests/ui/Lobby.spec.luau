@@ -485,7 +485,8 @@ describe("Lobby design system", function()
 		expect(need(peer, "Lobby", "Host"):GetAttribute("Variant")):toBe("secondary")
 		expect(need(peer, "Lobby", "Join"):GetAttribute("Variant")):toBe("secondary")
 		expect(need(peer, "Lobby", "Cancel"):GetAttribute("Variant")):toBe("danger")
-		expect(need(peer, "Lobby", "Title").TextSize):toBe(Kit.size.hero)
+		-- The "270" is the wordmark lockup (Kit.wordmark), its label at the wordmark size.
+		expect(need(peer, "Lobby", "Title"):FindFirstChild("Mark").TextSize):toBe(Kit.size.wordmark)
 		noErrors(world)
 	end)
 
@@ -618,8 +619,11 @@ describe("Lobby polish", function()
 		local world, peer = mountFixture("Lobby", nil)
 		local scale = need(peer, "Lobby", "Title"):FindFirstChild("MotionScale")
 		check(scale == nil or scale.Scale == 1, "the hero is still popping")
-		for _, name in { "Title", "Pitch", "Record", "Practice", "FindMatch", "PlayFriend", "HowToPlay" } do
-			expect(need(peer, "Lobby", name).TextTransparency):toBe(0)
+		for _, name in
+			{ "Mark", "Eyebrow", "Pitch", "Record", "Practice", "FindMatch", "PlayFriend", "HowToPlay" }
+		do
+			-- (the fake engine reads a property never set as nil; Roblox reads 0)
+			expect(need(peer, "Lobby", name).TextTransparency or 0):toBe(0)
 		end
 		for _, name in { "Practice", "FindMatch", "PlayFriend", "SoundChip", "MotionChip" } do
 			expect(need(peer, "Lobby", name).BackgroundTransparency):toBe(0)
@@ -630,8 +634,9 @@ describe("Lobby polish", function()
 	it("arrives the same under reduced motion, with Reduce motion on", function()
 		local world, peer = Rig.fixture("Lobby", nil, { reducedMotion = true })
 		expect(need(peer, "Lobby", "MotionChip"):GetAttribute("On")):toBe(true)
-		for _, name in { "Title", "Practice", "HowToPlay" } do
-			expect(need(peer, "Lobby", name).TextTransparency):toBe(0)
+		for _, name in { "Mark", "Practice", "HowToPlay" } do
+			-- (the fake engine reads a property never set as nil; Roblox reads 0)
+			expect(need(peer, "Lobby", name).TextTransparency or 0):toBe(0)
 		end
 		local scale = need(peer, "Lobby", "Title"):FindFirstChild("MotionScale")
 		check(scale == nil or scale.Scale == 1, "the hero popped under reduced motion")
