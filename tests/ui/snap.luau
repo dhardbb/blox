@@ -20,7 +20,9 @@
 local fs = require("@lune/fs")
 local process = require("@lune/process")
 
+local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
+local Fixtures = require("@ui/Fixtures")
 local Snapshot = require("@testlib/Snapshot")
 local Rig = require("./Rig")
 
@@ -235,10 +237,16 @@ local SHOTS: { Shot } = {
 	{ name = "15-campaign-choice-week", moment = "ChoiceWeek", screen = "Campaign" },
 	{ name = "16-resolve-start", moment = "Resolve", screen = "Campaign" },
 	{
+		-- From the week-3 plan, so the reveal knows the polls before it ("What changed").
 		name = "17-resolve-end",
-		moment = "Resolve",
+		moment = "Plan",
 		screen = "Campaign",
-		steps = function(world, _peer)
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Resolve")
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
 			FakeRoblox.run(world, 6)
 		end,
 	},
@@ -268,6 +276,32 @@ local SHOTS: { Shot } = {
 		screen = "Campaign",
 		steps = function(world, peer)
 			tapIf(world, peer, "Campaign", "HelpButton")
+		end,
+	},
+	{
+		name = "25-results-breakdown",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			tapIf(world, peer, "Results", "FullBreakdown")
+		end,
+	},
+	{
+		name = "26-help-actions",
+		moment = "Plan",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+			tapIf(world, peer, "HelpOverlay", "HelpTab_actions")
+			tapIf(world, peer, "HelpOverlay", "HelpMoreButton_actions")
+		end,
+	},
+	{
+		name = "27-help-win",
+		moment = "Election",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Election", "HelpButton")
 		end,
 	},
 }

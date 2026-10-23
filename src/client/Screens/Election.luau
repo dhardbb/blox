@@ -1,25 +1,32 @@
 --!strict
 -- Election night: states are called one at a time (safest first, closest last)
--- while both EV counts climb toward 270. The pace comes from the clock, not from
--- a tick count: tick(now) works out how many calls should have happened by `now`
--- and draws exactly that many, so it is safe to call as often as you like.
+-- while both vote counts climb toward 270. The pace comes from the clock, not
+-- from a tick count: tick(now) works out how many calls should have happened by
+-- `now` and draws exactly that many, so it is safe to call as often as you like.
 --
 -- Stable names for tests and agents: SkipButton (the pinned primary), EvYou,
 -- EvThem, Feed, Banner (plus CallStatus, Tiebreak, MapBox, Counters, Marker270,
--- BarStatus, BarOpponent, and the header's Timer).
+-- Spotlight, SpotLabel, SpotState, SpotCall, BarStatus, BarOpponent, and the
+-- header's Timer).
 --
--- Layout (docs/UI-OVERHAUL.md §3.5), every big box explicitly positioned:
---   Header        "Election night" · CallStatus subtitle · "Results in 0:32"
---   Counters      one 72 px strip: both candidates and one shared bar with the
---                 270 tick (the tick lives in a 22 px box, so nothing overhangs)
+-- Layout (docs/UI-STYLE.md §4.8), every big box explicitly positioned:
+--   Header        "Election night" · CallStatus subtitle (wide screens only: on a
+--                 phone the spotlight says it) · "?" (How to play) · "Results in 0:32"
+--   Counters      one 72 px strip: both candidates (first names on a phone, so
+--                 nothing truncates) and one shared bar with the 270 tick
 --   BannerPanel   replaces the strip once everything is called
 --   Body          map 66 % | Side 34 % on wide screens; on phones the map takes
 --                 min(width / ASPECT, 38 % of the screen) and Side the rest.
---   Side          "Calls", the Feed (newest on top) and the pinned ActionBar.
+--   Side          the Spotlight (the latest call, big, or "Too close to call…"
+--                 before a close one), the Feed of every call (newest on top:
+--                 "Ohio · 17 votes" over "Dana by 2.9 points", tinted by the
+--                 winner; Kit.dataColor) and the pinned ActionBar.
+-- The coach tip "election.night" sits at the top of the feed, once.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Header = require(script.Parent.Parent.UI.Header)
@@ -31,6 +38,7 @@ local State = require(ReplicatedStorage.Shared.Sim.State)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local Types = require(script.Parent.Types)
 local View = require(ReplicatedStorage.Shared.Sim.View)
+local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local Screen = {}
 
@@ -46,9 +54,8 @@ local BAR_BOX_H = 22 -- px, the box holding the 14 px bar and the 270 tick
 local BAR_H = 14 -- px, the EV bar
 local EV_W = 60 -- px, the EV number
 local GOAL_W = 76 -- px, "270 to win" between the two sides
-local FEED_TITLE = 28 -- px
+local SPOT_H = 92 -- px, the spotlight card: a caption, the state, the call
 local LINE_H = Kit.MIN_TOUCH -- px, smallest feed row
-local CODE_W = 44 -- px, a feed row's state code / EV column
 local MAP_SHARE = 0.66 -- of the width, wide screens
 local MAP_SHARE_PORTRAIT = 0.38 -- of the height at most, phones
 local WINNER_TINT = 0.35 -- how far a feed row leans toward the winner's color
@@ -181,6 +188,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local youIndex = 1
 	local themIndex = 2
 	local names: { string } = {}
+	local shortNames: { string } = {} -- first names, for the calls
 	local map: MapInterface.Map = NodeMap.new()
 	local drawn = false -- render() has run at least once
 	local hasTiebreak = false -- the banner is showing a tiebreak note
@@ -188,7 +196,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local laidOut = "" -- the shape applyLayout last laid out for
 	local onSkip: () -> () = function() end
 
-	local header = Header.new(root, { title = "Election night", subtitle = "Polls have closed" })
+	local header =
+		Header.new(root, { title = "Election night", subtitle = "Polls have closed", onHelp = ctx.help })
 	header.subtitle.Name = "CallStatus"
 	header:setTimerLabel("Results in")
 
@@ -282,15 +291,44 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	map.root.Parent = mapBox
 
 	local side = Kit.panel({ Name = "Side", Parent = body })
-	Kit.text("Calls", {
-		Name = "FeedTitle",
-		Size = UDim2.new(1, 0, 0, FEED_TITLE),
+
+	-- The spotlight: the call that just happened, or the suspense before a close one.
+	local spotlight = Kit.panel({
+		Name = "Spotlight",
+		Size = UDim2.new(1, 0, 0, SPOT_H),
+		BackgroundColor3 = Kit.colors.raised,
+		Parent = side,
+	})
+	Kit.list("Vertical", 2).Parent = spotlight
+	local spotStroke = Kit.stroke(Kit.colors.line, 2)
+	spotStroke.Parent = spotlight
+	local spotLabel = Kit.text("Polls have closed", {
+		Name = "SpotLabel",
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
+		TextSize = Kit.size.caption,
+		TextColor3 = Kit.colors.muted,
+		Parent = spotlight,
+	})
+	local spotState = Kit.text("The first states are coming in", {
+		Name = "SpotState",
+		LayoutOrder = 2,
+		Size = UDim2.new(1, 0, 0, Kit.size.heading + 6),
 		Font = Kit.font.bold,
 		TextSize = Kit.size.heading,
 		TextScaled = true,
-		Parent = side,
+		Parent = spotlight,
 	})
-	local feedTop = FEED_TITLE + Kit.space.xs
+	local spotCall = Kit.text("", {
+		Name = "SpotCall",
+		LayoutOrder = 3,
+		Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
+		Font = Kit.font.medium,
+		TextScaled = true,
+		Parent = spotlight,
+	})
+
+	local feedTop = SPOT_H + GAP
 	local feed = Kit.new("ScrollingFrame", {
 		Name = "Feed",
 		Position = UDim2.fromOffset(0, feedTop),
@@ -310,6 +348,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		PaddingRight = UDim.new(0, Kit.space.sm),
 		Parent = feed,
 	})
+	-- Once per session: what this screen is. Above every call (calls go -k).
+	CoachTip.show(feed, { id = "election.night", order = -1e6 })
 
 	local actionBar = ActionBar.new(side, {
 		primary = "Skip to results",
@@ -360,6 +400,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return `Player {index}`
 	end
 
+	local function firstName(name: string): string
+		return string.match(name, "^(%S+)") or name
+	end
+
 	-- First payload with an election: names, colors, counters, schedule.
 	local function build()
 		if built or payload == nil or payload.view.election == nil then
@@ -375,9 +419,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		for p, player in view.players do
 			colors[p] = Colors.of(player.color)
 			names[p] = nameOf(p)
+			shortNames[p] = firstName(names[p])
 		end
-		youSide.name.Text = names[youIndex]
-		themSide.name.Text = names[themIndex]
+		local short = ctx.portrait()
+		youSide.name.Text = if short then firstName(names[youIndex]) else names[youIndex]
+		themSide.name.Text = if short then firstName(names[themIndex]) else names[themIndex]
 		youSide.name.TextColor3 = Kit.color(colors[youIndex])
 		themSide.name.TextColor3 = Kit.color(colors[themIndex])
 		youSide.fill.BackgroundColor3 = Kit.color(colors[youIndex])
@@ -421,19 +467,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		map:setMarks(marks)
 	end
 
-	-- One feed row: the state code over its EV, then who it was called for.
+	-- One feed row: "Ohio · 17 votes" over "Dana by 2.9 points", tinted by the winner.
 	local function addLine(k: number)
 		local result = results[k]
-		local record = StateData.byId[result.state]
-		local text: string
 		local color = Kit.colors.raised
 		if result.winner > 0 then
-			text = `called for {names[result.winner]} by {string.format("%.1f", result.margin)}`
 			color = Kit.color(Colors.tint(Colors.raised, colors[result.winner], WINNER_TINT))
-		else
-			text = "dead heat, no electoral votes awarded"
 		end
-		local line = Kit.box({
+		local line = Kit.dataColor(Kit.box({
 			Name = `Line{k}`,
 			Size = UDim2.new(1, 0, 0, LINE_H),
 			AutomaticSize = Enum.AutomaticSize.Y,
@@ -441,31 +482,68 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			BackgroundColor3 = color,
 			LayoutOrder = -k,
 			Parent = feed,
-		})
+		}))
 		Kit.corner(Kit.radius.control).Parent = line
-		Kit.text(result.state, {
-			Name = "Code",
-			Position = UDim2.fromOffset(Kit.space.sm, Kit.space.xs),
-			Size = UDim2.fromOffset(CODE_W, 20),
-			Font = Kit.font.bold,
+		Kit.new("UIPadding", {
+			PaddingLeft = UDim.new(0, Kit.space.sm),
+			PaddingRight = UDim.new(0, Kit.space.sm),
+			PaddingTop = UDim.new(0, Kit.space.xs),
+			PaddingBottom = UDim.new(0, Kit.space.xs),
 			Parent = line,
 		})
-		Kit.text(`{record.ev} EV`, {
-			Name = "Ev",
-			Position = UDim2.fromOffset(Kit.space.sm, Kit.space.xs + 20),
-			Size = UDim2.fromOffset(CODE_W, 16),
+		Kit.list("Vertical", 0).Parent = line
+		Kit.text(Words.stateLine(result.state), {
+			Name = "State",
+			LayoutOrder = 1,
+			Size = UDim2.new(1, 0, 0, Kit.size.body + 4),
+			Font = Kit.font.bold,
+			TextScaled = true,
+			Parent = line,
+		})
+		Kit.text(Words.callLine(result, shortNames), {
+			Name = "Text",
+			LayoutOrder = 2,
+			Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
 			TextSize = Kit.size.caption,
 			TextScaled = true,
-			TextColor3 = Kit.colors.muted,
 			Parent = line,
 		})
-		Kit.text(text, {
-			Name = "Text",
-			Position = UDim2.fromOffset(CODE_W + 2 * Kit.space.sm, 0),
-			Size = UDim2.new(1, -(CODE_W + 3 * Kit.space.sm), 0, LINE_H),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = line,
-		})
+	end
+
+	-- The spotlight after `count` calls: the suspense before a close call, else
+	-- the latest call in the winner's color.
+	local function paintSpotlight(count: number)
+		local nextResult = results[count + 1]
+		if nextResult and nextResult.margin < CLOSE_MARGIN and count < #results then
+			spotLabel.Text = "Too close to call"
+			spotLabel.TextColor3 = Kit.colors.warn
+			spotState.Text = `{Words.stateLine(nextResult.state)}…`
+			spotCall.Text = "Counting the last votes"
+			spotCall.TextColor3 = Kit.colors.muted
+			spotStroke.Color = Kit.colors.accent
+			return
+		end
+		local latest = results[count]
+		if latest == nil then
+			spotLabel.Text = "Polls have closed"
+			spotLabel.TextColor3 = Kit.colors.muted
+			spotState.Text = "The first states are coming in"
+			spotCall.Text = ""
+			spotStroke.Color = Kit.colors.line
+			return
+		end
+		spotLabel.Text = if count == #results then "Last call" else "Just called"
+		spotLabel.TextColor3 = Kit.colors.muted
+		spotState.Text = Words.stateLine(latest.state)
+		if latest.winner > 0 then
+			spotCall.Text = `Called for {Words.callLine(latest, shortNames)}`
+			spotCall.TextColor3 = Kit.color(colors[latest.winner])
+			spotStroke.Color = Kit.color(colors[latest.winner])
+		else
+			spotCall.Text = Words.callLine(latest, shortNames)
+			spotCall.TextColor3 = Kit.colors.text
+			spotStroke.Color = Kit.colors.line
+		end
 	end
 
 	local function showBanner(election: State.ElectionResult)
@@ -514,16 +592,22 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		shown = count
 		drawn = true
-		local function setSide(counter: Side, index: number, who: string)
+		local function setSide(counter: Side, index: number, who: string?)
 			counter.ev.Text = tostring(ev[index])
-			counter.states.Text = `{who} · {plural(won[index], "state", "states")}`
+			local states = plural(won[index], "state", "states")
+			counter.states.Text = if who then `{who} · {states}` else states
 			counter.fill.Size = UDim2.fromScale(math.clamp(ev[index] / TOTAL_EV, 0, 1), 1)
 		end
-		setSide(youSide, youIndex, "you")
-		setSide(themSide, themIndex, "them")
+		-- "You · 9 states" wraps on a phone; there the name's color says who you are.
+		setSide(youSide, youIndex, if ctx.portrait() then nil else "You")
+		setSide(themSide, themIndex, nil)
 		paintMap(count)
+		paintSpotlight(count)
 		if count == #results then
 			showBanner(election)
+		elseif ctx.portrait() then
+			-- On a phone the spotlight says it; the subtitle would wrap.
+			header:setSubtitle(nil)
 		elseif count == 0 then
 			header:setSubtitle("Polls have closed")
 		else

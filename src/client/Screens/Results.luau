@@ -1,14 +1,23 @@
 --!strict
--- Results: who won and why, the final electoral votes and states, both
--- candidates, what decided it (the states debates and Choice stances flipped on
--- the polls, and which of them held on election night: Shared/UI/Swing, D-042),
--- the closest states and the debate topics each side won. The
--- player leaves with Back to lobby or goes straight into another match.
+-- Results (docs/UI-STYLE.md §4.9): who won, big, and why in three short
+-- reasons, then the details one tap away. The player leaves with Back to lobby
+-- or goes straight into another match.
 --
--- Layout (docs/UI-OVERHAUL.md §3.6): a scrolling column (banner, EV bar with
--- the 270 tick, both players side by side, what decided it, the closest states
--- and the debates as Collapsibles) over the pinned ActionBar: "Play vs Bot again" / "Play
--- again" (primary) and "Back to lobby".
+-- Layout: a scrolling column over the pinned ActionBar ("Play vs Bot again" /
+-- "Play again" primary, "Back to lobby" secondary):
+--   Banner        "You won" / "You lost" (hero, good / bad)
+--   Reason        "280 votes to 258" (or the tiebreak, a forfeit)
+--   RatingSlot    the rating change, once the server sends it (rated matches)
+--   EVBar         both players' votes in their colors, the 270 tick (data colors)
+--   Versus        two cards: color dot + name, "280 votes · 20 states", debate
+--                 topics won. Player colors stay on the dot and the bar, never
+--                 on big numbers next to the accent primary (Amber, D-047).
+--   WhyHead       "Why you won" / "Why Rex won" and three bullets Reason_<k>
+--                 (Shared/UI/Words/Reveal.keyReasons)
+--   FullBreakdown ghost button: the BreakdownSheet with "What decided it"
+--                 (Decided, Decided_<k>: Swing.decided), the closest states
+--                 (Closest, Closest_<id>) and every debate (Debates, Debate_<k>).
+-- Four text sizes: hero, heading, body, caption.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -16,27 +25,28 @@ local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
 local Swing = require(ReplicatedStorage.Shared.UI.Swing)
+local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
-local Collapsible = require(script.Parent.Parent.UI.Collapsible)
 local Data = require(script.Parent.Common.Data)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local Sheet = require(script.Parent.Parent.UI.Sheet)
 local Types = require(script.Parent.Types)
 
 local Screen = {}
 
-local MAX_WIDTH = 760 -- px
+local MAX_WIDTH = 640 -- px
 local CLOSEST_STATES = 5
 local TOTAL_EV = 538
 local WIN_EV = 270
 local EV_BAR_H = 14 -- px
 local TICK_W = 2 -- px, the 270 mark on the EV bar
+local DOT = 14 -- px, a player's color dot
 
 local DECIDED_BY: { [string]: string } = {
-	EV = "Decided on electoral votes.",
-	States = "Electoral votes tied, so the most states won decided it.",
-	Popular = "Electoral votes and states tied, so the popular vote decided it.",
+	States = "Votes tied, so the most states won decided it.",
+	Popular = "Votes and states tied, so the popular vote decided it.",
 	Coin = "Everything tied, so a coin flip decided it.",
 }
 
@@ -55,9 +65,19 @@ local function reasonText(payload: Session.StatePayload, election: State.Electio
 		return "The match was abandoned before election night."
 	end
 	if election then
-		return DECIDED_BY[election.decidedBy] or "Decided on election night."
+		local tie = DECIDED_BY[election.decidedBy]
+		if tie then
+			return tie
+		end
+		local you = payload.you
+		local them = if you == 1 then 2 else 1
+		return `{election.ev[you]} votes to {election.ev[them]}`
 	end
 	return "Decided on election night."
+end
+
+local function plural(n: number, word: string): string
+	return `{n} {word}{if n == 1 then "" else "s"}`
 end
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
@@ -66,6 +86,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local rendered: Session.StatePayload? = nil
 	local details: Frame? = nil
 	local ratingLine: TextLabel? = nil
+	local sheet = Sheet.new(parent, { title = "Full breakdown", name = "BreakdownSheet" })
 
 	local againBot = false
 	local bar = ActionBar.new(page.footer :: Frame, {
@@ -96,92 +117,151 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return Kit.text(text, base)
 	end
 
-	local function panel(into: Instance, name: string, order: number, size: UDim2?): Frame
-		local frame = Kit.panel({
-			Name = name,
-			LayoutOrder = order,
-			Size = size or UDim2.fromScale(1, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = into,
-		})
-		Kit.list("Vertical", Kit.space.xs).Parent = frame
-		return frame
+	-- Debate topics won by each player, over every debate.
+	local function topicsWon(view: any, player: number): number
+		local won = 0
+		for _, debate in view.debates do
+			for t = 1, #debate.topics do
+				if debate.winners[t] == player then
+					won += 1
+				end
+			end
+		end
+		return won
 	end
 
-	local function playerPanel(into: Instance, current: Session.StatePayload, player: number, order: number)
+	local function playerCard(into: Instance, current: Session.StatePayload, player: number, order: number)
 		local view = current.view
 		local election = view.election
 		local mine = player == current.you
 		local entry = view.players[player]
-		local tint = Kit.playerColor(view, player)
-		local box = panel(
-			into,
-			if mine then "Player_You" else "Player_Opponent",
-			order,
-			UDim2.new(0.5, -Kit.space.sm / 2, 0, 0)
-		)
-
-		label(box, if mine then "YOU" else "OPPONENT", {
-			Name = "Tag",
+		local card = Kit.card({
+			Name = if mine then "Player_You" else "Player_Opponent",
+			LayoutOrder = order,
+			Size = UDim2.new(0.5, -Kit.space.sm / 2, 0, 0),
+			Parent = into,
+		})
+		local nameRow = Kit.box({
+			Name = "NameRow",
 			LayoutOrder = 1,
-			TextSize = Kit.size.caption,
-			TextColor3 = Kit.colors.muted,
-			Font = Kit.font.bold,
+			Size = UDim2.new(1, 0, 0, Kit.size.heading + 8),
+			Parent = card,
 		})
-		label(box, if election then `{election.ev[player]} EV` else "- EV", {
-			Name = "EV",
-			LayoutOrder = 2,
-			Size = UDim2.new(1, 0, 0, Kit.size.title + 6),
-			AutomaticSize = Enum.AutomaticSize.None,
-			Font = Kit.font.bold,
-			TextSize = Kit.size.title,
-			TextScaled = true,
-			TextColor3 = tint,
+		local dot = Kit.box({
+			Name = "Swatch",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.fromScale(0, 0.5),
+			Size = UDim2.fromOffset(DOT, DOT),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = Kit.playerColor(view, player),
+			Parent = nameRow,
 		})
-		if election then
-			local won = election.statesWon[player]
-			label(box, `{won} {if won == 1 then "state" else "states"} won`, {
-				Name = "StatesWon",
-				LayoutOrder = 3,
-			})
-		end
-		label(box, Data.candidateName(ctx.config, if entry then entry.candidate else nil), {
+		Kit.round().Parent = dot
+		Kit.text(Data.candidateName(ctx.config, if entry then entry.candidate else nil), {
 			Name = "Candidate",
-			LayoutOrder = 4,
+			Position = UDim2.fromOffset(DOT + Kit.space.sm, 0),
+			Size = UDim2.new(1, -(DOT + Kit.space.sm), 1, 0),
 			Font = Kit.font.bold,
 			TextSize = Kit.size.heading,
+			TextScaled = true,
+			Parent = nameRow,
 		})
-		local colorRow = Kit.box({
-			Name = "ColorRow",
-			LayoutOrder = 5,
-			Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
-			Parent = box,
-		})
-		local rowList = Kit.list("Horizontal", Kit.space.sm)
-		rowList.VerticalAlignment = Enum.VerticalAlignment.Center
-		rowList.Parent = colorRow
-		local swatch = Kit.box({
-			Name = "Swatch",
-			LayoutOrder = 1,
-			Size = UDim2.fromOffset(Kit.space.lg, Kit.space.lg),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = tint,
-			Parent = colorRow,
-		})
-		Kit.round().Parent = swatch
-		Kit.text(if entry and entry.color then entry.color else "No color", {
-			Name = "ColorName",
+		label(card, if mine then "You" else "Opponent", {
+			Name = "Tag",
 			LayoutOrder = 2,
-			Size = UDim2.new(1, -(Kit.space.lg + Kit.space.sm), 1, 0),
-			TextColor3 = Kit.colors.muted,
-			Parent = colorRow,
-		})
-		label(box, `Platform: {Data.platformText(if entry then entry.platform else nil)}`, {
-			Name = "Platform",
-			LayoutOrder = 6,
 			TextSize = Kit.size.caption,
 			TextColor3 = Kit.colors.muted,
 		})
+		if election then
+			label(
+				card,
+				`{plural(election.ev[player], "vote")} · {plural(election.statesWon[player], "state")}`,
+				{
+					Name = "EV",
+					LayoutOrder = 3,
+					Font = Kit.font.bold,
+				}
+			)
+		end
+		if #view.debates > 0 then
+			label(card, `{plural(topicsWon(view, player), "debate topic")} won`, {
+				Name = "Topics",
+				LayoutOrder = 4,
+				TextSize = Kit.size.caption,
+				TextColor3 = Kit.colors.muted,
+			})
+		end
+	end
+
+	-- The sheet: what decided it, the closest states, every debate.
+	local function fillSheet(current: Session.StatePayload)
+		for _, child in sheet.body:GetChildren() do
+			if child:IsA("GuiObject") then
+				child:Destroy()
+			end
+		end
+		local view = current.view
+		local election = view.election
+		local you = current.you
+		local order = 0
+		local function section(name: string, title: string): Frame
+			order += 1
+			local box =
+				Kit.stack({ Name = name, LayoutOrder = order, Parent = sheet.body }, "Vertical", Kit.space.xs)
+			Kit.text(title, { Name = "Title", LayoutOrder = 0, Font = Kit.font.bold, Parent = box })
+			return box
+		end
+		if election then
+			local box = section("Decided", "What decided it")
+			for index, line in Swing.decided(ctx.config, view) do
+				label(
+					box,
+					line,
+					{ Name = `Decided_{index}`, LayoutOrder = index, TextSize = Kit.size.caption }
+				)
+			end
+		end
+		if election and #election.results > 0 then
+			local box = section("Closest", "Closest states")
+			local row = 0
+			for k = #election.results, math.max(1, #election.results - CLOSEST_STATES + 1), -1 do
+				local r = election.results[k]
+				local record = StateData.byId[r.state]
+				local stateName = if record then record.name else r.state
+				local votes = if record then record.ev else 0
+				local who = if r.winner == 0
+					then "tied"
+					elseif r.winner == you then `you by {string.format("%.1f", r.margin)} points`
+					else `opponent by {string.format("%.1f", r.margin)} points`
+				row += 1
+				label(box, `{stateName} · {plural(votes, "vote")}: {who}`, {
+					Name = `Closest_{r.state}`,
+					LayoutOrder = row,
+					TextSize = Kit.size.caption,
+					TextColor3 = if r.winner == 0 then Kit.colors.muted else Kit.playerColor(view, r.winner),
+				})
+			end
+		end
+		if #view.debates > 0 then
+			local box = section("Debates", "Debates")
+			for index, debate in view.debates do
+				local parts: { string } = {}
+				for t, topic in debate.topics do
+					local winner = debate.winners[t]
+					local who = if winner == you
+						then "you"
+						elseif winner == nil or winner == 0 then "tie"
+						else "opponent"
+					table.insert(parts, `{Data.issueName(topic)}: {who}`)
+				end
+				label(box, `Week {debate.week} · {table.concat(parts, ", ")}`, {
+					Name = `Debate_{index}`,
+					LayoutOrder = index,
+					TextSize = Kit.size.caption,
+					TextColor3 = Kit.colors.muted,
+				})
+			end
+		end
 	end
 
 	local function render(current: Session.StatePayload)
@@ -228,7 +308,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		label(column, reasonText(current, election), {
 			Name = "Reason",
 			LayoutOrder = nextOrder(),
-			TextColor3 = Kit.colors.muted,
+			Font = Kit.font.medium,
 			TextXAlignment = Enum.TextXAlignment.Center,
 		})
 		-- The rating line's room is always there, so the layout never shifts when
@@ -242,7 +322,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		ratingLine = Kit.text("", {
 			Name = "RatingChange",
 			Size = UDim2.fromScale(1, 1),
-			TextColor3 = Kit.colors.text,
+			TextColor3 = Kit.colors.muted,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Visible = false,
 			Parent = slot,
@@ -250,7 +330,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		-- Electoral vote bar.
 		if election then
-			local evBar = Kit.box({
+			local evBar = Kit.dataColor(Kit.box({
 				Name = "EVBar",
 				LayoutOrder = nextOrder(),
 				Size = UDim2.new(1, 0, 0, EV_BAR_H),
@@ -258,10 +338,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				BackgroundColor3 = Kit.colors.surface,
 				ClipsDescendants = true,
 				Parent = column,
-			})
+			}))
 			Kit.corner(EV_BAR_H / 2).Parent = evBar
 			local left = 0
+			local players: { number } = { you }
 			for player = 1, #view.players do
+				if player ~= you then
+					table.insert(players, player)
+				end
+			end
+			for _, player in players do
 				local share = election.ev[player] / TOTAL_EV
 				Kit.box({
 					Name = `EVBar_{player}`,
@@ -301,87 +387,46 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 		for index, player in players do
-			playerPanel(versus, current, player, index)
+			playerCard(versus, current, player, index)
 		end
 
-		-- What decided it: what debates and stances flipped, and the final gap.
+		-- Why: three short reasons, the winner's side.
+		local winner = if result then result.winner else 0
+		local names: { string } = {}
+		for p = 1, #view.players do
+			local entry = view.players[p]
+			local full = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
+			names[p] = string.match(full, "^(%S+)") or full
+		end
+		local reasons: { string } = if election then Words.keyReasons(ctx.config, view, winner, names) else {}
+		if #reasons > 0 then
+			local why = Kit.stack(
+				{ Name = "Why", LayoutOrder = nextOrder(), Parent = column },
+				"Vertical",
+				Kit.space.xs
+			)
+			Kit.heading(if winner == you then "Why you won" else `Why {names[winner]} won`, {
+				Name = "WhyHead",
+				LayoutOrder = 0,
+				Parent = why,
+			})
+			for k, text in reasons do
+				label(why, `{Kit.glyph.bullet} {text}`, { Name = `Reason_{k}`, LayoutOrder = k })
+			end
+		end
+
+		fillSheet(current)
 		if election then
-			local card = Collapsible.new(column, {
-				title = "What decided it",
-				expanded = true,
-				name = "Decided",
-				order = nextOrder(),
+			Kit.button(`Full breakdown {Kit.glyph.arrow}`, function()
+				sheet:open()
+			end, {
+				variant = "ghost",
+				Name = "FullBreakdown",
+				LayoutOrder = nextOrder(),
+				Size = UDim2.fromOffset(180, Kit.MIN_TOUCH),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Parent = column,
 			})
-			for index, line in Swing.decided(ctx.config, view) do
-				label(card.body, line, {
-					Name = `Decided_{index}`,
-					LayoutOrder = index,
-				})
-			end
-		end
-
-		-- The closest states, closest first.
-		if election and #election.results > 0 then
-			local card = Collapsible.new(column, {
-				title = "Closest states",
-				expanded = true,
-				name = "Closest",
-				order = nextOrder(),
-			})
-			local box = card.body
-			local row = 0
-			for k = #election.results, math.max(1, #election.results - CLOSEST_STATES + 1), -1 do
-				local r = election.results[k]
-				local record = StateData.byId[r.state]
-				local stateName = if record then record.name else r.state
-				local votes = if record then record.ev else 0
-				local who = if r.winner == 0
-					then "tied"
-					elseif r.winner == you then `you by {string.format("%.1f", r.margin)}`
-					else `opponent by {string.format("%.1f", r.margin)}`
-				row += 1
-				label(box, `{stateName} ({votes} EV): {who}`, {
-					Name = `Closest_{r.state}`,
-					LayoutOrder = row,
-					TextColor3 = if r.winner == 0 then Kit.colors.muted else Kit.playerColor(view, r.winner),
-				})
-			end
-		end
-
-		-- Debate topics.
-		if #view.debates > 0 then
-			local mine, theirs = 0, 0
-			local lines: { string } = {}
-			for _, debate in view.debates do
-				local parts: { string } = {}
-				for t, topic in debate.topics do
-					local winner = debate.winners[t]
-					if winner == you then
-						mine += 1
-					elseif winner ~= nil and winner ~= 0 then
-						theirs += 1
-					end
-					local who = if winner == you
-						then "you"
-						elseif winner == nil or winner == 0 then "tie"
-						else "opponent"
-					table.insert(parts, `{Data.issueName(topic)}: {who}`)
-				end
-				table.insert(lines, `Week {debate.week} - {table.concat(parts, ", ")}`)
-			end
-			local card = Collapsible.new(column, {
-				title = `Debate topics won: you {mine}, opponent {theirs}`,
-				expanded = true,
-				name = "Debates",
-				order = nextOrder(),
-			})
-			for index, line in lines do
-				label(card.body, line, {
-					Name = `Debate_{index}`,
-					LayoutOrder = index,
-					TextColor3 = Kit.colors.muted,
-				})
-			end
 		end
 
 		local _, opponent = Data.opponent(current)

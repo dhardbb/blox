@@ -348,3 +348,88 @@ describe("Election screen: UI overhaul (WP4)", function()
 		expect(tostring(inScreen(rig.peer, "BarStatus").Text)):toBe("Safe states first, closest last")
 	end)
 end)
+
+describe("Election screen: style v2 (WP-C)", function()
+	-- The first close state after the first call (the screen builds suspense before it).
+	local function closeAt(): number?
+		for k, result in election.results do
+			if result.margin < 2 and k > 1 then
+				return k
+			end
+		end
+		return nil
+	end
+
+	it("spotlights the latest call in votes and points, by first name", function()
+		local rig = fixtureRig()
+		FakeRoblox.run(rig.world, 19)
+		local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
+		local state = tostring(inScreen(rig.peer, "SpotState").Text)
+		local call = tostring(inScreen(rig.peer, "SpotCall").Text)
+		check(label == "Just called" or label == "Too close to call", `spotlight label "{label}"`)
+		check(string.find(state, " votes", 1, true) ~= nil, `spotlight state "{state}"`)
+		if label == "Just called" then
+			check(string.find(call, "Called for ", 1, true) ~= nil, `spotlight call "{call}"`)
+			check(string.find(call, " points", 1, true) ~= nil, `spotlight call "{call}"`)
+		end
+		check(string.find(state .. call, " EV", 1, true) == nil, "the spotlight says EV")
+		noErrors(rig.world)
+	end)
+
+	it("builds suspense before a close call", function()
+		local k = closeAt()
+		check(k ~= nil, "the fixture has no close state after the first call")
+		local rig = fixtureRig()
+		local seen = false
+		for _ = 1, 200 do
+			FakeRoblox.run(rig.world, 0.25)
+			if tostring(inScreen(rig.peer, "SpotLabel").Text) == "Too close to call" then
+				seen = true
+				local state = tostring(inScreen(rig.peer, "SpotState").Text)
+				check(string.find(state, "…", 1, true) ~= nil, `suspense state "{state}"`)
+				break
+			end
+		end
+		check(seen, "never showed Too close to call")
+		noErrors(rig.world)
+	end)
+
+	it("writes feed rows as state and votes over the call, marked as data colors", function()
+		local rig = fixtureRig()
+		FakeRoblox.run(rig.world, FULL_TIME)
+		local first = election.results[1]
+		local line = inScreen(rig.peer, "Line1")
+		expect(line:GetAttribute("DataColor")):toBe(true)
+		local state = line:FindFirstChild("State")
+		check(
+			state ~= nil and string.find(tostring(state.Text), " votes", 1, true) ~= nil,
+			"row has no votes"
+		)
+		local call = tostring(line:FindFirstChild("Text").Text)
+		if first.winner > 0 then
+			check(string.find(call, " points", 1, true) ~= nil, `row call "{call}"`)
+		end
+		noErrors(rig.world)
+	end)
+
+	it("uses first names on a phone and full names at 16:9, never truncated", function()
+		local wide = fixtureRig(nil)
+		local phone = fixtureRig(PHONE)
+		local full = tostring(inScreen(wide.peer, "YouSide"):FindFirstChild("Name").Text)
+		local short = tostring(inScreen(phone.peer, "YouSide"):FindFirstChild("Name").Text)
+		check(string.find(full, " ", 1, true) ~= nil, `wide name "{full}" is not the full name`)
+		check(string.find(short, " ", 1, true) == nil, `phone name "{short}" is not a first name`)
+		check(string.sub(full, 1, #short) == short, `"{short}" is not the start of "{full}"`)
+		noErrors(wide.world)
+		noErrors(phone.world)
+	end)
+
+	it("shows the election-night coach tip once, above the calls", function()
+		local rig = fixtureRig()
+		FakeRoblox.run(rig.world, 10)
+		local tip = inScreen(rig.peer, "CoachTip")
+		expect(tip:GetAttribute("TipId")):toBe("election.night")
+		expect(tip.Parent.Name):toBe("Feed")
+		noErrors(rig.world)
+	end)
+end)

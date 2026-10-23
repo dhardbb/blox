@@ -15,6 +15,7 @@ local Rig = require("./Rig")
 local State = require("@sim/State")
 local Swing = require("@ui/Swing")
 local Test = require("@testlib/Test")
+local Words = require("@ui/Words/Reveal")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
@@ -220,36 +221,54 @@ describe("Stances: the debate reveal", function()
 	it("names the states each topic swung, and every flip", function()
 		local world, peer = open("Debate", nil)
 		FakeRoblox.run(world, DEBATE_DONE)
-		local Kit = kitOf(world, peer)
 		local view = viewOf(world, peer)
 		local result = view.debates[#view.debates]
 		local flips = 0
+		local allFlips: { Swing.Flip } = {}
 		for t = 1, #result.topics do
 			local entry = Swing.debateTopic(C, view, result, t)
+			-- On the scoreboard, one short line; the full list is behind "Why?".
 			local label = need(peer, `DebateSwing{t}`)
-			expect(label.Text):toBe(entry.line)
 			check(shown(label), `DebateSwing{t} is hidden`)
+			check(Rig.contains(label.Text, if entry.winner == 0 then "Tie" else "+"), label.Text)
+			expect(need(peer, `DebateDetail{t}`).Text):toBe(entry.line)
 			if #entry.flips > 0 then
 				flips += 1
-				expect(label.TextSize):toBe(Kit.size.heading)
-				for _, flip in entry.flips do
+				for k, flip in entry.flips do
+					table.insert(allFlips, flip)
+					-- The line names the first two flips, then "+N more flips".
+					check(
+						k > 2 or Rig.contains(label.Text, flip.state),
+						`{flip.state} missing from "{label.Text}"`
+					)
 					local tag = nodePart(peer, flip.state, "Badge").Text
 					check(string.find(tag, "FLIP", 1, true) ~= nil, `{flip.state} shows "{tag}", not FLIP`)
 				end
 			end
-			if entry.winner ~= 0 then
-				-- The badge is the net over all topics; a state where two topics'
-				-- points cancel has none, so check the first state that kept some.
-				local net = Swing.debateNet(C, view, result, #result.topics)
-				for _, id in entry.states do
-					if net[id] ~= nil then
-						expect(badgeOf(peer, id)):toBe(Numbers.signed(net[id]))
-						break
-					end
-				end
-			end
 		end
 		check(flips > 0, "the fixture debate flips no state (pick another seed)")
+		-- The map badges the flips and the biggest moves only, never every state.
+		for _, flip in Swing.debateOther(view, result) do
+			table.insert(allFlips, flip)
+		end
+		local net = Swing.debateNet(C, view, result, #result.topics)
+		local marks = Words.topMarks(net, allFlips)
+		local flipped: { [string]: boolean } = {}
+		for _, flip in allFlips do
+			flipped[flip.state] = true
+		end
+		local count = 0
+		for _, s in view.states do
+			local want = marks[s.id]
+			-- A flip with no net points of its own shows FLIP alone.
+			local none = if flipped[s.id] then "FLIP" else nil
+			expect(badgeOf(peer, s.id)):toBe(if want then Numbers.signed(want) else none)
+			if want then
+				count += 1
+			end
+		end
+		check(count <= #allFlips + Words.MAP_MARKS, `{count} badges on the map`)
+		check(Rig.contains(textOf(peer, "DebateHeadline"), "topic"), textOf(peer, "DebateHeadline"))
 		Rig.noErrors(world)
 	end)
 
@@ -280,8 +299,13 @@ describe("Stances: the resolve reveal after a Choice week", function()
 		local lines = Swing.choiceLines(C, view, entry)
 		local label = need(peer, "RevealChoice")
 		expect(label.Text):toBe(table.concat(lines, "\n"))
-		check(shown(label), "the stance lines are hidden")
-		for id, net in Swing.net(entry.moves, view) do
+		check(not shown(label), "the stance numbers show before Why?")
+		tap(world, peer, "WhyButton")
+		check(shown(label), "Why? does not show the stance lines")
+		-- Without last week's polls (a fixture), the map badges what the stances
+		-- moved: the flips and the biggest moves only.
+		local marks = Words.topMarks(Swing.net(entry.moves, view), Swing.flips(entry.flips))
+		for id, net in marks do
 			expect(badgeOf(peer, id)):toBe(Numbers.signed(net))
 		end
 		check(Rig.contains(textOf(peer, "FeedEvent"), lines[1]), textOf(peer, "FeedEvent"))
@@ -294,6 +318,7 @@ describe("Stances: Results", function()
 		local world, peer = open("Over", nil)
 		local view = viewOf(world, peer)
 		local lines = Swing.decided(C, view)
+		Rig.tap(world, peer, "Results", "FullBreakdown")
 		check(Rig.shown(Rig.need(peer, "Results", "Decided"), "Results"), "no What decided it section")
 		for k, line in lines do
 			expect(Rig.textOf(peer, "Results", `Decided_{k}`)):toBe(line)

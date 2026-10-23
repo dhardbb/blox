@@ -334,7 +334,13 @@ describe("Campaign screen", function()
 		local result = payload.view.debates[#payload.view.debates]
 		FakeRoblox.run(world, 8)
 		for t = 1, #result.topics do
-			check(string.find(text(peer, `DebateTopic{t}`), "you", 1, true) ~= nil, `topic {t} not shown`)
+			-- The scoreboard row: the topic, "you – them", a verdict (WP-C, UI-STYLE §4.7).
+			check(text(peer, `DebateTopic{t}`) ~= "", `topic {t} not shown`)
+			check(
+				string.find(text(peer, `DebateScore{t}`), " – ", 1, true) ~= nil,
+				`topic {t} has no score`
+			)
+			check(text(peer, `DebateVerdict{t}`) ~= "", `topic {t} has no verdict`)
 		end
 		check(
 			string.find(text(peer, "RevealSummary"), "Every state also got", 1, true) ~= nil,
@@ -519,13 +525,14 @@ describe("Campaign screen", function()
 			end, 120),
 			"the resolve reveal never finished"
 		)
+		-- "Your week" lists the stance as "{event}: stance A · …" (WP-C, UI-STYLE §4.7).
 		local lines = {}
-		for k = 1, 8 do
+		for k = 1, 6 do
 			table.insert(lines, text(peer, `RevealLine{k}`))
 		end
 		local revealed = false
 		for _, line in lines do
-			if string.find(line, event.name .. ": You took stance A · ", 1, true) then
+			if string.find(line, event.name .. ": stance A · ", 1, true) then
 				revealed = true
 			end
 		end
@@ -787,10 +794,11 @@ describe("Campaign auto-submit before the timer ends", function()
 		end, 200, "the resolve reveal")
 		FakeRoblox.run(world, 1)
 		expect(#calls):toBe(1)
+		-- "Your week" merges repeats into one line ("Rally in Ohio ×2 · …").
 		local mentions = 0
-		for k = 1, 8 do
+		for k = 1, 6 do
 			local line = Rig.findIn(peer, "Campaign", `RevealLine{k}`)
-			if line and Rig.contains(tostring(line.Text), "You rallied") then
+			if line and Rig.contains(tostring(line.Text), "Rally in ") then
 				mentions += 1
 			end
 		end

@@ -120,20 +120,36 @@ describe("Results layout", function()
 		Rig.noErrors(world)
 	end)
 
-	it("shows the closest states and the debates expanded, and folds them on a tap", function()
+	it("keeps the closest states and the debates in the Full breakdown sheet (WP-C)", function()
 		local world, peer = Rig.fixture("Over", nil)
-		local closest = Rig.need(peer, "Results", "Closest")
-		local toggle = closest:FindFirstChild("Toggle")
-		expect(toggle:GetAttribute("Expanded")):toBe(true)
-		world.current = peer
-		toggle.Activated.fire()
-		world.current = nil
-		FakeRoblox.run(world, 0.3)
-		expect(toggle:GetAttribute("Expanded")):toBe(false)
+		local sheet = Rig.need(peer, "Results", "BreakdownSheet")
+		check(not Rig.shown(sheet, "Results"), "the breakdown is open before the tap")
+		Rig.tap(world, peer, "Results", "FullBreakdown", 0.3)
+		check(Rig.shown(sheet, "Results"), "Full breakdown did not open the sheet")
+		check(Rig.shown(Rig.need(peer, "Results", "Closest"), "Results"), "no closest states in the sheet")
 		local debates = Rig.findIn(peer, "Results", "Debates")
-		if debates then
-			expect(debates:FindFirstChild("Toggle"):GetAttribute("Expanded")):toBe(true)
+		check(debates == nil or Rig.shown(debates, "Results"), "the debates are hidden in the sheet")
+		check(
+			Rig.need(peer, "Results", "PlayAgain"):GetAttribute("PrimaryAction") == true,
+			"the sheet took the primary"
+		)
+		Rig.tap(world, peer, "Results", "Close", 0.3)
+		check(not Rig.shown(sheet, "Results"), "the × did not close the sheet")
+		Rig.noErrors(world)
+	end)
+
+	it("says why the winner won in three short reasons (WP-C)", function()
+		local world, peer = Rig.fixture("Over", nil)
+		local you = Rig.payloadOf(world, peer).you
+		withResult(world, peer, you)
+		expect(Rig.textOf(peer, "Results", "WhyHead")):toBe("Why you won")
+		for k = 1, 3 do
+			local text = Rig.textOf(peer, "Results", `Reason_{k}`)
+			check(text ~= "", `reason {k} is empty`)
+			check(#string.split(text, " ") <= 12, `reason {k} is long: {text}`)
 		end
+		-- Votes, not "EV", in sentences; the player color stays on the dot.
+		check(Rig.contains(Rig.textOf(peer, "Results", "EV"), " votes"), Rig.textOf(peer, "Results", "EV"))
 		Rig.noErrors(world)
 	end)
 
