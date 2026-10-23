@@ -8,7 +8,7 @@ Every playtest flow below also runs headlessly. `tests/lib/FakeRoblox.luau` runs
 
 ```sh
 lune run tests/play.luau -- "p1: practice" "p1! Autoplay" "until p1 match over" "screen p1" "logs"
-lune run tests/play.luau -- --seed 7 "p1: queue" "p2: queue" "p1: select hale teal jobs farms safety" "p2! Auto" "autoto Week 1 Plan · Input 120" "p1: plan rally TX jobs; fund TX" "screen p1"
+lune run tests/play.luau -- --seed 7 "p1: queue" "p2: queue" "p1: select hale jobs farms safety" "p2! Auto" "autoto Week 1 Plan · Input 120" "p1: plan rally TX jobs; fund TX" "screen p1"
 ```
 
 The fake engine does not render anything and is not the real engine. Before calling a feature done, confirm it in Studio.
@@ -43,6 +43,26 @@ Studio's local 2-player test only works on one computer. To play from two places
 **After updating the game:** Claude pushes code; Rojo syncs it into Studio; then **File → Publish to Roblox** again. Players in an old server keep the old version until they leave and rejoin.
 
 **What to send back:** who won and by how much, the moment that felt best and the one that felt worst, any stance you regretted (and why), and screenshots of anything that looked wrong. Note which device saw it (iPad touch vs Mac).
+
+## Drawn issues and colors, unique candidates (unreleased)
+
+Design log: `docs/DESIGN.md` D-044 and D-045. Use **Test → Clients and Servers → Local Server, 2 Players** for steps 3–5 (an iPad as the second player works too).
+
+1. Press **Practice**. The Select screen is now two steps.
+   - Step 1 shows the eight candidates and a line "Your color this match: …" (no color buttons). One candidate card is greyed out and says "Taken by your opponent" (the bot's); tapping it does nothing.
+   - Tap a free candidate, then **Next: issues**. Step 2 shows "2. Issues for <name>", the same color line, and eight issue chips, each with two lines: the issue, then "N EV · ×1.NN".
+   - The chips' EV numbers differ from match to match, and a smaller EV has a bigger × (for example "108 EV · ×1.72" next to "161 EV · ×1.39").
+2. Pick three issues and **Lock in**. On the map reveal, open a state card: its "Top issues" line names this match's two. Start a second practice match: the EV numbers and the top issues on the state cards are different.
+3. Two players: both pick the **same candidate** and press **Next: issues** at about the same moment.
+   - One goes to step 2; the other stays in step 1, sees that card turn "Taken by your opponent" and a message saying the opponent got it (or that they already have it). Pick another and carry on.
+4. Two players: Player1 claims a candidate; Player2 watches step 1.
+   - Within a second Player2's card for it greys out as taken.
+5. Two players: let the 38-second timer run out without pressing anything.
+   - Both still get different candidates and different colors; the match starts.
+6. Phone/iPad check: both steps fit without scrolling and **Next: issues** / **Lock in** stay on screen.
+7. Press **?** in the header: the Actions panel says the top issues are drawn each match and that niche issues hit harder, with the × range for this match and your own platform's numbers.
+
+**Send back:** a screenshot of step 2 from two different matches (the EV and × numbers), what step 3 showed the player who lost the claim, and any `[270] UI audit` lines.
 
 ## Phase 0: Scaffold (v0.0.1)
 
@@ -89,7 +109,7 @@ Start with **Test → Clients and Servers → Local Server, 2 Players → Start*
    - With Autoplay on, a match takes about 1½ minutes (the draft reveals and debates can't be skipped).
 3. **Two players (both clients).** Press **Queue** in Player1, then in Player2.
    - Both status lines switch to `m2 · Select · Input · 30s · your move` (the match number may differ).
-   - In Player1, type `select hale teal jobs farms safety` and press Enter. The status shows `LOCKED`. In Player2, press **Auto**. Both move on to MapReveal.
+   - In Player1, type `select hale jobs farms safety` and press Enter. The status shows `LOCKED`. In Player2, press **Auto**. Both move on to MapReveal.
    - Turn **Autoplay** on in both clients and let the match finish. Both should see the same final EV score, mirrored (yours first).
 4. **A hand-typed week.** In a new two-player match, play to Week 1 with Auto. Then, in Player1:
    - Type `show OH` to see a state's details.

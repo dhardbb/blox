@@ -49,8 +49,8 @@ Non-goals: tutorials, quizzes, glossary, the original game's primary season, rea
 
 A full match runs about 12 minutes typical and at most about 17½ minutes (budget in `DESIGN.md` D-005). Every timed step auto-locks when the timer ends; a player can lock early, and the step ends when both have locked.
 
-1. **Lobby.** Public queue, private match code, or practice vs the bot. Two players matched → a match instance starts in the same server (no teleport). Candidate, color and platform can be pre-picked in the lobby; rematch remembers them.
-2. **Character and platform select (30s, one screen, simultaneous, hidden until both lock).** Pick a candidate, a player color (six options, none of them a party color pairing), and 3 of the 8 issues. Reveal both.
+1. **Lobby.** Public queue, private match code, or practice vs the bot. Two players matched → a match instance starts in the same server (no teleport). Candidate and platform can be pre-picked in the lobby; rematch remembers them (colors are drawn, D-044).
+2. **Character and platform select (38s, two steps, simultaneous, hidden until both lock; D-045).** Step 1: claim a candidate; two players never share one (first claim wins, a same-moment clash goes to a seeded coin flip). Step 2: pick 3 of the 8 issues, each shown with the EV it covers this match and its platform multiplier. Player colors (six options, none of them a party color pairing) are drawn from the seed (D-044). Reveal both.
 3. **Map reveal (5s).** The match's seeded state leans are shown (see Core mechanics → Leans).
 4. **State draft (8 blind rounds, 20s each, 2s reveal after each).** Round 0: home state. Rounds 1–5: one stronghold each. Rounds 6–7: one battleground nomination each. Each round both players secretly submit a ranked top 2; picks are revealed together after every round. Full rules in Core mechanics.
 5. **Campaign, weeks 1–12.** Each week: *Plan* (50s, simultaneous, hidden: spend action points and money; the week card, meaning what the opponent did publicly, this week's event, and next debate's topics, sits in a side panel of the plan screen) → *Resolve* (8s animation: rallies, ads, fundraisers, momentum drift, new public polls; skips to 3s if both tap).
@@ -67,7 +67,7 @@ Every number below is a starting value and lives in `Config.luau` (collected in 
 
 ### Map
 
-50 states + DC, 538 electoral votes using the 2024 apportionment, winner-take-all everywhere (Maine/Nebraska splits are a stretch goal). Each state record holds: EV, population weight, a fundraising pool (capacity in $), two top issues, a region, and an adjacency list (Alaska and Hawaii are reachable only by flight). All of it in `StateData.luau`. MVP rendering is a **node map**: one circle per state at its projected centroid, radius proportional to sqrt(EV), thin lines for adjacency, fill color blending the two players' public poll margin, a grey ring for undecided share. It is built entirely from UI frames so no art assets are needed. Put it behind a `MapInterface` so real state shapes can replace the nodes later.
+50 states + DC, 538 electoral votes using the 2024 apportionment, winner-take-all everywhere (Maine/Nebraska splits are a stretch goal). Each state record holds: EV, population weight, a fundraising pool (capacity in $), two regional-flavor issues (each match draws its own two top issues per state from the seed, D-044), a region, and an adjacency list (Alaska and Hawaii are reachable only by flight). All of it in `StateData.luau`. MVP rendering is a **node map**: one circle per state at its projected centroid, radius proportional to sqrt(EV), thin lines for adjacency, fill color blending the two players' public poll margin, a grey ring for undecided share. It is built entirely from UI frames so no art assets are needed. Put it behind a `MapInterface` so real state shapes can replace the nodes later.
 
 ### State support model
 
@@ -143,11 +143,11 @@ Only the player with the most momentum in a state drifts, by the gap to the runn
 
 ### Platform and issues
 
-Eight generic issues: Jobs, Health, Schools, Environment, Safety, Roads & Transit, Technology, Farms & Rural. Each state lists two top issues. Every rally and media buy targets an issue:
+Eight generic issues: Jobs, Health, Schools, Environment, Safety, Roads & Transit, Technology, Farms & Rural. Each match draws two top issues per state from the seed (`Sim/IssueMap`, D-044): balanced so every issue covers 108–161 EV, regional flavor weighted up, public from Select. Niche issues hit harder: the platform multiplier below scales with (mean EV ÷ the issue's EV)^2.5. Every rally and media buy targets an issue:
 
 | Issue is... | Multiplier |
 | --- | --- |
-| In your platform and a top issue of the state | ×1.5 |
+| In your platform and a top issue of the state | ×1.2 + 0.3 × (134.5 ÷ the issue's EV this match)^2.5, about ×1.39–×1.72 |
 | A top issue of the state, not in your platform | ×1.2 |
 | In your platform only | ×1.0 |
 | Neither | ×0.8 |
@@ -169,7 +169,7 @@ Higher score wins the topic; an exact tie gives the topic to nobody. **Debates m
 
 A seeded deck of 24 weekly events, shown at the start of Plan so both players can react; none in weeks 1 or 12; any single event is capped at ±2 points of effect per state. Four types: *Spotlight* (one issue ×1.3 nationwide this week), *Regional* (rallies in one region ×1.5), *Windfall* (fundraisers ×1.2 in states where you trail), and *Choice* (a dispute over one issue; each player secretly takes one of three stances and the states that care about that issue react). Private lobbies can toggle events off. The deck, the cap's exact meaning and the numbers are in `DESIGN.md` D-027 and D-039.
 
-**Choice events are stance decisions** (`DESIGN.md` D-039). Each of the eight Choice events is about one issue and offers stances A and B (opposed) and C (the hedge). States where the event's issue is a top issue react by their *other* top issue: if the stance likes it, +`STANCE_POINTS` (1.5) support for you there; if it dislikes it, −1.5; otherwise +`STANCE_HEDGE` (0.5). Every other state hears a side a little through its own top issues: +`STANCE_SPILL` (0.5) per issue the stance likes, −0.5 per issue it dislikes. The hedge gives +0.5 in every state with the issue and nothing elsewhere. A candidate whose platform carries the issue is heard ×`STANCE_PLATFORM_MULT` (1.5, capped at the event cap) in the issue's states. The reactions come from fixed state data and your public platform, so the same event moves the same states the same way every match and the map previews every stance before you choose (`Events.stanceEffects`). The right answer depends on which of those states *you* need, so it differs per player and per map; both stances resolve simultaneously from one snapshot and are revealed with the week, with each state's requested points and the poll leaders they would flip. There is no payoff matrix and nothing to guess about the opponent (the D-036 matrix was removed: it read as random).
+**Choice events are stance decisions** (`DESIGN.md` D-039). Each of the eight Choice events is about one issue and offers stances A and B (opposed) and C (the hedge). States where the event's issue is a top issue react by their *other* top issue: if the stance likes it, +`STANCE_POINTS` (1.5) support for you there; if it dislikes it, −1.5; otherwise +`STANCE_HEDGE` (0.5). Every other state hears a side a little through its own top issues: +`STANCE_SPILL` (0.5) per issue the stance likes, −0.5 per issue it dislikes. The hedge gives +0.5 in every state with the issue and nothing elsewhere. A candidate whose platform carries the issue is heard ×`STANCE_PLATFORM_MULT` (1.5, capped at the event cap) in the issue's states. The reactions come from the match's public issue map and your public platform, so the same event moves the same states the same way all match and the map previews every stance before you choose (`Events.stanceEffects`). The right answer depends on which of those states *you* need, so it differs per player and per map; both stances resolve simultaneously from one snapshot and are revealed with the week, with each state's requested points and the poll leaders they would flip. There is no payoff matrix and nothing to guess about the opponent (the D-036 matrix was removed: it read as random).
 
 ### Election night
 
@@ -196,7 +196,7 @@ The character select replaces the original's primary. Eight fictional candidates
 
 All eight have debate stat 1 and 6 prep points unless the table says otherwise. These are revision-2 values from a paper review (`DESIGN.md` D-011), except where a later entry is cited; `Candidates.luau` with `DESIGN.md` D-022, D-023 and D-035 has the current numbers, and the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
 
-Presentation: each candidate is a Roblox avatar-style portrait built from a humanoid rig with a fixed outfit and color palette rendered to a ViewportFrame, so no uploaded images are required for MVP. Player color (six options: Crimson, Cobalt, Emerald, Amber, Violet, Teal) is picked separately so the two sides never read as real parties.
+Presentation: each candidate is a Roblox avatar-style portrait built from a humanoid rig with a fixed outfit and color palette rendered to a ViewportFrame, so no uploaded images are required for MVP. Player color (six options: Crimson, Cobalt, Emerald, Amber, Violet, Teal) is drawn per match (D-044) so the two sides never read as real parties.
 
 ## Competitive balance and anti-snowball
 
@@ -356,7 +356,7 @@ Every value here goes in `Config.luau` with a one-line comment. They are first g
 | UNDERDOG\_MULTS\_1 / UNDERDOG\_MULTS\_2 | 1.15 fund, 1.10 rally / 1.25, 1.20 |  |
 | UNDERDOG\_SMOOTHING / UNDERDOG\_HYSTERESIS | 0.5 / 20 | EMA weight on newest week; EV below threshold to leave a tier |
 | EVENT\_CAP | 2 | Max points from one event |
-| TIMER\_SELECT | 30 | Candidate, color and platform on one screen |
+| TIMER\_SELECT | 38 | Candidate, then platform (two steps, D-045) |
 | TIMER\_MAP\_REVEAL | 5 | Leans shown before the draft |
 | DRAFT\_ROUNDS / TIMER\_DRAFT\_ROUND / DRAFT\_REVEAL | 8 / 20 / 2 | Blind, ranked top 2 |
 | DRAFT\_PRIORITY | A B B A B A A B | Clash priority per round |
