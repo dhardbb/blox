@@ -516,7 +516,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if isLocked() then
 			bar:setStatus("Locked in", "muted")
 		elseif ctx.now() < swapHintUntil then
-			bar:setStatus(`You already have {platformSize}. Tap one to swap it.`, "warn")
+			bar:setStatus(`You already have {platformSize}; tap one to swap it`, "warn")
 		elseif rejection then
 			bar:setStatus(rejection, "bad")
 		elseif step() == 1 then

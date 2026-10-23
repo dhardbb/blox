@@ -298,7 +298,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		TextColor3 = Kit.colors.muted,
 		Parent = sheet.body,
 	})
-	Kit.button("How the draft works", function()
+	local howButton = Kit.button("How the draft works", function()
 		sheet:open()
 	end, { variant = "ghost", Name = "HowButton", LayoutOrder = ORDER.how, Parent = scroll })
 
@@ -746,6 +746,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		stateList.root.Visible = mode == "Input"
 		showAllButton.Visible = mode == "Input" and (showAll or stateList:hidden() > 0)
 		showAllButton.Text = if showAll then "Show fewer states" else "Show all states"
+		howButton.Visible = mode ~= "Reveal"
 
 		-- Countdown: it only warns while there is something to lock in.
 		local total = if mode == "Input"
