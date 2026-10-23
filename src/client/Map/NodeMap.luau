@@ -11,6 +11,10 @@
 -- solid tag on the circle's top edge, drawn in the Tags layer above every node,
 -- so no neighbor's circle hides it and it never sits on another state's label.
 --
+-- The lens row (Map/Lens, D-044) sits at the bottom of the tap target, under
+-- the label: a few short pills ("17", "JOB HLT", "+3", "$2.4"), each on a dark
+-- backing so it reads on any fill. While a row shows, the label moves up.
+--
 -- Each state is one invisible tap target (a TextButton named by the state id)
 -- at least Kit.MAP_NODE_MIN px in both directions. Everything drawn for the
 -- state lives inside it except its tag: the circle with its label, then the
@@ -42,6 +46,12 @@ local ARROWS = { up = "▲", down = "▼" }
 local HALO_SCALE = 1.45 -- the glow's diameter, share of the circle's (at most the tap target)
 local HALO_SOFT = 0.6 -- glow transparency for a state that moves
 local HALO_STRONG = 0.2 -- glow transparency for a state whose poll leader changes
+local PART_H = Kit.size.caption + 7 -- px, a lens pill's height
+local PART_PAD = 3 -- px, a lens pill's side padding
+local PART_GAP = 2 -- px, between two lens pills
+local LABEL_Y = 0.5 -- the label's center, share of the tap target
+local LABEL_Y_LENS = 0.34 -- ... while a lens row shows under it
+local EDGE = 0.15 -- nodes this close to a side of the map align their lens row to it
 
 type Node = {
 	id: string,
@@ -53,6 +63,8 @@ type Node = {
 	badge: TextLabel,
 	badgeStroke: UIStroke,
 	arrow: TextLabel,
+	lensRow: Frame,
+	parts: { TextLabel },
 }
 
 -- A thin rotated frame from (x1, y1) to (x2, y2) in box fractions.
@@ -79,6 +91,76 @@ local function segment(
 		BorderSizePixel = 0,
 		Parent = parent,
 	})
+end
+
+-- The lens row along the bottom of a tap target; near a side of the map the
+-- pills line up with that side, so a long row grows inward.
+local function newLensRow(hit: Instance, x: number): Frame
+	local row = Kit.new("Frame", {
+		Name = "Lens",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 1),
+		Size = UDim2.new(1, 0, 0, PART_H),
+		ZIndex = 6,
+		Visible = false,
+		Parent = hit,
+	})
+	local list = Kit.list("Horizontal", PART_GAP)
+	list.HorizontalAlignment = if x < EDGE
+		then Enum.HorizontalAlignment.Left
+		elseif x > 1 - EDGE then Enum.HorizontalAlignment.Right
+		else Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Parent = row
+	return row
+end
+
+-- One pill of a lens row (made on first use, then reused).
+local function newPart(row: Frame, k: number): TextLabel
+	local part = Kit.text("", {
+		Name = `Part{k}`,
+		LayoutOrder = k,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, PART_H),
+		TextSize = Kit.size.caption,
+		Font = Kit.font.bold,
+		BackgroundColor3 = Kit.colors.background,
+		BackgroundTransparency = 0.15,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextWrapped = false,
+		ZIndex = 6,
+		Parent = row,
+	})
+	Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = part })
+	Kit.new("UIPadding", {
+		PaddingLeft = UDim.new(0, PART_PAD),
+		PaddingRight = UDim.new(0, PART_PAD),
+		Parent = part,
+	})
+	return part
+end
+
+-- Fills a node's lens row from `line` (nil or no parts: hidden).
+local function paintLens(node: Node, line: MapInterface.LensLine?)
+	local parts: { MapInterface.LensPart } = if line then line.parts else {}
+	for k, spec in parts do
+		if k > #node.parts then
+			table.insert(node.parts, newPart(node.lensRow, k))
+		end
+		local part = node.parts[k]
+		local color = spec.color or Kit.colors.text
+		part.Visible = true
+		part.Text = spec.text
+		part.TextColor3 = if spec.filled then Kit.colors.background else color
+		part.BackgroundColor3 = if spec.filled then color else Kit.colors.background
+	end
+	for k = #parts + 1, #node.parts do
+		node.parts[k].Visible = false
+	end
+	local shown = #parts > 0
+	node.lensRow.Visible = shown
+	node.label.Position = UDim2.fromScale(0.5, if shown then LABEL_Y_LENS else LABEL_Y)
 end
 
 function NodeMap.new(): MapInterface.Map
@@ -183,7 +265,7 @@ function NodeMap.new(): MapInterface.Map
 			Name = "Label",
 			Size = UDim2.fromScale(MapLayout.LABEL_SCALE * k, LABEL_H),
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, LABEL_Y),
 			TextScaled = true,
 			TextSize = Kit.size.heading,
 			Font = Kit.font.bold,
@@ -247,6 +329,8 @@ function NodeMap.new(): MapInterface.Map
 			badge = badge,
 			badgeStroke = badgeStroke,
 			arrow = arrow,
+			lensRow = newLensRow(hit, n.x),
+			parts = {},
 		}
 		nodes[i] = node
 		byId[n.id] = node
@@ -258,15 +342,19 @@ function NodeMap.new(): MapInterface.Map
 	end
 
 	local marks: { [string]: MapInterface.Mark } = {}
+	local lens: { [string]: MapInterface.LensLine } = {}
 	local fills: { [string]: Color3 } = {}
 	local rings: { [string]: number } = {}
 
 	local function paint(node: Node)
 		local mark = marks[node.id]
+		local line = lens[node.id]
 		local isSelected = selected == node.id
+		local dim = (mark ~= nil and mark.dim == true) or (line ~= nil and line.dim == true)
 		node.circle.BackgroundColor3 = fills[node.id] or Kit.color(Colors.neutral)
-		node.circle.BackgroundTransparency = if mark and mark.dim then DIM_FILL else 0
-		node.label.TextTransparency = if mark and mark.dim then DIM_TEXT else 0
+		node.circle.BackgroundTransparency = if dim then DIM_FILL else 0
+		node.label.TextTransparency = if dim then DIM_TEXT else 0
+		paintLens(node, line)
 		if isSelected then
 			node.ring.Color = Kit.colors.accent
 			node.ring.Thickness = 4
@@ -337,6 +425,13 @@ function NodeMap.new(): MapInterface.Map
 
 	function map.setMarks(_self: any, newMarks: { [string]: MapInterface.Mark })
 		marks = newMarks
+		for _, node in nodes do
+			paint(node)
+		end
+	end
+
+	function map.setLens(_self: any, newLens: { [string]: MapInterface.LensLine })
+		lens = newLens
 		for _, node in nodes do
 			paint(node)
 		end
