@@ -366,9 +366,9 @@ describe("Election screen: style v2 (WP-C)", function()
 		local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
 		local state = tostring(inScreen(rig.peer, "SpotState").Text)
 		local call = tostring(inScreen(rig.peer, "SpotCall").Text)
-		check(label == "Just called" or label == "Too close to call", `spotlight label "{label}"`)
+		check(label == "JUST CALLED" or label == "TOO CLOSE TO CALL", `spotlight label "{label}"`)
 		check(string.find(state, " votes", 1, true) ~= nil, `spotlight state "{state}"`)
-		if label == "Just called" then
+		if label == "JUST CALLED" then
 			check(string.find(call, "Called for ", 1, true) ~= nil, `spotlight call "{call}"`)
 			check(string.find(call, " points", 1, true) ~= nil, `spotlight call "{call}"`)
 		end
@@ -383,7 +383,7 @@ describe("Election screen: style v2 (WP-C)", function()
 		local seen = false
 		for _ = 1, 200 do
 			FakeRoblox.run(rig.world, 0.25)
-			if tostring(inScreen(rig.peer, "SpotLabel").Text) == "Too close to call" then
+			if tostring(inScreen(rig.peer, "SpotLabel").Text) == "TOO CLOSE TO CALL" then
 				seen = true
 				local state = tostring(inScreen(rig.peer, "SpotState").Text)
 				check(string.find(state, "…", 1, true) ~= nil, `suspense state "{state}"`)
@@ -400,12 +400,12 @@ describe("Election screen: style v2 (WP-C)", function()
 		local first = election.results[1]
 		local line = inScreen(rig.peer, "Line1")
 		expect(line:GetAttribute("DataColor")):toBe(true)
-		local state = line:FindFirstChild("State")
+		local state = line:FindFirstChild("State", true)
 		check(
 			state ~= nil and string.find(tostring(state.Text), " votes", 1, true) ~= nil,
 			"row has no votes"
 		)
-		local call = tostring(line:FindFirstChild("Text").Text)
+		local call = tostring(line:FindFirstChild("Text", true).Text)
 		if first.winner > 0 then
 			check(string.find(call, " points", 1, true) ~= nil, `row call "{call}"`)
 		end
@@ -450,9 +450,9 @@ describe("Election screen: the show (polish WP-2)", function()
 		local lines = feedLines(peer)
 		local spot = inScreen(peer, "Spotlight")
 		local label = tostring(inScreen(peer, "SpotLabel").Text)
-		local waiting = label == "Too close to call"
-			or label == "Still counting"
-			or label == "Polls have closed"
+		local waiting = label == "TOO CLOSE TO CALL"
+			or label == "STILL COUNTING"
+			or label == "POLLS HAVE CLOSED"
 		if spot.Visible ~= false and not waiting then
 			lines += 1
 		end
@@ -531,10 +531,10 @@ describe("Election screen: the show (polish WP-2)", function()
 		for _ = 1, 180 do
 			FakeRoblox.run(rig.world, 0.25)
 			local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
-			if inScreen(rig.peer, "Spotlight").Visible ~= false and label ~= "Too close to call" then
+			if inScreen(rig.peer, "Spotlight").Visible ~= false and label ~= "TOO CLOSE TO CALL" then
 				local state = tostring(inScreen(rig.peer, "SpotState").Text)
 				for _, row in inScreen(rig.peer, "Feed"):GetChildren() do
-					local rowState = row:FindFirstChild("State")
+					local rowState = row:FindFirstChild("State", true)
 					check(
 						rowState == nil or tostring(rowState.Text) ~= state,
 						`{state} is in the spotlight and the feed`
@@ -577,7 +577,7 @@ describe("Election screen: the show (polish WP-2)", function()
 		for _ = 1, 200 do
 			FakeRoblox.run(rig.world, 0.1)
 			local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
-			if string.find(label, "reaches 270", 1, true) then
+			if string.find(label, "REACHES 270", 1, true) then
 				seen = true
 				break
 			end
@@ -600,5 +600,92 @@ describe("Election screen: the show (polish WP-2)", function()
 		expect(number(peer, "EvThem")):toBe(election.ev[2])
 		expect(feedLines(peer)):toBe(#election.results)
 		check(#strictFindings(rig) == 0, "audit findings with reduced motion")
+	end)
+end)
+
+describe("Election screen: front-page moments (D-056, WP-3)", function()
+	-- The first instance named `name` in the screen, or nil.
+	local function maybe(peer: FakeRoblox.Peer, name: string): any
+		local holder = FakeRoblox.find(peer, "Election")
+		for _, inst in holder:GetDescendants() do
+			if inst.Name == name then
+				return inst
+			end
+		end
+		return nil
+	end
+
+	it("stamps CALLED on the spotlight in the winner's color, none while counting", function()
+		local rig = fixtureRig(nil, 0)
+		local Kit = FakeRoblox.require(rig.world, rig.peer, "src/client/UI/Kit.luau")
+		local seenCall, seenSuspense = false, false
+		for _ = 1, 450 do
+			FakeRoblox.run(rig.world, 0.1)
+			local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
+			local stamp = maybe(rig.peer, "CalledStamp")
+			if label == "JUST CALLED" then
+				seenCall = true
+				check(stamp ~= nil, "a call with no CALLED stamp")
+				-- The spotlight's stroke is the winner's color; the stamp matches it.
+				local fill = stamp:FindFirstChild("Plate").BackgroundColor3
+				local want = inScreen(rig.peer, "Spotlight"):FindFirstChildOfClass("UIStroke").Color
+				check(
+					want ~= Kit.colors.line and want ~= Kit.colors.accent,
+					"the spotlight is not in a player color"
+				)
+				check(fill == want, "the CALLED stamp is not in the winner's color")
+			elseif label == "TOO CLOSE TO CALL" then
+				seenSuspense = true
+				check(stamp == nil, "a CALLED stamp during the suspense")
+				check(
+					inScreen(rig.peer, "SpotLabel"):GetAttribute("Warn") == true,
+					"orange suspense without Warn"
+				)
+			end
+			if seenCall and seenSuspense then
+				break
+			end
+		end
+		check(seenCall and seenSuspense, "never saw both a call and the suspense")
+		noErrors(rig.world)
+	end)
+
+	it("stamps 270! over the tick after the crossing, before the banner", function()
+		local rig = fixtureRig(nil, 0)
+		local seen = false
+		for _ = 1, 600 do
+			FakeRoblox.run(rig.world, 0.1)
+			if maybe(rig.peer, "Stamp270") then
+				seen = true
+				-- The fixture's crossing is the last call: the strip holds for the stamp.
+				check(visible(rig.peer, "Counters"), "the banner hid the 270! stamp at once")
+				check(not visible(rig.peer, "Goal"), "270 TO WIN peeks out under the stamp")
+				break
+			end
+		end
+		check(seen, "no 270! stamp")
+		FakeRoblox.run(rig.world, 3)
+		expect(visible(rig.peer, "BannerPanel")):toBe(true)
+		expect(feedLines(rig.peer)):toBe(#election.results)
+		noErrors(rig.world)
+	end)
+
+	it("shows the 270! stamp at once with reduced motion", function()
+		local world = FakeRoblox.world({ root = process.cwd, seed = 3 })
+		world.reducedMotion = true
+		local peer = FakeRoblox.join(world, "P", { DebugScreen = "Election" })
+		local seen = false
+		for _ = 1, 600 do
+			FakeRoblox.run(world, 0.1)
+			local stamp = maybe(peer, "Stamp270")
+			if stamp then
+				seen = true
+				local scale = stamp:FindFirstChild("MotionScale")
+				check(scale == nil or scale.Scale == 1, "the stamp is still scaling under reduced motion")
+				break
+			end
+		end
+		check(seen, "no 270! stamp with reduced motion")
+		noErrors(world)
 	end)
 end)

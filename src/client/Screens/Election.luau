@@ -14,10 +14,23 @@
 -- call is not in the feed until the next one replaces it (never shown twice);
 -- once everything is called the spotlight steps aside and the feed has it all.
 --
+-- The front-page look (docs/DESIGN.md D-056, WP-3): the strip is a lit card
+-- with Kit.raceBar (14 px, the tick named Marker270) and Fredoka totals; a
+-- call flashes its state white and lands a "CALLED" stamp in the winner's color
+-- on the spotlight (whose stroke and monogram turn that color, eyebrow "JUST
+-- CALLED"; the suspense says "TOO CLOSE TO CALL" in orange); crossing 270
+-- flashes the tick with a glow and, CROSS_STAMP later, stamps "270!" over it;
+-- the tipping state keeps a white ring and an accent glow (its call has no
+-- CALLED stamp: one stamp per moment; when it is the last call, the banner
+-- waits BANNER_HOLD for it). Feed rows carry a
+-- left bar in the winner's color. The banner: eyebrow "ELECTION NIGHT", the
+-- line in Fredoka, the winner's stroke and glow.
+--
 -- Stable names for tests and agents: SkipButton (the pinned primary), EvYou,
--- EvThem, Feed, Banner (plus CallStatus, Tiebreak, MapBox, Counters, Marker270,
--- Spotlight, SpotLabel, SpotState, SpotCall, BarStatus, BarOpponent, Goal, and
--- the header's Timer). Screen.schedule and Screen.tippingCall are the pacing, for
+-- EvThem, Feed, Banner (plus CallStatus, Tiebreak, MapBox, Counters, Bar,
+-- Marker270, Stamp270, Spotlight, SpotLabel (an eyebrow: upper case), SpotState,
+-- SpotCall, SpotPortrait, CalledStamp, BannerEyebrow, BarStatus, BarOpponent,
+-- Goal, and the header's Timer). Screen.schedule and Screen.tippingCall are the pacing, for
 -- the specs.
 --
 -- Layout (docs/UI-STYLE.md §4.8), every big box explicitly positioned:
@@ -62,7 +75,10 @@ local SLOW_CALLS = 8 -- the last (closest) calls that each get a slow beat
 local SLOW_BEAT = 1.2 -- s, one slow call: the call holds, then the suspense for the next
 local SUSPENSE_AT = 0.5 -- share of a slow beat after which the next state is "too close"
 local CATCH_UP = 3 -- more new calls than this in one frame (a rejoin): no per-call effects
-local FLASH_270 = 0.3 -- s, each half of the 270 tick's flash (it flashes twice)
+local FLASH_270 = 0.3 -- s, each half of the "270 to win" flash (it flashes twice)
+local CROSS_STAMP = 0.6 -- s after the tipping call, the "270!" stamp lands on the tick
+local CALL_FLASH = 0.12 -- s a called state's disc leans white before taking the winner's color
+local BANNER_HOLD = 1.6 -- s the banner waits when the last call is the one that crosses 270 (its stamp's moment)
 local CALL_PITCH = 0.9 -- the "call" cue's pitch at 0 votes; +CALL_RISE at 270
 local CALL_RISE = 0.3
 local GAP = Kit.space.sm -- px, between the big blocks
@@ -70,16 +86,19 @@ local STRIP_H = 72 -- px, the counters strip and a banner without a tiebreak not
 local TIEBREAK_H = 96 -- px, banner plus the tiebreak note on a wide screen
 local TIEBREAK_H_PORTRAIT = 132 -- px, same on a phone (the note wraps to more lines)
 local ROW_TOP = 30 -- px, the strip's name/EV row
-local BAR_BOX_H = 22 -- px, the box holding the 14 px bar and the 270 tick
-local BAR_H = 14 -- px, the EV bar
+local BAR_H = 14 -- px, the EV bar (Kit.raceBar: 22 px with the tick's overhang)
 local EV_W = 60 -- px, the EV number
 local GOAL_W = 76 -- px, "270 to win" between the two sides
-local SPOT_H = 92 -- px, the spotlight card: a caption, the state, the call
+local SPOT_H = 92 -- px, the spotlight card: an eyebrow, the state, the call
+local SPOT_PORTRAIT = 44 -- px, the winner's monogram in the spotlight
+local BANNER_EYEBROW_H = 16 -- px, "ELECTION NIGHT" over the banner's line
+local LINE_BAR_W = 4 -- px, a feed row's left bar in the winner's color
 local CALL_POP = 0.94 -- the spotlight's scale as a call lands (it springs to 1)
 local LINE_H = Kit.MIN_TOUCH -- px, smallest feed row
 local MAP_SHARE = 0.66 -- of the width, wide screens
 local MAP_SHARE_PORTRAIT = 0.38 -- of the height at most, phones
-local WINNER_TINT = 0.35 -- how far a feed row leans toward the winner's color
+local WINNER_TINT = 0.3 -- how far a feed row leans toward the winner's color
+local BANNER_GLOW = 0.65 -- the banner's glow in the winner's color (transparency)
 
 local TOTAL_EV = 0 -- every electoral vote on the map; the bar fills against it
 for _, record in StateData.list do
@@ -167,7 +186,7 @@ type Side = {
 
 -- One candidate's half of the strip: the EV number at the outer edge, the name
 -- over "N states" next to it, and that candidate's fill of the shared bar.
-local function buildSide(strip: Frame, bar: Frame, evName: string, right: boolean): Side
+local function buildSide(strip: Frame, fill: Frame, evName: string, right: boolean): Side
 	local align = if right then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left
 	local half = Kit.box({
 		Name = if right then "ThemSide" else "YouSide",
@@ -181,7 +200,7 @@ local function buildSide(strip: Frame, bar: Frame, evName: string, right: boolea
 		AnchorPoint = Vector2.new(if right then 1 else 0, 0),
 		Position = UDim2.fromScale(if right then 1 else 0, 0),
 		Size = UDim2.new(0, EV_W, 1, 0),
-		Font = Kit.font.bold,
+		Font = Kit.font.display,
 		TextSize = Kit.size.title,
 		TextScaled = true,
 		TextXAlignment = align,
@@ -211,18 +230,17 @@ local function buildSide(strip: Frame, bar: Frame, evName: string, right: boolea
 		TextXAlignment = align,
 		Parent = half,
 	})
-	local fill = Kit.box({
-		Name = if right then "FillThem" else "FillYou",
-		AnchorPoint = Vector2.new(if right then 1 else 0, 0),
-		Position = UDim2.fromScale(if right then 1 else 0, 0),
-		Size = UDim2.fromScale(0, 1),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.muted,
-		ZIndex = 2,
-		Parent = bar,
-	})
-	Kit.corner(Kit.radius.pill).Parent = fill
+	fill.Name = if right then "FillThem" else "FillYou"
 	return { name = name, ev = ev, states = states, fill = fill }
+end
+
+-- A stamp's label at an explicit resting transparency, so it rests the same
+-- with or without Motion.stamp's fade (which ends on 0).
+local function settle(stamp: Frame)
+	local label = stamp:FindFirstChild("Label", true) :: TextLabel?
+	if label then
+		label.TextTransparency = 0
+	end
 end
 
 local function plural(n: number, one: string, many: string): string
@@ -265,70 +283,73 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	header:setTimerLabel("Results in")
 
 	-- The counters strip: both candidates and one shared bar.
-	local counters = Kit.box({
-		Name = "Counters",
-		Position = UDim2.fromOffset(0, Kit.HEADER_H + GAP),
-		Size = UDim2.new(1, 0, 0, STRIP_H),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.surface,
-		Parent = root,
-	})
+	local counters = Kit.depth(
+		Kit.box({
+			Name = "Counters",
+			Position = UDim2.fromOffset(0, Kit.HEADER_H + GAP),
+			Size = UDim2.new(1, 0, 0, STRIP_H),
+			BackgroundTransparency = 0,
+			Parent = root,
+		}),
+		Kit.colors.surfaceTop,
+		Kit.colors.surface
+	)
 	Kit.corner(Kit.radius.panel).Parent = counters
+	Kit.bevel(counters)
+	Kit.shadow(counters)
 	Kit.pad(Kit.space.sm).Parent = counters
 	local need = ctx.config.EV_TO_WIN
-	local goal = Kit.text(`{need} to win`, {
+	local mark = math.clamp(need / TOTAL_EV, 0, 1)
+	local goal = Kit.text(string.upper(`{need} to win`), {
 		Name = "Goal",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
+		Position = UDim2.fromScale(mark, 0),
 		Size = UDim2.fromOffset(GOAL_W, ROW_TOP),
+		Font = Kit.font.medium,
 		TextSize = Kit.size.caption,
 		TextScaled = true,
 		TextColor3 = Kit.colors.muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Bottom,
 		Parent = counters,
 	})
-	local barBox = Kit.box({
-		Name = "BarBox",
-		Position = UDim2.fromOffset(0, ROW_TOP + Kit.space.xs),
-		Size = UDim2.new(1, 0, 0, BAR_BOX_H),
-		Parent = counters,
-	})
-	local bar = Kit.box({
-		Name = "Bar",
-		Position = UDim2.fromOffset(0, (BAR_BOX_H - BAR_H) // 2),
-		Size = UDim2.new(1, 0, 0, BAR_H),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.raised,
-		Parent = barBox,
-	})
-	Kit.corner(Kit.radius.pill).Parent = bar
-	local marker = Kit.box({
-		Name = "Marker270",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(math.clamp(need / TOTAL_EV, 0, 1), 0),
-		Size = UDim2.new(0, 3, 1, 0),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = Kit.colors.text,
-		ZIndex = 3,
-		Parent = barBox,
-	})
-	local youSide: Side = buildSide(counters, bar, "EvYou", false)
-	local themSide: Side = buildSide(counters, bar, "EvThem", true)
+	-- The race to 270: one 14 px bar, you from the left, them from the right.
+	local race = Kit.raceBar(counters, { h = BAR_H, mark = mark, name = "Bar" })
+	race.root.Position = UDim2.fromOffset(0, ROW_TOP + Kit.space.xs)
+	race.tick.Name = "Marker270"
+	local stamp270: Frame? = nil -- "270!" over the tick, once someone gets there
+	local youSide: Side = buildSide(counters, race.left, "EvYou", false)
+	local themSide: Side = buildSide(counters, race.right, "EvThem", true)
 
 	-- The banner, in the strip's place once every state is called.
-	local bannerPanel = Kit.panel({
-		Name = "BannerPanel",
-		Position = counters.Position,
-		Size = UDim2.new(1, 0, 0, STRIP_H),
-		Visible = false,
-		Parent = root,
-	})
+	local bannerPanel = Kit.depth(
+		Kit.panel({
+			Name = "BannerPanel",
+			Position = counters.Position,
+			Size = UDim2.new(1, 0, 0, STRIP_H),
+			Visible = false,
+			Parent = root,
+		}),
+		Kit.colors.raisedTop,
+		Kit.colors.raised
+	)
+	Kit.shadow(bannerPanel)
+	local bannerGlow =
+		Kit.glow(bannerPanel, Kit.colors.accent, { scale = 1, stretch = true, transparency = BANNER_GLOW })
 	local bannerStroke = Kit.stroke(Kit.colors.accent, 2)
 	bannerStroke.Parent = bannerPanel
+	Kit.eyebrow("Election night", {
+		Name = "BannerEyebrow",
+		Size = UDim2.new(1, 0, 0, BANNER_EYEBROW_H),
+		AutomaticSize = Enum.AutomaticSize.None,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = bannerPanel,
+	})
 	local banner = Kit.text("", {
 		Name = "Banner",
-		Size = UDim2.new(1, 0, 0, 34),
-		Font = Kit.font.bold,
+		Position = UDim2.fromOffset(0, BANNER_EYEBROW_H),
+		Size = UDim2.new(1, 0, 0, 32),
+		Font = Kit.font.display,
 		TextSize = Kit.size.title,
 		TextScaled = true,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -336,8 +357,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	local tiebreak = Kit.text("", {
 		Name = "Tiebreak",
-		Position = UDim2.fromOffset(0, 34 + Kit.space.xs),
-		Size = UDim2.new(1, 0, 1, -(34 + Kit.space.xs)),
+		Position = UDim2.fromOffset(0, BANNER_EYEBROW_H + 32 + Kit.space.xs),
+		Size = UDim2.new(1, 0, 1, -(BANNER_EYEBROW_H + 32 + Kit.space.xs)),
 		TextSize = Kit.size.caption,
 		TextColor3 = Kit.colors.muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -356,22 +377,40 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local side = Kit.panel({ Name = "Side", Parent = body })
 
 	-- The spotlight: the call that just happened, or the suspense before a close one.
-	local spotlight = Kit.panel({
-		Name = "Spotlight",
-		Size = UDim2.new(1, 0, 0, SPOT_H),
-		BackgroundColor3 = Kit.colors.raised,
-		Parent = side,
-	})
-	Kit.list("Vertical", 2).Parent = spotlight
+	-- Elevation 4 (UI-STYLE §2): lit raised plate, a 2 px stroke in the moment's
+	-- color, a shadow. The winner's monogram on the left, the words on the right.
+	local spotlight = Kit.depth(
+		Kit.panel({
+			Name = "Spotlight",
+			Size = UDim2.new(1, 0, 0, SPOT_H),
+			Parent = side,
+		}),
+		Kit.colors.raisedTop,
+		Kit.colors.raised
+	)
+	Kit.shadow(spotlight)
 	local spotStroke = Kit.stroke(Kit.colors.line, 2)
 	spotStroke.Parent = spotlight
-	local spotLabel = Kit.text("Polls have closed", {
+	local spotPortrait = Kit.box({
+		Name = "SpotPortrait",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(SPOT_PORTRAIT, SPOT_PORTRAIT),
+		Parent = spotlight,
+	})
+	local spotWords = Kit.box({
+		Name = "SpotWords",
+		Position = UDim2.fromOffset(SPOT_PORTRAIT + Kit.space.md, 0),
+		Size = UDim2.new(1, -(SPOT_PORTRAIT + Kit.space.md), 1, 0),
+		Parent = spotlight,
+	})
+	Kit.list("Vertical", 2).Parent = spotWords
+	local spotLabel = Kit.eyebrow("Polls have closed", {
 		Name = "SpotLabel",
 		LayoutOrder = 1,
 		Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
-		TextSize = Kit.size.caption,
-		TextColor3 = Kit.colors.muted,
-		Parent = spotlight,
+		AutomaticSize = Enum.AutomaticSize.None,
+		Parent = spotWords,
 	})
 	local spotState = Kit.text("The first states are coming in", {
 		Name = "SpotState",
@@ -380,7 +419,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Font = Kit.font.bold,
 		TextSize = Kit.size.heading,
 		TextScaled = true,
-		Parent = spotlight,
+		Parent = spotWords,
 	})
 	local spotCall = Kit.text("", {
 		Name = "SpotCall",
@@ -388,8 +427,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
 		Font = Kit.font.medium,
 		TextScaled = true,
-		Parent = spotlight,
+		Parent = spotWords,
 	})
+	local calledStamp: Frame? = nil -- "CALLED" over the spotlight's top-right corner
+	local portraitFor = "" -- whose monogram the spotlight shows
 
 	local feedTop = SPOT_H + GAP
 	local feed = Kit.new("ScrollingFrame", {
@@ -492,15 +533,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local short = ctx.portrait()
 		youSide.name.Text = if short then firstName(names[youIndex]) else names[youIndex]
 		themSide.name.Text = if short then firstName(names[themIndex]) else names[themIndex]
-		youSide.name.TextColor3 = Kit.color(colors[youIndex])
-		themSide.name.TextColor3 = Kit.color(colors[themIndex])
-		youSide.fill.BackgroundColor3 = Kit.color(colors[youIndex])
-		themSide.fill.BackgroundColor3 = Kit.color(colors[themIndex])
+		-- Names in the readable variant of their color; the bar in the base colors.
+		youSide.name.TextColor3 = Kit.textColor(Kit.color(colors[youIndex]))
+		themSide.name.TextColor3 = Kit.textColor(Kit.color(colors[themIndex]))
+		race:setColors(Kit.color(colors[youIndex]), Kit.color(colors[themIndex]))
 	end
 
 	-- Fill and rings for the first `count` calls. Calls from `wipeFrom` on are
-	-- new this frame: they start uncalled and wipe to the winner's color.
-	local function paintMap(count: number, wipeFrom: number)
+	-- new this frame: they start uncalled and wipe to the winner's color (with
+	-- `flash`, through a CALL_FLASH lean to white first: the called-state flash).
+	local function paintMap(count: number, wipeFrom: number, flash: boolean)
 		local view: View.View = payload.view
 		local winners: { [string]: number } = {}
 		for k = 1, math.min(count, wipeFrom - 1) do
@@ -527,7 +569,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		for k = wipeFrom, count do
 			local result = results[k]
 			if result.winner > 0 then
-				map:wipe(result.state, Kit.color(colors[result.winner]))
+				local color = Kit.color(colors[result.winner])
+				if flash and not Motion.reduced() then
+					local id = result.state
+					map:wipe(id, Kit.colors.text)
+					task.delay(CALL_FLASH, function()
+						if root.Parent ~= nil then
+							map:wipe(id, color)
+						end
+					end)
+				else
+					map:wipe(result.state, color)
+				end
 			else
 				map:ring(result.state, Kit.colors.muted)
 			end
@@ -537,9 +590,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if count > 0 then
 			marks[results[count].state] = { ring = Kit.colors.accent }
 		end
+		-- The state that took someone to 270 keeps a white ring and a glow all night.
+		if tipping and count >= tipping then
+			marks[results[tipping].state] =
+				{ ring = Kit.colors.text, halo = Kit.colors.accent, haloStrong = true }
+		end
 		local nextResult = results[count + 1]
 		if nextResult and slowCalls[count + 1] then
-			marks[nextResult.state] = { ring = Kit.colors.accent, badge = "?" }
+			-- The state everyone is waiting on glows in the accent.
+			marks[nextResult.state] = { ring = Kit.colors.accent, badge = "?", halo = Kit.colors.accent }
 		end
 		map:setMarks(marks)
 	end
@@ -561,21 +620,40 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Parent = feed,
 		}))
 		Kit.corner(Kit.radius.control).Parent = line
+		-- A left bar in the winner's base color (a dead heat has none).
+		if result.winner > 0 then
+			local bar = Kit.new("Frame", {
+				Name = "WinnerBar",
+				Position = UDim2.fromOffset(Kit.space.xs, Kit.space.xs),
+				Size = UDim2.new(0, LINE_BAR_W, 1, -2 * Kit.space.xs),
+				BackgroundColor3 = Kit.color(colors[result.winner]),
+				BorderSizePixel = 0,
+				Parent = line,
+			})
+			Kit.round().Parent = bar
+		end
+		local inset = Kit.space.xs + LINE_BAR_W + Kit.space.sm
+		local words = Kit.box({
+			Name = "Words",
+			Position = UDim2.fromOffset(inset, 0),
+			Size = UDim2.new(1, -inset, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = line,
+		})
 		Kit.new("UIPadding", {
-			PaddingLeft = UDim.new(0, Kit.space.sm),
 			PaddingRight = UDim.new(0, Kit.space.sm),
 			PaddingTop = UDim.new(0, Kit.space.xs),
 			PaddingBottom = UDim.new(0, Kit.space.xs),
-			Parent = line,
+			Parent = words,
 		})
-		Kit.list("Vertical", 0).Parent = line
+		Kit.list("Vertical", 0).Parent = words
 		local stateText = Kit.text(Words.stateLine(result.state), {
 			Name = "State",
 			LayoutOrder = 1,
 			Size = UDim2.new(1, 0, 0, Kit.size.body + 4),
 			Font = Kit.font.bold,
 			TextScaled = true,
-			Parent = line,
+			Parent = words,
 		})
 		local callText = Kit.text(Words.callLine(result, shortNames), {
 			Name = "Text",
@@ -583,7 +661,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
 			TextSize = Kit.size.caption,
 			TextScaled = true,
-			Parent = line,
+			Parent = words,
 		})
 		if live then
 			Motion.enter(line, 0)
@@ -592,44 +670,102 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 	end
 
+	-- The spotlight's eyebrow (upper case, like every eyebrow); `warn`: orange.
+	local function setSpotLabel(text: string, color: Color3, warn: boolean?)
+		spotLabel.Text = string.upper(text)
+		spotLabel.TextColor3 = color
+		spotLabel:SetAttribute("Warn", if warn then true else nil)
+	end
+
+	-- The spotlight's portrait: player `p`'s monogram, or a "?" while counting.
+	local function setPortrait(p: number?)
+		local key = if p then tostring(p) else "?"
+		if key == portraitFor then
+			return
+		end
+		portraitFor = key
+		for _, child in spotPortrait:GetChildren() do
+			child:Destroy()
+		end
+		local monogram = if p
+			then Kit.monogram(names[p] or "?", Kit.color(colors[p]), SPOT_PORTRAIT)
+			else Kit.monogram("?", Kit.colors.raisedHover, SPOT_PORTRAIT)
+		monogram.Parent = spotPortrait
+	end
+
+	-- "CALLED" in the winner's color over the spotlight's top-right corner
+	-- (nil: none). `slam`: it lands with Motion.stamp (a live call).
+	local function setCalled(color: Color3?, slam: boolean)
+		if calledStamp then
+			calledStamp:Destroy()
+			calledStamp = nil
+		end
+		if color == nil then
+			return
+		end
+		local stamp = Kit.stamp("CALLED", color, {
+			size = Kit.size.heading,
+			Name = "CalledStamp",
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -Kit.space.xs, 0, -Kit.space.xs),
+			ZIndex = 5,
+			Parent = spotlight,
+		})
+		calledStamp = stamp
+		settle(stamp)
+		if slam then
+			Motion.stamp(stamp)
+		end
+	end
+
 	-- The spotlight after `count` calls: the suspense before a slow call, else
-	-- the latest call in the winner's color.
-	local function paintSpotlight(count: number, suspense: boolean)
+	-- the latest call in the winner's color. `live`: a call just landed.
+	local function paintSpotlight(count: number, suspense: boolean, live: boolean)
 		local nextResult = results[count + 1]
 		if nextResult and suspense then
 			local close = nextResult.margin < CLOSE_MARGIN
-			spotLabel.Text = if close then "Too close to call" else "Still counting"
-			spotLabel.TextColor3 = if close then Kit.colors.warn else Kit.colors.muted
+			if close then
+				setSpotLabel("Too close to call", Kit.colors.loss, true)
+			else
+				setSpotLabel("Still counting", Kit.colors.muted)
+			end
 			spotState.Text = `{Words.stateLine(nextResult.state)}…`
 			spotCall.Text = "Counting the last votes"
 			spotCall.TextColor3 = Kit.colors.muted
 			spotStroke.Color = Kit.colors.accent
+			setPortrait(nil)
+			setCalled(nil, false)
 			return
 		end
 		local latest = results[count]
 		if latest == nil then
-			spotLabel.Text = "Polls have closed"
-			spotLabel.TextColor3 = Kit.colors.muted
+			setSpotLabel("Polls have closed", Kit.colors.muted)
 			spotState.Text = "The first states are coming in"
 			spotCall.Text = ""
 			spotStroke.Color = Kit.colors.line
+			setPortrait(nil)
+			setCalled(nil, false)
 			return
 		end
-		spotLabel.Text = if count == #results then "Last call" else "Just called"
-		spotLabel.TextColor3 = Kit.colors.muted
+		setSpotLabel(if count == #results then "Last call" else "Just called", Kit.colors.muted)
 		if count == tipping and latest.winner > 0 then
-			spotLabel.Text = `{shortNames[latest.winner]} reaches {need}!`
-			spotLabel.TextColor3 = Kit.colors.text
+			setSpotLabel(`{shortNames[latest.winner]} reaches {need}!`, Kit.colors.text)
 		end
 		spotState.Text = Words.stateLine(latest.state)
 		if latest.winner > 0 then
+			local color = Kit.color(colors[latest.winner])
 			spotCall.Text = `Called for {Words.callLine(latest, shortNames)}`
-			spotCall.TextColor3 = Kit.color(colors[latest.winner])
-			spotStroke.Color = Kit.color(colors[latest.winner])
+			spotCall.TextColor3 = Kit.textColor(color)
+			spotStroke.Color = color
+			setPortrait(latest.winner)
+			-- One stamp per moment: the crossing call's is "270!" over the bar.
+			setCalled(if count == tipping then nil else color, live)
 		else
 			spotCall.Text = Words.callLine(latest, shortNames)
 			spotCall.TextColor3 = Kit.colors.text
 			spotStroke.Color = Kit.colors.line
+			setPortrait(nil)
+			setCalled(nil, false)
 		end
 	end
 
@@ -638,6 +774,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local loser = (winner % #colors) + 1
 		banner.Text = `{names[winner]} wins {election.ev[winner]}–{election.ev[loser]}`
 		bannerStroke.Color = Kit.color(colors[winner])
+		if bannerGlow then
+			bannerGlow.ImageColor3 = Kit.color(colors[winner])
+		end
 		local why: string? = nil
 		if election.decidedBy == "States" then
 			why =
@@ -651,26 +790,55 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		tiebreak.Visible = why ~= nil
 		tiebreak.Text = why or ""
-		banner.Size = if why then UDim2.new(1, 0, 0, 34) else UDim2.fromScale(1, 1)
+		banner.Size = if why then UDim2.new(1, 0, 0, 32) else UDim2.new(1, 0, 1, -BANNER_EYEBROW_H)
 		header:setSubtitle(nil)
 		bannerShown = true
 		hasTiebreak = why ~= nil
 		applyLayout()
 	end
 
-	-- Someone just reached 270: the tick and "270 to win" flash twice.
+	-- "270!" in the accent, stamped over the tick (once a night). `slam`: it lands
+	-- with Motion.stamp; otherwise (a rejoin) it is simply there.
+	local function stampGoal(slam: boolean)
+		if stamp270 ~= nil or root.Parent == nil then
+			return
+		end
+		local stamp = Kit.stamp(`{need}!`, Kit.colors.accent, {
+			Name = "Stamp270",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(mark, 0, 0, ROW_TOP + Kit.space.xs + (BAR_H + 8) // 2),
+			ZIndex = 6,
+			Parent = counters,
+		})
+		stamp270 = stamp
+		settle(stamp)
+		-- The stamp says it now; "270 TO WIN" would peek out from under it.
+		goal.Visible = false
+		if slam then
+			Motion.stamp(stamp)
+		end
+	end
+
+	-- Someone just reached 270: the tick flashes with a glow, "270 to win"
+	-- flashes twice, and CROSS_STAMP later "270!" lands on the tick.
 	local function flash270()
 		Audio.play("flip")
+		race:cross()
 		Motion.flash(goal, Kit.colors.accent, FLASH_270)
 		task.delay(FLASH_270, function()
 			Motion.flash(goal, Kit.colors.accent, FLASH_270)
 		end)
+		-- D-058: the accent is white like the tick, so the tick blinks dim and back
+		-- (race:cross() keeps its glow pulse; its color tween is replaced).
+		Motion.cancel(race.tick)
 		for k = 0, 3 do
 			task.delay(k * FLASH_270, function()
-				-- D-058: the accent is white like the marker, so it blinks dim and back.
-				marker.BackgroundColor3 = if k % 2 == 0 then Kit.colors.line else Kit.colors.text
+				race.tick.BackgroundColor3 = if k % 2 == 0 then Kit.colors.line else Kit.colors.text
 			end)
 		end
+		task.delay(CROSS_STAMP, function()
+			stampGoal(true)
+		end)
 	end
 
 	local function wholeVotes(n: number): string
@@ -698,7 +866,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			ev, won = election.ev, election.statesWon
 		end
 		-- The feed has every call but the one the spotlight shows.
-		local spotlit = count > 0 and count < #results and not suspense
+		-- The last call is the crossing: the spotlight keeps it while "270!" lands
+		-- (BANNER_HOLD), then the feed takes it and the banner shows.
+		local hold = live and tipping == count and count == #results
+		local spotlit = count > 0 and (count < #results or hold) and not suspense
 		local feedTarget = if spotlit then count - 1 else count
 		local rowsLive = drawn and feedTarget - feedShown <= CATCH_UP
 		for k = feedShown + 1, feedTarget do
@@ -725,8 +896,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- "You · 9 states" wraps on a phone; there the name's color says who you are.
 		setSide(youSide, youIndex, if ctx.portrait() then nil else "You")
 		setSide(themSide, themIndex, nil)
-		paintMap(count, if live then before + 1 else count + 1)
-		paintSpotlight(count, suspense)
+		paintMap(count, if live then before + 1 else count + 1, live)
+		paintSpotlight(count, suspense, live and count > before)
 		if live then
 			Motion.pop(spotlight, CALL_POP)
 			local lead = math.max(ev[youIndex] or 0, ev[themIndex] or 0)
@@ -734,9 +905,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if tipping and before < tipping and count >= tipping then
 				flash270()
 			end
+		elseif tipping and count >= tipping then
+			-- A rejoin past the crossing: the stamp is already there.
+			stampGoal(false)
 		end
 		if count == #results then
-			showBanner(election)
+			if hold then
+				-- The last call is the crossing: let "270!" land before the banner.
+				header:setSubtitle(if ctx.portrait() then nil else `{count} of {#results} states called`)
+				task.delay(BANNER_HOLD, function()
+					if root.Parent ~= nil then
+						for k = feedShown + 1, #results do
+							addLine(k, true)
+						end
+						feedShown = #results
+						showBanner(election)
+					end
+				end)
+			else
+				showBanner(election)
+			end
 		elseif ctx.portrait() then
 			-- On a phone the spotlight says it; the subtitle would wrap.
 			header:setSubtitle(nil)

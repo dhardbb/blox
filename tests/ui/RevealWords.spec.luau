@@ -144,8 +144,31 @@ describe("Words: what changed", function()
 		expect(Words.flipLine(view, { state = "OH", from = view.you, to = them, ev = 17 }, "Rex")):toBe(
 			"Ohio flips to Rex · 17 votes"
 		)
-		expect(Words.flipTone(view, { state = "OH", from = view.you, to = 0, ev = 17 })):toBe("bad")
+		expect(Words.flipTone(view, { state = "OH", from = view.you, to = 0, ev = 17 })):toBe("loss")
+		expect(Words.flipTone(view, { state = "OH", from = them, to = 0, ev = 17 })):toBe("good")
 		expect(Words.movePill({ state = "TX", delta = -2.5, ev = 40 }, "Rex")):toBe("TX +2.5 for Rex")
+	end)
+
+	it("leads a change with ▲ when it went your way and ▼ when it did not (D-056)", function()
+		expect(Words.mark(true)):toBe("▲")
+		expect(Words.mark(false)):toBe("▼")
+		expect(Words.marked("Ohio flips to Rex · 17 votes", false)):toBe("▼ Ohio flips to Rex · 17 votes")
+		expect(Words.marked("TX +3.0 for you", true)):toBe("▲ TX +3.0 for you")
+	end)
+
+	it("heads the week with who flipped how many states", function()
+		local view = Fixtures.payload(C, "Resolve").view
+		local them = if view.you == 1 then 2 else 1
+		local function flip(to: number): any
+			return { state = "OH", from = 3 - math.max(to, 1), to = to, ev = 17 }
+		end
+		expect(Words.flipHeadline(view, {}, "Rex")):toBe("No state changed leader")
+		expect(Words.flipHeadline(view, { flip(view.you), flip(view.you), flip(them) }, "Rex")):toBe(
+			"You flipped 2 · Rex flipped 1"
+		)
+		expect(Words.flipHeadline(view, { flip(view.you) }, "Rex")):toBe("You flipped 1 state")
+		expect(Words.flipHeadline(view, { flip(them), flip(them) }, "Rex")):toBe("Rex flipped 2 states")
+		expect(Words.flipHeadline(view, { flip(0) }, "Rex")):toBe("1 state slipped to a tie")
 	end)
 
 	it("badges the flips and only the few biggest other moves", function()

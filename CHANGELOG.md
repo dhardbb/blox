@@ -52,6 +52,15 @@ Sim, net and server.
 
 - **Bot difficulty: Easy, Medium, Hard, Extreme** (D-057). A practice match can ask for a level: `{ op = "Practice", difficulty = "Easy" | "Medium" | "Hard" | "Extreme" }` (absent or unknown = Medium, today's bot, unchanged). Easy misjudges which states matter and picks half its debate focuses and stances at random; Hard predicts your plan from the public board and plays for the chance of reaching 270; Extreme pushes that further. Every level sees only what a human sees, and none gets extra money. Against the Medium bot: Easy wins about 19%, Hard 66%, Extreme 78%. Practice stays unrated. The State payload shows the level on the bot's seat (`seats[i].difficulty`) and the server log says `bot Hard`. Pick the level with the chips under **Play vs Bot** (above). Debug panel: `practice hard`. Studio checklist: `docs/TESTING.md`, "Bot difficulty".
 
+### Front-page moments: reveal, debate, election night, results (D-056, WP-3)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Front-page moments".
+
+- **Week results** open with a small "WEEK 3 RESULTS" line over "You vs Rex", and end on a headline of who flipped what ("You flipped 4 · Rex flipped 7"). Each side's group has the candidate's initials in a colored circle. "What changed" lines are in the new leader's color with a green ▲ (went your way) or an orange ▼ (went against you); the biggest moves are filled green or orange tags.
+- **Debates:** the score is in the round display font, and "You won 2 of 3 topics!" lands as a tilted stamp: green when you won the debate, orange when Rex did, grey when even.
+- **Election night:** the score strip is a lit card with a thicker race bar and big round numbers. Each call flashes its state white on the map and slaps a "CALLED" stamp in the winner's color on the spotlight card, which shows the winner's initials. The suspense line reads "TOO CLOSE TO CALL" in orange and the state everyone waits on glows. The call that reaches 270 flashes the tick and, a moment later, stamps "270!" over the bar; that state keeps a white ring all night. Feed rows have a bar in the winner's color. The final banner has an "ELECTION NIGHT" line and glows in the winner's color.
+- **Results:** "You won" is a green stamp and "You lost" an orange one (dark text, no red anywhere), with the winner's glow behind; the vote bar is the race bar with the 270 tick; each player's card shows big initials, and the winner's card is edged in their color. Confetti adds white. In Full breakdown, the closest states are in readable player colors.
+
 ## 0.11.0: Colors: red, blue and the Color Pass (Oct 23, 2026)
 
 The designers asked for red and blue by default and a color pick for Robux (D-055). Sim, server, client. No Config numbers changed; the balance report is identical. Studio checklist: `docs/TESTING.md`, "Colors: red, blue and the Color Pass".
