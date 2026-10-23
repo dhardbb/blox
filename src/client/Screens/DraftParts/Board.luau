@@ -207,8 +207,8 @@ function Board.newLegend(): Legend
 			labels[k].TextColor3 = if rgb[p] then Kit.color(Colors.textOn(rgb[p])) else Kit.colors.text
 		end
 		note.Text = if polled
-			then "Deeper color: a bigger poll lead. Ring: who drafted it. H: home. B: battleground."
-			else "Deeper color: a bigger lean. Ring: who drafted it. H: home. B: battleground."
+			then "Deeper color: a bigger poll lead. Ring: who drafted it. H: home. ★: battleground."
+			else "Deeper color: a bigger lean. Ring: who drafted it. H: home. ★: battleground."
 	end
 
 	return legend :: Legend

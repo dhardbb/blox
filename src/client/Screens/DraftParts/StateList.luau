@@ -1,6 +1,7 @@
 --!strict
 -- The Draft screen's list picker: one tappable row per state ("Row_OH"), biggest
--- first, with its votes and its lean as a pill ("+2 you", "+2 Rex", "Even"). It
+-- first, with its votes and its lean as a pill filled in that player's color
+-- ("+2 you" on your color, "+2 Rex" on his; "Even" a raised tag). It
 -- is the phone-friendly twin of tapping the map, and shares its choice slots.
 -- By default it shows only the best picks (the biggest states this round
 -- allows, plus anything chosen); "Show all states" shows every row, the ones
@@ -209,7 +210,7 @@ function StateList.new(onTap: (id: string) -> ()): List
 
 			local owner = sv.owner
 			row.code.TextColor3 = if owner ~= nil and info.colors[owner]
-				then info.colors[owner]
+				then Kit.textColor(info.colors[owner])
 				else Kit.colors.text
 			row.code.TextTransparency = fade
 			row.name.TextTransparency = fade
@@ -221,12 +222,16 @@ function StateList.new(onTap: (id: string) -> ()): List
 
 			local to = sv.leanTo
 			row.lean.Text = Words.lean(sv.lean, if to == nil then nil else to == you, opponent)
-			row.lean.TextColor3 = if to ~= nil
-					and sv.lean > 0
-					and info.colors[to]
-				then info.colors[to]
-				else Kit.colors.muted
+			-- A lean is filled in its player's color ("+2 Rex" on red, "+2 you"
+			-- on blue) with readable text; "Even" stays a quiet raised tag.
+			local leanColor = if to ~= nil and sv.lean > 0 then info.colors[to] else nil
+			if leanColor then
+				Kit.paintPill(row.lean, "text", true, leanColor)
+			else
+				Kit.paintPill(row.lean, "muted")
+			end
 			row.lean.TextTransparency = fade
+			row.lean.BackgroundTransparency = fade
 		end
 	end
 

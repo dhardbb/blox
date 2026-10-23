@@ -256,7 +256,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	Kit.list("Vertical", Kit.space.sm).Parent = revealBox
 	local revealRow = Kit.box(merge(auto(), { Name = "RevealRow", LayoutOrder = 1, Parent = revealBox }))
 	Kit.list("Horizontal", GAP).Parent = revealRow
-	local function pickCard(name: string, order: number): (Frame, TextLabel, TextLabel)
+	-- A pick card: "You got WY" in the taker's readable color, the pick's kind
+	-- as a tag (★ Battleground outlined, Home filled in the taker's color), the
+	-- state's name; edged 2 px in the taker's color (fillCard).
+	type PickCard = { frame: Frame, big: TextLabel, small: TextLabel, kind: TextLabel }
+	local function pickCard(name: string, order: number): PickCard
 		local frame = Kit.panel({
 			Name = name,
 			Size = UDim2.new(0.5, -GAP // 2, 0, 0),
@@ -265,14 +269,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			LayoutOrder = order,
 			Parent = revealRow,
 		})
+		Kit.depth(frame, Kit.colors.raisedTop, Kit.colors.raised)
 		Kit.list("Vertical", Kit.space.xs).Parent = frame
 		Kit.stroke(Kit.colors.line, 2).Parent = frame
 		local big = Kit.heading("", { Name = "Title", LayoutOrder = 1, Parent = frame })
-		local small = Kit.caption("", { Name = "Sub", LayoutOrder = 2, Parent = frame })
-		return frame, big, small
+		local kind = Kit.pill("", "text", { Name = "Kind", LayoutOrder = 2, Parent = frame })
+		local small = Kit.caption("", { Name = "Sub", LayoutOrder = 3, Parent = frame })
+		return { frame = frame, big = big, small = small, kind = kind }
 	end
-	local youCard, youBig, youSmall = pickCard("YouPick", 1)
-	local themCard, themBig, themSmall = pickCard("ThemPick", 2)
+	local youCard = pickCard("YouPick", 1)
+	local themCard = pickCard("ThemPick", 2)
 	local clashNote = Kit.text("", merge(auto(), { Name = "ClashNote", LayoutOrder = 2, Parent = revealBox }))
 
 	local stateList = StateList.new(function(id: string)
@@ -485,26 +491,27 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- ------------------------------------------------------------ rendering
 
 	-- Fills one card of the reveal: "You got OH" and what it makes the state.
-	local function fillCard(
-		frame: Frame,
-		big: TextLabel,
-		small: TextLabel,
-		who: string,
-		pick: Logic.Pick?,
-		color: Color3
-	)
-		local stroke = frame:FindFirstChildOfClass("UIStroke")
+	local function fillCard(card: PickCard, who: string, pick: Logic.Pick?, color: Color3)
+		local stroke = card.frame:FindFirstChildOfClass("UIStroke")
 		if stroke then
 			stroke.Color = color
 		end
-		big.TextColor3 = color
+		card.big.TextColor3 = Kit.textColor(color)
 		if pick == nil then
-			big.Text = `{who} got nothing`
-			small.Text = ""
+			card.big.Text = `{who} got nothing`
+			card.small.Text = ""
+			card.kind.Visible = false
 			return
 		end
-		big.Text = `{who} got {pick.state}`
-		small.Text = `{Logic.nameOf(pick.state)} · {Logic.noun(pick.kind)}`
+		card.big.Text = `{who} got {pick.state}`
+		card.small.Text = Logic.nameOf(pick.state)
+		card.kind.Visible = true
+		card.kind.Text = Words.roundKind(pick.kind)
+		if pick.kind == "Home" then
+			Kit.paintPill(card.kind, "text", true, color)
+		else
+			Kit.paintPill(card.kind, "white")
+		end
 	end
 
 	-- The header's title: shorter in portrait, where the timer shares one row.
@@ -664,8 +671,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- The reveal.
 		revealBox.Visible = mode == "Reveal"
 		if mode == "Reveal" then
-			fillCard(youCard, youBig, youSmall, "You", mine, colors[you])
-			fillCard(themCard, themBig, themSmall, opponent, theirs, colors[them])
+			fillCard(youCard, "You", mine, colors[you])
+			fillCard(themCard, opponent, theirs, colors[them])
 			local note: string? = nil
 			if mine ~= nil and theirs ~= nil and revealRound ~= nil then
 				local sub = submitted
@@ -716,16 +723,24 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- The map.
 		map:setView(view, rgb)
 		local marks: { [string]: MapInterface.Mark } = {}
+		-- The Votes lens already stars a battleground's number ("★13") on a
+		-- wide screen; the other lenses, and a phone's small circles (no number
+		-- inside), need the star tag on the rim.
+		local starTag = Lens.current() ~= "EV" or portrait
 		for _, sv in view.states do
 			local mark: MapInterface.Mark = {}
 			local owner = sv.owner
 			if owner ~= nil and colors[owner] then
 				mark.ring = colors[owner]
 			end
+			-- Home: "H" filled in its owner's color. Battleground: the outlined
+			-- star tag (D-058), never a white fill.
 			if sv.isHome then
 				mark.badge = "H"
-			elseif sv.battleground then
-				mark.badge = "B"
+				mark.badgeColor = if owner ~= nil then colors[owner] else nil
+			elseif sv.battleground and starTag then
+				mark.note = Kit.STAR
+				mark.noteColor = Kit.colors.text
 			end
 			if kind ~= nil and not Logic.legal(kind, sv) then
 				mark.dim = true
@@ -737,7 +752,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			for slot, id in picked do
 				local mark = marks[id]
 				if mark then
-					mark.badge = tostring(slot)
+					-- A pick is a selection: its number on a dark tag outlined in
+					-- white, like the white ring around it.
+					mark.badge = nil
+					mark.note = tostring(slot)
+					mark.noteColor = Kit.colors.accent
 					mark.ring = Kit.colors.accent
 				end
 			end
@@ -748,10 +767,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				local mark = marks[pick.state]
 				if mark and colors[pick.player] then
 					mark.ring = colors[pick.player]
-					mark.badge = if pick.kind == "Home"
-						then "H"
-						elseif pick.kind == "Nominate" then "B"
-						else mark.badge
+					if pick.kind == "Home" then
+						mark.badge = "H"
+						mark.badgeColor = colors[pick.player]
+						mark.note = nil
+					elseif pick.kind == "Nominate" and starTag then
+						mark.badge = nil
+						mark.note = Kit.STAR
+						mark.noteColor = Kit.colors.text
+					end
 				end
 			end
 		end
@@ -762,7 +786,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- A round's picks arriving: both cards pop, each state rings once.
 		if mode == "Reveal" and revealRound ~= nil and revealRound ~= revealedRound then
 			revealedRound = revealRound
-			Motion.stagger({ youCard, themCard }, function(card, _index, delay)
+			Motion.stagger({ youCard.frame, themCard.frame }, function(card, _index, delay)
 				Motion.pop(card, REVEAL_FROM, delay)
 			end)
 			local landed: { Logic.Pick } = {}
