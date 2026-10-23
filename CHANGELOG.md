@@ -2,6 +2,14 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased: decision screens and the debate focus (D-044)
+
+- **Stances and debates get their own screen.** In a Choice week the stance is taken on its own screen before the plan, with its own 20 s timer (no stance in time: C). Right before each debate, a second screen asks for your debate focus. Each shows only the decision, the map preview, the countdown and Lock in; when both players lock in it moves on at once. The plan screen keeps its 50 s and loses the prep panel and the stance chips; it says "Your stance: A · …" in one line.
+- **Prep is now one focus topic.** One tap: the topic you focus on gets +2 (Marcus Hale: +3, replacing his 7th prep point). The screen lists each topic's states and EV, the ones you need (within 5 points in the public poll) and your odds ("You win 81% (38% if they focus here too)"). No focus in time: every topic you lose is a gaffe (-0.6 in its states). Gaffes no longer come from a 0-prep topic.
+- **Harness:** debates change the winner in 24.1% of matches (was 23.2%); a player who never picks a focus wins 22.8%; Hale 47.7% (was 51.7%). Between two bots the topic choice itself is a wash (both pick the same topic 94% of the time); see `docs/DESIGN.md` D-044.
+- **Debug and duel.** F2 and the duel harness have `focus TOPIC` and `choice a|b|c` as their own step (no longer inside `plan`); the duel README explains the Decision steps.
+- **Test in Studio:** `docs/TESTING.md`, "Decision screens: debate focus and stances". Nothing needed from the humans except a view on the 20 s timer and the match length (D-044, "Timer").
+
 ## 0.7.0: your base hears your stance (D-043)
 
 - Choice events: a side (A or B) now counts double in your own home state and strongholds. The hedge (C) no longer gives anything; it costs 0.5 in each of your home and strongholds where the issue is a top issue. Stance moves are capped at 3 a state (was 2).

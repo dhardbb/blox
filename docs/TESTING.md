@@ -434,3 +434,24 @@ Rules only (`DESIGN.md` D-039 to D-041). The screens for them are the section ab
 1. Open a practice match, press **F2** for the debug panel, and at Week 1 Plan type `plan ad <your state> jobs`. Should: lock in like `media` did (if you have $3). Send back: the log line.
 2. In the campaign, select a state where one side has momentum (the ▲ on the map). Should: the state card says "about +X support drifts to … next week" and "Drift: … about 0.3 support next week per point of momentum lead shown now …". Next week, check the state moved by about that much if nobody campaigned there. Send back: a screenshot of the card, and the two polls.
 3. Open "?" (How it works) → "Leans, momentum, backlash, underdog". Should: the same drift sentence, with your candidate's numbers (Tomas Reyes: 25% kept, 0.15 per point). Send back: a screenshot.
+
+## Decision screens: debate focus and stances (D-044, unreleased)
+
+Playtest 3 asked for debates and event choices "on a separate screen before the week decisions with a separate timer". **Play vs Bot** is enough for steps 1 to 6; step 7 needs **Test → Clients and Servers, 2 players**. Do steps 1 to 4 once on 16:9 and once on an iPad or phone (**Test → Device**).
+
+1. **A Choice week opens on its own screen.** Play until a week with a Choice event (weeks 2 to 11).
+   - Before the plan, a new screen: the header says "Week N of 12 · Take a stance" with its own countdown (20 s), the map, the event card with the three stance chips (C outlined), "States you need", the stance summary, and Lock in. No state card, no plan list, no week card, no Bank button, no money or AP in the header.
+   - Tap A, B, C: the map previews each (badges, red losses, FLIP). Hold a chip to peek.
+   - Lock in. Then the plan screen opens with the normal 50 s timer; the event card says "Your stance: A · …. Secret until the week resolves." and has no stance chips.
+2. **Let the stance timer run out.** In another Choice week, touch nothing on the stance screen.
+   - At 0:00 the plan screen opens; the event card says "Your stance: C · …". The week's reveal says you took C.
+3. **The debate focus (week 4, and week 9).** At the start of week 4 a screen says "Debate focus" with a 20 s countdown and three big topic buttons, e.g. "Jobs (your platform) · 11 states, 142 EV". Under each: "You need N of them (X EV): trail OH by 2 · …", "Focus here: 4 vs their 2, plus a roll 0 to 3 each. You win 81% (38% if they focus here too).", "A win: +1.0 in each; could flip PA (+19 EV)."
+   - Lock in is greyed and says "Pick a topic" until you tap one. Tap a topic: it gets the outline, the map badges its states "+1.0" (FLIP where a win would change the poll leader). Hold another topic to peek at it.
+   - Lock in → the debate plays right away (10 s), then the week's plan (or the stance screen first, if this week also has a Choice event).
+   - In the debate reveal and the week card, each topic's score reads e.g. "you 2 focus + 2 platform + 1 stat + roll 3 = 8 · them 1 stat + roll 2 = 3".
+4. **Let the focus timer run out** (week 9, touch nothing). The debate runs with no focus for you; every topic you lost shows a red gaffe line ("Your gaffe on …: -0.6 in …").
+5. **Hale.** Play as Marcus Hale: the focus lines say +3 instead of +2 ("Focus here: 6 vs …").
+6. **Help and F2.** Tap **?** → Debates: it explains the focus (+2, one topic, the screen lists states and EV) and the gaffe with no focus. Press F2 on the focus screen: the board lists each topic's three lines; typing `focus jobs` (a topic of this debate) locks it in; on a stance screen `choice b` does.
+7. **Two players.** Both reach the focus screen together. Lock in on one client: the other client's screen says "Opponent: locked in" and nothing about which topic. When both have locked in, the debate starts at once (no waiting for the timer). The same for a stance screen.
+
+**Send back:** screenshots of the stance screen and the focus screen on 16:9 and on the iPad/phone, the plan screen's "Your stance" line, a debate reveal after a focus, how long the decision screens felt (is 20 s enough? too much?), and the Output lines starting with `[270] UI audit Decision`.
