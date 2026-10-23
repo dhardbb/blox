@@ -1,6 +1,8 @@
 --!strict
 -- The MVP map: one circle per state from Shared/UI/MapLayout, built from plain
--- frames (no art assets). Fill blends toward the public-poll leader's color; a
+-- frames (no art assets). Fill steps toward the public-poll leader's color in
+-- four bands by the lead in points (Colors.bandFill: toss-up grey, lean, likely,
+-- safe; the Campaign "Map key" shows them), lit a little from the top; a
 -- thin grey ring outlines it (an owner's ring in their color, the selected
 -- state's in the accent); thin lines are land borders. The nine small Northeast
 -- states stand in a ladder at the right edge (MapLayout.LADDER), each with a
@@ -30,6 +32,12 @@
 -- a 16 px action icon at the node's top-right ("PlanBadge"; nil removes it),
 -- map:wipe(id, color) turns a circle's fill (an election call; it holds until
 -- the next setView). The drawing above is unchanged by them.
+--
+-- Board motion (WP-1): the selected state's accent ring draws in (0 -> 3 px);
+-- a removed PlanBadge fades out; map:ghost(id, text?) shows what a held action
+-- button would do ("+4.1") as a see-through tag on the node ("GhostTag"), nil
+-- hides it; setLens(lines, true) fades the lens pills in (a lens switch, 0.15 s).
+-- Nodes never move.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -70,6 +78,12 @@ local VALUE_DOWN = 0.2 -- ... the value's center below the middle, share of the 
 local LABEL_H_LENS = 0.36 -- ... the label's height, share of the circle
 local PULSE_FROM = 1.15 -- a pulse's starting scale (it settles to 1)
 local PLAN_BADGE_PX = 16 -- px, the planned-action badge
+local BORDER_FADE = 0.4 -- land borders' transparency, so the nodes stand out
+local TOP_SHADE = 0.08 -- the circle's transparency at its bottom (a top light of about 8 %)
+local RING_DRAW = 0.1 -- s, the selected ring drawing in
+local LENS_FADE = 0.15 -- s, the lens pills fading in on a lens switch
+local PART_BG = 0.15 -- a lens pill's backing transparency at rest
+local GHOST_STROKE = 0.5 -- the ghost tag's outline transparency
 
 type Node = {
 	id: string,
@@ -142,7 +156,7 @@ local function newPart(row: Frame, k: number): TextLabel
 		TextSize = Kit.size.caption,
 		Font = Kit.font.bold,
 		BackgroundColor3 = Kit.colors.background,
-		BackgroundTransparency = 0.15,
+		BackgroundTransparency = PART_BG,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextWrapped = false,
 		ZIndex = 6,
@@ -202,7 +216,8 @@ function NodeMap.new(): MapInterface.Map
 	for _, edge in MapLayout.edges() do
 		local a, b = layout[edge[1]], layout[edge[2]]
 		if not a.ladder and not b.ladder then
-			segment(lines, a.x, a.y, b.x, b.y, LINE_PX, Kit.colors.line)
+			local border = segment(lines, a.x, a.y, b.x, b.y, LINE_PX, Kit.colors.line)
+			border.BackgroundTransparency = BORDER_FADE
 		end
 	end
 	for _, n in layout do
@@ -278,6 +293,15 @@ function NodeMap.new(): MapInterface.Map
 		})
 		Kit.new("UIAspectRatioConstraint", { AspectRatio = 1, Parent = circle })
 		Kit.round().Parent = circle
+		-- Lit from the top: the fill (data) at the top; toward the bottom the dark
+		-- board shows through a little, a shade darker. (Transparency, not Color, so
+		-- the fill stays the data color and no color literal is needed.)
+		Kit.new("UIGradient", {
+			Name = "Depth",
+			Rotation = 90,
+			Transparency = NumberSequence.new(0, TOP_SHADE),
+			Parent = circle,
+		})
 		local ring = Kit.stroke(Kit.color(Colors.undecided), RING_PX)
 		ring.Parent = circle
 		local label = Kit.text(n.id, {
@@ -440,12 +464,12 @@ function NodeMap.new(): MapInterface.Map
 			local id = s.id
 			local fill: Colors.RGB
 			if s.poll then
-				fill = Colors.stateFill(s.poll.support, colors)
+				fill = Colors.bandFill(s.poll.support, colors)
 			elseif s.leanTo then
 				-- Before the first poll, show the lean (a lean of L is a margin of L).
 				local support = table.create(#colors, 0)
 				support[s.leanTo] = s.lean
-				fill = Colors.stateFill(support, colors)
+				fill = Colors.bandFill(support, colors)
 			else
 				fill = Colors.neutral
 			end
@@ -464,10 +488,24 @@ function NodeMap.new(): MapInterface.Map
 		end
 	end
 
-	function map.setLens(_self: any, newLens: { [string]: MapInterface.LensLine })
+	function map.setLens(_self: any, newLens: { [string]: MapInterface.LensLine }, fade: boolean?)
 		lens = newLens
 		for _, node in nodes do
 			paint(node)
+			if fade and node.lensRow.Visible then
+				-- A lens switch: the pills fade in; the nodes stay where they are.
+				for _, part in node.parts do
+					if part.Visible then
+						part.TextTransparency = 1
+						part.BackgroundTransparency = 1
+						Motion.tween(
+							part,
+							{ TextTransparency = 0, BackgroundTransparency = PART_BG },
+							LENS_FADE
+						)
+					end
+				end
+			end
 		end
 	end
 
@@ -499,10 +537,17 @@ function NodeMap.new(): MapInterface.Map
 		local old = selected
 		selected = id
 		if old and byId[old] then
+			Motion.cancel(byId[old].ring)
 			paint(byId[old])
 		end
 		if id and byId[id] then
-			paint(byId[id])
+			local node = byId[id]
+			paint(node)
+			if id ~= old then
+				-- The accent ring draws in (instant under reduced motion).
+				node.ring.Thickness = 0
+				Motion.tween(node.ring, { Thickness = SELECTED_RING_PX }, RING_DRAW)
+			end
 		end
 	end
 
@@ -535,7 +580,19 @@ function NodeMap.new(): MapInterface.Map
 		end
 		local old = node.hit:FindFirstChild("PlanBadge")
 		if old then
-			old:Destroy()
+			-- Renamed at once, so a new badge never finds the leaving one.
+			old.Name = "PlanBadgeLeaving"
+			if icon == nil then
+				local glyph = old:FindFirstChild("Icon")
+				if glyph then
+					Motion.exit(glyph, function() end)
+				end
+				Motion.exit(old, function()
+					old:Destroy()
+				end)
+			else
+				old:Destroy()
+			end
 		end
 		if icon == nil then
 			return
@@ -556,6 +613,55 @@ function NodeMap.new(): MapInterface.Map
 		glyph.ZIndex = 8
 		glyph.Parent = badge
 		Motion.pop(badge, 0.6)
+	end
+
+	-- A see-through tag at the node's top-right while an action button is held.
+	local ghostTag: TextLabel? = nil
+	function map.ghost(_self: any, id: string, text: string?)
+		local node = byId[id]
+		local tag = ghostTag
+		if text == nil or node == nil then
+			if tag then
+				tag.Visible = false
+			end
+			return
+		end
+		if tag == nil then
+			local made = Kit.text("", {
+				Name = "GhostTag",
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, TAG_H),
+				TextSize = Kit.size.caption,
+				Font = Kit.font.bold,
+				TextColor3 = Kit.colors.text,
+				BackgroundColor3 = Kit.colors.background,
+				BackgroundTransparency = 0.3,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextWrapped = false,
+				ZIndex = 9,
+				Parent = tagLayer,
+			})
+			Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = made })
+			Kit.new("UIPadding", {
+				PaddingLeft = UDim.new(0, TAG_PAD),
+				PaddingRight = UDim.new(0, TAG_PAD),
+				Parent = made,
+			})
+			local stroke = Kit.stroke(Kit.colors.accent, 1)
+			stroke.Transparency = GHOST_STROKE
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			stroke.Parent = made
+			ghostTag = made
+			tag = made
+		end
+		local ghost = tag :: TextLabel
+		-- Above the node's circle, growing inward near a side edge.
+		local n = layout[table.find(nodes, node) or 1]
+		local rimY = n.y - n.r * MapLayout.ASPECT
+		ghost.AnchorPoint = Vector2.new(math.clamp(n.x, 0, 1), if rimY < 0.06 then 0 else 0.5)
+		ghost.Position = UDim2.fromScale(n.x, math.max(rimY, 0))
+		ghost.Text = text
+		ghost.Visible = true
 	end
 
 	function map.wipe(_self: any, id: string, color: Color3)

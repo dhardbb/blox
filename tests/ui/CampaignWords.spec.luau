@@ -144,6 +144,26 @@ describe("Words.Campaign", function()
 		end
 	end)
 
+	it("reads the number an action's effect leads with, for the map's ghost tag", function()
+		expect(Words.gain("+4.1 support\nFlight $2.0")):toBe("+4.1")
+		expect(Words.gain("+$5.2")):toBe("+$5.2")
+		expect(Words.gain("Rex -2.4")):toBe("-2.4")
+		expect(Words.gain("+1.5 on election day")):toBe("+1.5")
+		expect(Words.gain("See true support\n$1.0")):toBe(nil)
+		expect(Words.gain("Not enough money")):toBe(nil)
+	end)
+
+	it("names the map's four color steps in order", function()
+		local bands = Words.bands()
+		expect(#bands):toBe(4)
+		expect(bands[1].text):toBe("Toss-up: closer than 3 points")
+		expect(bands[2].text):toBe("Leans: ahead by 3 to 8 points")
+		expect(bands[4].text):toBe("Safe: ahead by 15 points or more")
+		for _, band in bands do
+			check(words(band.text) <= 8, band.text)
+		end
+	end)
+
 	it("says an event's multiplier as a percent", function()
 		expect(Words.percent("Fundraisers raise ×1.2 this week")):toBe(
 			"Fundraisers raise 20% more this week"

@@ -411,3 +411,27 @@ describe("Map lenses", function()
 		end
 	end)
 end)
+
+describe("Lens motion", function()
+	it("fades the lens pills in on a switch and draws the selected ring in", function()
+		local world, peer = Rig.fixture("Plan")
+		Rig.tap(world, peer, "Campaign", "LensPolls", 0.5)
+		local map = Rig.need(peer, "Campaign", "NodeMap")
+		local shownPills = 0
+		for _, inst in map:GetDescendants() do
+			if string.match(inst.Name, "^Part%d") and inst.Visible ~= false then
+				shownPills += 1
+				expect(inst.TextTransparency):toBe(0)
+				check(
+					math.abs(inst.BackgroundTransparency - 0.15) < 1e-6,
+					`{inst.Name} backing did not settle`
+				)
+			end
+		end
+		check(shownPills > 10, `only {shownPills} lens pills`)
+		Rig.tap(world, peer, "Campaign", "OH", 0.5)
+		local ring = map.Nodes.OH.Circle:FindFirstChildOfClass("UIStroke")
+		expect(ring.Thickness):toBe(3)
+		Rig.noErrors(world)
+	end)
+end)

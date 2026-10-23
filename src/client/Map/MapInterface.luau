@@ -45,7 +45,8 @@ export type Map = {
 	setView: (self: Map, view: View.View, colors: { Colors.RGB }) -> (),
 	setMarks: (self: Map, marks: { [string]: Mark }) -> (),
 	-- The lens row under each state's label; states missing from `lines` show none.
-	setLens: (self: Map, lines: { [string]: LensLine }) -> (),
+	-- `fade`: the pills fade in (the player just switched lenses).
+	setLens: (self: Map, lines: { [string]: LensLine }, fade: boolean?) -> (),
 	-- The candidate's planned route, in order; `flights[k]` marks a flown hop into stop k.
 	setRoute: (self: Map, stops: { string }, flights: { boolean }) -> (),
 	select: (self: Map, id: string?) -> (),
@@ -58,6 +59,9 @@ export type Map = {
 	ring: (self: Map, id: string, color: Color3) -> (),
 	badge: (self: Map, id: string, icon: string?) -> (),
 	wipe: (self: Map, id: string, color: Color3) -> (),
+	-- ghost: while an action button is held, what it would do ("+4.1") as a
+	-- see-through tag on the node; nil hides it. One ghost at a time.
+	ghost: (self: Map, id: string, text: string?) -> (),
 	onSelect: (self: Map, handler: (id: string) -> ()) -> (),
 	destroy: (self: Map) -> (),
 }
