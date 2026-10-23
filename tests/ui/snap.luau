@@ -235,6 +235,21 @@ local SHOTS: { Shot } = {
 	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
 	{ name = "14-lens-money", moment = "Plan", screen = "Campaign", steps = lens("Money") },
 	{ name = "15-campaign-choice-week", moment = "ChoiceWeek", screen = "Campaign" },
+	{
+		-- Beat one of the reveal: "Both plans are in" and who goes first.
+		name = "16a-resolve-beat",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			-- The shot is taken 0.9 s after the push (0.3 + the 0.6 settle), so
+			-- start the stage 0.7 s from now: 0.2 s into the 0.5 s intro beat.
+			local payload = Fixtures.payload(Config.defaults, "Resolve")
+			local shift = world.clock + 0.7 - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+		end,
+	},
 	{ name = "16-resolve-start", moment = "Resolve", screen = "Campaign" },
 	{
 		-- From the week-3 plan, so the reveal knows the polls before it ("What changed").
@@ -269,7 +284,38 @@ local SHOTS: { Shot } = {
 			FakeRoblox.run(world, 12)
 		end,
 	},
+	{
+		-- The call that takes someone to 270 (the tick flashes).
+		name = "22a-election-tipping",
+		moment = "Election",
+		screen = "Election",
+		steps = function(world, peer)
+			-- The suspense beat just before the call that takes someone to 270:
+			-- the shot is taken 0.9 s after the push (0.3 + the 0.6 settle).
+			local Election = FakeRoblox.require(world, peer, "src/client/Screens/Election.luau")
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			local results = payload.view.election.results
+			local stage = payload.deadline - payload.stageStart
+			local ends = Election.schedule(results, Config.defaults.EV_TO_WIN, stage)
+			local tipping = Election.tippingCall(results, Config.defaults.EV_TO_WIN) or #results
+			payload.stageStart = world.clock + 0.9 - (ends[tipping] - 0.2)
+			payload.deadline = payload.stageStart + stage
+			Rig.push(world, peer, payload)
+		end,
+	},
 	{ name = "23-results", moment = "Over", screen = "Results" },
+	{
+		-- The same match lost: no confetti, and a "Try next time" line.
+		name = "23a-results-loss",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			payload.matchId = "snap-loss"
+			payload.result = { winner = 3 - payload.you, reason = "Election" }
+			Rig.push(world, peer, payload)
+		end,
+	},
 	{
 		name = "24-help",
 		moment = "Plan",
