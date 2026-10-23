@@ -728,6 +728,20 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
 
+## Claiming colors (unreleased, D-061)
+
+Agents: `lune run tests "D-061"` (Match, Session, schema and server specs).
+
+Server only so far: the Select screen gets its color picker in the next update. Needs the Color Pass set up (above) and two accounts that own it (the published game with a partner; in Studio a test purchase counts for that session only).
+
+1. **Both owners, different saved colors** (say Teal and Violet), **Find match**. **Expect:** Select says "Your color: Teal" for one and "Violet" for the other; the map uses them all match.
+2. **Both owners, the same saved color** (both Teal), three matches. **Expect:** one of you is Teal; the other gets a notice (it reads `ColorTaken` until the picker update) and is Crimson or Cobalt for now. Over the three matches it should not always be the same person who gets Teal.
+3. **One owner (Crimson saved), one without the pass.** **Expect:** the owner is Crimson, the other Cobalt.
+4. **Neither owns the pass.** **Expect:** one Crimson, one Cobalt, as before.
+5. Output: any line with `rejected ClaimColor` or an error from `Session`.
+
+**Send back:** who got which color in each match of steps 1 to 4, a screenshot of the notice in step 2, and any Output lines from step 5.
+
 ## Front-page foundation (unreleased, D-056)
 
 Client only. The other front-page packages (map, panels, moments) build on this; test it on an iPad if you can.
