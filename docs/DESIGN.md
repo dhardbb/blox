@@ -871,3 +871,35 @@ Red after this pass: Okafor over the line and Strand under it (both have swung �
 **Left for later.** Crimson sits 9.7 ΔE from the `bad` red (232, 84, 84). That was true before, but a player was Crimson 1 match in 6 and is now Crimson in half of them: on the stance preview a Crimson player's gains (their color) and losses (`bad`) are both red, told apart by the + and − on the badges. If playtests find that confusing, the cheapest fix is a deeper Crimson or a different loss color in the preview only. The pass id is 0 until the designers create the pass (`docs/TESTING.md`, "Setting up the Color Pass").
 
 **Tests.** `tests/ui/ColorPass.spec` runs the real server and client on the fake engine (FakeRoblox now has a MarketplaceService: `world.market`, `setColorPass`, `setOwnsPass`, `finishPassPurchase`): an owner's saved color reaches the match, a non-owner's is ignored and their `SetColor` refused, a failed check falls back and one retry recovers, invalid colors are rejected, a pass id of 0 hides everything, and buying from the sheet unlocks it. Shots `01b-lobby-color`, `02c-lobby-color-locked` and `02d-lobby-color-owned` report 0 audit findings at all three sizes (120 shots in all, every one at 0). Version 0.11.0. No Config number changed.
+
+## Practice bot difficulty
+
+### D-057 — Easy, Medium, Hard and Extreme bots, all playing fair (Oct 23, 2026)
+
+**Ask.** The designers: "easy-medium-hard and extreme difficulty settings for bot play".
+
+**Rule.** A practice match takes a difficulty (`{ op = "Practice", difficulty = "Easy" | "Medium" | "Hard" | "Extreme" }`; absent or anything else is Medium, never a rejection). **Medium is the Balanced bot, unchanged**, so every balance number keeps its meaning: `lune run tests/harness/balance.luau 400` prints the same report before and after. Practice stays unrated. Every level decides from its own View only, the same information a human gets: no true support, no opponent plan, no hidden poll, no opponent ground game except what its own polls saw, the opponent's cash only as its Low / Medium / High bracket. **No handicap**: no level gets extra cash, AP or information.
+
+- **Easy** misjudges. Each plan weighs every state's worth by a random factor (log-normal, `BOT_EASY_NOISE` = 0.45), so it spreads effort over the wrong states; the draft reads the map the same hazy way; and half its debate focuses and Choice stances are random (`BOT_EASY_SLIP` = 0.5; a random pick alone costs the standard bot about 20 points of win rate). It still takes every legal turn, raises money and spends it.
+- **Hard** (1) predicts the opponent's plan by running the standard bot from the opponent's side of the public board, their cash guessed from their bracket (`BOT_FORESIGHT_CASH` = $2 / $7 / $13), and counts that week's predicted swing against its margins (`BOT_HARD_FORESIGHT` = 1); (2) values a state by how much a point there moves its chance of reaching 270 (a normal approximation of the EV total) instead of expected EV alone (`BOT_HARD_WIN_CHANCE` = 1): ahead, it shores up the close states it leads; behind, it reaches for the ones it trails; (3) picks its debate focus by the odds each topic is won or lost against the opponent's likely focus (`Debate.odds`; half the weight on the topic the standard bot would pick, `BOT_FOCUS_READ` = 0.5).
+- **Extreme** is Hard with the win-chance weight pushed three times as far (`BOT_EXTREME_WIN_CHANCE` = 3, `BOT_EXTREME_FORESIGHT` = 1).
+
+**Harness** (`lune run tests/harness/difficulty.luau [N]`; seats alternate, two different candidates a match, fixed seeds; ± is the 95% band):
+
+| Pairing | 400 matches | 1,000 matches | Target |
+|---|---|---|---|
+| Easy vs Medium | 15.5% ± 4.9 | 18.7% ± 3.1 (the reverse seating: Medium wins 79.3%, so Easy 20.7%) | 15–25% |
+| Hard vs Medium | 65.0% ± 4.9 | 66.1% ± 3.1 | 60–70% |
+| Extreme vs Medium | 77.8% ± 4.9 | 77.5% ± 3.1 | 75–85% |
+| Medium vs Easy | 80.2% ± 4.9 | 79.3% ± 3.1 | — |
+| Hard vs Easy | 80.2% ± 4.9 | 81.6% ± 3.1 | — |
+| Extreme vs Easy | 86.0% ± 4.9 | 87.1% ± 3.1 | — |
+| Extreme vs Hard | 61.5% ± 4.9 | 61.5% ± 3.1 | above 50% |
+
+Robustness (400 matches each, a scratch run of `Play.match` against the harness's restricted styles): Medium / Hard / Extreme beat Sandbag 61 / 75 / 85%, AttackOnly 59 / 69 / 80%, RallyOnly 62 / 67 / 80%, NeverPoll 47 / 66 / 75%, TopIssues 47 / 63 / 76%, FundraiseOnly 92 / 93 / 93%. The order holds against every opponent, so Hard and Extreme are not just counters to the Medium bot they predict.
+
+**What was tried.** Foresight alone is harmful (Hard without the win-chance weight: 18% against Medium; counting only the opponent's predicted rallies and fundraisers, 32%): counting the opponent's coming rallies against a state makes an expected-EV bot give up exactly the states the opponent is fighting for. The win-chance weight alone is worth about +6 (56%); the two together +15 (65%), and the stronger weight +28 (78%). Extreme variants that also skipped paid polls, valued money higher (`moneyValue` 0.6) or banked ground game earlier measured within the noise of plain Extreme and were left out. Hard and Extreme fundraise much less than Medium ($10–16 a match against $37) and rally more; that is the weight at work, not a bug.
+
+**Server cost.** One decision (Lune, this Mac, the 1,000-match run): Medium's plan 0.25 ms mean, 0.6 ms p99; Hard and Extreme 0.5 ms mean, 0.95 ms p99, 3.4 ms worst seen (one extra standard-bot plan for the foresight). Select, draft and decision steps stay under 0.3 ms. Far under the 20 ms aim.
+
+**Tests.** `tests/sim/BotDifficulty.spec`: names and the Medium default, valid full matches at every level from either seat, determinism per level, Easy still spends, and fair play: through a whole match, every Hard, Extreme and Easy decision is identical when true support, undecided, the opponent's ground game, the pools, the poll errors and the opponent's private polls are all changed, and when the opponent's cash changes inside its bracket. `tests/net/Lobby.spec` (the request field, the default, invalid values), `tests/net/Session.spec` (the bot seat gets its level and shows it in the seat list; same seed, same bot moves), `tests/e2e/Game.spec` (a Practice request with a level starts that bot; the button plays Medium).

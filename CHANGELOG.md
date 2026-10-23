@@ -2,6 +2,10 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+- **Bot difficulty: Easy, Medium, Hard, Extreme** (D-057). A practice match can ask for a level: `{ op = "Practice", difficulty = "Easy" | "Medium" | "Hard" | "Extreme" }` (absent or unknown = Medium, today's bot, unchanged). Easy misjudges which states matter and picks half its debate focuses and stances at random; Hard predicts your plan from the public board and plays for the chance of reaching 270; Extreme pushes that further. Every level sees only what a human sees, and none gets extra money. Against the Medium bot: Easy wins about 19%, Hard 66%, Extreme 78%. Practice stays unrated. The State payload shows the level on the bot's seat (`seats[i].difficulty`) and the server log says `bot Hard`. The Lobby picker comes with the client change; until then the button plays Medium. Debug panel parser: `practice hard` (the panel needs a one-line change to send it). Studio checklist: `docs/TESTING.md`, "Bot difficulty".
+
 ## 0.11.0: Colors: red, blue and the Color Pass (Oct 23, 2026)
 
 The designers asked for red and blue by default and a color pick for Robux (D-055). Sim, server, client. No Config numbers changed; the balance report is identical. Studio checklist: `docs/TESTING.md`, "Colors: red, blue and the Color Pass".

@@ -727,3 +727,17 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 9. Output: any line with `Color Pass check` (a failed ownership check) or `rejected SetColor`.
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
+
+## Bot difficulty (unreleased, D-057)
+
+Agents: `lune run tests difficulty` (sim, net and e2e specs), `lune run tests/harness/difficulty.luau` (the win-rate table, about a minute).
+
+### In Studio (once the Lobby has the difficulty picker)
+
+1. **Play (F5)** alone. Pick **Easy**, **Play vs Bot**, and play a normal match. **Expect:** you win comfortably; the bot still takes a turn every week, raises and spends money, and its debate focus sometimes looks random. Output: `match m1 started (Practice), seed …, bot Easy`.
+2. Back in the Lobby, pick **Hard**, play again. **Expect:** a closer, tougher match; the bot rallies more than it fundraises and fights you in the states you are pushing. Output ends in `bot Hard`.
+3. Same with **Extreme**. **Expect:** the hardest of the four; it defends the close states it leads and goes all-in on the ones it trails when behind. Output ends in `bot Extreme`.
+4. Pick **Medium** (or no pick at all). **Expect:** the same bot as before this update. Output ends in `bot Medium`.
+5. **Expect, every level:** no rating change after the match (practice is unrated); your practice record goes up by one; no `rejected` lines for the bot in Output; plans resolve without a pause when the bot's turn comes.
+
+**Send back:** for each level you played, who won and the final EV score, whether each felt easier or harder than the one before, and any Output lines with `rejected` or `failed`.
