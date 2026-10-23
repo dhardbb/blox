@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Bot = require(ReplicatedStorage.Shared.Sim.Bot)
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
 local Lobby = require(ReplicatedStorage.Shared.Net.Lobby)
@@ -250,7 +251,12 @@ local function startMatch(outcome: Lobby.Outcome)
 	end
 	if outcome.kind == "Practice" then
 		local candidate = Candidates.ids[random:NextInteger(1, #Candidates.ids)]
-		table.insert(specs, { id = "bot", kind = "Bot", candidate = candidate, style = "Balanced" })
+		table.insert(specs, {
+			id = "bot",
+			kind = "Bot",
+			candidate = candidate,
+			difficulty = Bot.difficulty(outcome.difficulty), -- D-057: absent = Medium (the standard bot)
+		})
 	end
 	local created: Session.Session? = nil
 	local built, err = pcall(function(): string?
@@ -286,7 +292,8 @@ local function startMatch(outcome: Lobby.Outcome)
 		sendLobby(id)
 	end
 	broadcastLobby() -- the queue shrank and a match slot filled up
-	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}`)
+	local against = if outcome.kind == "Practice" then `, bot {Bot.difficulty(outcome.difficulty)}` else ""
+	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
 	flush(session)
 end
 
@@ -300,7 +307,7 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 	elseif request.op == "Join" then
 		outcome, reason = Lobby.join(lobby, id, request.code :: string)
 	elseif request.op == "Practice" then
-		outcome, reason = Lobby.practice(lobby, id)
+		outcome, reason = Lobby.practice(lobby, id, request.difficulty)
 	elseif request.op == "Leave" then
 		Lobby.leave(lobby, id)
 	elseif request.op == "PrePick" then

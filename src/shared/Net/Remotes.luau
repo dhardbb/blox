@@ -19,7 +19,7 @@ export type Op =
 	"Queue" -- join the public queue
 	| "Host" -- open a private match and get a code: { events? } (false = no event deck)
 	| "Join" -- join a private match: { code }
-	| "Practice" -- play the bot now
+	| "Practice" -- play the bot now: { difficulty? } (D-057)
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
 	| "PrePick" -- remember a candidate and platform for Select: { pick }
 	| "SetColor" -- save a chosen color (Color Pass owners, D-055): { color? } (absent = auto)
@@ -38,6 +38,7 @@ export type Request = {
 	input: any?,
 	events: boolean?, -- Host: false turns the event deck off for this private match
 	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue)
+	difficulty: string?, -- Practice: "Easy" | "Medium" | "Hard" | "Extreme"; absent or anything else = "Medium" (D-057)
 }
 
 -- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while

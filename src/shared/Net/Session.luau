@@ -43,6 +43,7 @@ export type Seat = {
 	prePick: any?, -- lobby pre-pick, used if Select times out
 	botCandidate: string?,
 	botStyle: Bot.Style?,
+	botDifficulty: Bot.Difficulty?, -- practice difficulty (D-057); nil for a harness bot with an explicit style
 	botRng: Rng.Rng?,
 }
 
@@ -59,6 +60,7 @@ export type SeatInfo = {
 	skip: boolean,
 	bank: number,
 	graceUntil: number?,
+	difficulty: Bot.Difficulty?, -- a bot seat's practice difficulty (D-057)
 }
 
 export type StatePayload = {
@@ -110,7 +112,8 @@ export type SeatSpec = {
 	prePick: any?, -- Human: optional lobby pre-pick
 	color: string?, -- Human: their Color Pass pick (the server sends it only for owners, D-055)
 	candidate: string?, -- Bot: candidate to play
-	style: Bot.Style?, -- Bot: play style
+	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
+	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
 }
 
 local Session = {}
@@ -166,6 +169,7 @@ function Session.payload(session: Session, p: number): StatePayload
 			skip = seat.skip,
 			bank = seat.bank,
 			graceUntil = if seat.connected then nil else seat.graceUntil,
+			difficulty = seat.botDifficulty,
 		}
 	end
 	local deadline = if session.stage == "Input"
@@ -487,6 +491,12 @@ function Session.new(
 		if spec.color then
 			colorPicks[spec.id] = spec.color
 		end
+		-- A practice bot's level (D-057); an explicit style (the harness) wins.
+		local difficulty: Bot.Difficulty? = if spec.kind == "Bot"
+				and spec.style == nil
+				and spec.difficulty ~= nil
+			then Bot.difficulty(spec.difficulty)
+			else nil
 		seats[p] = {
 			id = spec.id,
 			kind = spec.kind,
@@ -501,7 +511,8 @@ function Session.new(
 			missed = 0,
 			prePick = spec.prePick,
 			botCandidate = spec.candidate,
-			botStyle = spec.style,
+			botStyle = spec.style or (if difficulty then Bot.styleFor(difficulty) else nil),
+			botDifficulty = difficulty,
 			botRng = if spec.kind == "Bot" then Rng.new(seed * 31 + p) else nil,
 		}
 	end

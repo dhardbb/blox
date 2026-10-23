@@ -3,6 +3,7 @@
 -- Pure bookkeeping; LobbyService does the Roblox side and makes the codes.
 -- Up to MATCHES_PER_SERVER matches run at once (practice games count).
 
+local Bot = require("../Sim/Bot")
 local ConfigModule = require("../Sim/Config")
 
 type Config = ConfigModule.Config
@@ -30,6 +31,7 @@ export type Outcome = {
 	players: { string }, -- Match: both ids, first in line first
 	code: string?, -- Waiting while hosting
 	events: boolean?, -- Match from a private code: false if the host turned events off
+	difficulty: Bot.Difficulty?, -- Practice: the bot's difficulty (D-057)
 }
 
 local Lobby = {}
@@ -130,14 +132,15 @@ function Lobby.join(lobby: Lobby, id: string, code: string): (Outcome?, string?)
 	return { kind = "Match", players = pair, events = options and options.events }, nil
 end
 
--- Starts a practice match against the bot.
-function Lobby.practice(lobby: Lobby, id: string): (Outcome?, string?)
+-- Starts a practice match against the bot at `difficulty` (absent or unknown:
+-- Medium, D-057).
+function Lobby.practice(lobby: Lobby, id: string, difficulty: string?): (Outcome?, string?)
 	local reason = check(lobby, id)
 	if reason then
 		return nil, reason
 	end
 	start(lobby, { id })
-	return { kind = "Practice", players = { id } }, nil
+	return { kind = "Practice", players = { id }, difficulty = Bot.difficulty(difficulty) }, nil
 end
 
 -- A match is over (or abandoned): its players are free again.

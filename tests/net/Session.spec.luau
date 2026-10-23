@@ -251,6 +251,49 @@ describe("Session: unique candidates (D-048)", function()
 		expect(session.match.players[2].candidate):toBe("reyes")
 	end)
 
+	it("a practice bot seat plays the difficulty it was given (D-057)", function()
+		for _, level in { "Easy", "Medium", "Hard", "Extreme" } :: { Bot.Difficulty } do
+			local session = Session.new(C, "m3", 7, {
+				{ id = "100", kind = "Human" },
+				{ id = "bot", kind = "Bot", candidate = "hale", difficulty = level },
+			}, 0)
+			local seat = session.seats[2]
+			expect(seat.botDifficulty):toBe(level)
+			expect(seat.botStyle):toBe(Bot.styleFor(level))
+			expect(session.seats[1].botDifficulty):toBe(nil)
+			-- The human sees the bot's level on the seat list.
+			local payload = Session.payload(session, 1)
+			expect(payload.seats[2].difficulty):toBe(level)
+			expect(payload.seats[1].difficulty):toBe(nil)
+		end
+		-- An explicit style (the harness) wins, and a bot with neither plays Balanced.
+		local styled = Session.new(C, "m4", 7, {
+			{ id = "100", kind = "Human" },
+			{ id = "bot", kind = "Bot", candidate = "hale", style = "NeverPoll", difficulty = "Hard" },
+		}, 0)
+		expect(styled.seats[2].botStyle):toBe("NeverPoll")
+		expect(styled.seats[2].botDifficulty):toBe(nil)
+		expect(practice().seats[2].botStyle):toBe(nil)
+	end)
+
+	it("a practice bot's moves follow from the seed at every difficulty (D-057)", function()
+		for _, level in { "Easy", "Hard", "Extreme" } :: { Bot.Difficulty } do
+			local function run(): any
+				local session = Session.new(C, "m5", 31, {
+					{ id = "100", kind = "Human" },
+					{ id = "bot", kind = "Bot", candidate = "venkat", difficulty = level },
+				}, 0)
+				-- Select, the draft and four weeks: the bot locks at once each time.
+				for _ = 1, 12 do
+					lockAll(session, Session.nextWake(session))
+					Session.update(session, Session.nextWake(session))
+				end
+				return session.match
+			end
+			expect(run()):toEqual(run())
+		end
+	end)
+
 	it("a practice bot claims its candidate as Select opens", function()
 		local session = practice()
 		expect(session.match.claims.hale):toBe(2)
