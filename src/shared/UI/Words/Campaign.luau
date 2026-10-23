@@ -16,8 +16,11 @@
 --   Words.focusHead(config, view, info) -> string   "Schools · 14 states"
 --   Words.focusOdds(info) -> string           "You win 81%"
 --   Words.key(id) -> { string }               the map key's lines for a lens
+--   Words.bands() -> { { name, text } }       the map key's four color steps
+--   Words.gain(effect) -> string?             "+4.1" from "+4.1 support" (the map's ghost tag)
 --   Words.percent(text) -> string             "×1.2" said as "20% more" (an event's effect)
 
+local Colors = require("../Colors")
 local ConfigModule = require("../../Sim/Config")
 local Explain = require("../Explain")
 local Issues = require("../../Sim/Issues")
@@ -242,7 +245,7 @@ end
 -- How to read the map in lens `id` ("EV", "Issues", "Polls", "Money").
 function Words.key(id: string): { string }
 	local lines = {
-		"Color: who leads the public poll there. Grey is a toss-up.",
+		"Color: who leads the public poll there, and by how much:",
 		"A ring: a home state or a stronghold, in its owner's color.",
 	}
 	if id == "Issues" then
@@ -259,6 +262,41 @@ function Words.key(id: string): { string }
 	end
 	table.insert(lines, "Tap a state to see it and act there.")
 	return lines
+end
+
+-- The number an action button's effect line leads with, signed ("+4.1",
+-- "+$5.2", "-2.4"), for the map's ghost tag; nil when it has none ("See true support").
+function Words.gain(effect: string): string?
+	local line = string.match(effect, "^[^\n]*") or ""
+	return string.match(line, "[%+%-]%$?%d+%.?%d*")
+end
+
+local BAND_NAMES: { [string]: string } = {
+	tossup = "Toss-up",
+	lean = "Leans",
+	likely = "Likely",
+	safe = "Safe",
+}
+
+-- The map's four color steps (Colors.BANDS, display only), weakest first:
+-- "Toss-up: closer than 3 points", ..., "Safe: ahead by 15 points or more".
+function Words.bands(): { { name: string, text: string } }
+	local out = {}
+	local from = 0
+	for _, band in Colors.BANDS do
+		local label = BAND_NAMES[band.name] or band.name
+		local text
+		if from == 0 then
+			text = `{label}: closer than {band.below} points`
+		elseif band.below == math.huge then
+			text = `{label}: ahead by {from} points or more`
+		else
+			text = `{label}: ahead by {from} to {band.below} points`
+		end
+		table.insert(out, { name = band.name, text = text })
+		from = band.below
+	end
+	return out
 end
 
 return table.freeze(Words)

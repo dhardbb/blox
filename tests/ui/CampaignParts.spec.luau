@@ -335,22 +335,214 @@ describe("Campaign parts: the header", function()
 		Rig.noErrors(world)
 	end)
 
-	it("shows the opponent's status in the action bar", function()
+	it("shows the opponent's status in the action bar, by their first name", function()
 		local world, peer = Rig.fixture("Plan", nil)
 		local base = Rig.payloadOf(world, peer)
 		local them = 3 - base.you
+		local Model = FakeRoblox.require(world, peer, "src/client/Screens/CampaignParts/Model.luau")
+		local name = Model.firstName(C, base.view, them)
+		-- Thinking: the dots step along at a fixed width.
+		local thinking = Rig.deepCopy(base)
+		thinking.seats[them].locked = false
+		Rig.push(world, peer, thinking)
+		local seen = {}
+		for _ = 1, 4 do
+			local text = textOf(peer, "BarOpponent")
+			check(string.sub(text, 1, #name + 10) == `{name}: thinking`, text)
+			expect(#text):toBe(#name + 13)
+			seen[text] = true
+			FakeRoblox.run(world, 0.5)
+		end
+		check(next(seen, next(seen)) ~= nil, "the thinking dots never move")
 		local locked = Rig.deepCopy(base)
 		locked.seats[them].locked = true
 		Rig.push(world, peer, locked)
-		expect(textOf(peer, "BarOpponent")):toBe("Opponent: locked in")
+		expect(textOf(peer, "BarOpponent")):toBe(`{name}: locked in ✓`)
 		local away = Rig.deepCopy(locked)
 		away.seats[them].connected = false
 		Rig.push(world, peer, away)
-		expect(textOf(peer, "BarOpponent")):toBe("Opponent: disconnected")
+		expect(textOf(peer, "BarOpponent")):toBe(`{name}: disconnected`)
 		Rig.push(world, peer, locked)
-		expect(textOf(peer, "BarOpponent")):toBe("Opponent: back")
+		expect(textOf(peer, "BarOpponent")):toBe(`{name}: back`)
 		FakeRoblox.run(world, 5)
-		expect(textOf(peer, "BarOpponent")):toBe("Opponent: locked in")
+		expect(textOf(peer, "BarOpponent")):toBe(`{name}: locked in ✓`)
+		Rig.noErrors(world)
+	end)
+
+	it("keeps the thinking dots still under reduced motion", function()
+		local world, peer = Rig.fixture("Plan", nil, { reducedMotion = true })
+		local base = Rig.payloadOf(world, peer)
+		local Model = FakeRoblox.require(world, peer, "src/client/Screens/CampaignParts/Model.luau")
+		local name = Model.firstName(C, base.view, 3 - base.you)
+		local thinking = Rig.deepCopy(base)
+		thinking.seats[3 - base.you].locked = false
+		Rig.push(world, peer, thinking)
+		for _ = 1, 3 do
+			expect(textOf(peer, "BarOpponent")):toBe(`{name}: thinking...`)
+			FakeRoblox.run(world, 0.5)
+		end
+		Rig.noErrors(world)
+	end)
+end)
+
+-- The board's motion and sound (polish WP-1, docs/DESIGN.md D-053): planned
+-- badges on the map, one cue per plan change, the refusal shake, the ghost tag
+-- while an action is held, the score counting, the map key's color steps, and
+-- the same end state with Reduce Motion on.
+describe("Campaign board motion and sound", function()
+	local Words = require("@ui/Words/Campaign")
+
+	local function node(peer: FakeRoblox.Peer, id: string): any
+		local map = need(peer, "NodeMap")
+		return map.Nodes:FindFirstChild(id)
+	end
+
+	local function count(list: { string }, name: string): number
+		local n = 0
+		for _, entry in list do
+			if entry == name then
+				n += 1
+			end
+		end
+		return n
+	end
+
+	local function badgeIcon(peer: FakeRoblox.Peer, id: string): string?
+		local badge = node(peer, id):FindFirstChild("PlanBadge")
+		if badge == nil then
+			return nil
+		end
+		return badge.Icon:GetAttribute("Icon")
+	end
+
+	-- A tap and the cues it plays, then a pause: UI/Audio sounds at most four
+	-- cues at once (each counts for 0.5 s here, where sounds have no length).
+	local function slowTap(world: FakeRoblox.World, peer: FakeRoblox.Peer, name: string)
+		tap(world, peer, name, 0.6)
+	end
+
+	-- Plans an ad in OH and a fundraiser in PA, then removes the ad.
+	local function planTwo(world: FakeRoblox.World, peer: FakeRoblox.Peer): { [string]: any }
+		local seen = {}
+		slowTap(world, peer, "OH")
+		slowTap(world, peer, "Ad")
+		seen.afterOne = count(Rig.sounds(peer), "planAdd")
+		seen.ohBadge = badgeIcon(peer, "OH")
+		slowTap(world, peer, "PA")
+		slowTap(world, peer, "Fundraise")
+		seen.afterTwo = count(Rig.sounds(peer), "planAdd")
+		seen.paBadge = badgeIcon(peer, "PA")
+		seen.money = textOf(peer, "MoneyLabel")
+		slowTap(world, peer, "RemoveItem1")
+		seen.removes = count(Rig.sounds(peer), "planRemove")
+		seen.ohAfter = badgeIcon(peer, "OH")
+		seen.paAfter = badgeIcon(peer, "PA")
+		seen.item = textOf(peer, "PlanItem1")
+		seen.leaving = Rig.findIn(peer, "Campaign", "PlanItemLeaving")
+		return seen
+	end
+
+	it("badges each planned state and plays one cue per change", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		local seen = planTwo(world, peer)
+		expect(seen.afterOne):toBe(1)
+		expect(seen.afterTwo):toBe(2)
+		expect(seen.ohBadge):toBe("tv")
+		expect(seen.paBadge):toBe("coins")
+		expect(seen.removes):toBe(1)
+		expect(seen.ohAfter):toBe(nil)
+		expect(seen.paAfter):toBe("coins")
+		check(Rig.contains(seen.item, "Fundraise"), seen.item)
+		check(seen.leaving == nil, "the removed row never left")
+		-- Tapping a state is a "select".
+		check(count(Rig.sounds(peer), "select") >= 2, "no select cue on a state tap")
+		Rig.noErrors(world)
+	end)
+
+	it("lands on the same end state with Reduce Motion on", function()
+		local fullWorld, fullPeer = Rig.fixture("Plan", nil)
+		local full = planTwo(fullWorld, fullPeer)
+		local world, peer = Rig.fixture("Plan", nil, { reducedMotion = true })
+		local reduced = planTwo(world, peer)
+		expect(reduced):toEqual(full)
+		check(node(peer, "PA").PlanBadge:FindFirstChild("MotionScale") == nil, "the badge popped")
+		check(need(peer, "StateCard"):FindFirstChild("MotionScale", true) == nil, "the card's buttons popped")
+		check(Rig.findIn(peer, "Campaign", "Delta") == nil, "a delta chip under reduced motion")
+		Rig.noErrors(world)
+		Rig.noErrors(fullWorld)
+	end)
+
+	it("shakes the bar with one error for a greyed-out Lock in", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		slowTap(world, peer, "OH")
+		slowTap(world, peer, "Ad")
+		local broke = Rig.deepCopy(Rig.payloadOf(world, peer))
+		broke.view.players[broke.view.you].cash = 0
+		Rig.push(world, peer, broke)
+		check(need(peer, "LockIn").Active == false, "Lock in is enabled on a broke plan")
+		slowTap(world, peer, "LockIn")
+		expect(count(Rig.sounds(peer), "error")):toBe(1)
+		slowTap(world, peer, "LockIn")
+		expect(count(Rig.sounds(peer), "error")):toBe(2)
+		Rig.noErrors(world)
+	end)
+
+	it("plays one error when the server turns the plan down", function()
+		local world, peer = Rig.practice(3)
+		Rig.toPlanInput(world, peer)
+		Rig.sabotageSubmits(world, peer, { actions = { { kind = "Zzz" } } })
+		Rig.tap(world, peer, "Campaign", "LockIn", 1)
+		expect(count(Rig.sounds(peer), "error")):toBe(1)
+		Rig.noErrors(world)
+	end)
+
+	it("shows a held action's effect on the map as a ghost tag", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		tap(world, peer, "OH")
+		local rally = need(peer, "Rally")
+		world.current = peer
+		rally.InputBegan.fire({ UserInputType = { Name = "Touch" } })
+		world.current = nil
+		local ghost = Rig.need(peer, "Campaign", "GhostTag")
+		check(ghost.Visible ~= false, "no ghost tag while Rally is held")
+		local effect = textOf(peer, "RallyEffect")
+		expect(ghost.Text):toBe(Words.gain(effect))
+		world.current = peer
+		rally.InputEnded.fire({ UserInputType = { Name = "Touch" } })
+		world.current = nil
+		check(ghost.Visible == false, "the ghost tag stays after release")
+		Rig.noErrors(world)
+	end)
+
+	it("counts the score to its new value with a delta chip", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		local base = Rig.payloadOf(world, peer)
+		local me = base.view.you
+		local before = base.view.projectedEV[me]
+		local moved = Rig.deepCopy(base)
+		moved.view.projectedEV[me] = before + 12
+		Rig.push(world, peer, moved)
+		local chip = Rig.findIn(peer, "Campaign", "Delta")
+		check(chip ~= nil, "no delta chip")
+		expect(chip.Text):toBe("+12")
+		check(chip:GetAttribute("Decor") == true, "the delta chip is not decorative")
+		FakeRoblox.run(world, 1)
+		local you = textOf(peer, "YouLabel")
+		check(string.sub(you, -#tostring(before + 12)) == tostring(before + 12), you)
+		check(Rig.findIn(peer, "Campaign", "Delta") == nil, "the delta chip stays")
+		Rig.noErrors(world)
+	end)
+
+	it("shows the four color steps in the map key", function()
+		local world, peer = Rig.fixture("Plan", nil)
+		tap(world, peer, "MapKey")
+		local bands = Words.bands()
+		expect(#bands):toBe(4)
+		for k, band in bands do
+			local row = need(peer, `KeyBand{k}`)
+			expect(row.BandText.Text):toBe(band.text)
+			expect(row.Theirs.Visible):toBe(k > 1)
+		end
 		Rig.noErrors(world)
 	end)
 end)

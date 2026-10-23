@@ -17,6 +17,11 @@
 -- momentum and its drift, ground game, top issues, and one line per action with
 -- the full math (Shared/UI/Explain), a details area.
 --
+-- Each action button leads with its icon (Kit.icon, UI/Icons; the word stays).
+-- Motion (docs/DESIGN.md D-053): a newly tapped state's card fades in and its
+-- action buttons pop in one after another; an added action pops its button;
+-- holding an action button shows what it would do on the map (model.ghost).
+--
 -- During a reveal the card stays up read-only (title, poll, Details), so a
 -- player can inspect a state while the results play.
 --
@@ -55,6 +60,7 @@ local Collapsible = require(script.Parent.Parent.Parent.UI.Collapsible)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Parent.Common.Layout)
 local Model = require(script.Parent.Model)
+local Motion = require(script.Parent.Parent.Parent.UI.Motion)
 
 type View = ViewModule.View
 type Issue = SharedTypes.Issue
@@ -72,6 +78,9 @@ local MAIN_WIDE = 6 -- ... a wide screen
 local LEAD_NAMES_H = 18 -- px, the names over the poll bar
 local LEAD_BAR_H = 8 -- px, the poll bar
 local MESSAGE_LABEL_W = 76 -- px, "Message" before the chips
+local ICON_PX = 16 -- px, an action button's icon
+local CARD_RISE = 8 -- px, the card sliding in on a new state
+local ADD_POP = 1.06 -- an action button's size as it adds (it settles to 1)
 
 export type StateCard = {
 	root: Frame,
@@ -189,7 +198,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 	local actionGrid, actionSize = grid(actionsBox, "ActionGrid", 1, ACTION_H)
 	local addAction: (name: string) -> ()
 	local pivotOpen: () -> ()
-	type ActionButton = { button: TextButton, label: TextLabel, effect: TextLabel }
+	type ActionButton = { button: TextButton, label: TextLabel, effect: TextLabel, icon: GuiObject? }
 	local actionButtons: { [string]: ActionButton } = {}
 	for k, entry in Words.ACTIONS do
 		local button: TextButton
@@ -210,27 +219,62 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			TextScaled = false,
 		})
 		local list = Kit.list("Vertical", 2)
-		list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		list.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		list.VerticalAlignment = Enum.VerticalAlignment.Center
 		list.Parent = button
-		local label = Kit.text(entry.label, {
-			Name = `{entry.name}Label`,
+		-- The name line: the action's icon, then its word.
+		local head = Kit.box({
+			Name = `{entry.name}Head`,
 			LayoutOrder = 1,
 			Size = UDim2.new(1, 0, 0, Kit.size.body + 4),
+			Parent = button,
+		})
+		-- (Pivot has no icon: its word lines up with the others.)
+		local iconName = Kit.actionIcon(entry.kind)
+		local icon: GuiObject? = nil
+		if iconName then
+			local made = Kit.icon(iconName, ICON_PX, Kit.colors.accent)
+			made.AnchorPoint = Vector2.new(0, 0.5)
+			made.Position = UDim2.fromScale(0, 0.5)
+			made.Parent = head
+			icon = made
+		end
+		local label = Kit.text(entry.label, {
+			Name = `{entry.name}Label`,
+			Position = UDim2.fromOffset(ICON_PX + Kit.space.xs, 0),
+			Size = UDim2.new(1, -(ICON_PX + Kit.space.xs), 1, 0),
 			Font = Kit.font.bold,
 			TextScaled = true,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			Parent = button,
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = head,
 		})
 		local effect = Kit.caption("", {
 			Name = `{entry.name}Effect`,
 			LayoutOrder = 2,
 			TextColor3 = Kit.colors.text,
-			TextXAlignment = Enum.TextXAlignment.Center,
+			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = button,
 		})
+		-- Held (not yet released): the map shows what this action would do.
+		if entry.name ~= "PivotButton" then
+			button.InputBegan:Connect(function(input: InputObject)
+				local kind = (input :: any).UserInputType
+				local pressed = kind ~= nil and (kind.Name == "MouseButton1" or kind.Name == "Touch")
+				local ghost, id = model.ghost, model.selected
+				if pressed and ghost and id and button.Active ~= false then
+					ghost(id, Words.gain(effect.Text))
+				end
+			end)
+			button.InputEnded:Connect(function()
+				local ghost, id = model.ghost, model.selected
+				if ghost and id then
+					ghost(id, nil)
+				end
+			end)
+		end
 		button.Parent = actionGrid
-		actionButtons[entry.name] = { button = button, label = label, effect = effect }
+		actionButtons[entry.name] = { button = button, label = label, effect = effect, icon = icon }
 	end
 
 	-- The pivot chooser takes the buttons' place: drop an issue, then add one.
@@ -524,6 +568,11 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		if problemOf(view, action) ~= nil then
 			return
 		end
+		local ghost = model.ghost
+		if ghost then
+			ghost(id, nil)
+		end
+		Motion.pop(actionButtons[name].button, ADD_POP)
 		if action.kind == "Gotv" then
 			-- One plan line per state: +1 adds a unit to it.
 			for _, existing in model.draft.actions do
@@ -700,6 +749,13 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			end
 			Kit.setEnabled(parts.button, enabled)
 			parts.label.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
+			local icon: any = parts.icon
+			local tint = if enabled then Kit.colors.accent else Kit.colors.disabledText
+			if icon and icon:IsA("ImageLabel") then
+				icon.ImageColor3 = tint
+			elseif icon then
+				icon.TextColor3 = tint
+			end
 			parts.effect.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
 		end
 		local hidden = #Words.ACTIONS - main
@@ -888,6 +944,8 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		issuesLine.Text = `Top issues: {table.concat(issueNames, ", ")}`
 	end
 
+	local shownId: string? = nil -- the state the card showed at the last render
+
 	local card: StateCard = {
 		root = root,
 		closeList = function(_self: StateCard)
@@ -901,10 +959,13 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			local index = if id then SimState.indexOf[id] else nil
 			if id == nil or index == nil then
 				root.Visible = false
+				shownId = nil
 				return
 			end
 			root.Visible = true
 			local planning = Model.planning(p)
+			local arriving = id ~= shownId
+			shownId = id
 			local canEdit = Model.editable(model, p)
 			local s = view.states[index]
 			local record: SharedTypes.StateRecord = StateData.byId[id]
@@ -921,6 +982,22 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			if planning then
 				renderMessages(view, id, canEdit)
 				renderActions(p, id, canEdit)
+			end
+			if arriving then
+				-- A new state: the card fades in, its action buttons pop in one by one.
+				Motion.enter(root, CARD_RISE)
+				local shown: { TextButton } = {}
+				if planning then
+					for _, entry in Words.ACTIONS do
+						local button = actionButtons[entry.name].button
+						if button.Visible then
+							table.insert(shown, button)
+						end
+					end
+				end
+				Motion.stagger(shown, function(button: TextButton, _index: number, delay: number)
+					Motion.pop(button, Motion.POP_FROM, delay)
+				end)
 			end
 		end,
 	}

@@ -14,6 +14,13 @@
 -- line. The parts live in Screens/CampaignParts; this file owns the model, the
 -- layout, the map, the action bar, and the routing between moments.
 --
+-- Motion and sound (docs/DESIGN.md D-053, UI/Motion, UI/Audio): tapping a state
+-- plays "select" (its ring draws in, its card slides in); each planned state
+-- wears its action's icon badge on the map; a lens switch fades the lens pills;
+-- a plan the server turns down, or a tap on a Lock in greyed out by a problem,
+-- shakes the action bar with the "error" cue. The opponent's line names them:
+-- "Rex: thinking…" (the dots move unless motion is reduced), "Rex: locked in ✓".
+--
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net.
 -- The plan is previewed with Shared/UI/PlanDraft, which mirrors the server's
 -- checks; the server still validates whatever is sent.
@@ -29,6 +36,7 @@ local Session = require(Shared.Net.Session)
 local ViewModule = require(Shared.Sim.View)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local Audio = require(script.Parent.Parent.UI.Audio)
 local AutoLock = require(script.Parent.Common.AutoLock)
 local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
@@ -38,6 +46,7 @@ local LensToggle = require(script.Parent.Parent.Map.LensToggle)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local Messages = require(script.Parent.Common.Messages)
 local Model = require(script.Parent.CampaignParts.Model)
+local Motion = require(script.Parent.Parent.UI.Motion)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local PlanList = require(script.Parent.CampaignParts.PlanList)
 local Reveal = require(script.Parent.CampaignParts.Reveal)
@@ -57,7 +66,11 @@ local GAP = Kit.space.sm -- px between the big blocks
 local LENS_H = LensToggle.HEIGHT -- px, the "Map key" button and the lens chips above the map
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
 local PORTRAIT_MAP_MAX = 0.42 -- most of the body height the map may take on phones
-local BACK_SECONDS = 4 -- how long "Opponent: back" shows after a reconnect
+local BACK_SECONDS = 4 -- how long "<name>: back" shows after a reconnect
+local SWATCH = 20 -- px, a color step's dot in the map key
+local KEY_ROW_H = 24 -- px, one color step's row in the map key
+local LOCKED_RISE = 4 -- px, the opponent's "locked in ✓" line rises this far
+local LOCKED_WORD = Model.OPPONENT_LOCKED
 
 -- LayoutOrder of each side-column panel.
 local ORDER = {
@@ -105,6 +118,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	}
 
 	local lockMessageId = 0 -- id of the newest message when we pressed Lock in
+	local lensFade = false -- the next map paint fades the lens pills in (a lens switch)
+	local badges: { [string]: string } = {} -- state -> the icon its PlanBadge shows
+	local opponentWas: string? = nil -- the opponent's state at the last bar render
 	local rejection: { step: number, text: string }? = nil -- the server turned the lock down
 	local autoLock = AutoLock.new()
 	local portrait: boolean? = nil
@@ -165,11 +181,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local lensToggle = LensToggle.new(mapArea, function()
 		CoachTip.markSeen("campaign.lens")
+		lensFade = true
 		model.render()
+		lensFade = false
 	end)
 	lensToggle.root.AnchorPoint = Vector2.new(1, 0)
 	lensToggle.root.Position = UDim2.fromScale(1, 0)
 	keyButton.Size = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.sm), 0, LENS_H)
+
+	-- A plan that can't go: the bar shakes, its status flashes, one "error".
+	local bar: ActionBar.ActionBar
+	local function refuse()
+		Motion.shake(bar.root)
+		Motion.flash(bar.status, Kit.colors.text)
+		Audio.play("error")
+	end
 
 	-- Sends the plan as drafted (the Lock in button, or the timer about to end).
 	local function lockPlan()
@@ -186,7 +212,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.render()
 	end
 
-	local bar = ActionBar.new(sideColumn, {
+	bar = ActionBar.new(sideColumn, {
 		primary = "Lock in",
 		onPrimary = function() end,
 		secondary = "+15 s",
@@ -196,7 +222,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	bar.primary.Activated:Connect(function()
 		local p = model.payload
-		if bar.primary.Active == false or p == nil then
+		if p == nil then
+			return
+		end
+		if bar.primary.Active == false then
+			-- Greyed out by a problem in the plan (the status says which): say no.
+			if
+				Model.planning(p)
+				and Model.editable(model, p)
+				and PlanDraft.problem(config, p.view, model.draft) ~= nil
+			then
+				refuse()
+			end
 			return
 		end
 		if Model.planning(p) then
@@ -245,18 +282,70 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	for k = 1, 6 do
 		keyLines[k] = Kit.text("", {
 			Name = `KeyLine{k}`,
-			LayoutOrder = k,
+			-- The color steps come right after the first line (what color means).
+			LayoutOrder = if k == 1 then 1 else 10 + k,
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = key.body,
 		})
 	end
+	-- One row per color step (Colors.BANDS): your dot, their dot, what it means.
+	type KeyBand = { name: string, mine: Frame, theirs: Frame }
+	local keyBands: { KeyBand } = {}
+	for k, band in Words.bands() do
+		local row = Kit.box({
+			Name = `KeyBand{k}`,
+			LayoutOrder = 1 + k,
+			Size = UDim2.new(1, 0, 0, KEY_ROW_H),
+			Parent = key.body,
+		})
+		Kit.dataColor(row)
+		local function dot(name: string, x: number): Frame
+			local frame = Kit.new("Frame", {
+				Name = name,
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.new(0, x, 0.5, 0),
+				Size = UDim2.fromOffset(SWATCH, SWATCH),
+				BorderSizePixel = 0,
+				Parent = row,
+			}) :: Frame
+			Kit.round().Parent = frame
+			return frame
+		end
+		local mine = dot("Mine", 0)
+		local theirs = dot("Theirs", SWATCH + Kit.space.xs)
+		local textX = 2 * SWATCH + Kit.space.xs + Kit.space.sm
+		Kit.text(band.text, {
+			Name = "BandText",
+			Position = UDim2.fromOffset(textX, 0),
+			Size = UDim2.new(1, -textX, 1, 0),
+			TextScaled = true,
+			TextWrapped = false,
+			Parent = row,
+		})
+		table.insert(keyBands, { name = band.name, mine = mine, theirs = theirs })
+	end
 	keySheet = key
-	local function renderKey()
+	local function renderKey(p: Payload)
 		local lines = Words.key(Lens.current())
 		for k, label in keyLines do
 			label.Text = lines[k] or ""
 			label.Visible = lines[k] ~= nil
+		end
+		local view = p.view
+		local mineColor = Colors.of(view.players[view.you].color)
+		local theirColor = Colors.of(view.players[Model.opponentOf(view)].color)
+		for _, row in keyBands do
+			local share = 0
+			for _, band in Colors.BANDS do
+				if band.name == row.name then
+					share = band.share
+				end
+			end
+			row.mine.BackgroundColor3 = Kit.color(Colors.tint(Colors.neutral, mineColor, share))
+			row.theirs.BackgroundColor3 = Kit.color(Colors.tint(Colors.neutral, theirColor, share))
+			-- A toss-up is grey for both: one dot says it.
+			row.theirs.Visible = share > 0
 		end
 	end
 
@@ -351,7 +440,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				marks[s.id] = { ring = ring, badge = if starred[s.id] then "*" else nil }
 			end
 		end
-		map:setLens(Lens.lines(Lens.current(), { config = config, view = shown, draft = model.draft }))
+		map:setLens(
+			Lens.lines(Lens.current(), { config = config, view = shown, draft = model.draft }),
+			lensFade
+		)
 		-- A reveal shows what moved (D-042); the stance preview is on the Decision screen (D-044).
 		local swing = model.revealSwing
 		if swing then
@@ -384,23 +476,60 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 	end
 
+	-- Each planned state wears the icon of its latest action (Kit.actionIcon); a
+	-- state leaving the plan loses it. Only while planning: the reveals badge
+	-- the map themselves, so outside planning this only takes its own badges off.
+	local function syncBadges(p: Payload)
+		local want: { [string]: string } = {}
+		if Model.planning(p) and model.draftStep == p.step then
+			for _, action in model.draft.actions do
+				local icon = Kit.actionIcon(action.kind)
+				if action.state and icon then
+					want[action.state] = icon
+				end
+			end
+		end
+		for id, icon in badges do
+			if want[id] ~= icon then
+				map:badge(id, want[id])
+				badges[id] = want[id]
+			end
+		end
+		for id, icon in want do
+			if badges[id] == nil then
+				map:badge(id, icon)
+				badges[id] = icon
+			end
+		end
+	end
+
 	-- ------------------------------------------------------------ the action bar
 
-	local function opponentText(p: Payload, now: number): string?
+	-- The opponent's state in a word: what the bar says after their name.
+	local function opponentState(p: Payload, now: number): string?
 		local them = Model.opponentOf(p.view)
 		local seat = p.seats[them]
 		if seat == nil then
 			return nil
 		elseif not seat.connected then
-			return "Opponent: disconnected"
+			return "disconnected"
 		elseif now < backUntil then
-			return "Opponent: back"
+			return "back"
 		elseif p.stage == "Input" then
-			return if seat.locked then "Opponent: locked in" else "Opponent: thinking"
+			return if seat.locked then LOCKED_WORD else "thinking"
 		elseif p.reveal == "Resolve" and seat.skip then
-			return "Opponent: skipped"
+			return "skipped"
 		end
-		return "Opponent: watching"
+		return "watching"
+	end
+
+	local function opponentText(p: Payload, now: number): string?
+		local state = opponentState(p, now)
+		if state == nil then
+			return nil
+		end
+		local name = Model.firstName(config, p.view, Model.opponentOf(p.view))
+		return Model.opponentLine(name, state, now, Motion.reduced())
 	end
 
 	-- The plan in one line, so a phone sees it without scrolling.
@@ -424,6 +553,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function renderBar(p: Payload, now: number)
 		local primary = bar.primary
 		bar:setOpponent(opponentText(p, now))
+		local opponentNow = opponentState(p, now)
+		if opponentNow ~= opponentWas then
+			if opponentNow == LOCKED_WORD and opponentWas ~= nil then
+				-- They just locked in: the line rises into place and pops.
+				Motion.enter(bar.opponent, LOCKED_RISE)
+				Motion.pop(bar.opponent)
+			end
+			opponentWas = opponentNow
+		end
 		if Model.planning(p) then
 			primary.Name = "LockIn"
 			primary.Visible = true
@@ -484,6 +622,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			model.revealSwing = nil
 			model.caption = nil
 		end
+		syncBadges(p)
 		reveal:render(p)
 		card:render(p)
 		eventCard:render(p, ORDER.event)
@@ -495,7 +634,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		planList:render(p)
 		weekCard:render(p)
 		renderTip(p)
-		renderKey()
+		renderKey(p)
 		lensToggle.refresh()
 		renderBar(p, now)
 		if top:render(now) then
@@ -531,6 +670,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.pivotStage = nil
 		model.selected = if closing then nil else id
 		CoachTip.markSeen("campaign.map")
+		Audio.play("select")
 		-- On a phone the list covers the card: close it. On 16:9 it stays open.
 		if model.portrait then
 			card:closeList()
@@ -542,6 +682,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	map:onSelect(function(id: string)
 		model.selectState(id)
 	end)
+	model.ghost = function(id: string, text: string?)
+		map:ghost(id, text)
+	end
 
 	local function watchSeat(p: Payload, now: number)
 		local seat = p.seats[Model.opponentOf(p.view)]
@@ -561,6 +704,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		local now = ctx.now()
+		local refused = false
 		model.messages = state.messages
 		model.payload = p
 		watchSeat(p, now)
@@ -582,6 +726,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 							then problemText(p, turnedDown.reason)
 							else turnedDown.text,
 					}
+					refused = true
 				end
 			end
 		elseif model.draftStep ~= nil then
@@ -592,6 +737,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		render()
 		reveal:tick(p, now)
 		renderBar(p, now)
+		if refused then
+			refuse()
+		end
 	end
 
 	relayout(true)

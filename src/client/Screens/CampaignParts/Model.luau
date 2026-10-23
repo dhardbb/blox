@@ -61,9 +61,26 @@ export type Model = {
 	messages: { Types.Message },
 	render: () -> (),
 	selectState: (id: string) -> (),
+	-- While an action button is held: what it would do, shown on the map ("+4.1"),
+	-- nil to hide. Campaign sets it; nil on screens without a plan.
+	ghost: ((id: string, text: string?) -> ())?,
 }
 
 local Part = {}
+
+Part.OPPONENT_LOCKED = "locked in ✓" -- the opponent's state once they lock in
+Part.DOTS_PER_SECOND = 2 -- the opponent's "thinking…" dots step this often
+
+-- The action bar's opponent line: "Rex: thinking.." (the dots step with `now`,
+-- padded to a fixed width so the name stays put; all three when `still`),
+-- "Rex: locked in ✓", "Rex: disconnected".
+function Part.opponentLine(name: string, state: string, now: number, still: boolean): string
+	if state == "thinking" then
+		local n = if still then 3 else math.floor(now * Part.DOTS_PER_SECOND) % 3 + 1
+		return `{name}: thinking{string.rep(".", n)}{string.rep(" ", 3 - n)}`
+	end
+	return `{name}: {state}`
+end
 
 -- ---------------------------------------------------------------- stages
 

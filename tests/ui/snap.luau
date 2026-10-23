@@ -230,6 +230,27 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Campaign", "OH")
 		end,
 	},
+	{
+		-- Two actions planned: each planned state wears its action's icon badge.
+		name = "10a-campaign-planned",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "OH")
+			tapIf(world, peer, "Campaign", "Ad")
+			tapIf(world, peer, "Campaign", "PA")
+			tapIf(world, peer, "Campaign", "Fundraise")
+		end,
+	},
+	{
+		-- The map key: what the four color steps mean, in both players' colors.
+		name = "10b-campaign-map-key",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "MapKey")
+		end,
+	},
 	{ name = "11-lens-ev", moment = "Plan", screen = "Campaign", steps = lens("EV") },
 	{ name = "12-lens-issues", moment = "Plan", screen = "Campaign", steps = lens("Issues") },
 	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
