@@ -11,6 +11,9 @@
 --   Words.pollChanges(old, new) -> Changes             flips and biggest moves between two public polls
 --   Words.flipLine(view, flip, them) -> string          "Ohio flips to you · 17 votes"
 --   Words.movePill(move, them) -> string                "TX +3.0 for you"
+--   Words.mark(up) -> string                            "▲" (good for you) or "▼" (against you)
+--   Words.marked(text, up) -> string                    "▲ Texas flips to you · 40 votes"
+--   Words.flipHeadline(view, flips, them) -> string     "You flipped 2 · Rex flipped 1"
 --   Words.topMarks(net, flips, n?) -> { [id]: number }  what the map badges: flips and the n biggest moves
 --   Words.verdict(view, winner, them) -> (string, tone) "You win" | "Tie" | "Rex wins"
 --   Words.topicLine(config, view, result, t, them) -> string  "You gain +1.0 in 12 states · DE flips to you · KY to a tie"
@@ -27,7 +30,8 @@
 --   Words.help(config) -> { Tab }                       the five Help tabs
 --
 -- `them` is the opponent's display name ("Rex"); `names` is display names by
--- player index. Tones are Kit tone names ("good", "bad", "text", "muted").
+-- player index. Tones are Kit tone names ("good", "loss", "text", "muted");
+-- "bad" is the old name of "loss" (both are the loss orange, D-056).
 
 local ConfigModule = require("../../Sim/Config")
 local Events = require("../../Sim/Events")
@@ -51,7 +55,10 @@ Words.CLOSE = 2 -- points: an election-night margin under this is a close race
 Words.HELP_WORDS = 60 -- most words in one Help tab's text
 Words.REASON_WORDS = 10 -- most words in one Results reason
 
-export type Tone = "good" | "bad" | "text" | "muted"
+export type Tone = "good" | "loss" | "bad" | "text" | "muted"
+
+Words.UP = "▲" -- marks a line that went your way (the glyph rule: orange never alone)
+Words.DOWN = "▼" -- marks a line that went against you
 export type Groups = { mine: { string }, theirs: { string } }
 export type Move = { state: string, delta: number, ev: number } -- delta: margin points toward you
 export type Changes = { flips: { Swing.Flip }, moves: { Move } }
@@ -311,7 +318,43 @@ function Words.flipTone(view: View, flip: Swing.Flip): Tone
 	elseif flip.to == 0 and flip.from ~= view.you then
 		return "good"
 	end
-	return "bad"
+	return "loss"
+end
+
+-- The glyph for a change that went your way (▲) or against you (▼).
+function Words.mark(up: boolean): string
+	return if up then Words.UP else Words.DOWN
+end
+
+-- `text` led by its ▲ or ▼: "▲ Texas flips to you · 40 votes".
+function Words.marked(text: string, up: boolean): string
+	return `{Words.mark(up)} {text}`
+end
+
+-- The reveal's headline once the new polls are in: who flipped how many
+-- states. "You flipped 2 · Rex flipped 1", "Rex flipped 1 state",
+-- "2 states slipped to a tie", "No state changed leader".
+function Words.flipHeadline(view: View, flips: { Swing.Flip }, them: string): string
+	local mine, theirs, ties = 0, 0, 0
+	for _, flip in flips do
+		if flip.to == view.you then
+			mine += 1
+		elseif flip.to == 0 then
+			ties += 1
+		else
+			theirs += 1
+		end
+	end
+	if mine > 0 and theirs > 0 then
+		return `You flipped {mine} · {them} flipped {theirs}`
+	elseif mine > 0 then
+		return `You flipped {plural(mine, "state")}`
+	elseif theirs > 0 then
+		return `{them} flipped {plural(theirs, "state")}`
+	elseif ties > 0 then
+		return `{plural(ties, "state")} slipped to a tie`
+	end
+	return "No state changed leader"
 end
 
 -- "TX +3.0 for you" or "OH +2.0 for Rex".
@@ -360,7 +403,7 @@ function Words.verdict(view: View, winner: number, them: string): (string, Tone)
 	elseif winner == 0 then
 		return "Tie", "muted"
 	end
-	return `{them} wins`, "bad"
+	return `{them} wins`, "loss"
 end
 
 -- One short line under a topic's score: who gained where, and its flips.
@@ -411,11 +454,11 @@ function Words.debateHeadline(view: View, result: SimState.DebateResult, them: s
 	if total > 0 and mine == total then
 		return `Sweep! You won all {total} topics`, "good"
 	elseif total > 0 and theirs == total then
-		return `Sweep! {them} won all {total} topics`, "bad"
+		return `Sweep! {them} won all {total} topics`, "loss"
 	elseif mine > theirs then
 		return `You won {mine} of {total} topics!`, "good"
 	elseif theirs > mine then
-		return `{them} won {theirs} of {total} topics`, "bad"
+		return `{them} won {theirs} of {total} topics`, "loss"
 	end
 	return `Even: {plural(mine, "topic")} each`, "text"
 end
