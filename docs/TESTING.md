@@ -600,3 +600,25 @@ In Studio, one Practice match from the lobby to the results, once on the Mac at 
 7. Output: send back any line starting with `WARN [270] UI audit`.
 
 **Send back:** screenshots of steps 1, 5 and 6 on both devices, and anything that is cut off, overlapping or hard to read.
+
+## Polish foundation: press, sound, timer, lock-in, reduced motion (unreleased, D-053)
+
+Agents: `lune run tests Motion`, `lune run tests Audio`, `lune run tests "Reduced motion"`, then `lune run tests/ui/snap.luau` (0 audit findings in every shot).
+
+In Studio, a Practice match on the Mac, then the same on the iPad. Turn the volume up.
+
+1. **Fonts.** **Expect:** body text in Builder Sans (rounder than before), and the big numbers, "Lock in" and "Week 3" style titles in Fredoka One (round and chunky). Send back a screenshot of the Campaign top bar and of the action bar. If Fredoka's digits look odd at 28 or 48 px, say so (the swap is one line).
+2. **Any button.** Press and hold Play vs Bot, then let go. **Expect:** it shrinks a little while held, springs back, and clicks softly. Tap a lens chip (Votes, Issues…): **expect** a brighter click and the pink outline drawing in.
+3. **Cards and buttons.** **Expect:** cards and grey buttons have a faint lighter top and a thin outline; the pink primary has a darker pink edge. Nothing should look blurry or banded.
+4. **The sound button.** On any screen with a header, tap **♪** (left of **?**). **Expect:** a slash over it and silence everywhere (buttons, ticks, lock-in); tap again, it clicks and sounds return. Tell us if the ♪ shows as a box. On a phone-width screen it hides when the title needs the room (stance weeks, debate prep, election night); that is expected.
+5. **Timer urgency.** Let a Plan week run down without locking in. **Expect:** the timer turns orange at 0:09, red at 0:04, and from 0:04 the number pops with a tick each second (4 ticks). The bar under the header stays pink until 0:04, then turns red.
+6. **Lock-in flash.** Plan an action and press **Lock in**. **Expect:** the button flashes light for a moment, settles grey reading "Locked in", and you hear a short chime (cut short, not a long ring). Next week the button is pink again at once.
+7. **Screen changes.** Go Lobby → Select → Draft. **Expect:** each new screen fades in and slides up a few pixels; you can tap it straight away.
+8. **Reduce motion.** Roblox menu (Esc) → Settings → **Reduce Motion** on, then repeat 2, 5 and 7. **Expect:** no shrinking, no pops, screens appear with only a quick fade; numbers, colors and sounds still change. Turn it off again.
+9. **Big window.** On the Mac make the Studio window as large as it goes (or use an iPad Pro). **Expect:** everything scales up evenly and still fills the screen exactly, no gap at the right or bottom. Send back a screenshot (this checks where Roblox's UIScale grows from).
+10. **Sound IDs.** All 11 asset ids load in the published place (checked Oct 23). Listen once on a **non-owner** account in the published game: tap, the select click, the lock-in chime and the timer ticks. Tell us any that are silent, harsh or too loud. (The other cues arrive with the reveal, election and results packages.) Optional: run the Audio Discovery plugin on the place and send its list.
+11. Output: send back any line starting with `WARN [270] audio` or `WARN [270] UI audit`.
+
+**Send back:** screenshots from 1 and 9, which sounds you heard in 10, and anything that felt slow or got in the way of a tap.
+
+**Icon images (needed later, WP-3).** Twelve Lucide icons, exported 256x256, white on transparent: `megaphone`, `coins`, `tv`, `zap`, `search`, `footprints`, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles`, `plane`. Upload in Creator Hub (Create → Development items → Images), name each after its Lucide name, and send back the 12 image ids by name. Until then every icon shows a glyph.

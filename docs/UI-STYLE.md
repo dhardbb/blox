@@ -94,11 +94,18 @@ One dark theme. Use the token, never a literal (`tests/ui/Tokens.spec.luau` and 
 | `onAccent` | = background | text on the accent |
 | `good` | 92, 200, 128 | a gain, "you lead", success |
 | `bad` (= `danger`) | 232, 84, 84 | a loss, an error, a destructive button, an urgent timer |
-| `warn` | 255, 150, 64 | "careful" text and icons, never a fill (new: was the accent) |
+| `warn` | 255, 150, 64 | "careful" text and icons, never a fill (new: was the accent); the timer under 10 s |
+| `surfaceTop` | 34, 38, 48 | top stop of a card's gradient (polish, D-053) |
+| `raisedTop` | 48, 53, 66 | top stop of an elevation-4 panel's gradient (D-053) |
+| `accentEdge` | 214, 96, 178 | the primary button's 2 px edge (D-053) |
 | `neutral`, `undecided` | | map only |
 | player colors | Crimson, Cobalt, Emerald, Amber, Violet, Teal | that player's things: name, EV, map fill, dots |
 
 Rules: one accent-filled thing per screen (the primary button). Selection is an accent outline, never a fill. Player colors only mark that player. Data colors (map fills, feed-row tints, EV bars) come from `Colors.stateFill` / `Colors.tint` / `Kit.playerColor` and their container is marked `Kit.dataColor(inst)`. Green is not "neutral info": status lines are `muted` unless they report a gain or a problem.
+
+**Depth (polish, D-053).** Still no shadows. Cards (`Kit.card`) fill with `surfaceTop` and carry a vertical `UIGradient` ("Depth") down to `surface`, plus a 1 px `line` hairline at 0.5 transparency ("Edge"). Primary, secondary and chip buttons get a gentle top-light gradient (bottom 86 % of the fill; their `BackgroundColor3` tokens are unchanged, so `setEnabled`/`setSelected` work as before). The primary has a 2 px `accentEdge` stroke (a disabled primary trades it for the hairline); secondaries get the hairline. Elevation 4 (the election spotlight, the results banner) is `Kit.depth(panel, Kit.colors.raisedTop, Kit.colors.raised)` plus a 1 px `line`. A `UIGradient` multiplies its parent's colors, text included, which is why button shades stay light.
+
+**Map bands (D-053, display only).** `Colors.band(margin)` returns the band for a poll margin in points (`Colors.BANDS`: toss-up < 3, lean < 8, likely < 15, safe), and `Colors.bandFill(support, colors)` is the stepped twin of `stateFill`: neutral, then 45 / 75 / 100 % of the leader's color. WP-1 switches the map to it and adds the Key sheet.
 
 Amber (232, 164, 40) used to sit close to the old yellow accent; the accent is now pink (D-051), clearly apart from all six player colors and from good, bad and warn. Still keep player colors on dots and bars rather than 28 px text next to the primary (§4.9).
 
@@ -108,13 +115,17 @@ Five tokens exist; **a screen shows at most four** (`Kit.MAX_TEXT_SIZES`, audit 
 
 | Token | px | Font | Use |
 |---|---|---|---|
-| `caption` | 13 | Gotham | secondary info only: tags, hints, legends, timestamps |
-| `body` | 16 | Gotham / GothamMedium | sentences, list rows, button labels, the "now" line |
-| `heading` | 20 | GothamBold | header title, card titles, the timer |
-| `title` | 28 | GothamBold | the one big number or headline on a screen (EV totals) |
-| `hero` | 48 | GothamBold | Lobby "270", "You won", the private code. Lobby and Results only |
+| `caption` | 14 (was 13, D-053) | `Kit.font.body` | secondary info only: tags, hints, legends, timestamps |
+| `body` | 16 | `body` / `medium` | sentences, list rows, button labels, the "now" line |
+| `heading` | 20 | `bold` | header title, card titles, the timer |
+| `title` | 28 | `display` (`Kit.title`) | the one big number or headline on a screen (EV totals, election counters) |
+| `hero` | 48 | `display` | Lobby "270", "You won", the private code. Lobby and Results only |
 
 Anything a player needs in order to act is `body` or bigger. A screen that uses `hero` drops one other size (usually `title` or `heading`).
+
+**Fonts (D-053).** Always `Kit.font.*`, never an `Enum.Font` literal (`Tokens.spec`). `body`/`medium`/`bold` are Builder Sans (Roblox's own UI font; Gotham where it is missing), `display` is Fredoka One (OFL; falls back to Builder Sans ExtraBold, then Gotham Black) for hero, title-size numbers, the primary button's label and the election spotlight's state name; `mono` stays Code (the match code). Going back to one family is one line in `Kit.font`. The snapshot draws all of them as Helvetica (Fredoka as bold), so check counters and "Lock in" in Studio.
+
+**Big screens.** `App.client` puts a `UIScale` ("BoardScale") on the board: `clamp(min(w / 1024, h / 768), 1, 1.35)`, recomputed when the camera's viewport changes. Phones, a 1024x768 iPad and 1280x720 stay at 1 (every snapshot size); an iPad Pro or a big Mac window gets about 1.33. Don't `TextScaled` body text, so `GuiService.PreferredTextSize` keeps working.
 
 ### 2.3 Spacing, shape, elevation
 
@@ -145,17 +156,89 @@ Labels: a verb or a noun, at most 8 words (`labelWords`), no numbers the player 
 - **Expander** (`UI/Collapsible`): a 44 px title row ("Why? +" / "Why? −") that shows a details body. Collapsed by default unless it holds the screen's main decision. Its body is a details area.
 - **Sheet** (`UI/Sheet`): bottom sheet on a phone, centered panel (≤ 560 px) on wide screens, scrim behind, × to close. For "more about this state", rules, the full results breakdown. Never holds the primary action.
 - **Coach tip** (`UI/CoachTip`): §3.4.
-- **Header** (`UI/Header`): title, short subtitle, `?`, timer; `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 3 px time bar (accent, `bad` under 10 s).
-- **Action bar** (`UI/ActionBar`): unchanged: status (left), opponent (right), secondary + primary, pinned.
+- **Header** (`UI/Header`): title, short subtitle, sound button (♪, mutes every cue; steps aside when the title would not fit beside it, e.g. a phone with a long title or a labeled timer; an owner that lays the title row out itself reads `header.rightWidth` again, as `TopBar` does), `?`, timer; `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 3 px time bar. The timer is accent, `warn` under 10 s, `bad` under 5 s with a pop and a "tick" each second (`warn = 0` turns all of it off); the bar stays accent until 5 s (warn is never a fill).
+- **Action bar** (`UI/ActionBar`): status (left), opponent (right), secondary + primary, pinned. `bar:setProgress(fraction?)` shows the time left as a light veil inside the primary; when an enabled primary becomes a disabled "Locked in…" it flashes and plays `lockIn` by itself (`bar:lockFlash(pitch?)` to do it by hand, e.g. pitch 0.8 for time's up).
 - **Toast** (`UI/Toast`): unchanged.
 
 ### 2.6 Icons and glyphs
 
-No emoji, no image assets for now. Use only glyphs known to render in Gotham (`Kit.glyph`): `·` `•` `×` `+` `−` `▲` `▼` `→` `…` `✓` `✈`. Not `▾` `▴` (boxes in Studio). Player identity is a filled circle frame (`Kit.round()`), not a glyph. `✓` has not been checked in Studio yet: check it once before using it widely.
+No emoji. Glyphs: only those in `Kit.glyph` (`·` `•` `×` `+` `−` `▲` `▼` `→` `…` `✓` `✈` `♪`); not `▾` `▴` (boxes in Studio). They are WGL4 or Latin-1 characters, the set Gotham and Builder Sans cover. Player identity is a filled circle frame (`Kit.round()`), not a glyph.
 
-### 2.7 Motion (`Kit.motion`, `Kit.tween`)
+Icons (D-053): twelve Lucide icons (ISC, `docs/CREDITS.md`) in `UI/Icons.luau` (`megaphone` Rally, `coins` Fundraise, `tv` Ad, `zap` Attack ad, `search` Poll, `footprints` Ground game, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles` reduce motion, `plane` flight). `Kit.icon(name, size?, color?)` draws the uploaded image tinted with `ImageColor3`, or the icon's glyph while its id is "" (before the upload, headless, or moderated). `Kit.actionIcon(kind)` names the icon for a plan action. An icon never carries meaning alone: an action chip keeps its word.
 
-Short and purposeful. `fast` 0.12 s: press, chip selection. `base` 0.2 s: sheet or expander opening, a number changing. `slow` 0.35 s: one reveal step. Quad Out, no bounce, nothing loops except the timer bar under 10 s. `Kit.tween` falls back to an instant change in the headless tests, so tests never wait on animation. Reveals pace themselves with the server's timers, not tweens.
+### 2.7 Motion and sound (`UI/Motion`, `UI/Audio`; D-053)
+
+Short and purposeful, and never in the way. Every animation goes through `UI/Motion` and every sound through `UI/Audio` (`Tokens.spec` forbids `TweenService` and `Sound`s elsewhere). Their timings and volumes are presentation numbers and live in those modules, not `Sim/Config`.
+
+- **Timings** (`Motion.t`, s): press 0.07, release 0.12, fast 0.12, base 0.2, enter 0.25, exit 0.15, pop 0.22, count 0.5, beat 0.35, call 0.4, hero 0.45. `Kit.motion` (fast/base/slow) stays for old callers. Easings `Motion.ease`: `out` (Quad Out, the default), `in_`, `soft` (Quart Out, arrivals), `back` (Back Out, pops only), `linear` (bars).
+- **Never block.** Nothing waits on `Tween.Completed` while the player plans; every effect starts and returns at once. A new tween on a property cancels the old one. Reveals pace themselves with the server's deadlines, not tweens.
+- **Reduced motion.** Roblox's Reduce Motion setting (`GuiService.ReducedMotionEnabled`) or the in-game toggle (`Motion.setReduced`, session only): decorative effects (press, pop, ring, shake, confetti) do nothing; informational ones (tween, countTo, flash, typewriter) land at once; enter/exit keep a 0.1 s fade without the slide. Sound is unaffected.
+- **Every cue has a visual.** Sound never carries meaning alone, and it is muted from the header (session only).
+- **Headless.** The fake engine has a stub TweenService (goals apply on Play, Completed fires on the next step), GuiService (`world.reducedMotion`), SoundService (`world.sounds` logs every play) and ContentProvider. Specs assert end states, never timings.
+
+### 2.7.1 How to use Motion, Audio and Icons
+
+Require them like Kit (`local Motion = require(script.Parent.Parent.UI.Motion)` from a screen). The full API is in each module's header; the common cases:
+
+```lua
+-- Buttons: nothing to do. Every Kit.button presses (0.96 while held) and
+-- plays "tap" ("select" for a chip); Kit.setSelected draws the outline in.
+
+-- A card or row arriving: fade in and slide up 12 px.
+Motion.enter(card)
+-- A list: each item gets its own delay (0.04 s apart, the last at most 0.3 s).
+Motion.stagger(rows, function(row, _index, delay)
+	Motion.enter(row, nil, delay)
+end)
+-- Something leaving: fade out, then remove it.
+Motion.exit(row, function()
+	row:Destroy()
+end)
+
+-- A chip or badge popping in; a value changing.
+Motion.pop(chip) -- from 0.9; Motion.pop(badge, 0.6) for a bigger pop
+Motion.tween(bar, { Size = UDim2.fromScale(share, 1) }, Motion.t.count, Motion.ease.soft)
+Motion.countTo(evLabel, 189, 206, function(n)
+	return tostring(math.floor(n + 0.5))
+end)
+Motion.flash(statusLabel, Kit.colors.bad) -- text color there and back
+
+-- Errors and moments.
+Motion.shake(bar.root) -- a rejected plan (with Audio.play("error"))
+Motion.ring(node, Kit.playerColor(view, p)) -- a decorative ring, removes itself
+Motion.confetti(resultsRoot, { Kit.playerColor(view, 1), Kit.playerColor(view, 2) }, 50)
+local skip = Motion.typewriter(line) -- call skip() on a tap
+
+-- The map (WP-1, WP-2): map:pulse(id, color?), map:ring(id, color),
+-- map:badge(id, Kit.actionIcon("Rally")) / map:badge(id, nil), map:wipe(id, color).
+
+-- Sound: one call next to the visual it belongs to.
+Audio.play("planAdd")
+Audio.play("planAdd", { pitch = 0.94 }) -- the opponent's action in a reveal
+Audio.play("call", { pitch = 0.9 + 0.3 * math.min(votes / 270, 1) })
+Audio.play("lockIn", { pitch = 0.8 }) -- time's up
+-- Cues: tap, select, planAdd, planRemove, lockIn, error, tick, whoosh, flip,
+-- debateWin, call, victory, defeat. Muted, cooling down or over 4 voices = silent.
+
+-- Settings (WP-3's Help and Lobby chips): both session only, both fire `changed`.
+Audio.setMuted(not Audio.muted())
+Motion.setReduced(not Motion.reduced())
+Audio.changed:Connect(function(muted) ... end)
+Motion.changed:Connect(function(reduced) ... end)
+
+-- Icons: an image once uploaded, else the glyph. Never alone: keep the word.
+local icon = Kit.icon(Kit.actionIcon("Rally") or "megaphone", 16, Kit.colors.accent)
+icon.Parent = chip
+
+-- Header and action bar.
+bar:setProgress(secondsLeft / total) -- the time left inside the primary
+header:setTimer(left, Kit.TIMER_WARN, total) -- warn under 10 s, danger + tick under 5
+
+-- Specs: Rig.fixture(moment, size, { reducedMotion = true }); Rig.sounds(peer)
+-- lists the cues a client played; FakeRoblox.setReducedMotion(world, on).
+```
+
+Decorative frames Motion creates (`Ring`, `Confetti`) carry `Decor = true`, which the UI audit skips; the audit also divides a `MotionScale` UIScale out of the sizes it checks, so a held button never reads as 42 px.
 
 ### 2.8 Copy rules
 

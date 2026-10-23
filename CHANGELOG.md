@@ -2,6 +2,21 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Polish foundation: motion, sound, type and depth (D-053)
+
+The base the polish packages build on. Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Polish foundation".
+
+- **Every button moves and clicks.** Buttons shrink a little while pressed and spring back, with a soft click (chips a brighter one); a chip's pink outline draws in.
+- **Sound.** Thirteen sound cues (Roblox UI sounds and two APM stingers; all eleven asset ids load in the published place) with a mute button (♪) in every header, left of **?**. Mute lasts for the session. Long clips are cut short so quick repeats don't smear.
+- **Timer urgency.** The timer turns orange under 10 s and red under 5 s, where each second pops with a tick. The pink lock-in button flashes and chimes when you lock in.
+- **Screens fade in** and slide up a few pixels; you can tap them straight away.
+- **Reduce motion.** Roblox's Reduce Motion setting turns off every press, pop, ring and slide; values still update and screens still fade (briefly).
+- **Type and depth.** Builder Sans for text, Fredoka One for big numbers, titles and the primary button; captions 14 px (from 13). Cards and buttons get a faint top-light gradient and a thin outline; the primary a darker pink edge. On big screens (iPad Pro, a large Mac window) the whole board scales up to 1.35×.
+- **For the next packages:** `UI/Motion` (tweens, pops, enter/exit, stagger, count-ups, flashes, rings, shake, confetti, typewriter), `UI/Audio` (cues, mute, volume), `UI/Icons` + `Kit.icon` (glyphs until the 12 Lucide images are uploaded), map bands (`Colors.band`), `map:pulse/ring/badge/wipe`, `bar:setProgress`. How to use them: `docs/UI-STYLE.md` §2.7.1. Credits: `docs/CREDITS.md`.
+- **Needed from the humans:** listen to the cues on a non-owner account (TESTING step 10); later, the 12 icon image ids.
+
 ## 0.9.0: UI overhaul (Oct 23, 2026)
 
 The style v2 foundation (D-050) and its three screen packages (Lobby, Select and the draft; the campaign, decisions and the map; reveals, debates, election night, results and help) merged together, then one polish pass at all three sizes (D-052). No rule, sim, server or payload changes; no Config numbers changed. Studio checklists: `docs/TESTING.md`, "UI overhaul: the whole flow" first, then one section per package below.
