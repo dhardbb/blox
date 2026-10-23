@@ -537,3 +537,20 @@ In Studio (one player is enough; Practice):
 2. Play to Results and look at "What decided it", then tap it. **Expect:** the title ends in "−" while open and "+" once closed, never a short dash. Send back a screenshot of the open state.
 3. Play to the first debate focus screen and wait out the timer without picking. **Expect:** the orange "No focus in time" line, Lock in still says "Pick a topic". Check the Output for lines starting `[270] UI audit`: lines with "pending" are expected; send back any line starting with `WARN`.
 4. Optional: on the iPad, repeat 1. **Expect:** the same orange; the text is readable.
+
+## UI style v2: campaign, decisions and the map (unreleased)
+
+Agents: `lune run tests/ui/snap.luau -- campaign`, `-- decision`, `-- lens` and look at `build/snaps/`; `lune run tests Campaign`, `lune run tests Decision`, `lune run tests Lens`.
+
+In Studio, Practice, once on the iPad (or Device emulation at 1024x768) and once on a phone size (390x844):
+
+1. Reach the week-1 plan screen. **Expect:** no state card yet; under the header a line "Tap a state on the map" with "3 actions left · $…" at its right; a coach tip "Tap a state to see how it's leaning…". The Lock in button says "Skip this week".
+2. Tap a state. **Expect:** a short card under (phone) or beside (iPad) the map: name and votes, at most three pills, one poll bar, then big Rally / Fundraise / Ad buttons (iPad: also Attack ad, Poll, Ground game) each saying what it does ("+4.1 support", "fly $2.0"). On the phone the three buttons are visible without scrolling. The now line says "Pick an action in …".
+3. Tap Rally twice and Fundraise once. **Expect:** the line counts down ("1 action left", then "All set? Press Lock in"); the action bar says "Plan: Rally OH · …"; Lock in says "Lock in". Tap the state again: the card closes.
+4. Tap "More actions", then "Details". **Expect:** Region poll and Pivot (phone: also Attack ad, Poll, Ground game) appear; Details shows the poll numbers, momentum, ground game and one long line per action.
+5. Tap each lens chip (Votes, Issues, Polls, Money), then "Map key". **Expect:** one short mark inside each circle, nothing sticking out, and the Northeast column (VT to DC) with no circle or label touching another; the key sheet explains the lens in plain sentences.
+6. Play to a Choice week. **Expect:** the stance screen's header names the event, the three stances each say "+N states · −N states", the hedge says "(safe)", "Why?" opens the rest. On the phone all three stances are visible without scrolling.
+7. Play to a debate focus. **Expect:** "Week N · Debate prep"; three topics with "You win …%" (and "Your issue" on yours); tapping one previews its states on the map with at most a handful of badges.
+8. Watch a resolve and a debate reveal. **Expect:** the header's line shows the latest result; the map labels only flips and the biggest moves.
+
+**Send back:** screenshots of steps 2, 4, 5 (Polls lens) and 6 on the iPad and on the phone, anything clipped or overlapping, and any Output line starting with `[270] UI audit` that says `WARN`.
