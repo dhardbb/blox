@@ -98,6 +98,8 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	card.toggle.Name = "EventToggle"
 	-- "THIS WEEK" over the title row: the event is news, like a broadcast's eyebrow.
 	local eyebrow = Kit.eyebrow("This week", { Name = "EventEyebrow", LayoutOrder = 0, Parent = card.root })
+	-- Lined up with the title's text (the title row is a button with its padding).
+	Kit.new("UIPadding", { PaddingLeft = UDim.new(0, Kit.space.sm), Parent = eyebrow })
 	-- The effect line sits between the title row and the body: always shown.
 	card.body.LayoutOrder = 3
 	local effect = Kit.text("", {
