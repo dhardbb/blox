@@ -265,7 +265,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		map:setView(shown, colors)
 		local live = model.payload
 		local event = if live then Model.shownEvent(live) else nil
-		local starred = if event then PlanDraft.eventStates(event) else {}
+		local starred = if event then PlanDraft.eventStates(event, view.issueMap) else {}
 		-- Owner rings and the event's * stay in every lens; the rest is in the
 		-- lens row under each label (Map/Lens, D-046).
 		local marks: { [string]: any } = {}

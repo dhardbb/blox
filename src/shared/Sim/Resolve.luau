@@ -26,17 +26,20 @@ type Event = State.Event
 
 local Resolve = {}
 
--- Issue multiplier for a rally or positive media buy.
+-- Issue multiplier for a rally or positive media buy. `platformMults` is the
+-- match's per-issue multiplier for a platform issue that is a state top issue
+-- (IssueMap.platformMults: niche issues hit harder, D-047).
 function Resolve.issueMult(
 	config: Config,
 	platform: { Types.Issue },
 	stateIssues: { Types.Issue },
-	issue: Types.Issue
+	issue: Types.Issue,
+	platformMults: { [string]: number }
 ): number
 	local inPlatform = table.find(platform, issue) ~= nil
 	local inState = table.find(stateIssues, issue) ~= nil
 	if inPlatform and inState then
-		return config.ISSUE_MULT_BOTH
+		return platformMults[issue] or config.ISSUE_MULT_BOTH
 	elseif inState then
 		return config.ISSUE_MULT_STATE
 	elseif inPlatform then
@@ -136,12 +139,13 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 				local i = State.indexOf[id]
 				local s = match.states[i]
 				local issue: Types.Issue = action.issue :: Types.Issue
-				local mult = Resolve.issueMult(config, player.platform, StateData.list[i].issues, issue)
-					* profile.rallyMult
-					* (if s.battleground then config.BATTLEGROUND_MULT else 1)
-					* underdogRally
-					* frontrunner
-					* closing
+				local mult = Resolve.issueMult(
+					config,
+					player.platform,
+					match.issueMap[i],
+					issue,
+					match.platformMults
+				) * profile.rallyMult * (if s.battleground then config.BATTLEGROUND_MULT else 1) * underdogRally * frontrunner * closing
 				local gain = profile.rallySupport * mult * Support.saturation(config, s.support[p])
 				local eventMult = Events.supportMult(config, event, "Rally", issue, i)
 				gain += Events.grant(config, supportLedger, i, p, gain * (eventMult - 1))
@@ -231,12 +235,8 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 				local attack = action.kind == "Attack"
 				if attack then
 					local target = action.target :: number
-					local mult = Resolve.attackMult(
-						config,
-						match.players[target].platform,
-						StateData.list[i].issues,
-						issue
-					)
+					local mult =
+						Resolve.attackMult(config, match.players[target].platform, match.issueMap[i], issue)
 					entry.du += Support.addAttack(
 						config,
 						p,
@@ -253,7 +253,13 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 						s.backlash[p] += 1
 					end
 				else
-					local mult = Resolve.issueMult(config, player.platform, StateData.list[i].issues, issue)
+					local mult = Resolve.issueMult(
+						config,
+						player.platform,
+						match.issueMap[i],
+						issue,
+						match.platformMults
+					)
 					local gain = config.MEDIA_SUPPORT
 						* mult
 						* common
@@ -318,7 +324,15 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 				local points = table.create(n, 0)
 				local any = false
 				for p, player in match.players do
-					points[p] = Events.stanceEffect(config, event, choices[p], i, player.platform, bases[p])
+					points[p] = Events.stanceEffect(
+						config,
+						match.issueMap,
+						event,
+						choices[p],
+						i,
+						player.platform,
+						bases[p]
+					)
 					any = any or points[p] ~= 0
 				end
 				if any then

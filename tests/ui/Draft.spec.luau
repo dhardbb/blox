@@ -742,44 +742,14 @@ describe("Draft screen: UI overhaul (WP4)", function()
 	end
 end)
 
-describe("a color clash at Select (playtest 1, bug 6)", function()
-	local Colors = require("@ui/Colors")
-
-	local function clashed(payload: any): any
-		local copy = Rig.deepCopy(payload)
-		local me = copy.view.players[copy.you]
-		local other = copy.view.players[3 - copy.you]
-		me.pickedColor = other.color
-		me.color = if other.color == "Crimson" then "Cobalt" else "Crimson"
-		return copy, other.color, me.color
-	end
-
-	it("words the notice from the player's own View", function()
-		local payload = Fixtures.payload(Config.defaults, "Draft")
-		expect(Colors.clashNotice(payload.view)):toBe(nil)
-		local copy, wanted, got = clashed(payload)
-		expect(Colors.clashNotice(copy.view)):toBe(
-			`Your opponent also picked {wanted} and the coin flip gave it to them: you are {got} this match.`
-		)
-	end)
-
-	it("toasts once when the match starts, and screens use the actual color", function()
+describe("drawn colors (D-047, replaces the playtest-1 color clash)", function()
+	it("gives the two players different colors and never toasts about them", function()
 		local world, peer = Rig.fixture("Draft", nil)
-		local copy, _, got = clashed(Rig.payloadOf(world, peer))
-		Rig.push(world, peer, copy)
-		local layer = FakeRoblox.find(peer, "ToastLayer")
-		local toast = if layer then layer:FindFirstChild("Toast") else nil
-		check(toast ~= nil and toast.Visible, "no toast for the color clash")
-		local text = tostring(toast:FindFirstChild("ToastText").Text)
-		check(string.find(text, `you are {got}`, 1, true) ~= nil, text)
-		Rig.push(world, peer, Rig.deepCopy(copy))
-		local count = 0
+		local view = Rig.payloadOf(world, peer).view
+		check(view.players[1].color ~= view.players[2].color, "two players share a color")
 		for _, message in Rig.storeOf(world, peer).get().messages do
-			if string.find(message.text, "coin flip", 1, true) then
-				count += 1
-			end
+			check(string.find(message.text, "coin flip", 1, true) == nil, message.text)
 		end
-		expect(count):toBe(1)
 		Rig.noErrors(world)
 	end)
 end)

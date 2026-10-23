@@ -34,7 +34,7 @@
 --   Two players: queue, Player1 types a selection, Player2 lets the bot pick, both
 --   auto-play to week 1, then Player1 types a plan (home state is on the board's YOU line):
 --     lune run tests/play.luau -- --seed 7 "p1: queue" "p2: queue" \
---         "p1: select hale teal jobs farms safety" "p2! Auto" \
+--         "p1: select hale jobs farms safety" "p2! Auto" \
 --         "autoto Week 1 Plan · Input 120" "p1: plan rally TX jobs; fund TX; poll OH" \
 --         "screen p1" "screen p2"
 

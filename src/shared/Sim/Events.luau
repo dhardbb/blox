@@ -36,6 +36,7 @@
 local ConfigModule = require("./Config")
 local Rng = require("./Rng")
 local State = require("./State")
+local IssueMap = require("./IssueMap")
 local StateData = require("./StateData")
 local Types = require("../Types")
 
@@ -475,11 +476,12 @@ end
 
 -- Support points stance `id` of a Choice event moves for a candidate with
 -- `platform` and `base` (Events.baseOf) who takes it, in the state at index i (0
--- where the state does not react). Public arithmetic on fixed state data, the
--- platform and the draft, clamped to +/- STANCE_CAP: the client previews it, the
--- server applies it.
+-- where the state does not react). Public arithmetic on the match's issue map
+-- (D-047), the platform and the draft, clamped to +/- STANCE_CAP: the client
+-- previews it, the server applies it.
 function Events.stanceEffect(
 	config: Config,
+	issueMap: IssueMap.IssueMap,
 	event: Definition,
 	id: Types.Choice,
 	i: number,
@@ -491,7 +493,7 @@ function Events.stanceEffect(
 	if stance == nil or issue == nil then
 		return 0
 	end
-	local issues = StateData.list[i].issues
+	local issues = issueMap[i]
 	local inBase = base ~= nil and table.find(base, StateData.list[i].id) ~= nil
 	local points = 0
 	if table.find(issues, issue) == nil then
@@ -535,6 +537,7 @@ end
 -- -> support points (nonzero entries only).
 function Events.stanceEffects(
 	config: Config,
+	issueMap: IssueMap.IssueMap,
 	event: Definition,
 	id: Types.Choice,
 	platform: { Types.Issue },
@@ -542,7 +545,7 @@ function Events.stanceEffects(
 ): { [string]: number }
 	local out: { [string]: number } = {}
 	for i, record in StateData.list do
-		local points = Events.stanceEffect(config, event, id, i, platform, base)
+		local points = Events.stanceEffect(config, issueMap, event, id, i, platform, base)
 		if points ~= 0 then
 			out[record.id] = points
 		end

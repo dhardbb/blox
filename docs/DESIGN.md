@@ -724,7 +724,7 @@ The designers asked for a map view switch ("EV counts, issues, polling, and fund
 
 - **Four lenses, one row under each state's label.** A row of short pills (`Map/Lens`, drawn by `NodeMap` via the new `MapInterface.setLens`):
   - **EV** (default): the state's electoral votes, plus "B" on a battleground (every campaign effect there ×`BATTLEGROUND_MULT`).
-  - **Issues**: the state's two top issues as three-letter codes (JOB, HLT, SCH, ENV, SAF, TRN, TEC, FRM); the ones on your platform are filled in your color. Issues are read from the View's state when it carries them (issues per match are coming), else from `StateData`.
+  - **Issues**: the state's two top issues as three-letter codes (JOB, HLT, SCH, ENV, SAF, TRN, TEC, FRM); the ones on your platform are filled in your color. Issues are read from the View's issue map, so they are this match's drawn issues (D-047).
   - **Polls**: the public-poll lead in the leader's color ("+3", "tie" under half a point; "~+4" for the lean before the first poll), "i+5" for your internal poll there, the momentum ▲ in the momentum leader's color, and your ground game ("G2", placed plus planned). `Lens.pollDetails` is the hook for more per-state pills (e.g. what a poll reveals about the opponent's ground game).
   - **$**: what one more fundraiser there would raise this week, from `Explain.action` (the same number as the state card's Fundraise preview, which assumes a full pool because pool levels are hidden). A state your drafted plan already empties (under $0.05) is dimmed.
 - **What stays in every lens:** the fill by public-poll leader, the owner ring, the selection ring, the route, and the Tags layer when it is relevant: the event's * on the states it singles out, stance previews and reveal swings (D-042), and the Draft's H / B / 1 / 2 picks.
@@ -732,3 +732,46 @@ The designers asked for a map view switch ("EV counts, issues, polling, and fund
 - **The switch** (`Map/LensToggle`): four 54×44 chips, EV / Issues / Polls / $, beside the caption on the Campaign screen and over the map on the Draft screen (inside the map's 0.34 share on a phone, so the panel keeps its height). The choice is a module-level value, so it holds for the whole session across screens. Election night keeps the plain map. *Merged after D-044 and D-045 (built on its own branch, logged there as D-044):* the Decision screen (focus and stance) keeps its own map with only the pick's preview and no lens chips, so a single decision stays uncluttered; stance previews therefore no longer appear on the Campaign map.
 
 *Rejected:* a lens that recolors the fill (e.g. issues as a heat map): the fill is the one thing the designers said must always mean "who leads". Rich text to color parts of one label: the fake engine and the audit do not measure it; separate pills do the same job and stay testable.
+
+## Drawn issues and colors, unique candidates (playtest feedback, Oct 22, 2026)
+
+### D-047 — Each match draws its top issues; niche issues hit harder; colors are drawn (approved reshape)
+
+*Built on its own branch (`randissues`, logged there as D-044 and D-045) and merged after D-044 to D-046; the harness numbers below are from before those. The debate focus (D-044) and the Issues lens (D-046) read the match's issue map from the View.*
+
+**Feedback.** The designers: "Character select color should be randomly assigned, no need to pick." and "Issues and their associated EV values should be random. It makes no sense to pick any choice but the top couple issues." Then: "niche issues hit harder": a big issue should give a small boost across many states and a niche one a big boost in few, so each platform pick is worth about the same and the right pick depends on where you plan to fight.
+
+**Colors.** Gone from the Select payload, its validation, the client, the bots and the debug commands (an old client's or script's `color` is ignored). `Match.new` shuffles the six colors with the seed (`Rng.fork(rng, "colors")`) and deals them by seat: distinct, deterministic, no seat favored (each seat gets each color 1 time in 6; `Match.spec`). The color is public from Select on (View), shown as a line on both Select steps and everywhere it was before. `pickedColor` and the playtest-1 clash notice are removed.
+
+**Issue map.** `Sim/IssueMap.draw` gives each state two different top issues per match, from `Rng.fork(rng, "issues")`, so other seeded streams (leans, topics, deck) are unchanged. A state's old fixed issues are now its `flavor` (`StateData`), drawn `ISSUE_FLAVOR_WEIGHT` (4) times as often as the others: about 39% of drawn slots match the flavor against 25% for a blind draw, so Farms still leans to the Plains. A seeded local search (replace one state's issue, or trade issues between two states; keep any move that is no worse) then pulls every issue's total EV within `ISSUE_EV_BAND` (±20%) of the 134.5 mean, 108–161, and every issue into `ISSUE_MIN_STATES`..`ISSUE_MAX_STATES` (9–17) states; it stops as soon as the map is in band (about 1.6 ms a match; `IssueMap.spec` checks 300 seeds are all in band). The map (`MatchState.issueMap`) is public in every View from Select on. Everything that read `StateData.issues` reads the match's map: Resolve, Events (stance effects take the map), Debate (`topicStates`/`moves` take it), Draft auto-fill, the bot, Explain, PlanDraft, Swing, the state card, the debug board and the duel harness (`map.txt` is per match now). Tried first: a ±10% band (spread 22–25 EV): flat, so with the niche multiplier the platform choice would carry almost no information; ±20% keeps a real spread (median 45 EV, at most 53, against 54 on the old fixed map) for the multiplier to trade against.
+
+**Niche issues hit harder.** `IssueMap.platformMults`: a rally or ad on a platform issue in a state where it is a top issue gets `ISSUE_MULT_STATE` + (`ISSUE_MULT_BOTH` − `ISSUE_MULT_STATE`) × (134.5 ÷ the issue's EV)^`ISSUE_NICHE_POWER`, capped at `ISSUE_NICHE_MAX` (2.0), rounded to hundredths: ×1.5 at the mean, ×1.72 for a 108-EV issue, ×1.39 for a 161-EV one. `Resolve.issueMult` takes the match's table (`MatchState.platformMults`, public in the View). The Select chips show both numbers ("Farms / 112 EV · ×1.67"); the help text gives this match's range and your own platform's.
+
+*Tuning.* Two harness styles run the standard bot on the match's three biggest (`TopIssues`) or three smallest (`NicheIssues`) issues against the standard bot. Power 1 (EV × bonus equal for every issue, the obvious formula) left niche platforms behind: Top 50.4%, Niche 44.0% (1,500 games each). Big issues are worth more than their rally bonus says, because debates move a topic's states and Choice stances spill through top issues, both by EV. Power 2: 48.9 / 46.5; 2.5: 48.7 / 47.6; 3: 48.8 / 47.6 (2,500 each, ±1.0); the final harness run measured 53.0 / 47.4 at 800 each (±1.8). 2.5 is the number: the gap is within noise and the multiplier's spread (×1.39–×1.72) is big enough to see on the chip. A ±15% band was tried too (Top 49.6, Niche 44.1 at power 1): narrowing the spread does not fix the lean, the multiplier does. Mixed platforms win slightly more than either extreme. The bot now picks its platform at random (it used to take the most-EV issues with noise), since no issue is the right pick before the draft.
+
+**Harness** (`lune run tests/harness/balance.luau 2000`; before = this branch's start, measured the same way).
+
+| Check | After | Before |
+|---|---|---|
+| Issue EV per match (min / median / max, every issue) | 108 / 130–137 / 161 | fixed: Schools 106 … Jobs 160 |
+| Spread in a match (top − bottom) | median 45, max 53 | 54, every match |
+| Bot platform = the 3 highest-EV issues | **2.2%** | **29.4%** (400 matches) |
+| Platform picks per issue | 12.3–12.7% each | Jobs 30.7, Safety 27.4, Technology 16.0, Health 14.8, Transit 6.2, Environment 4.8, Farms 0.2, Schools 0.0% |
+| TopIssues / NicheIssues vs the standard bot | 53.0 / 47.4% | — |
+| Candidates | Okafor **58.3**, Calloway 53.5, Venkat 54.5, Hale 46.5, Alvarado 45.8, Reyes 48.1, **Strand 44.0**, Begay 49.6 | Okafor 52.9, **Calloway 56.6**, Venkat 54.9, Hale 51.7, Alvarado 46.0, Reyes 49.2, **Strand 44.6**, **Begay 44.4** |
+| Priority A / comeback | 51.1 / 39.5% | 49.6 / 38.3% |
+| Median margin / 40+ / 100+ EV | 50 / 59.5 / 18.9% | 52 / 62.3 / 21.6% |
+| GOTV / debates / stances change the winner | 10.9 / 22.4 / 16.2% | 9.3 / 23.2 / 14.6% |
+| RandomStance / NeverPoll win rate | 29.1 / **57.2%** | 34.0 / 54.5% |
+
+Red after this pass: Okafor over the line and Strand under it (both have swung ±3 between runs since D-041; ±2.2 is one standard deviation at 2,000 matches), the Okafor–Alvarado cell, the D-020 underdog flag, and NeverPoll at 57% (400 games, ±2.5; it was 54.5 before). Candidates now play on a different map every match, so per-candidate home-region advantages from the fixed map are gone; a candidate pass with 4,000+ matches is the next step if Okafor stays high.
+
+### D-048 — Two players never share a candidate; Select in two steps (approved reshape)
+
+**Feedback.** "Two players must never have the same candidate", and Select becomes step 1 candidate, step 2 issues (color automatic).
+
+**Rule.** A candidate is claimed by whoever claims it first (`Match.claim`, pure; claims are public in the View as `claims`, so the other player sees it as taken at once). Claims that arrive in the same server step are settled together in a seeded order (`Rng.fork(match.rng, "claims:<n>")`): a coin flip, never seat 1; the loser gets the `CandidateTaken` notice and picks again. A claim for a held candidate, or a lock-in of it, is rejected with `CandidateTaken` and never applied; one claim per player (`AlreadyClaimed`). Locking in a selection claims its candidate if it is still free, so bots, the debug `select` command and old clients work unchanged. On timeout the default is your claim, else a free candidate from the seed; `resolveSelect` settles any remaining clash (two unclaimed defaults) in a seeded order. Practice bots claim their candidate as Select opens, and a bot whose candidate is taken takes a free one. The balance harness already excluded mirror matchups; it now records the candidates as played.
+
+**Client.** Select step 1: the eight cards (the opponent's shows "Taken by your opponent", greyed and inert) and the color line; "Next: issues" sends `Claim` (`Remotes`: `{ matchId, step, input = candidate }`). Step 2 opens when the server confirms the claim: the color line, "2. Issues for <name>", the hint, and eight two-line chips with this match's EV and multiplier. Both steps fit a phone and an iPad without scrolling (UI audit 0). Debug: `claim CANDIDATE`; `select CANDIDATE ISSUE ISSUE ISSUE` (a color word is skipped).
+
+**Timer.** `TIMER_SELECT` 30 → 38: two steps need more than one, and 38 is the most the 17.5-minute worst case allows (D-005: the worst case was exactly 1,050 s on this branch; with D-045's shorter draft the old steps' worst case is 940 s, plus at most 200 s of decision screens, D-044).

@@ -1,19 +1,31 @@
 --!strict
--- Select: the 30 second, simultaneous character select. Pick one of eight
--- candidates, one of six colors and exactly three of the eight platform issues,
--- then lock in. Nothing is shown to the opponent until both have locked.
+-- Select: the simultaneous character select, in two steps (D-048).
+--
+--   Step 1: pick one of eight candidates and press "Next: issues". That claims
+--   the candidate on the server (Net.claim): first come, first served, so two
+--   players never share one. A candidate the opponent holds shows "Taken" and
+--   cannot be picked. A claim that loses a same-moment coin flip comes back
+--   with a notice and the player picks again.
+--   Step 2: pick exactly three of the eight platform issues and lock in. Each
+--   chip shows what the issue is worth this match: the EV of the states where it
+--   is a top issue (drawn per match, View.issueMap) and the multiplier a rally
+--   or ad on it earns there when it is on your platform (View.platformMults:
+--   niche issues hit harder, D-047).
+--
+-- Your color is drawn from the match seed (D-047) and shown as a line in both
+-- steps. The opponent's platform stays hidden until both have locked.
 --
 -- Layout (docs/UI-OVERHAUL.md §3.2): the standard Header with the timer, a
--- scroll area, and the pinned ActionBar with "Lock in". The scroll content is
--- stacked with explicit pixel positions (no list layout), so the fake engine
--- can measure it and the status line knows when the issues are below the fold
--- ("Still to pick: 2 issues (scroll down)"). On 16:9 everything fits without scrolling; on
--- a phone the issues scroll.
+-- scroll area, and the pinned ActionBar. The scroll content is stacked with
+-- explicit pixel positions (no list layout), so the fake engine can measure it
+-- and the status line knows when the issues are below the fold ("Still to pick:
+-- 2 issues (scroll down)").
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
+local IssueMap = require(ReplicatedStorage.Shared.Sim.IssueMap)
 local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
@@ -32,14 +44,16 @@ local MAX_WIDTH = 1000 -- px
 local HEADING_H = 26 -- px, a section heading (Layout.heading)
 local CARD_H = 112 -- px, a candidate card on 16:9
 local CARD_H_PORTRAIT = 124 -- px, a candidate card on a phone
-local CELL_H = Kit.MIN_TOUCH -- px, color swatches and issue chips
-local HINT_H = 20 -- px, the platform hint on one line
-local HINT_H_PORTRAIT = 34 -- px, the platform hint wrapped to two lines
-local SELECTED_STROKE = 3 -- px, the outline of the picked card and swatch
+local ISSUE_H = 56 -- px, an issue chip: the name over its EV and multiplier
+local COLOR_H = 28 -- px, the drawn-color line
+local HINT_H = 34 -- px, the platform hint (two lines)
+local HINT_H_PORTRAIT = 64 -- px, the platform hint wrapped on a phone
+local SELECTED_STROKE = 3 -- px, the outline of the picked card
+local SWATCH_W = 44 -- px, the color chip on the drawn-color line
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
 local CHECK = "• " -- the Gotham font has no ✓
 
--- Where each block of the scroll content sits, for one orientation.
+-- Where each block of the scroll content sits, for one orientation and step.
 type Stack = {
 	total: number, -- content height
 	issuesTop: number,
@@ -61,8 +75,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- What the player has picked so far.
 	local candidate: string? = nil
-	local color: string? = nil
 	local platform: { string } = {}
+	local claiming: string? = nil -- a claim sent and not yet answered
+	local messageAtClaim = 0 -- id of the newest message when the claim was sent
 	local lockedLocal = false -- pressed Lock in (the offline fixtures never echo it back)
 	local messageAtLock = 0 -- id of the newest message when Lock in was pressed
 	local sentPick = "" -- the last complete pick sent as a PrePick
@@ -70,10 +85,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local touched = false -- the player changed something, so stop applying the pre-pick
 	local appliedPick: any = nil
 	local prePickLoaded = false -- the pre-pick filled the whole pick and nothing changed since
-	local rejection: string? = nil -- why the server turned the last lock-in down
+	local rejection: string? = nil -- why the server turned the last claim or lock-in down
 	local swapHintUntil = 0 -- ctx.now() until which the status shows the swap hint
 	local payload: Session.StatePayload? = nil
 	local lastPortrait: boolean? = nil
+	local lastStep = 0
 	local stack: Stack = { total = 0, issuesTop = 0, issuesBottom = 0 }
 
 	local function seats(): (Session.SeatInfo?, Session.SeatInfo?)
@@ -90,22 +106,50 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return lockedLocal or (mine ~= nil and mine.locked)
 	end
 
+	-- Who holds a candidate: "mine", "theirs" or nil (free).
+	local function holder(id: string): string?
+		local current = payload
+		if current == nil or current.view.claims == nil then
+			return nil
+		end
+		local owner = current.view.claims[id]
+		if owner == nil then
+			return nil
+		end
+		return if owner == current.you then "mine" else "theirs"
+	end
+
+	-- The candidate this player has claimed, if any.
+	local function claimed(): string?
+		for _, id in Candidates.ids do
+			if holder(id) == "mine" then
+				return id
+			end
+		end
+		return nil
+	end
+
+	-- Step 2 once the server confirms the claim.
+	local function step(): number
+		return if claimed() ~= nil then 2 else 1
+	end
+
 	local function isReady(): boolean
-		return candidate ~= nil and color ~= nil and #platform == platformSize
+		return candidate ~= nil and holder(candidate) ~= "theirs" and #platform == platformSize
 	end
 
 	-- The complete pick as the server wants it, or nil while something is missing.
-	local function currentPick(): { candidate: string?, color: string?, platform: { string } }?
+	local function currentPick(): { candidate: string?, platform: { string } }?
 		if not isReady() then
 			return nil
 		end
-		return { candidate = candidate, color = color, platform = table.clone(platform) }
+		return { candidate = candidate, platform = table.clone(platform) }
 	end
 
-	local function pickKey(pick: { candidate: string?, color: string?, platform: { string } }): string
+	local function pickKey(pick: { candidate: string?, platform: { string } }): string
 		local issues = table.clone(pick.platform)
 		table.sort(issues)
-		return `{pick.candidate}|{pick.color}|{table.concat(issues, ",")}`
+		return `{pick.candidate}|{table.concat(issues, ",")}`
 	end
 
 	-- Remembers a complete pick for the next match (and for a Select that times out
@@ -136,24 +180,30 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local header = Header.new(page.header :: Frame, { title = "Choose your campaign", onHelp = ctx.help })
 	local refresh: () -> ()
 	local lockPick: () -> ()
+	local claimPick: () -> ()
 	local bar = ActionBar.new(page.footer :: Frame, {
-		primary = "Lock in",
+		primary = "Next: issues",
 		onPrimary = function()
-			lockPick()
+			if step() == 1 then
+				claimPick()
+			else
+				lockPick()
+			end
 		end,
 		primaryName = "LockIn",
 	})
 
-	-- ------------------------------------------------------------ candidates
+	-- ------------------------------------------------------------ step 1: candidates
 
-	local candidateHeading = Layout.heading(content, "1. Candidate", 1, "CandidateHeading")
+	local candidateHeading = Layout.heading(content, "1. Pick your candidate", 1, "CandidateHeading")
 	local candidateGrid, candidateLayout = Layout.grid(content, "Candidates", 2)
 	local cards: { [string]: TextButton } = {}
+	local takenTags: { [string]: TextLabel } = {}
 
 	for index, id in Candidates.ids do
 		local profile = Candidates.profile(ctx.config, id)
 		local card = Kit.button("", function()
-			if isLocked() then
+			if isLocked() or step() ~= 1 or claiming ~= nil or holder(id) == "theirs" then
 				return
 			end
 			changed()
@@ -183,71 +233,82 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextScaled = true,
 			Parent = card,
 		})
-		Kit.caption(profile.archetype, { Name = "Archetype", LayoutOrder = 2, Parent = card })
+		takenTags[id] = Kit.caption("Taken by your opponent", {
+			Name = "Taken",
+			LayoutOrder = 2,
+			Font = Kit.font.bold,
+			TextColor3 = Kit.colors.danger,
+			Visible = false,
+			Parent = card,
+		})
+		Kit.caption(profile.archetype, { Name = "Archetype", LayoutOrder = 3, Parent = card })
 		Kit.caption(`+ {profile.perk}`, {
 			Name = "Perk",
-			LayoutOrder = 3,
+			LayoutOrder = 4,
 			TextColor3 = Kit.colors.good,
 			Parent = card,
 		})
 		Kit.caption(`− {profile.drawback}`, {
 			Name = "Drawback",
-			LayoutOrder = 4,
+			LayoutOrder = 5,
 			TextColor3 = Kit.colors.danger,
 			Parent = card,
 		})
 		cards[id] = card
 	end
 
-	-- ------------------------------------------------------------ colors
+	-- ------------------------------------------------------------ color (drawn)
 
-	local colorHeading = Layout.heading(content, "2. Color", 3, "ColorHeading")
-	local colorGrid, colorLayout = Layout.grid(content, "Colors", 4)
-	local swatches: { [string]: TextButton } = {}
-	-- Six across a phone leaves ~54 px a swatch: "Cr", "Co", ... there.
-	local function swatchLabel(name: string, picked: boolean): string
-		local label = if lastPortrait then string.sub(name, 1, 2) else name
-		return if picked then CHECK .. label else label
-	end
-	for index, name in Candidates.colors do
-		local rgb = Colors.of(name)
-		local swatch = Kit.button(name, function()
-			if isLocked() then
-				return
-			end
-			changed()
-			color = name
-			refresh()
-		end, {
-			variant = "chip",
-			Name = `Color_{name}`,
-			LayoutOrder = index,
-			BackgroundColor3 = Kit.color(rgb),
-			TextColor3 = Kit.color(Colors.onColor(rgb)),
-			Font = Kit.font.bold,
-			Parent = colorGrid,
-		}) :: TextButton
-		-- A swatch keeps its color: its outline is the text color, not the accent.
-		local stroke = swatch:FindFirstChild("VariantStroke") :: UIStroke?
-		if stroke then
-			stroke.Color = Kit.colors.text
-			stroke.Thickness = SELECTED_STROKE
+	-- Colors are drawn from the match seed (D-047): a line, not a choice.
+	local colorRow = Kit.box({ Name = "ColorRow", LayoutOrder = 3, Parent = content })
+	local swatch = Kit.box({
+		Name = "ColorSwatch",
+		Size = UDim2.new(0, SWATCH_W, 1, 0),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = Kit.colors.neutral,
+		Parent = colorRow,
+	})
+	Kit.corner(Kit.radius.control).Parent = swatch
+	local colorLine = Kit.caption("", {
+		Name = "ColorLine",
+		Position = UDim2.fromOffset(SWATCH_W + Kit.space.sm, 0),
+		Size = UDim2.new(1, -(SWATCH_W + Kit.space.sm), 1, 0),
+		AutomaticSize = Enum.AutomaticSize.None,
+		Parent = colorRow,
+	})
+	local shownColor: string? = nil
+	local function renderColor()
+		local current = payload
+		local me = if current then current.view.players[current.you] else nil
+		local name = if me then me.color else nil
+		if name == shownColor then
+			return
 		end
-		swatches[name] = swatch
+		shownColor = name
+		swatch.BackgroundColor3 = Kit.color(Colors.of(name))
+		colorLine.Text = if name
+			then `Your color this match: {name} (drawn at random)`
+			else "Your color is drawn at random"
 	end
 
-	-- ------------------------------------------------------------ platform
+	-- ------------------------------------------------------------ step 2: platform
 
-	local platformHeading = Layout.heading(content, "3. Platform", 5, "PlatformHeading")
+	local platformHeading = Layout.heading(content, "2. Pick three issues", 5, "PlatformHeading")
 	local platformHint = Kit.caption(
-		"Pick three. EV: electoral votes of the states where it is a top issue.",
+		"Top issues are drawn new each match. EV: votes in the states where it is a top issue. ×: what a rally or ad on it earns there once it is on your platform. Niche issues hit harder.",
 		{ Name = "PlatformHint", LayoutOrder = 6, AutomaticSize = Enum.AutomaticSize.None, Parent = content }
 	)
 	local issueGrid, issueLayout = Layout.grid(content, "Issues", 7)
 	local chips: { [string]: TextButton } = {}
 	local issueList: { string } = Issues.list :: any
+	local coverage: { [string]: number } = {} -- EV per issue on this match's map
+	local mults: { [string]: number } = {} -- platform multiplier per issue this match
 	local function chipLabel(issue: string): string
-		return `{Data.issueName(issue)} · {Data.evCoverage[issue] or 0} EV`
+		local ev, mult = coverage[issue], mults[issue]
+		if ev == nil or mult == nil then
+			return Data.issueName(issue)
+		end
+		return `{Data.issueName(issue)}\n{ev} EV · ×{string.format("%.2f", mult)}`
 	end
 	for index, issue in issueList do
 		local chip = Kit.button(chipLabel(issue), function()
@@ -277,8 +338,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ layout
 
-	-- Stacks the blocks top to bottom and sizes the scroll canvas to fit them.
-	local function placeBlocks(portrait: boolean)
+	-- Stacks the current step's blocks top to bottom and sizes the scroll canvas.
+	local function placeBlocks(portrait: boolean, current: number)
 		local cardColumns = if portrait then 2 else 4
 		local cardH = if portrait then CARD_H_PORTRAIT else CARD_H
 		local cardRows = math.ceil(#Candidates.ids / cardColumns)
@@ -286,8 +347,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local issueRows = math.ceil(#issueList / issueColumns)
 		local gap = Layout.GAP
 		Layout.setGrid(candidateLayout, cardColumns, cardH)
-		Layout.setGrid(colorLayout, #Candidates.colors, CELL_H)
-		Layout.setGrid(issueLayout, issueColumns, CELL_H)
+		Layout.setGrid(issueLayout, issueColumns, ISSUE_H)
+
+		local first = current == 1
+		for _, block in { candidateHeading, candidateGrid } :: { GuiObject } do
+			block.Visible = first
+		end
+		for _, block in { platformHeading, platformHint, issueGrid } :: { GuiObject } do
+			block.Visible = not first
+		end
 
 		local y = 0
 		local function place(block: GuiObject, height: number, after: number)
@@ -296,14 +364,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			block.AutomaticSize = Enum.AutomaticSize.None
 			y += height + after
 		end
-		place(candidateHeading, HEADING_H, Kit.space.xs)
-		place(candidateGrid, cardRows * cardH + (cardRows - 1) * gap, gap)
-		place(colorHeading, HEADING_H, Kit.space.xs)
-		place(colorGrid, CELL_H, gap)
-		place(platformHeading, HEADING_H, 0)
-		place(platformHint, if portrait then HINT_H_PORTRAIT else HINT_H, Kit.space.xs)
-		local issuesTop = y
-		place(issueGrid, issueRows * CELL_H + (issueRows - 1) * gap, 0)
+		local issuesTop = 0
+		if first then
+			place(candidateHeading, HEADING_H, Kit.space.xs)
+			place(candidateGrid, cardRows * cardH + (cardRows - 1) * gap, gap)
+			place(colorRow, COLOR_H, 0)
+			issuesTop = y
+		else
+			place(colorRow, COLOR_H, gap)
+			place(platformHeading, HEADING_H, 0)
+			place(platformHint, if portrait then HINT_H_PORTRAIT else HINT_H, Kit.space.xs)
+			issuesTop = y
+			place(issueGrid, issueRows * ISSUE_H + (issueRows - 1) * gap, 0)
+		end
 		stack = { total = y, issuesTop = issuesTop, issuesBottom = y }
 		content.Size = UDim2.new(1, 0, 0, y)
 		scroll.CanvasSize = UDim2.fromOffset(0, y + Kit.space.md)
@@ -311,12 +384,27 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Part of the issue grid is under the bottom edge of the scroll area.
 	local function issuesBelowFold(): boolean
+		if step() ~= 2 then
+			return false
+		end
 		local canvas = (scroll :: any).CanvasPosition
 		local top = if canvas then canvas.Y else 0
 		return stack.issuesBottom > top + scroll.AbsoluteSize.Y + 1
 	end
 
 	-- ------------------------------------------------------------ behavior
+
+	claimPick = function()
+		local pick = candidate
+		if isLocked() or pick == nil or claiming ~= nil or holder(pick) == "theirs" then
+			return
+		end
+		claiming = pick
+		rejection = nil
+		messageAtClaim = Messages.lastId(ctx.store.get())
+		ctx.net.claim(pick)
+		refresh()
+	end
 
 	lockPick = function()
 		local pick = currentPick()
@@ -338,11 +426,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		appliedPick = pick
-		if type(pick.candidate) == "string" and Candidates.exists(pick.candidate) then
+		if
+			candidate == nil
+			and type(pick.candidate) == "string"
+			and Candidates.exists(pick.candidate)
+			and holder(pick.candidate) ~= "theirs"
+		then
 			candidate = pick.candidate
-		end
-		if type(pick.color) == "string" and table.find(Candidates.colors, pick.color) then
-			color = pick.color
 		end
 		local list: { string } = {}
 		if type(pick.platform) == "table" then
@@ -379,6 +469,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setStatus(`You already have {platformSize}; tap one to swap it`, "warn")
 		elseif rejection then
 			bar:setStatus(rejection, "bad")
+		elseif step() == 1 then
+			if claiming ~= nil then
+				bar:setStatus("Claiming your candidate…", "muted")
+			elseif candidate == nil then
+				bar:setStatus("Step 1 of 2 · Still to pick: a candidate", "muted")
+			else
+				bar:setStatus("Step 1 of 2 · Next: your issues", "ok")
+			end
 		elseif isReady() then
 			if prePickLoaded then
 				bar:setStatus("Your last pick is loaded · Lock in or change it", "ok")
@@ -386,47 +484,46 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				bar:setStatus("Ready", "ok")
 			end
 		else
-			local missing: { string } = {}
-			if candidate == nil then
-				table.insert(missing, "a candidate")
-			end
-			if color == nil then
-				table.insert(missing, "a color")
-			end
-			if missingIssues > 0 then
-				table.insert(missing, plural(missingIssues, "issue"))
-			end
 			local below = if missingIssues > 0 and issuesBelowFold() then " (scroll down)" else ""
-			bar:setStatus(`Still to pick: {table.concat(missing, ", ")}{below}`, "muted")
+			bar:setStatus(`Step 2 of 2 · Still to pick: {plural(missingIssues, "issue")}{below}`, "muted")
 		end
 	end
 
+	local function relayout()
+		local portrait = ctx.portrait()
+		local current = step()
+		if portrait == lastPortrait and current == lastStep then
+			return
+		end
+		lastPortrait, lastStep = portrait, current
+		page.setPortrait(portrait)
+		placeBlocks(portrait, current)
+	end
+
 	refresh = function()
+		relayout()
+		local mine = claimed()
+		if mine ~= nil then
+			candidate = mine
+		end
 		rememberPick()
 		local locked = isLocked()
+		local first = step() == 1
 		for id, card in cards do
-			local picked = id == candidate
-			Kit.setSelected(card, picked)
-			Kit.setEnabled(card, not locked)
+			local taken = holder(id) == "theirs"
+			if taken and candidate == id and mine == nil then
+				candidate = nil
+			end
+			Kit.setSelected(card, id == candidate)
+			Kit.setEnabled(card, not locked and first and claiming == nil and not taken)
+			card.BackgroundTransparency = if taken then 0.5 else 0
+			takenTags[id].Visible = taken
 			local stroke = card:FindFirstChild("VariantStroke") :: UIStroke?
 			if stroke then
 				stroke.Thickness = SELECTED_STROKE
 			end
 		end
-		for name, swatch in swatches do
-			local picked = name == color
-			-- Not Kit.setSelected/setEnabled: those repaint a chip's background, and a
-			-- swatch's background is its color.
-			swatch:SetAttribute("Selected", picked)
-			swatch.Text = swatchLabel(name, picked)
-			swatch.Active = not locked
-			swatch.AutoButtonColor = not locked
-			swatch.BackgroundTransparency = if locked and not picked then 0.5 else 0
-			local stroke = swatch:FindFirstChild("VariantStroke") :: UIStroke?
-			if stroke then
-				stroke.Enabled = picked
-			end
-		end
+		renderColor()
 		local full = #platform >= platformSize
 		for issue, chip in chips do
 			local picked = table.find(platform, issue) ~= nil
@@ -438,7 +535,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				chip.TextColor3 = Kit.colors.muted
 			end
 		end
-		platformHeading.Text = `3. Platform ({#platform}/{platformSize})`
+		local name = if mine then Candidates.profile(ctx.config, mine).name else nil
+		platformHeading.Text = if name
+			then `2. Issues for {name} ({#platform}/{platformSize})`
+			else `2. Pick three issues ({#platform}/{platformSize})`
 
 		local _, theirs = seats()
 		local opponentText = "Opponent: thinking"
@@ -453,29 +553,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		if locked then
 			bar:setPrimary("Locked in", false)
-		elseif candidate == nil then
-			bar:setPrimary("Pick a candidate", false)
-		elseif color == nil then
-			bar:setPrimary("Pick a color", false)
+		elseif first then
+			if claiming ~= nil then
+				bar:setPrimary("Claiming…", false)
+			elseif candidate == nil then
+				bar:setPrimary("Pick a candidate", false)
+			else
+				bar:setPrimary("Next: issues", true)
+			end
 		elseif #platform < platformSize then
 			bar:setPrimary(`Pick {plural(platformSize - #platform, "more issue")}`, false)
 		else
 			bar:setPrimary("Lock in", true)
 		end
 		renderStatus()
-	end
-
-	local function relayout()
-		local portrait = ctx.portrait()
-		if portrait == lastPortrait then
-			return
-		end
-		lastPortrait = portrait
-		page.setPortrait(portrait)
-		placeBlocks(portrait)
-		for name, swatch in swatches do
-			swatch.Text = swatchLabel(name, name == color)
-		end
 	end
 
 	local function updateTimer(now: number)
@@ -493,6 +584,28 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	return {
 		update = function(state: Types.State)
 			payload = state.payload :: Session.StatePayload?
+			local current = payload
+			if current and current.view.issueMap then
+				coverage = IssueMap.evByIssue(current.view.issueMap)
+				mults = current.view.platformMults or {}
+			else
+				coverage, mults = {}, {}
+			end
+			-- A claim is answered by the next payload: granted (step 2), turned down
+			-- at once (a rejection), or lost to a same-moment claim (a notice).
+			local pending = claiming
+			if pending ~= nil then
+				local answer = Messages.newestAfter(state, messageAtClaim)
+				if holder(pending) == "mine" then
+					claiming = nil
+				elseif holder(pending) == "theirs" then
+					claiming = nil
+					rejection = ctx.net.reasonText("CandidateTaken")
+				elseif answer ~= nil and answer.rejected then
+					claiming = nil
+					rejection = answer.text
+				end
+			end
 			-- A rejected lock-in leaves a message and no lock: say why (the global
 			-- toast shows it too) and let the player fix the pick.
 			local mine = seats()
@@ -503,7 +616,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					rejection = rejected.text
 				end
 			end
-			relayout()
 			applyPrePick()
 			refresh()
 			updateTimer(ctx.now())

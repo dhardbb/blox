@@ -171,6 +171,7 @@ describe("Explained: events and debates", function()
 		for k, line in
 			Explain.choiceLines(
 				C,
+				view.issueMap,
 				view.event,
 				view.players[view.you].platform,
 				Events.baseOf(view.players[view.you])

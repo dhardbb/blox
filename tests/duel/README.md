@@ -8,7 +8,7 @@
 mkdir -p ../duel/m1
 lune run tests/duel.luau -- --dir ../duel/m1 --seed 11 --timeout 3600   # in the background
 tests/duel/wait.sh ../duel/m1 1        # player 1: block until there is a new screen, print it
-tests/duel/send.sh ../duel/m1 1 'select okafor crimson jobs health schools'
+tests/duel/send.sh ../duel/m1 1 'select okafor jobs health schools'
 ```
 
 The draft is three blind rounds (home state, then two battleground nominations); each player's five strongholds are assigned from the map's leans before it and listed on the draft screen. Each player loops `wait.sh` → think → `send.sh` until `wait.sh` prints `MATCH OVER`. The simulated clock stops whenever a player must act, so agents have unlimited real time. Reveals, debates and election night run by themselves.

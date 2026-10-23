@@ -7,7 +7,6 @@ local Config = require("../Sim/Config")
 local Events = require("../Sim/Events")
 local Issues = require("../Sim/Issues")
 local StateData = require("../Sim/StateData")
-local Colors = require("../UI/Colors")
 local Drafted = require("../UI/Drafted")
 local Explain = require("../UI/Explain")
 local Numbers = require("../UI/Numbers")
@@ -295,10 +294,6 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 		text ..= string.format("  bank %ds", seat.bank)
 		add(text)
 	end
-	local clash = Colors.clashNotice(view)
-	if clash then
-		add(`NOTE: {clash}`)
-	end
 	add(string.format("Projected EV  you %d - %d them", view.projectedEV[you], view.projectedEV[them]))
 
 	local result = payload.result
@@ -482,7 +477,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 				row.text,
 				s.momentum[you],
 				s.momentum[them],
-				table.concat(record.issues, "/"),
+				table.concat(view.issueMap[row.i], "/"),
 				table.concat(tags, ", ")
 			)
 		)
@@ -532,7 +527,7 @@ function Format.state(payload: Session.StatePayload, id: string): string
 				record.name,
 				id,
 				record.ev,
-				table.concat(record.issues, "/"),
+				table.concat(view.issueMap[i], "/"),
 				record.region,
 				if #record.adjacent > 0 then table.concat(record.adjacent, " ") else "none (fly)",
 				Numbers.money(s.capacity),

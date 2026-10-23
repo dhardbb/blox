@@ -26,6 +26,15 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 **To test:** `docs/TESTING.md`, "Map lenses". Nothing needed from the humans.
 
+## Unreleased: drawn issues and colors, unique candidates (D-047, D-048)
+
+- **Top issues are drawn every match.** Each state's two top issues come from the match seed (regional flavor kept: Farms still leans to the Plains), balanced so every issue covers 108–161 EV. Every issue now tops the EV ranking in some matches; the bot's platform is the match's three biggest issues 2% of the time (was 29%), and every issue is 12–13% of platform picks (Schools and Farms were never picked).
+- **Niche issues hit harder.** A platform issue's rally/ad multiplier grows as its EV shrinks: ×1.72 at 108 EV, ×1.5 at the mean, ×1.39 at 161. Running on the three biggest or three smallest issues wins about as often as a mixed platform.
+- **Colors are drawn**, distinct and seat-blind; the color picker and the color-clash toast are gone. Your color shows as a line on the Select screen.
+- **Two players never share a candidate.** Select is two steps: claim a candidate ("Next: issues"), then pick three issues. The opponent's candidate shows "Taken" at once; a same-moment clash goes to a seeded coin flip and the loser picks again. Select timer 30 → 38 s.
+- The issue chips, state cards, help text, debug board, duel harness and its `map.txt` read this match's issues. Debug: `claim CANDIDATE`; `select CANDIDATE ISSUE ISSUE ISSUE` (no color).
+- **To test:** `docs/TESTING.md`, "Drawn issues and colors, unique candidates". Nothing needed from the humans.
+
 ## 0.7.0: your base hears your stance (D-043)
 
 - Choice events: a side (A or B) now counts double in your own home state and strongholds. The hedge (C) no longer gives anything; it costs 0.5 in each of your home and strongholds where the issue is a top issue. Stance moves are capped at 3 a state (was 2).

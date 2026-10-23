@@ -19,6 +19,7 @@ local OPS: { [string]: boolean } = {
 	Practice = true,
 	Leave = true,
 	PrePick = true,
+	Claim = true,
 	Submit = true,
 	Bank = true,
 	Skip = true,
@@ -96,7 +97,7 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			return false, "BadShape", nil
 		end
 		request.pick = raw.pick
-	elseif op == "Submit" or op == "Bank" or op == "Skip" then
+	elseif op == "Submit" or op == "Claim" or op == "Bank" or op == "Skip" then
 		local matchId, step = raw.matchId, raw.step
 		if type(matchId) ~= "string" or type(step) ~= "number" or step ~= math.floor(step) then
 			return false, "BadShape", nil
@@ -105,6 +106,11 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 		request.step = step
 		if op == "Submit" then
 			if raw.input == nil then
+				return false, "BadShape", nil
+			end
+			request.input = raw.input
+		elseif op == "Claim" then
+			if type(raw.input) ~= "string" then
 				return false, "BadShape", nil
 			end
 			request.input = raw.input

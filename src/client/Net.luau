@@ -42,7 +42,9 @@ local REASONS: { [string]: string } = {
 	Over = "The match is over.",
 	-- Select and Draft
 	UnknownCandidate = "Pick one of the eight candidates.",
-	UnknownColor = "Pick one of the six colors.",
+	CandidateTaken = "Your opponent already has that candidate. Pick another.",
+	AlreadyClaimed = "You already have a candidate this match.",
+	NotSelect = "Candidates are picked only at the start of a match.",
 	BadPlatform = "Pick exactly three different issues.",
 	UnknownPlayer = "The server doesn't know that player.",
 	BadChoiceCount = "Pick one state, or two with a backup.",
@@ -66,6 +68,7 @@ local REASONS: { [string]: string } = {
 local NOTICES: { [string]: string } = {
 	OpponentDisconnected = "Your opponent disconnected. Their moves auto-submit after the grace period.",
 	OpponentReconnected = "Your opponent is back.",
+	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
 }
 
 function Net.reasonText(reason: string?): string
@@ -118,6 +121,11 @@ end
 
 function Net.submit(input: any)
 	matchRequest("Submit", input)
+end
+
+-- Select step 1: claim a candidate (D-048).
+function Net.claim(candidate: string)
+	matchRequest("Claim", candidate)
 end
 
 function Net.bank()

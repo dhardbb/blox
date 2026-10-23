@@ -6,6 +6,7 @@
 local Test = require("@testlib/Test")
 local Fixtures = require("@testlib/Fixtures")
 local Config = require("@sim/Config")
+local IssueMap = require("@sim/IssueMap")
 local Events = require("@sim/Events")
 local Match = require("@sim/Match")
 local Session = require("@net/Session")
@@ -16,6 +17,7 @@ local View = require("@sim/View")
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
+local FLAVOR = IssueMap.flavor -- Fixtures put matches on this fixed map (D-047)
 local OFF = Config.with(C, { EVENTS_ENABLED = false })
 
 -- Keys that name hidden simulation data. None may appear anywhere in a view.
@@ -236,9 +238,11 @@ describe("View: no leaks", function()
 				for _, record in StateData.list do
 					table.insert(base, record.id)
 				end
-				expect(next(Events.stanceEffects(C, Events.byId[event.id], stance.id, {}, {}))):toBe(nil)
+				expect(next(Events.stanceEffects(C, FLAVOR, Events.byId[event.id], stance.id, {}, {}))):toBe(
+					nil
+				)
 			end
-			expect(next(Events.stanceEffects(C, Events.byId[event.id], stance.id, {}, base)) ~= nil):toBe(
+			expect(next(Events.stanceEffects(C, FLAVOR, Events.byId[event.id], stance.id, {}, base)) ~= nil):toBe(
 				true
 			)
 		end

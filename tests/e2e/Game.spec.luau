@@ -128,7 +128,7 @@ describe("e2e: typed input", function()
 		Support.queueMatch(rig, p1, p2)
 		expect(Support.shows(p1, "Select")):toBe(true)
 
-		Support.type(rig, p1, "select hale teal jobs farms safety")
+		Support.type(rig, p1, "select hale jobs farms safety")
 		expect(string.find(FakeRoblox.screen(p1).status, "LOCKED", 1, true) ~= nil):toBe(true)
 		Support.press(rig, p2, "Auto")
 

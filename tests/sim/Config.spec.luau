@@ -143,7 +143,7 @@ describe("Config", function()
 			+ #C.DEBATE_WEEKS * C.TIMER_DEBATE
 			+ C.TIMER_ELECTION
 			+ C.TRANSITION_ALLOWANCE
-		expect(worst):toBe(932) -- 1042 before D-045 (eight draft rounds)
+		expect(worst):toBe(940) -- 1042 before D-045 (eight draft rounds), 932 after; TIMER_SELECT 30 -> 38 for the two-step Select (D-048)
 		expect(worst):toBeLessThan(17.5 * 60 + 1)
 	end)
 

@@ -8,6 +8,8 @@ local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
 local Explain = require("@ui/Explain")
 local Fixtures = require("@ui/Fixtures")
+local IssueMap = require("@sim/IssueMap")
+local Issues = require("@sim/Issues")
 local Numbers = require("@ui/Numbers")
 local PlanDraft = require("@ui/PlanDraft")
 local State = require("@sim/State")
@@ -65,6 +67,14 @@ local function ohio(): any
 	s.momentum = table.create(#view.players, 0)
 	s.backlash, s.gotv = 0, 0
 	s.lean, s.leanTo = 4, me
+	-- The fixed flavor map (Ohio: Jobs and Schools) with the plain platform
+	-- multiplier on every issue; real matches draw both (D-047).
+	view.issueMap = IssueMap.flavor
+	local mults = {}
+	for _, issue in Issues.list do
+		mults[issue] = C.ISSUE_MULT_BOTH
+	end
+	view.platformMults = mults
 	return view
 end
 
@@ -345,7 +355,8 @@ describe("Explain: debates, Choice events, election night", function()
 	end)
 
 	it("shows every stance of a Choice event and the states it moves (D-039, D-043)", function()
-		local lines = Explain.choiceLines(C, { id = "plant" })
+		local FLAVOR = IssueMap.flavor
+		local lines = Explain.choiceLines(C, FLAVOR, { id = "plant" })
 		expect(#lines):toBe(3)
 		has(lines[1], "A · Stand with the plant: ")
 		has(lines[1], `{Numbers.signed(C.STANCE_POINTS)} in `)
@@ -353,16 +364,16 @@ describe("Explain: debates, Choice events, election night", function()
 		-- With no base the hedge moves nothing; in a base with the issue it costs.
 		has(lines[3], "C · Call for a study: no state reacts")
 		local base = { "GA", "WV" } -- GA has Jobs; West Virginia does not
-		local withBase = Explain.choiceLines(C, { id = "plant" }, {}, base)
+		local withBase = Explain.choiceLines(C, FLAVOR, { id = "plant" }, {}, base)
 		has(withBase[3], `C · Call for a study: {Numbers.signed(-C.STANCE_HEDGE_COST)} in GA`)
 		expect(string.find(withBase[3], "WV", 1, true)):toBe(nil)
 		-- A base doubles a side there, and the preview is the sim's own arithmetic.
-		local plain = Explain.stanceEffects(C, "plant", "A", {}, nil)
-		local doubled = Explain.stanceEffects(C, "plant", "A", {}, { "GA" })
+		local plain = Explain.stanceEffects(C, FLAVOR, "plant", "A", {}, nil)
+		local doubled = Explain.stanceEffects(C, FLAVOR, "plant", "A", {}, { "GA" })
 		expect(doubled.GA):toBe(plain.GA * C.STANCE_BASE_MULT)
 		has(withBase[1], Numbers.signed(plain.GA * C.STANCE_BASE_MULT))
 		-- Without an event: the general rule.
-		local general = Explain.choiceLines(C, nil)
+		local general = Explain.choiceLines(C, nil, nil)
 		expect(#general):toBe(3)
 		has(general[1], Numbers.signed(C.STANCE_POINTS))
 		has(general[1], `×{C.STANCE_BASE_MULT} in your home and strongholds`)

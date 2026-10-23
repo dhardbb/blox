@@ -13,6 +13,7 @@ local process = require("@lune/process")
 
 local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
+local Issues = require("@sim/Issues")
 local Play = require("@testlib/Play")
 local Rng = require("@sim/Rng")
 
@@ -108,6 +109,12 @@ local homeCount: { [string]: number } = {}
 local strongholdCount: { [string]: number } = {}
 local strongholdEV, strongholdGaps = 0, {}
 local richerWins, richerGames = 0, 0
+local issueEVs: { [string]: { number } } = {} -- per issue, its EV in every match (D-047)
+local issuePicks: { [string]: number } = {}
+local picksTotal, top3, spreads = 0, 0, {}
+for _, issue in Issues.list do
+	issueEVs[issue], issuePicks[issue] = {}, 0
+end
 
 for seed = 1, N do
 	local cands = pairFor(seed)
@@ -179,6 +186,21 @@ for seed = 1, N do
 	spread += r.noiseSpread
 	leaned += r.leanedStates
 	flipped += r.leanedFlipped
+	local lo, hi = math.huge, -math.huge
+	for issue, ev in r.issueEV do
+		table.insert(issueEVs[issue], ev)
+		lo, hi = math.min(lo, ev), math.max(hi, ev)
+	end
+	table.insert(spreads, hi - lo)
+	for p = 1, 2 do
+		for _, issue in r.platforms[p] do
+			issuePicks[issue] += 1
+			picksTotal += 1
+		end
+		if r.platformTop3[p] then
+			top3 += 1
+		end
+	end
 	table.insert(leanX, r.leanEV[1] - r.leanEV[2])
 	table.insert(winY, if r.winner == 1 then 1 else 0)
 	draftRounds += r.draftRounds
@@ -370,6 +392,38 @@ line(
 )
 line("Win rate, side with more stronghold EV", pct(richerWins / math.max(1, richerGames)))
 
+-- Issues (D-047): each match draws its own top issues; niche issues hit harder,
+-- so no platform should be the obvious pick.
+header("Issues (drawn per match)")
+local function quantile(list: { number }, q: number): number
+	local sorted = table.clone(list)
+	table.sort(sorted)
+	return sorted[math.clamp(math.ceil(q * #sorted), 1, #sorted)]
+end
+for _, issue in Issues.list do
+	local share = issuePicks[issue] / math.max(1, picksTotal)
+	line(
+		`{issue}: EV min/median/max, picked`,
+		string.format(
+			"%d/%d/%d  %s",
+			quantile(issueEVs[issue], 0),
+			quantile(issueEVs[issue], 0.5),
+			quantile(issueEVs[issue], 1),
+			pct(share)
+		),
+		"picked 5-25%",
+		share >= 0.05 and share <= 0.25
+	)
+end
+line(
+	"Issue EV spread in a match (top - bottom) p50/max",
+	string.format("%d / %d", quantile(spreads, 0.5), quantile(spreads, 1)),
+	"< 54 (the fixed map)",
+	quantile(spreads, 0.5) < 54
+)
+local top3Rate = top3 / (2 * N)
+line("Bot platform = the 3 highest-EV issues", pct(top3Rate), "well under 50%", top3Rate < 0.35)
+
 header("Rubber band")
 local wrongRate = underdogWrong / math.max(1, underdogWeeks)
 line("Underdog weeks to a true 20+ EV leader", pct(wrongRate), "< 10%", wrongRate < 0.1)
@@ -455,6 +509,13 @@ local randomFocus = versus("RandomFocus", sideN * 2)
 line("RandomFocus win rate", pct(randomFocus))
 local noFocus = versus("NoFocus", sideN * 2)
 line("NoFocus win rate (the timeout default)", pct(noFocus), "<= 45%", noFocus <= 0.45)
+
+-- Niche issues hit harder (D-047): running on the biggest or the smallest issues
+-- of the match must not beat the standard bot's mixed platform.
+for _, style in { "TopIssues", "NicheIssues" } do
+	local rate = versus(style, sideN * 2)
+	line(`{style} win rate`, pct(rate), "45-55%", rate >= 0.45 and rate <= 0.55)
+end
 
 print("")
 print(string.format("Total time %.1fs", os.clock() - started))

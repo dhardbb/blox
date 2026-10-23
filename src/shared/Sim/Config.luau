@@ -79,11 +79,20 @@ local Config = {
 	PLAN_MAX_ACTIONS = 40, -- most actions one weekly plan may hold (payload sanity limit)
 
 	-- Issue multipliers
-	ISSUE_MULT_BOTH = 1.5, -- issue is in your platform and a state top issue
+	ISSUE_MULT_BOTH = 1.5, -- issue is in your platform and a state top issue, for an issue covering the mean EV (134.5); see ISSUE_NICHE_POWER
 	ISSUE_MULT_STATE = 1.2, -- state top issue, not in your platform
+	ISSUE_NICHE_POWER = 2.5, -- niche issues hit harder (D-047): the platform bonus over ISSUE_MULT_STATE is scaled by (mean EV / the issue's EV)^this; 2.5 makes the 3 biggest and 3 smallest issues win alike (x1.39 at 161 EV, x1.72 at 108)
+	ISSUE_NICHE_MAX = 2.0, -- but a platform multiplier never exceeds this
 	ISSUE_MULT_PLATFORM = 1.0, -- in your platform only
 	ISSUE_MULT_NEITHER = 0.8, -- neither
 	ISSUE_MULT_ATTACK = 1.5, -- attack on a state top issue the opponent's platform lacks
+
+	-- Issue map: each state's two top issues are drawn per match from the seed (D-047)
+	ISSUE_FLAVOR_WEIGHT = 4, -- a state's regional-flavor issues (StateData) are this many times as likely to be drawn
+	ISSUE_EV_BAND = 0.2, -- every issue's total EV ends within +/- this share of the mean (134.5 EV): 108-161, against 106-160 fixed before; niche issues make up the rest (ISSUE_NICHE_POWER)
+	ISSUE_MIN_STATES = 9, -- every issue is a top issue in at least this many states
+	ISSUE_MAX_STATES = 17, -- and in at most this many
+	ISSUE_DRAW_STEPS = 6000, -- seeded swap proposals the balancing search may try (it stops as soon as the map is in band)
 
 	-- Momentum and drift
 	MOMENTUM_DECAY = 0.5, -- share of momentum kept each week
@@ -144,7 +153,7 @@ local Config = {
 	STANCE_SPILL = 0.5, -- a state without the issue still moves this much per top issue of its own that a side likes (+) or dislikes (-); the hedge spills nothing (D-041: the stakes that make the stance a skill)
 
 	-- Timers (D-005)
-	TIMER_SELECT = 30, -- candidate, color and platform
+	TIMER_SELECT = 38, -- two steps: claim a candidate, then pick the platform (30 -> 38, D-048: the most the 17.5-minute worst case allows; colors are drawn, D-047)
 	TIMER_MAP_REVEAL = 5, -- leans shown before the draft
 	TIMER_DRAFT_ROUND = 20, -- per blind draft round
 	DRAFT_REVEAL = 2, -- reveal after each draft round

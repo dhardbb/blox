@@ -14,13 +14,14 @@
 --   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
 --   Explain.debateOdds(config, edge) -> (win, tie, lose)
 --   Explain.debateParts / debateLine (a resolved topic, split into focus, platform, stat, roll)
---   Explain.choiceLines(config, event?, platform?, base?) (each stance of a Choice event and the states it moves)
+--   Explain.choiceLines(config, issueMap?, event?, platform?, base?) (each stance of a Choice event and the states it moves)
 --   Explain.leadWinChance(config, pollLead)
 --   Explain.help(config, view?) -> { Section } (the "How it works" screen)
 
 local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
 local Events = require("../Sim/Events")
+local IssueMap = require("../Sim/IssueMap")
 local Issues = require("../Sim/Issues")
 local Leans = require("../Sim/Leans")
 local Numbers = require("./Numbers")
@@ -250,7 +251,7 @@ local function rally(
 	local platform: { Types.Issue } = view.players[me].platform or {}
 	local est = Explain.estimate(config, view, id)
 	local parts: { string } = {}
-	local issueMult = Resolve.issueMult(config, platform, StateData.list[i].issues, issue)
+	local issueMult = Resolve.issueMult(config, platform, view.issueMap[i], issue, view.platformMults)
 	table.insert(parts, `{issueName(issue)} {times(issueMult)}`)
 	local mult = issueMult * profile.rallyMult * commonParts(config, view, s, parts)
 	local underdogRally = underdog(config, view, me)
@@ -298,7 +299,7 @@ local function media(
 	local platform: { Types.Issue } = view.players[me].platform or {}
 	local est = Explain.estimate(config, view, id)
 	local parts: { string } = {}
-	local issueMult = Resolve.issueMult(config, platform, StateData.list[i].issues, issue)
+	local issueMult = Resolve.issueMult(config, platform, view.issueMap[i], issue, view.platformMults)
 	table.insert(parts, `{issueName(issue)} {times(issueMult)}`)
 	local k = countIn(draft, id, MEDIA_KINDS) + 1
 	local factor = profile.mediaSaturation ^ (k - 1)
@@ -341,7 +342,7 @@ local function attack(
 	local profile = profileOf(config, view, me)
 	local theirPlatform: { Types.Issue } = view.players[rival].platform or {}
 	local parts: { string } = {}
-	local mult = Resolve.attackMult(config, theirPlatform, StateData.list[i].issues, issue)
+	local mult = Resolve.attackMult(config, theirPlatform, view.issueMap[i], issue)
 	table.insert(
 		parts,
 		`{issueName(issue)} {times(mult)}{if mult == config.ISSUE_MULT_ATTACK
@@ -738,6 +739,7 @@ end
 -- Without an event, the general rule.
 function Explain.choiceLines(
 	config: Config,
+	issueMap: IssueMap.IssueMap?,
 	event: { id: string }?,
 	platform: { Types.Issue }?,
 	base: { string }?
@@ -747,11 +749,11 @@ function Explain.choiceLines(
 	for k = 1, #Events.CHOICES do
 		local id: Types.Choice = Events.CHOICES[k]
 		local stance = if definition then Events.stance(definition, id) else nil
-		if definition and stance then
+		if definition and stance and issueMap then
 			table.insert(
 				out,
 				`{id} · {stance.name}: {stanceText(
-					Explain.stanceEffects(config, definition.id, id, platform or {}, base)
+					Explain.stanceEffects(config, issueMap, definition.id, id, platform or {}, base)
 				)}`
 			)
 		elseif k < #Events.CHOICES then
@@ -781,6 +783,7 @@ end
 -- `base` (Events.baseOf): state id -> support points (D-039, D-043).
 function Explain.stanceEffects(
 	config: Config,
+	issueMap: IssueMap.IssueMap,
 	eventId: string,
 	id: Types.Choice,
 	platform: { Types.Issue },
@@ -790,7 +793,7 @@ function Explain.stanceEffects(
 	if definition == nil then
 		return {}
 	end
-	return Events.stanceEffects(config, definition, id, platform, base)
+	return Events.stanceEffects(config, issueMap, definition, id, platform, base)
 end
 
 -- ---------------------------------------------------------------- election night
@@ -913,6 +916,31 @@ end
 
 -- The "How it works" sections, one per concept, every number from Config and
 -- Candidates (and your candidate when the view names one).
+-- The platform multiplier in words (D-047): this match's range by issue, and
+-- your own platform's, or the rule when there is no match yet.
+function Explain.platformMultText(config: Config, view: View?): string
+	local mults = if view then view.platformMults else nil
+	if mults == nil or next(mults) == nil then
+		return `about {times(config.ISSUE_MULT_BOTH)} (more for an issue that covers few electoral votes this match, less for a big one)`
+	end
+	local lo, hi = math.huge, -math.huge
+	for _, mult in mults do
+		lo, hi = math.min(lo, mult), math.max(hi, mult)
+	end
+	local parts: { string } = {}
+	local platform = view and view.players[view.you].platform
+	if platform then
+		for _, issue in platform do
+			table.insert(
+				parts,
+				`{issueName(issue)} ×{string.format("%.2f", mults[issue] or config.ISSUE_MULT_BOTH)}`
+			)
+		end
+	end
+	local range = `×{string.format("%.2f", lo)} to ×{string.format("%.2f", hi)} this match by issue`
+	return if #parts > 0 then `{range} (yours: {table.concat(parts, ", ")})` else range
+end
+
 function Explain.help(config: Config, view: View?): { Section }
 	local c = config
 	local me = sheet(config, view)
@@ -927,11 +955,13 @@ function Explain.help(config: Config, view: View?): { Section }
 	section("actions", "Actions", {
 		who,
 		`Each week you get {me.apPerWeek} AP (unused AP is lost) and {rate(me.passiveIncome)} income. Money carries over.`,
-		`Rally (1 AP): {signed(me.rallySupport)} support in that state, times the message's issue: {times(
-			c.ISSUE_MULT_BOTH
+		`Rally (1 AP): {signed(me.rallySupport)} support in that state, times the message's issue: {Explain.platformMultText(
+			config,
+			view
 		)} if it is on your platform and a top issue there, {times(c.ISSUE_MULT_STATE)} top issue only, {times(
 			c.ISSUE_MULT_PLATFORM
 		)} platform only, {times(c.ISSUE_MULT_NEITHER)} neither. +{num(c.RALLY_MOMENTUM)} momentum.`,
+		"Each state's two top issues are drawn new every match, so the electoral votes behind each issue change. Niche issues hit harder: the fewer votes an issue covers this match, the bigger its platform multiplier (the Select screen shows both).",
 		`Fundraise (1 AP): {rate(c.FUNDRAISER_BASE)} + {rate(c.FUNDRAISER_PER_SHARE)} × your support share there{if me.fundraiseMult
 				~= 1
 			then `, {times(me.fundraiseMult)} for you`

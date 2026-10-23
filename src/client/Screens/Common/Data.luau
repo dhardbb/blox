@@ -1,6 +1,6 @@
 --!strict
--- Lookups the Lobby, Select and Results screens share: issue names and how many
--- electoral votes each issue covers, candidate names, and the opponent's seat.
+-- Lookups the Lobby, Select and Results screens share: issue names, candidate
+-- names, and the opponent's seat.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -8,20 +8,10 @@ local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
-local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 
 local Data = {}
 
 local names: { [string]: string } = Issues.displayName :: any
-
--- Electoral votes of the states that list each issue as a top issue.
-local coverage: { [string]: number } = {}
-for _, record in StateData.list do
-	for _, issue in record.issues do
-		coverage[issue] = (coverage[issue] or 0) + record.ev
-	end
-end
-Data.evCoverage = table.freeze(coverage)
 
 function Data.issueName(issue: string): string
 	return names[issue] or issue

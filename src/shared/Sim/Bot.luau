@@ -28,6 +28,7 @@ local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
 local Draft = require("./Draft")
 local Events = require("./Events")
+local IssueMap = require("./IssueMap")
 local Issues = require("./Issues")
 local Plan = require("./Plan")
 local Resolve = require("./Resolve")
@@ -51,6 +52,8 @@ export type Style =
 	| "RandomStance" -- the standard bot, but takes a random stance on Choice events (the skill check for D-039)
 	| "RandomFocus" -- the standard bot, but focuses on a random debate topic (the skill check for D-044)
 	| "NoFocus" -- the standard bot, but never sends a debate focus (the timeout default: what the focus is worth, D-044)
+	| "TopIssues" -- the standard bot, but runs on the three highest-EV issues (the niche check for D-047)
+	| "NicheIssues" -- the standard bot, but runs on the three lowest-EV issues (the niche check for D-047)
 
 local Bot = {}
 
@@ -95,18 +98,20 @@ local function profileOf(config: Config, view: View, p: number): Candidates.Prof
 	return Candidates.profile(config, view.players[p].candidate or Candidates.ids[1])
 end
 
--- Best issue for a positive action by a player with `platform` in state i, and its
--- issue multiplier. A Spotlight issue counts at its event multiplier when ranking.
+-- Best issue for a positive action by a player with `platform` in a state whose
+-- top issues are `stateIssues`, and its issue multiplier. A Spotlight issue counts
+-- at its event multiplier when ranking.
 local function bestIssue(
 	config: Config,
 	platform: { Types.Issue },
-	i: number,
+	stateIssues: { Types.Issue },
+	platformMults: { [string]: number },
 	spotlight: Types.Issue?
 ): (Types.Issue, number)
 	local best: Types.Issue, bestMult, bestScore = ISSUES[1], 0, -math.huge
 	for k = 1, #ISSUES do
 		local issue: Types.Issue = ISSUES[k]
-		local mult = Resolve.issueMult(config, platform, StateData.list[i].issues, issue)
+		local mult = Resolve.issueMult(config, platform, stateIssues, issue, platformMults)
 		local score = if issue == spotlight then mult * config.EVENT_SPOTLIGHT_MULT else mult
 		if score > bestScore then
 			best, bestMult, bestScore = issue, mult, score
@@ -115,10 +120,14 @@ local function bestIssue(
 	return best, bestMult
 end
 
--- Best attack issue against a target with `platform` in state i.
-local function bestAttackIssue(config: Config, platform: { Types.Issue }, i: number): (Types.Issue, number)
-	local best: Types.Issue, bestMult = StateData.list[i].issues[1], -math.huge
-	local stateIssues = StateData.list[i].issues
+-- Best attack issue against a target with `platform` in a state whose top issues
+-- are `stateIssues`.
+local function bestAttackIssue(
+	config: Config,
+	platform: { Types.Issue },
+	stateIssues: { Types.Issue }
+): (Types.Issue, number)
+	local best: Types.Issue, bestMult = stateIssues[1], -math.huge
 	for k = 1, #stateIssues do
 		local issue: Types.Issue = stateIssues[k]
 		local mult = Resolve.attackMult(config, platform, stateIssues, issue)
@@ -131,27 +140,48 @@ end
 
 -- ---------------------------------------------------------------- select
 
--- Platform for a candidate: the issues covering the most EV, with a little noise.
+-- Platform for a candidate: three issues at random. Niche issues hit harder
+-- (D-047), tuned until running on the match's three biggest or three smallest
+-- issues wins about as often as a mixed platform, so no issue is the right pick
+-- before the draft says where the campaign will be fought. The TopIssues and
+-- NicheIssues styles are the harness's check of that.
 function Bot.select(config: Config, view: View, rng: Rng.Rng, candidate: string, style: Style?): any
-	local weight: { [string]: number } = {}
-	for _, record in StateData.list do
-		for _, issue in record.issues do
-			weight[issue] = (weight[issue] or 0) + record.ev
+	-- Candidates are unique (D-048): keep a claim already made; a candidate the
+	-- opponent holds gives way to a free one drawn from the bot's stream.
+	local claims: { [string]: number } = view.claims or {}
+	for id, owner in claims do
+		if owner == view.you then
+			candidate = id
 		end
 	end
+	local owner = claims[candidate]
+	if owner ~= nil and owner ~= view.you then
+		local free: { string } = {}
+		for _, id in Candidates.ids do
+			if claims[id] == nil then
+				table.insert(free, id)
+			end
+		end
+		candidate = free[Rng.nextInt(rng, 1, #free)]
+	end
+	local ev = IssueMap.evByIssue(view.issueMap)
 	local issues: { Types.Issue } = table.clone(ISSUES)
 	local score: { [string]: number } = {}
 	for _, issue in issues do
-		score[issue] = if style == "Random"
-			then Rng.nextFloat(rng)
-			else weight[issue] * (0.85 + 0.3 * Rng.nextFloat(rng))
+		local noise = Rng.nextFloat(rng)
+		if style == "TopIssues" then
+			score[issue] = ev[issue] + noise
+		elseif style == "NicheIssues" then
+			score[issue] = -ev[issue] + noise
+		else
+			score[issue] = noise
+		end
 	end
 	table.sort(issues, function(a, b)
 		return score[a] > score[b]
 	end)
 	return {
 		candidate = candidate,
-		color = Candidates.colors[view.you],
 		platform = table.move(issues, 1, config.PLATFORM_SIZE, 1, {}),
 	}
 end
@@ -207,7 +237,7 @@ function Bot.draft(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 						else (if big then config.STRONGHOLD_BONUS_BIG else config.STRONGHOLD_BONUS)
 					local after = m + bonus * (2 - config.GAIN_FROM_UNDECIDED)
 					value = record.ev * (cdf(after / T.draftSigma) - cdf(m / T.draftSigma))
-					for _, issue in record.issues do
+					for _, issue in view.issueMap[i] do
 						if table.find(platform, issue) then
 							value *= 1.1
 						end
@@ -378,7 +408,7 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 		local value: number, issue: Types.Issue
 		if attack then
 			local mult
-			issue, mult = bestAttackIssue(config, theirPlatform, i)
+			issue, mult = bestAttackIssue(config, theirPlatform, view.issueMap[i])
 			local loss = config.ATTACK_LOSS * mult * profile.mediaMult * bg(i) * closing * factor
 			local margin = loss * (2 - config.ATTACK_TO_UNDECIDED)
 			if view.states[i].backlash >= config.BACKLASH_THRESHOLD - 1 then
@@ -387,7 +417,7 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 			value = marginValue(e, StateData.list[i].ev) * margin
 		else
 			local mult
-			issue, mult = bestIssue(config, platform, i, spotlight)
+			issue, mult = bestIssue(config, platform, view.issueMap[i], view.platformMults, spotlight)
 			local gain = config.MEDIA_SUPPORT
 				* mult
 				* profile.mediaMult
@@ -449,7 +479,8 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 					flightValue -= config.FLIGHT_COST * lambda + stayValue
 				end
 				if style ~= "FundraiseOnly" and not capped(i) then
-					local issue: Types.Issue, mult = bestIssue(config, platform, i, spotlight)
+					local issue: Types.Issue, mult =
+						bestIssue(config, platform, view.issueMap[i], view.platformMults, spotlight)
 					local base = profile.rallySupport
 						* mult
 						* profile.rallyMult
@@ -599,10 +630,11 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 			local factor = profile.mediaSaturation ^ e.bought
 			e.bought += 1
 			if attack then
-				local _, mult = bestAttackIssue(config, theirPlatform, best.i)
+				local _, mult = bestAttackIssue(config, theirPlatform, view.issueMap[best.i])
 				e.margin += config.ATTACK_LOSS * mult * profile.mediaMult * bg(best.i) * closing * factor * 1.4
 			else
-				local _, mult = bestIssue(config, platform, best.i, spotlight)
+				local _, mult =
+					bestIssue(config, platform, view.issueMap[best.i], view.platformMults, spotlight)
 				local base = config.MEDIA_SUPPORT
 					* mult
 					* profile.mediaMult
@@ -643,6 +675,7 @@ end
 -- points of margin.
 function Bot.stanceValue(
 	config: Config,
+	issueMap: IssueMap.IssueMap,
 	estimates: { Estimate },
 	event: ViewModule.EventView,
 	id: Types.Choice,
@@ -655,7 +688,7 @@ function Bot.stanceValue(
 	end
 	local value = 0
 	for i, record in StateData.list do
-		local points = Events.stanceEffect(config, definition, id, i, platform, base)
+		local points = Events.stanceEffect(config, issueMap, definition, id, i, platform, base)
 		if points ~= 0 then
 			local e = estimates[i]
 			local margin = if points > 0 then marginFromGain(config, e, points) else points
@@ -685,7 +718,7 @@ function Bot.choose(
 	if event ~= nil then
 		for k = 1, #Events.CHOICES do
 			local id: Types.Choice = Events.CHOICES[k]
-			local value = Bot.stanceValue(config, estimates, event, id, platform, base)
+			local value = Bot.stanceValue(config, view.issueMap, estimates, event, id, platform, base)
 			if value > bestValue then
 				best, bestValue = id, value
 			end
@@ -697,13 +730,18 @@ end
 -- Expected EV of winning topic t for `view.you`: the topic's states (where the
 -- win lands DEBATE_TOPIC_WIN) plus the flat national part everywhere; and what a
 -- gaffe there would cost.
-function Bot.topicValue(config: Config, estimates: { Estimate }, topic: Types.Issue): (number, number)
+function Bot.topicValue(
+	config: Config,
+	issueMap: IssueMap.IssueMap,
+	estimates: { Estimate },
+	topic: Types.Issue
+): (number, number)
 	local win, gaffe = 0, 0
 	for i, record in StateData.list do
 		local e = estimates[i]
 		local worth = marginValue(e, record.ev)
 		win += worth * marginFromGain(config, e, config.DEBATE_TOPIC_NATIONAL)
-		if table.find(record.issues, topic) then
+		if table.find(issueMap[i], topic) then
 			win += worth * marginFromGain(config, e, config.DEBATE_TOPIC_WIN)
 			gaffe += worth * config.DEBATE_GAFFE
 		end
@@ -733,7 +771,7 @@ function Bot.focus(
 	local best: Types.Issue, bestValue = topics[1], -math.huge
 	for k = 1, #topics do
 		local topic: Types.Issue = topics[k]
-		local value = Bot.topicValue(config, es, topic)
+		local value = Bot.topicValue(config, view.issueMap, es, topic)
 		if value > bestValue then
 			best, bestValue = topic, value
 		end

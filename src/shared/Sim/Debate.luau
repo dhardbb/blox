@@ -11,7 +11,7 @@
 --
 -- Debates move states, not an average (D-040). Winning a topic adds
 -- DEBATE_TOPIC_WIN support in every state where the topic is a top issue
--- (Debate.topicStates: fixed data, the same every match) plus a flat
+-- (Debate.topicStates: the match's issue map, D-047) plus a flat
 -- DEBATE_TOPIC_NATIONAL in every state. A candidate who took no focus at all
 -- (the Focus decision timed out) gaffes on every topic they lose:
 -- -DEBATE_GAFFE in the topic's states. Winning every topic adds a flat
@@ -21,6 +21,7 @@
 -- once, and DebateResult.flips lists the states whose poll leader changed.
 
 local ConfigModule = require("./Config")
+local IssueMap = require("./IssueMap")
 local Issues = require("./Issues")
 local Polls = require("./Polls")
 local Rng = require("./Rng")
@@ -59,12 +60,13 @@ function Debate.nextWeek(config: Config, week: number): number?
 	return nil
 end
 
--- Ids of the states where `topic` is a top issue, in StateData order. Fixed
--- data: the client may call it to preview what a topic win would move.
-function Debate.topicStates(topic: Types.Issue): { string }
+-- Ids of the states where `topic` is a top issue on this match's issue map, in
+-- StateData order. Public: the client may call it to preview what a topic win
+-- would move.
+function Debate.topicStates(issueMap: IssueMap.IssueMap, topic: Types.Issue): { string }
 	local out: { string } = {}
-	for _, record in StateData.list do
-		if table.find(record.issues, topic) then
+	for i, record in StateData.list do
+		if table.find(issueMap[i], topic) then
 			table.insert(out, record.id)
 		end
 	end
@@ -94,17 +96,18 @@ end
 -- one StateMove per state that moves, in StateData order. Public arithmetic.
 function Debate.moves(
 	config: Config,
+	issueMap: IssueMap.IssueMap,
 	n: number,
 	topics: { Types.Issue },
 	winners: { number },
 	gaffes: { { boolean } }
 ): { State.StateMove }
 	local out: { State.StateMove } = {}
-	for _, record in StateData.list do
+	for i, record in StateData.list do
 		local points = table.create(n, 0)
 		local any = false
 		for t, topic in topics do
-			if table.find(record.issues, topic) then
+			if table.find(issueMap[i], topic) then
 				local winner = winners[t]
 				if winner > 0 then
 					points[winner] += config.DEBATE_TOPIC_WIN
@@ -196,7 +199,7 @@ function Debate.resolve(config: Config, match: MatchState): State.DebateResult
 	-- Apply the targeted and flat points from one snapshot (D-001): gains use the
 	-- normal split, losses go to undecided. Record what each state's support
 	-- actually moved by, so the harness can recount the election without debates.
-	local moves = Debate.moves(config, n, topics, winners, gaffes)
+	local moves = Debate.moves(config, match.issueMap, n, topics, winners, gaffes)
 	local byState: { [string]: State.StateMove } = {}
 	for _, move in moves do
 		byState[move.state] = move

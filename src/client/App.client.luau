@@ -105,6 +105,18 @@ if type(fixture) == "string" then
 		end
 		print("[270] DEBUG_UI submit", table.concat(parts, " "))
 	end
+	fakeNet.claim = function(candidate: string)
+		print("[270] DEBUG_UI claim", candidate)
+		-- Offline there is no server: grant the claim when the candidate is free.
+		local payload = Store.get().payload
+		if payload and payload.view.claims[candidate] == nil then
+			local copy = table.clone(payload)
+			copy.view = table.clone(payload.view)
+			copy.view.claims = table.clone(payload.view.claims)
+			copy.view.claims[candidate] = payload.you
+			Store.setPayload(copy)
+		end
+	end
 	fakeNet.bank = function()
 		print("[270] DEBUG_UI bank")
 	end

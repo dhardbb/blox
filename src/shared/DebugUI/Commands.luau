@@ -3,8 +3,9 @@
 -- Phase 2 only: Phase 3 replaces typing with real screens.
 --
 --   practice | queue | host [noevents] | join CODE | leave | resync | bank | skip | help
---   pick CANDIDATE COLOR ISSUE ISSUE ISSUE     (pre-pick in the lobby)
---   select CANDIDATE COLOR ISSUE ISSUE ISSUE   (during Select)
+--   pick CANDIDATE ISSUE ISSUE ISSUE     (pre-pick in the lobby)
+--   claim CANDIDATE                      (Select step 1: hold a candidate, D-048)
+--   select CANDIDATE ISSUE ISSUE ISSUE   (during Select; claims the candidate too; colors are drawn, D-047)
 --   draft STATE [STATE]
 --   plan ACTION; ACTION; ...   with actions:
 --     rally ST ISSUE | fund ST | ad ST ISSUE | attack ad ST ISSUE | poll ST
@@ -103,19 +104,17 @@ local function selection(w: { string }): (any?, string?)
 	if c == nil then
 		return nil, `unknown candidate; try: {table.concat(Candidates.ids, ", ")}`
 	end
-	local col = color(w[3])
-	if col == nil then
-		return nil, `unknown color; try: {table.concat(Candidates.colors, ", ")}`
-	end
+	-- Colors are drawn, not picked (D-047): an old script's color word is skipped.
+	local first = if color(w[3]) ~= nil then 4 else 3
 	local platform = {}
-	for k = 4, 6 do
+	for k = first, first + 2 do
 		local issue = Commands.issue(w[k])
 		if issue == nil then
 			return nil, `need three issues; try: {table.concat(Issues.list, ", ")}`
 		end
 		table.insert(platform, issue)
 	end
-	return { candidate = c, color = col, platform = platform }, nil
+	return { candidate = c, platform = platform }, nil
 end
 
 local function state(word: string?): string?
@@ -201,6 +200,12 @@ function Commands.parse(text: string): Parsed
 			return err('join needs a 5-character code, e.g. "join AB3CD"')
 		end
 		return { kind = "Request", op = "Join", code = code }
+	elseif head == "claim" then
+		local c = candidate(w[2])
+		if c == nil then
+			return err(`claim needs a candidate; try: {table.concat(Candidates.ids, ", ")}`)
+		end
+		return { kind = "Request", op = "Claim", input = c }
 	elseif head == "pick" or head == "select" then
 		local pick, message = selection(w)
 		if pick == nil then
@@ -270,8 +275,8 @@ function Commands.parse(text: string): Parsed
 end
 
 Commands.HELP = table.concat({
-	"Lobby: practice | queue | host [noevents] | join CODE | leave | pick CANDIDATE COLOR ISSUE ISSUE ISSUE",
-	"Select: select CANDIDATE COLOR ISSUE ISSUE ISSUE      Draft: draft OH PA",
+	"Lobby: practice | queue | host [noevents] | join CODE | leave | pick CANDIDATE ISSUE ISSUE ISSUE",
+	"Select: claim CANDIDATE, then select CANDIDATE ISSUE ISSUE ISSUE      Draft: draft OH PA",
 	"Plan: plan rally OH Jobs; fund PA; ad MI Jobs; attack ad IA Farms; poll OH; rpoll Pacific;",
 	"      gotv OH 2; pivot Schools Farms      pass = empty plan",
 	"Decision (before the plan): focus Jobs (debate weeks) | choice b (Choice weeks)",

@@ -252,7 +252,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 				taken.Text = `Your stance: {mine}{name}. Secret until the week resolves.`
 			end
 			local me = view.players[view.you]
-			for k, line in Explain.choiceLines(config, event, me.platform, Events.baseOf(me)) do
+			for k, line in Explain.choiceLines(config, view.issueMap, event, me.platform, Events.baseOf(me)) do
 				local label = payLines[k]
 				if label then
 					label.Text = line

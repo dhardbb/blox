@@ -1,5 +1,6 @@
 --!strict
--- StateData invariants: EV total, symmetric adjacency, connectivity, and issue balance.
+-- StateData invariants: EV total, symmetric adjacency, connectivity, and flavor issues.
+-- The per-match issue map is tests/sim/IssueMap.spec.
 
 local Test = require("@testlib/Test")
 local StateData = require("@sim/StateData")
@@ -93,27 +94,12 @@ describe("StateData", function()
 		expect(#queue):toBe(49)
 	end)
 
-	it("every state has two distinct valid issues", function()
+	it("every state has two distinct valid flavor issues (the issue draw weights them, D-047)", function()
 		for _, s in states do
-			expect(#s.issues):toBe(2)
-			expect(Issues.isIssue(s.issues[1]) and Issues.isIssue(s.issues[2])):toBe(true)
-			if s.issues[1] == s.issues[2] then
+			expect(#s.flavor):toBe(2)
+			expect(Issues.isIssue(s.flavor[1]) and Issues.isIssue(s.flavor[2])):toBe(true)
+			if s.flavor[1] == s.flavor[2] then
 				error(`{s.id} repeats an issue`)
-			end
-		end
-	end)
-
-	it("each issue is a top issue for 100-170 EV", function()
-		local coverage = {}
-		for _, s in states do
-			for _, issue in s.issues do
-				coverage[issue] = (coverage[issue] or 0) + s.ev
-			end
-		end
-		for _, issue in Issues.list do
-			local ev = coverage[issue] or 0
-			if ev < 100 or ev > 170 then
-				error(`{issue} covers {ev} EV`)
 			end
 		end
 	end)

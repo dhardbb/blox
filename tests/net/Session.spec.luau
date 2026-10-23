@@ -27,7 +27,8 @@ local function practice(): Session.Session
 	}, 0)
 end
 
-local SELECTION = { candidate = "okafor", color = "Teal", platform = { "Jobs", "Health", "Schools" } }
+local SELECTION = { candidate = "okafor", platform = { "Jobs", "Health", "Schools" } }
+local OTHER = { candidate = "venkat", platform = { "Jobs", "Health", "Schools" } }
 
 -- A bot-made input for seat p, the way the debug UI's "auto" button builds one.
 local function auto(session: Session.Session, p: number): any
@@ -62,7 +63,7 @@ describe("Session: stages and timers", function()
 		local session = humans()
 		expect((Session.submit(session, 1, session.step, SELECTION, 1))):toBe(true)
 		expect(session.stage):toBe("Input")
-		expect((Session.submit(session, 2, session.step, SELECTION, 2))):toBe(true)
+		expect((Session.submit(session, 2, session.step, OTHER, 2))):toBe(true)
 		expect(session.match.phase):toBe("MapReveal")
 		expect(session.stage):toBe("Show")
 		expect(session.deadline):toBe(2 + C.TIMER_MAP_REVEAL)
@@ -152,6 +153,111 @@ local function toWeekTwelveReveal(session: Session.Session): number
 	end
 	error("never reached election night")
 end
+
+describe("Session: unique candidates (D-048)", function()
+	-- The notices queued for seat p.
+	local function notices(session: Session.Session, p: number): { string }
+		local out = {}
+		for _, message in Session.drain(session) do
+			if message.seat == p and message.kind == "Notice" then
+				table.insert(out, message.notice :: string)
+			end
+		end
+		return out
+	end
+
+	it("a claim is first come, first served, and shows as taken at once", function()
+		local session = humans()
+		expect((Session.claim(session, 1, session.step, "hale", 1))):toBe(true)
+		Session.update(session, 1)
+		expect(session.match.claims.hale):toBe(1)
+		local messages = Session.drain(session)
+		local seen = false
+		for _, message in messages do
+			if message.seat == 2 and message.state then
+				seen = message.state.view.claims.hale == 1
+			end
+		end
+		expect(seen):toBe(true)
+		local ok, reason = Session.claim(session, 2, session.step, "hale", 2)
+		expect(ok):toBe(false)
+		expect(reason):toBe("CandidateTaken")
+		ok, reason =
+			Session.submit(session, 2, session.step, { candidate = "hale", platform = SELECTION.platform }, 2)
+		expect(ok):toBe(false)
+		expect(reason):toBe("CandidateTaken")
+		expect(session.seats[2].locked):toBe(false)
+		-- Seat 1 locks in its claim; seat 2 picks another and the match goes on.
+		expect(
+			(
+				Session.submit(
+					session,
+					1,
+					session.step,
+					{ candidate = "hale", platform = SELECTION.platform },
+					3
+				)
+			)
+		):toBe(true)
+		expect((Session.submit(session, 2, session.step, OTHER, 3))):toBe(true)
+		expect(session.match.players[1].candidate):toBe("hale")
+		expect(session.match.players[2].candidate):toBe("venkat")
+	end)
+
+	it("claims in the same server step go to a seeded coin flip, and the loser is told", function()
+		local wins = { 0, 0 }
+		for seed = 1, 200 do
+			local session = Session.new(C, "m", seed, {
+				{ id = "1", kind = "Human" },
+				{ id = "2", kind = "Human" },
+			}, 0)
+			Session.drain(session)
+			expect((Session.claim(session, 2, session.step, "strand", 1))):toBe(true)
+			expect((Session.claim(session, 1, session.step, "strand", 1))):toBe(true)
+			expect(Session.nextWake(session) <= 1):toBe(true)
+			Session.update(session, 1)
+			local winner = session.match.claims.strand
+			wins[winner] += 1
+			local loser = 3 - winner
+			local told = notices(session, loser)
+			expect(told[1]):toBe(Session.CANDIDATE_TAKEN)
+			-- The loser picks again.
+			expect((Session.claim(session, loser, session.step, "begay", 2))):toBe(true)
+			Session.update(session, 2)
+			expect(session.match.claims.begay):toBe(loser)
+		end
+		expect(wins[1] > 70 and wins[2] > 70):toBe(true)
+	end)
+
+	it("a timeout keeps the claim and the pre-pick's platform, and defaults to a free candidate", function()
+		local session = Session.new(C, "m", 5, {
+			{
+				id = "1",
+				kind = "Human",
+				prePick = { candidate = "reyes", platform = { "Farms", "Safety", "Transit" } },
+			},
+			{
+				id = "2",
+				kind = "Human",
+				prePick = { candidate = "reyes", platform = { "Jobs", "Health", "Schools" } },
+			},
+		}, 0)
+		expect((Session.claim(session, 1, session.step, "okafor", 1))):toBe(true)
+		Session.update(session, 1)
+		Session.update(session, C.TIMER_SELECT)
+		expect(session.match.phase):toBe("MapReveal")
+		expect(session.match.players[1].candidate):toBe("okafor")
+		expect(session.match.players[1].platform):toEqual({ "Farms", "Safety", "Transit" })
+		expect(session.match.players[2].candidate):toBe("reyes")
+	end)
+
+	it("a practice bot claims its candidate as Select opens", function()
+		local session = practice()
+		expect(session.match.claims.hale):toBe(2)
+		expect(select(2, Session.claim(session, 1, session.step, "hale", 1))):toBe("CandidateTaken")
+		expect((Session.claim(session, 1, session.step, "okafor", 1))):toBe(true)
+	end)
+end)
 
 describe("Session: election night", function()
 	it("shows the last resolve, then a full election night, then ends", function()

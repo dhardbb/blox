@@ -21,6 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local ConfigModule = require(Shared.Sim.Config)
 local Explain = require(Shared.UI.Explain)
+local IssueMap = require(Shared.Sim.IssueMap)
 local Numbers = require(Shared.UI.Numbers)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local StateData = require(Shared.Sim.StateData)
@@ -127,15 +128,9 @@ local function leadPart(view: View, support: { number }, prefix: string): Part
 	return { text = `{prefix}+{math.floor(lead + 0.5)}`, color = colorOf(view, leader) }
 end
 
--- The state's top issues: from the View when it carries them (issues per match),
--- else the static state data.
-function Lens.issuesOf(s: StateView): { string }
-	local fromView = (s :: any).issues
-	if type(fromView) == "table" then
-		return fromView
-	end
-	local record = StateData.byId[s.id]
-	return if record then record.issues :: { any } else {}
+-- The state's top issues this match, from the View's issue map (D-047).
+function Lens.issuesOf(view: View, s: StateView): { string }
+	return IssueMap.of(view.issueMap, s.id) :: { any }
 end
 
 function Lens.issueCode(issue: string): string
@@ -158,7 +153,7 @@ local function issuesLine(ctx: Context, s: StateView): Line
 	local platform = view.players[view.you].platform or {}
 	local mine = colorOf(view, view.you)
 	local parts: { Part } = {}
-	for _, issue in Lens.issuesOf(s) do
+	for _, issue in Lens.issuesOf(view, s) do
 		local ours = table.find(platform, issue :: any) ~= nil
 		table.insert(parts, {
 			text = Lens.issueCode(issue),

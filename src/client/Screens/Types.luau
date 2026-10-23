@@ -30,6 +30,7 @@ export type State = {
 export type Net = {
 	send: (op: string, fields: { [string]: any }?) -> (),
 	submit: (input: any) -> (),
+	claim: (candidate: string) -> (), -- Select step 1 (D-048)
 	bank: () -> (),
 	skip: () -> (),
 	reasonText: (reason: string?) -> string,

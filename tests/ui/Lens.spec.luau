@@ -10,6 +10,7 @@ local Config = require("@sim/Config")
 local Explain = require("@ui/Explain")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
+local IssueMap = require("@sim/IssueMap")
 local Numbers = require("@ui/Numbers")
 local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
@@ -175,9 +176,13 @@ describe("Map lenses", function()
 		local view = Fixtures.payload(C, "Plan").view
 		local platform = view.players[view.you].platform :: { string }
 		local mine = Kit.playerColor(view, view.you)
-		local filledSeen = 0
+		local filledSeen, drawnSeen = 0, 0
 		for _, s in view.states do
-			local issues = StateData.byId[s.id].issues
+			-- This match's drawn issues (D-047), not the static flavor.
+			local issues = IssueMap.of(view.issueMap, s.id)
+			if table.concat(issues, ",") ~= table.concat(StateData.byId[s.id].flavor, ",") then
+				drawnSeen += 1
+			end
 			local want = {}
 			for _, issue in issues do
 				table.insert(want, Lens.issueCode(issue))
@@ -197,12 +202,21 @@ describe("Map lenses", function()
 			end
 		end
 		check(filledSeen > 0, "no state shares an issue with your platform")
+		check(
+			drawnSeen > 0,
+			"the fixture's drawn issues match the flavor everywhere: the spec cannot tell them apart"
+		)
 		expect(Lens.issueCode("Jobs")):toBe("JOB")
 		expect(Lens.issueCode("Weather")):toBe("WEA") -- an issue added later still gets a code
-		-- Issues per match: a View that carries them wins over the static data.
-		local fake = table.clone(view.states[1]) :: any
-		fake.issues = { "Transit", "Farms" }
-		expect(Lens.issuesOf(fake)):toEqual({ "Transit", "Farms" })
+		-- The lens reads the View's issue map, whatever it says.
+		local fake = table.clone(view) :: any
+		fake.issueMap = table.clone(view.issueMap)
+		for i, record in StateData.list do
+			if record.id == view.states[1].id then
+				fake.issueMap[i] = { "Transit", "Farms" }
+			end
+		end
+		expect(Lens.issuesOf(fake, view.states[1])):toEqual({ "Transit", "Farms" })
 	end)
 
 	it(

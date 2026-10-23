@@ -96,6 +96,7 @@ export type Session = {
 	events: { State.Event }, -- events of the last advance, shown during Reveal
 	result: Result?,
 	outbox: { Message },
+	pendingClaims: { [number]: string }, -- Select: candidate claims waiting for the next update (one batch, D-048)
 }
 
 -- Match options a private lobby may set (public queue and practice use none).
@@ -121,7 +122,11 @@ Session.Reason = table.freeze({
 	NoBank = "NoBank",
 	NotSkippable = "NotSkippable",
 	Over = "Over",
+	NotSelect = "NotSelect",
 })
+
+-- Notice sent to a player whose claim lost a same-step coin flip (D-048).
+Session.CANDIDATE_TAKEN = "CandidateTaken"
 
 local function isBot(seat: Seat): boolean
 	return seat.kind == "Bot"
@@ -242,13 +247,53 @@ local function advance(session: Session, inputs: { [number]: any })
 	session.events = events
 end
 
--- Bots submit as soon as an Input stage opens, from their own View.
+-- Settles the claims that arrived since the last update as one batch: a
+-- seeded coin flip orders them (Match.claim), and a loser is told (D-048).
+local function settleClaims(session: Session)
+	if next(session.pendingClaims) == nil then
+		return
+	end
+	local requests = session.pendingClaims
+	session.pendingClaims = {}
+	local nextMatch, outcomes = Match.claim(session.config, session.match, requests)
+	session.match = nextMatch
+	for p in outcomes do
+		local seat = session.seats[p]
+		if seat.kind == "Human" and seat.connected then
+			table.insert(session.outbox, { seat = p, kind = "Notice", notice = Session.CANDIDATE_TAKEN })
+		end
+	end
+	broadcast(session)
+end
+
+-- Bots submit as soon as an Input stage opens, from their own View. At Select a
+-- bot claims its candidate first (one batch for every bot), or a free one.
 local function botInputs(session: Session)
+	local candidates: { [number]: string } = {}
+	if session.match.phase == "Select" then
+		local requests: { [number]: string } = {}
+		for p, seat in session.seats do
+			if isBot(seat) then
+				requests[p] = seat.botCandidate or "okafor"
+			end
+		end
+		local nextMatch = Match.claim(session.config, session.match, requests)
+		session.match = nextMatch
+		for p in requests do
+			local claimed = Match.claimOf(session.match, p)
+			if claimed == nil then
+				claimed = Match.default(session.config, session.match, p).candidate
+				session.match = (Match.claim(session.config, session.match, { [p] = claimed }))
+			end
+			candidates[p] = claimed :: string
+		end
+	end
 	for p, seat in session.seats do
 		if isBot(seat) then
 			local view = View.build(session.config, session.match, p)
 			local rng = seat.botRng :: Rng.Rng
-			local input = Bot.act(session.config, view, rng, seat.botCandidate or "okafor", seat.botStyle)
+			local candidate = candidates[p] or seat.botCandidate or "okafor"
+			local input = Bot.act(session.config, view, rng, candidate, seat.botStyle)
 			local ok, _, normalized = Match.validate(session.config, session.match, p, input)
 			seat.input = if ok then normalized else nil
 			seat.locked = true
@@ -294,7 +339,10 @@ local function closeInput(session: Session, now: number)
 		if seat.locked and seat.input ~= nil then
 			inputs[p] = seat.input
 		elseif phase == "Select" and seat.prePick ~= nil then
-			inputs[p] = seat.prePick
+			-- The lobby pre-pick, on the candidate this player claimed if they did.
+			local pick = table.clone(seat.prePick)
+			pick.candidate = Match.claimOf(session.match, p) or pick.candidate
+			inputs[p] = pick
 		end
 		if phase == "Plan" and seat.kind == "Human" then
 			-- Consecutive: any week the player was here (locked in or just idle) or
@@ -356,6 +404,7 @@ end
 
 -- Moves the session forward as far as the clock allows.
 function Session.update(session: Session, now: number)
+	settleClaims(session)
 	for _ = 1, 64 do
 		if session.stage == "Over" then
 			return
@@ -397,6 +446,9 @@ end
 function Session.nextWake(session: Session): number
 	if session.stage == "Over" then
 		return math.huge
+	end
+	if next(session.pendingClaims) ~= nil then
+		return -math.huge -- claims settle on the next tick
 	end
 	local wake = if session.stage == "Input" then math.huge else showEnd(session)
 	for _, seat in session.seats do
@@ -462,6 +514,7 @@ function Session.new(
 		events = {},
 		result = nil,
 		outbox = {},
+		pendingClaims = {},
 	}
 	enterPhase(session, now)
 	return session
@@ -495,6 +548,20 @@ function Session.submit(session: Session, p: number, step: any, input: any, now:
 	if now > seatDeadline(session, seat) + 1 then
 		return false, Session.Reason.StaleStep
 	end
+	if session.match.phase == "Select" then
+		-- Locking in a selection claims its candidate, first come first served (D-048).
+		settleClaims(session)
+		local candidate = if type(input) == "table" then input.candidate else nil
+		local free, why = Match.canClaim(session.match, p, candidate)
+		if not free then
+			return false, why
+		end
+		local ok, reason = Match.validate(session.config, session.match, p, input)
+		if not ok then
+			return false, reason
+		end
+		session.match = (Match.claim(session.config, session.match, { [p] = candidate }))
+	end
 	local ok, reason, normalized = Match.validate(session.config, session.match, p, input)
 	if not ok then
 		return false, reason
@@ -503,6 +570,45 @@ function Session.submit(session: Session, p: number, step: any, input: any, now:
 	seat.locked = true
 	broadcast(session)
 	Session.update(session, now)
+	return true, nil
+end
+
+-- A player claims a candidate during Select (step 1 of the Select screen, D-048).
+-- A candidate someone already holds is turned down at once ("CandidateTaken");
+-- otherwise the claim waits for the next update, where every claim that arrived
+-- in the same server step is settled together by a seeded coin flip.
+function Session.claim(
+	session: Session,
+	p: number,
+	step: any,
+	candidate: any,
+	now: number
+): (boolean, string?)
+	local stale = checkStep(session, step)
+	if stale then
+		return false, stale
+	end
+	local seat = session.seats[p]
+	if session.stage ~= "Input" then
+		return false, Session.Reason.NotInput
+	end
+	if session.match.phase ~= "Select" then
+		return false, Session.Reason.NotSelect
+	end
+	if seat.locked then
+		return false, Session.Reason.AlreadyLocked
+	end
+	if now > seatDeadline(session, seat) + 1 then
+		return false, Session.Reason.StaleStep
+	end
+	local ok, reason = Match.canClaim(session.match, p, candidate)
+	if not ok then
+		return false, reason
+	end
+	if Match.claimOf(session.match, p) == candidate then
+		return true, nil
+	end
+	session.pendingClaims[p] = candidate
 	return true, nil
 end
 
