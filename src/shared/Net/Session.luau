@@ -53,6 +53,7 @@ export type Seat = {
 	seesNames: boolean, -- this player may see custom names (eligible: Roblox lets them chat)
 	namePass: NamePass?, -- this player may use the Name Pass (it is set up and they are eligible)
 	shownNames: { [number]: string? }, -- other seats' names as filtered for THIS viewer (Session.showName)
+	hiddenNames: { [number]: string }, -- names this viewer reported: never shown to them again
 }
 
 -- The Name Pass as one seat sees it (D-063): present only for a player who is
@@ -586,6 +587,7 @@ function Session.new(
 			seesNames = spec.kind == "Human" and spec.seesNames == true,
 			namePass = if spec.kind == "Human" and spec.namePass then table.clone(spec.namePass) else nil,
 			shownNames = {},
+			hiddenNames = {},
 		}
 	end
 	local session: Session = {
@@ -793,6 +795,9 @@ function Session.showName(session: Session, viewer: number, setter: number, name
 	if from.customName ~= name or seat.shownNames[setter] == text then
 		return
 	end
+	if text ~= nil and seat.hiddenNames[setter] == name then
+		return -- this viewer reported it
+	end
 	seat.shownNames[setter] = text
 	if seat.kind == "Human" and seat.connected then
 		table.insert(
@@ -814,6 +819,40 @@ function Session.setNamePass(session: Session, p: number, pass: NamePass?)
 	seat.seesNames = pass ~= nil
 	if seat.connected then
 		table.insert(session.outbox, { seat = p, kind = "State", state = Session.payload(session, p) })
+	end
+end
+
+-- Seat `viewer` reported seat `setter`'s name `name` (D-063): they see the
+-- candidate's own name from now on, whatever the server shares later. Sends
+-- them a fresh State.
+function Session.hideName(session: Session, viewer: number, setter: number, name: string)
+	local seat = session.seats[viewer]
+	if seat == nil or session.seats[setter] == nil or viewer == setter then
+		return
+	end
+	seat.hiddenNames[setter] = name
+	seat.shownNames[setter] = nil
+	if seat.kind == "Human" and seat.connected and session.stage ~= "Over" then
+		table.insert(
+			session.outbox,
+			{ seat = viewer, kind = "State", state = Session.payload(session, viewer) }
+		)
+	end
+end
+
+-- A reviewer removed seat `p`'s name (D-063): their candidate goes back to its
+-- own name for everyone, in any phase. Everyone gets a fresh State.
+function Session.clearName(session: Session, p: number)
+	local seat = session.seats[p]
+	if seat == nil or seat.customName == nil then
+		return
+	end
+	seat.customName = nil
+	for _, other in session.seats do
+		other.shownNames[p] = nil
+	end
+	if session.stage ~= "Over" then
+		broadcast(session)
 	end
 end
 

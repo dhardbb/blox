@@ -62,6 +62,37 @@ end
 -- Under the Name Pass offer and on the name sheet: names follow Roblox's rules.
 Setup.NAME_RULES = "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
 Setup.NAME_SAVE = "Save name"
+
+-- Reporting a custom name (D-063).
+Setup.REPORT = "Report name" -- the action wherever another player's custom name shows
+Setup.REPORT_TITLE = "Report this name?"
+-- `name` is the custom name, `own` the candidate's own name.
+function Setup.reportText(name: string, own: string): string
+	return `"{name}" will show as {own} for you from now on. The game's owners will review it.`
+end
+Setup.REPORT_ROBLOX = "For anything serious, also use Roblox's own Report in the Roblox menu."
+Setup.REPORT_CONFIRM = "Report"
+Setup.REPORT_CANCEL = "Cancel"
+-- The in-match Help sheet's button: "Report Big Wave".
+function Setup.reportButton(name: string): string
+	return `Report "{name}"`
+end
+
+-- The admins' review panel (D-063).
+Setup.REVIEW_TITLE = "Review names"
+function Setup.reviewButton(count: number): string
+	return `Review names ({count})`
+end
+Setup.REVIEW_EMPTY = "No reported names. All clear!"
+Setup.REVIEW_FAILED = "The list couldn't be loaded. Try again in a minute."
+Setup.REVIEW_KEEP = "Keep"
+Setup.REVIEW_REMOVE = "Remove"
+-- One row's details: "by Builder42 · 3 reports · Oct 20 – Oct 23".
+function Setup.reviewLine(owner: string, count: number, first: string, last: string): string
+	local reports = if count == 1 then "1 report" else `{count} reports`
+	local when = if first == last then first else `{first} – {last}`
+	return `by {owner} · {reports} · {when}`
+end
 Setup.NAME_RESET = "Use the candidate's name"
 Setup.NAME_SAVING = "Checking the name…"
 

@@ -20,6 +20,7 @@ local DataService = require(script.Parent.DataService)
 local Admins = require(script.Parent.Admins)
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local NameEligibility = require(script.Parent.NameEligibility)
+local NameReview = require(script.Parent.NameReview)
 local NameService = require(script.Parent.NameService)
 local PassService = require(script.Parent.PassService)
 local Replication = require(script.Parent.Replication)
@@ -36,6 +37,19 @@ local sessions: { [string]: Session.Session } = {}
 local matchOf: { [string]: string } = {} -- player id -> match id
 local prePicks: { [string]: any } = {}
 local approvedNames: { [string]: string } = {} -- player id -> their saved custom name, filtered this visit (D-063)
+local shownTo: { [string]: { [string]: string } } = {} -- viewer id -> setter id -> the custom name they were shown
+local reports: { [string]: { last: number, count: number } } = {} -- reporter id -> rate-limit state, this visit
+local ownerNames: { [number]: string } = {} -- user id -> username, for the review panel
+
+-- Reasons a report or a review request is turned down (D-063).
+local ReportReason = table.freeze({
+	Self = "ReportSelf", -- your own name
+	NoName = "ReportNoName", -- you were not shown a custom name from that player
+	TooSoon = "ReportTooSoon", -- NAME_REPORT_WAIT has not passed since your last report
+	Limit = "ReportLimit", -- NAME_REPORTS_PER_VISIT reached
+	NotAdmin = "NotAdmin", -- review requests are for admins only
+	ReviewFailed = "ReviewFailed", -- the review queue could not be read or written
+})
 local ratingsAtStart: { [string]: { [string]: number } } = {} -- match id -> player id -> rating; rated matches only
 local random = Random.new()
 local matchCount = 0
@@ -64,6 +78,8 @@ local function sendLobby(id: string)
 		colorPass = if PassService.offered("Color", id)
 			then { id = passId or 0, owned = PassService.ownsColorPass(id) }
 			else nil,
+		-- Admins only: the review button's count (D-063).
+		review = if Admins.isAdminId(tonumber(id) or 0) then { count = NameReview.pendingCount() } else nil,
 	}
 	Replication.send(id, { kind = "Lobby", lobby = status })
 end
@@ -95,12 +111,29 @@ local function approveSavedName(id: string)
 	approvedNames[id] = nil
 	local player = playerOf(id)
 	local profile = DataService.profile(id)
-	if player == nil or profile == nil or profile.customName == nil or namePassOf(id) == nil then
+	if player == nil or profile == nil or profile.customName == nil then
 		return
 	end
-	local name = NameService.check(player, profile.customName)
-	if name and playerOf(id) == player then
+	-- The profile can load before the join's eligibility check finishes: ask now.
+	if not eligible(id) then
+		NameEligibility.refresh(player)
+	end
+	if namePassOf(id) == nil then
+		return
+	end
+	NameReview.ensureLoaded()
+	local name, reason = NameService.check(player, profile.customName)
+	if playerOf(id) ~= player then
+		return
+	end
+	if name then
 		approvedNames[id] = name
+	elseif reason == CustomName.Reason.Filtered and NameService.isBlocked(profile.customName) then
+		-- A reviewer removed it (or a name like it) since: clear it, and say so.
+		DataService.update(id, function(saved: Profile.Profile): Profile.Profile
+			return Profile.withCustomName(saved, nil)
+		end)
+		Replication.send(id, { kind = "Notice", notice = "NameRemoved" })
 	end
 end
 
@@ -305,6 +338,16 @@ local function shareNames(session: Session.Session)
 			local text = if to ~= nil and NameEligibility.canSee(from, to)
 				then NameService.forViewer(from, to, name)
 				else nil
+			-- A name this viewer reported stays hidden from them, in every match.
+			if text ~= nil and Profile.hides(DataService.profile(viewer.id), setter.id, name) then
+				Session.hideName(session, p, q, name)
+				text = nil
+			end
+			if text ~= nil then
+				local seen = shownTo[viewer.id] or {}
+				seen[setter.id] = name
+				shownTo[viewer.id] = seen
+			end
 			if sessions[session.id] ~= session then
 				return
 			end
@@ -338,6 +381,7 @@ local function setName(player: Player, text: string?): string?
 	end
 	local name: string? = nil
 	if text ~= nil then
+		NameReview.ensureLoaded()
 		local checked, reason = NameService.check(player, text)
 		if checked == nil then
 			return reason
@@ -368,6 +412,147 @@ local function setName(player: Player, text: string?): string?
 		return CustomName.Reason.NotSaved
 	end
 	print(`[270] player {id} name: {name or "(the candidate's own)"} ({how})`)
+	return nil
+end
+
+-- Clears player `id`'s custom name after a review (D-063): their profile, this
+-- visit's copy, their match (any phase), and a friendly notice. Yields.
+local function clearRemovedName(id: string)
+	approvedNames[id] = nil
+	DataService.update(id, function(saved: Profile.Profile): Profile.Profile
+		return Profile.withCustomName(saved, nil)
+	end)
+	local session = sessions[matchOf[id] or ""]
+	if session then
+		local seat = Session.seatOf(session, id) :: number
+		guard(session, function()
+			Session.clearName(session, seat)
+		end)
+		flush(session)
+	else
+		sendLobby(id)
+	end
+	Replication.send(id, { kind = "Notice", notice = "NameRemoved" })
+	print(`[270] player {id}: custom name removed after review`)
+end
+
+-- The reviewed blocklist grew (here or on another server): clear every name in
+-- this server that now matches it.
+local function onBlocklist(_added: { string })
+	for id, name in approvedNames do
+		if NameService.isBlocked(name) then
+			task.spawn(clearRemovedName, id)
+		end
+	end
+end
+
+-- ReportName (D-063): `player` reports the custom name they were shown for
+-- `setterId`. They stop seeing it at once (this match and, through their
+-- profile, every later one); the report waits in the review queue for an
+-- admin. Rate-limited per reporter. Returns a reason code when turned down.
+local function reportName(player: Player, setterId: string): string?
+	local id = idOf(player)
+	if setterId == id then
+		return ReportReason.Self
+	end
+	local seen = shownTo[id]
+	local name = if seen then seen[setterId] else nil
+	if name == nil then
+		return ReportReason.NoName
+	end
+	local state = reports[id] or { last = -math.huge, count = 0 }
+	if state.count >= config.NAME_REPORTS_PER_VISIT then
+		return ReportReason.Limit
+	end
+	local t = now()
+	if t - state.last < config.NAME_REPORT_WAIT then
+		return ReportReason.TooSoon
+	end
+	reports[id] = { last = t, count = state.count + 1 }
+	seen = seen :: { [string]: string }
+	seen[setterId] = nil
+	local session = sessions[matchOf[id] or ""]
+	if session then
+		local viewer = Session.seatOf(session, id) :: number
+		local setter = Session.seatOf(session, setterId)
+		if setter then
+			guard(session, function()
+				Session.hideName(session, viewer, setter, name)
+			end)
+			flush(session)
+		end
+	end
+	DataService.update(id, function(saved: Profile.Profile): Profile.Profile
+		return Profile.withHiddenName(saved, setterId, name, config)
+	end)
+	Replication.send(id, { kind = "Notice", notice = "NameReported" })
+	task.spawn(function()
+		if not NameReview.report(tonumber(setterId) :: number, player.UserId, name, os.time()) then
+			warn(`[270] could not queue the report on {setterId}'s name for review`)
+		end
+	end)
+	print(`[270] player {id} reported {setterId}'s name`)
+	return nil
+end
+
+-- A username for the review panel (cached; "Player <id>" if the lookup fails).
+local function ownerName(userId: number): string
+	local known = ownerNames[userId]
+	if known then
+		return known
+	end
+	local ok, name = pcall(function(): string
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	if ok and type(name) == "string" then
+		ownerNames[userId] = name
+		return name
+	end
+	return `Player {userId}`
+end
+
+-- Sends an admin the review queue. Yields.
+local function sendReview(id: string)
+	local list = NameReview.list()
+	local entries: { Remotes.ReviewEntry } = {}
+	local found: { NameReview.Entry } = list or {}
+	for _, entry in found do
+		table.insert(entries, {
+			userId = tostring(entry.userId),
+			name = entry.name,
+			owner = ownerName(entry.userId),
+			count = entry.count,
+			first = entry.first,
+			last = entry.last,
+		})
+	end
+	Replication.send(id, { kind = "Review", review = { ok = list ~= nil, entries = entries } })
+end
+
+-- ReviewList, ReviewKeep, ReviewRemove (D-063): admins only, checked here on
+-- every request. Returns a reason code when turned down. Yields.
+local function review(player: Player, request: Remotes.Request): string?
+	local id = idOf(player)
+	if not Admins.isAdmin(player) then
+		return ReportReason.NotAdmin
+	end
+	local target = tonumber(request.userId or "")
+	if request.op == "ReviewKeep" and target then
+		if not NameReview.keep(target) then
+			return ReportReason.ReviewFailed
+		end
+		print(`[270] admin {id} kept the name of {target}`)
+	elseif request.op == "ReviewRemove" and target then
+		local removed = NameReview.remove(target)
+		if removed == nil then
+			return ReportReason.ReviewFailed
+		end
+		print(`[270] admin {id} removed the name of {target}`)
+	end
+	sendReview(id)
+	if matchOf[id] == nil then
+		sendLobby(id)
+	end
 	return nil
 end
 
@@ -551,6 +736,16 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 		if matchOf[idOf(player)] == nil then
 			sendLobby(idOf(player))
 		end
+	elseif op == "ReportName" then
+		local reason = reportName(player, request.userId :: string)
+		if reason then
+			Replication.reject(player, op, reason)
+		end
+	elseif op == "ReviewList" or op == "ReviewKeep" or op == "ReviewRemove" then
+		local reason = review(player, request)
+		if reason then
+			Replication.reject(player, op, reason)
+		end
 	elseif op == "Leaderboard" then
 		LeaderboardService.request(idOf(player))
 	elseif op == "Resync" then
@@ -591,6 +786,8 @@ function MatchService.start()
 		end
 	end)
 	PassService.start()
+	NameReview.start()
+	NameReview.onBlocklist(onBlocklist)
 	PassService.onChanged(function(id: string)
 		if matchOf[id] == nil then
 			sendLobby(id)
@@ -613,6 +810,9 @@ function MatchService.start()
 	-- filtered for it.
 	local function checkNames(player: Player)
 		Admins.refresh(player)
+		if Admins.isAdmin(player) then
+			NameReview.refreshCount() -- the Review names button's count
+		end
 		NameEligibility.refresh(player)
 		approveSavedName(idOf(player))
 		if matchOf[idOf(player)] == nil then
@@ -643,6 +843,8 @@ function MatchService.start()
 		Lobby.leave(lobby, id)
 		prePicks[id] = nil
 		approvedNames[id] = nil
+		shownTo[id] = nil
+		reports[id] = nil
 		NameEligibility.forget(player)
 		Admins.forget(player)
 		NameService.forget(player)

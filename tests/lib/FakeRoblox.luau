@@ -120,6 +120,7 @@ export type World = {
 	market: MarketState,
 	text: TextState,
 	chat: ChatState,
+	published: { { topic: string, data: any } }, -- MessagingService:PublishAsync calls (D-063)
 	overrides: { [string]: { [string]: any } }, -- module path (from the root) -> fields set after it loads
 	userNames: { [number]: string }, -- usernames GetNameFromUserIdAsync knows besides joined players
 	nameFailures: number, -- the next N GetNameFromUserIdAsync calls fail
@@ -550,6 +551,27 @@ local function newTextChatService(world: World): any
 		CanUsersChatAsync = function(_self: any, from: number, to: number): boolean
 			begin()
 			return world.chat.blocked[`{from}:{to}`] ~= true
+		end,
+	}
+end
+
+-- MessagingService for the server (D-063): one world is one game server, so a
+-- publish reaches this server's own subscribers (as Roblox delivers to every
+-- server, the sender too), at once. world.published logs every message.
+local function newMessagingService(world: World): any
+	local subscribers: { [string]: { (any) -> () } } = {}
+	return {
+		PublishAsync = function(_self: any, topic: string, data: any)
+			table.insert(world.published, { topic = topic, data = data })
+			for _, callback in subscribers[topic] or {} do
+				callback({ Data = data, Sent = world.clock })
+			end
+		end,
+		SubscribeAsync = function(_self: any, topic: string, callback: (any) -> ()): any
+			local list = subscribers[topic] or {}
+			table.insert(list, callback)
+			subscribers[topic] = list
+			return { Disconnect = function() end }
 		end,
 	}
 end
@@ -1375,6 +1397,7 @@ local function newGame(world: World, isServer: boolean): any
 	services.MarketplaceService = newMarketplaceService(world)
 	services.TextService = newTextService(world)
 	services.TextChatService = newTextChatService(world)
+	services.MessagingService = newMessagingService(world)
 	rawget(game, "_props").JobId = if isServer then world.jobId else ""
 	if isServer then
 		local spsParent = newInstance(world, "StarterPlayerScripts", "StarterPlayerScripts")
@@ -1543,6 +1566,7 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 			contexts = {},
 		},
 		chat = { allowed = {}, blocked = {}, failures = 0, calls = 0 },
+		published = {},
 		overrides = {},
 		userNames = {},
 		nameFailures = 0,

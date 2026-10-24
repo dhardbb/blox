@@ -188,6 +188,15 @@ local Config = {
 	NAME_SIMILAR_DISTANCE = 1, -- a name within this many letter edits of a blocklist entry counts as that entry (D-063)
 	NAME_SIMILAR_MIN_LETTERS = 5, -- shorter blocklist entries must match exactly (one edit away from a short word is too many names)
 
+	-- Reporting and reviewing custom names (D-063).
+	NAME_REPORT_WAIT = 10, -- seconds one player waits between reports (rate limit)
+	NAME_REPORTS_PER_VISIT = 10, -- most reports one player sends per visit to a server
+	NAME_HIDDEN_MAX = 30, -- names a player reported and no longer sees, kept in their profile (oldest dropped)
+	NAME_REVIEW_MAX = 200, -- reported names waiting for review (the oldest drop off a full queue)
+	NAME_REPORTERS_MAX = 20, -- distinct reporters kept per reported name
+	NAME_BLOCKLIST_MAX = 2000, -- names reviewers removed, kept as blocklist entries
+	NAME_BLOCKLIST_REFRESH = 300, -- seconds between reloads of the reviewed blocklist on each server
+
 	-- Admins (D-063): free Color and Name Passes and the name review panel. The
 	-- experience owner (game.CreatorId, or for a group-owned game its members of
 	-- at least ADMIN_GROUP_RANK) always counts; these user ids count too.

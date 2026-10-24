@@ -24,7 +24,11 @@ export type Op =
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
 	| "PrePick" -- remember a candidate and platform for Select: { pick }
 	| "SetColor" -- save a chosen color (Color Pass owners, D-055): { color? } (absent = auto)
-	| "SetName" -- name your candidate (Name Pass owners, verified 16+, D-063): { name? } (absent = its own name)
+	| "SetName" -- name your candidate (Name Pass owners, eligible players, D-063): { name? } (absent = its own name)
+	| "ReportName" -- report a custom name you were shown (D-063): { userId } (the setter's, as a string)
+	| "ReviewList" -- admins: ask for the reported names (D-063); answered with a "Review" message
+	| "ReviewKeep" -- admins: keep a reported name, dismissing its reports: { userId }
+	| "ReviewRemove" -- admins: remove a reported name and block it and names like it: { userId }
 	| "Claim" -- Select step 1: claim a candidate (D-048): { matchId, step, input = candidate id }
 	| "ClaimColor" -- Select, Color Pass owners: claim a color, first come first served (D-061): { matchId, step, color }
 	| "Submit" -- lock in this stage's input: { matchId, step, input }
@@ -45,6 +49,7 @@ export type Request = {
 	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue). ClaimColor: the color (required)
 	difficulty: string?, -- Practice: "Easy" | "Medium" | "Hard" | "Extreme"; absent or anything else = "Medium" (D-057)
 	name: string?, -- SetName: the custom name as typed; absent = back to the candidate's own name
+	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)
 }
 
 -- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while
@@ -63,6 +68,23 @@ export type LobbyStatus = {
 	profile: Profile.Summary?, -- the player's saved rating and record; absent until it has loaded
 	color: string?, -- the saved color pick; absent = auto (red or blue)
 	colorPass: ColorPass?, -- absent while the pass is not set up
+	review: { count: number }?, -- admins only (D-063): reported names waiting for review
+}
+
+-- One reported name in the admins' review panel (D-063).
+export type ReviewEntry = {
+	userId: string, -- the setter
+	name: string, -- the reported name
+	owner: string, -- the setter's username ("Player <id>" if unknown)
+	count: number, -- distinct reporters
+	first: number, -- unix time of the first report
+	last: number, -- unix time of the latest report
+}
+
+-- The review panel's list (message kind "Review"); ok false if it could not be read.
+export type ReviewBoard = {
+	ok: boolean,
+	entries: { ReviewEntry },
 }
 
 -- Rating change after a rated match (message kind "Rating").
@@ -74,12 +96,13 @@ export type RatingChange = {
 
 -- Server -> client messages.
 export type Message = {
-	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard",
+	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard" | "Review",
 	lobby: LobbyStatus?,
 	state: Session.StatePayload?,
 	notice: string?, -- e.g. "OpponentDisconnected"
 	rating: RatingChange?, -- Rating: sent once when a rated match ends
 	leaderboard: Leaderboard.Board?, -- Leaderboard: the top list and where this player stands
+	review: ReviewBoard?, -- Review: the reported names (admins only, D-063)
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

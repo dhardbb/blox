@@ -51,6 +51,11 @@ export type Profile = {
 	-- own the pass and are eligible, and filtered again (TextService) every time
 	-- a match uses it. Optional, like `color`: no version bump.
 	customName: string?,
+	-- Names this player reported (D-063): setter user id -> the name. They see
+	-- the candidate's own name instead, in every later match against that player.
+	-- At most NAME_HIDDEN_MAX, oldest dropped. Optional: no version bump.
+	hiddenNames: { [string]: string }?,
+	hiddenOrder: { string }?, -- the setter ids in hiddenNames, oldest first
 }
 
 -- What the lobby shows.
@@ -214,6 +219,24 @@ function Profile.migrate(raw: any, config: Config?): Profile
 	if raw.customName ~= nil then
 		out.customName = (CustomName.normalize(raw.customName, c))
 	end
+	if type(raw.hiddenNames) == "table" and type(raw.hiddenOrder) == "table" then
+		local names: { [string]: string } = {}
+		local order: { string } = {}
+		for _, id in raw.hiddenOrder do
+			local name = if type(id) == "string" then raw.hiddenNames[id] else nil
+			if type(name) == "string" and #name <= 64 and names[id] == nil then
+				names[id] = name
+				table.insert(order, id)
+			end
+		end
+		while #order > c.NAME_HIDDEN_MAX do
+			names[table.remove(order, 1) :: string] = nil
+		end
+		if #order > 0 then
+			out.hiddenNames = names
+			out.hiddenOrder = order
+		end
+	end
 	return out
 end
 
@@ -306,6 +329,32 @@ function Profile.withCustomName(profile: Profile, name: string?): Profile
 	local out = copy(profile)
 	out.customName = name
 	return out
+end
+
+-- The profile with `setterId`'s name `name` hidden from this player (they
+-- reported it, D-063); the oldest entry drops past NAME_HIDDEN_MAX.
+function Profile.withHiddenName(profile: Profile, setterId: string, name: string, config: Config?): Profile
+	local c = config or ConfigModule.defaults
+	local out = copy(profile)
+	local names = table.clone(profile.hiddenNames or {})
+	local order = table.clone(profile.hiddenOrder or {})
+	local at = table.find(order, setterId)
+	if at then
+		table.remove(order, at)
+	end
+	table.insert(order, setterId)
+	names[setterId] = name
+	while #order > c.NAME_HIDDEN_MAX do
+		names[table.remove(order, 1) :: string] = nil
+	end
+	out.hiddenNames = names
+	out.hiddenOrder = order
+	return out
+end
+
+-- True if this player reported `setterId`'s name `name`.
+function Profile.hides(profile: Profile?, setterId: string, name: string): boolean
+	return profile ~= nil and profile.hiddenNames ~= nil and profile.hiddenNames[setterId] == name
 end
 
 function Profile.summary(profile: Profile): Summary
