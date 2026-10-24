@@ -849,3 +849,16 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 7. **State card.** The six actions each start with their icon on a small dark circle; the poll is a small race bar with a tick in the middle. The event card shows "THIS WEEK" over "Windfall · …". The **Key** chip (magnifier) beside the lens chips opens "How to read the map".
 8. **Help (?).** The five tabs sit in one dark track (two rows on a phone), the open one raised with a white outline. "How to win" shows the race bar; "Actions" shows each icon on a round plate. At the end, under a thin line, **Leave match** is orange-outlined. **How to play** (Lobby): the step numbers are round, the election-night winners are tags filled blue / red.
 9. **No errors** from `Lobby`, `Leaderboard`, `Select`, `Draft`, `TopBar`, `StateCard`, `EventCard`, `Focus` or `Help` in the Output window. *Send back:* the Output log.
+
+## The week's results, move by move (unreleased, D-063)
+
+Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tally"`, `lune run tests/ui/snap.luau -- resolve` (shots `16b-resolve-step1`, `16c-resolve-mid`, `17-resolve-end`; 0 audit findings at all three sizes).
+
+1. **Play vs Bot**, plan week 1 with two or three rallies, lock in. **Expect:** "Both plans are in"; the header's two numbers stay where they were during planning (they no longer jump at once).
+2. **Watch the moves land.** **Expect:** each line ("Rally in Texas · Jobs") is followed at once by its state bumping, its color moving, a small "+3.1" (or "−2.0") tag on it, and, when the move changes who leads it, FLIP and a ring; the header's numbers count and the bar slides when a state changes hands. A caption reads "The map shows about what each move did. The real polls land last."
+3. **The last step.** **Expect:** the header line says "Polls settle"; the map and the header jump to the new polls (usually a few states move without a move of their own: that is momentum and poll noise); "What changed" lists the week's flips. When the next week opens, the header's numbers do not change again.
+4. **Skip** (both players, or against the bot). **Expect:** the reveal fast-forwards and ends on the same numbers as step 3.
+5. **Phone (390x844) and iPad.** **Expect:** while the moves land, the map and the header's numbers are on screen together; the panel scrolls under the map.
+6. **No errors** from `Reveal`, `RevealSteps`, `TopBar` or `Campaign` in the Output window.
+
+**Send back:** a phone and an iPad screenshot mid-reveal, whether each move's effect was easy to follow, whether the "Polls settle" step felt fair or confusing (how much it moved), and any Output errors.

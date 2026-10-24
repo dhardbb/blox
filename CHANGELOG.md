@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### The week's results tally up move by move (D-063)
+
+Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING.md`, "The week's results, move by move".
+
+- **Each move is followed by its effect.** In the end-of-week results, every shown move (yours and your opponent's, in the order shown) now moves the map's colors and leads and the header's projected votes and race bar right away, with its points on the state and FLIP where the lead changes.
+- **"Polls settle" is the last step.** It lands exactly on the real new polls: momentum, poll noise and anything the per-move estimates missed. "What changed" still lists the whole week's real flips and biggest moves.
+- The per-move numbers are estimates from the polls both players saw (the server never reveals true support); a line in the panel says so.
+- The header no longer jumps to the week's result when the reveal opens. Same reveal length; Skip still ends it early.
+
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 
 A new look (navy stage, white accent, orange losses, chunky buttons, a lit map, stamps for the big moments), a global leaderboard, Easy to Extreme bots, Leave match, How to play, and Color Pass colors claimed first come, first served. Needed from the humans: the Color Pass id (see 0.11.0).
