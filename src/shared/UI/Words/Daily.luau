@@ -15,6 +15,10 @@ Daily.EYEBROW = "DAILY RACE"
 Daily.PLAY = "Play today's race"
 Daily.PRACTICE = "Practice today's race"
 Daily.BOARD = "Today's board"
+-- A phone's one-row card (0.15.0): short labels beside the head.
+Daily.PLAY_SHORT = "Play"
+Daily.PRACTICE_SHORT = "Practice"
+Daily.BOARD_SHORT = "Top 50"
 Daily.SHEET = "Today's top 50"
 Daily.HOW =
 	"Ranked by your final vote margin over the Hard bot. Ties: fewer weeks behind in the polls, then who finished first. Only your first run each day counts."
@@ -34,6 +38,24 @@ end
 -- "Everyone plays as Dana Okafor today".
 function Daily.everyone(name: string): string
 	return `Everyone plays as {name} today`
+end
+
+-- "As Dana Okafor": who everyone plays, on a phone's one-row card.
+function Daily.as(name: string): string
+	return `As {name}`
+end
+
+-- Time until the next race without "left" (a phone's card): "5h 12m", "12m", "40s".
+function Daily.timeShort(seconds: number): string
+	local s = math.max(0, math.floor(seconds))
+	local h = s // 3600
+	local m = (s % 3600) // 60
+	if h > 0 then
+		return `{h}h {m}m`
+	elseif m > 0 then
+		return `{m}m`
+	end
+	return `{s}s`
 end
 
 -- Time until the next race: "5h 12m left", "12m left", "40s left".

@@ -17,7 +17,8 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local check, need, tap, textOf = Rig.check, Rig.need, Rig.tap, Rig.textOf
 local C = Config.defaults
-local SIZES = { Rig.PHONE, { x = 1024, y = 768 }, { x = 1280, y = 720 } }
+local IPAD = { x = 1024, y = 768 }
+local SIZES = { Rig.PHONE, IPAD, { x = 1280, y = 720 } }
 
 local function strictAudit(world: FakeRoblox.World, peer: FakeRoblox.Peer, screen: string): number
 	local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
@@ -42,7 +43,7 @@ end
 
 describe("Lobby: the Daily Race card (D-080)", function()
 	it("shows today's candidate for everyone, the time left and the streak", function()
-		local world, peer = Rig.fixture("Lobby", Rig.PHONE)
+		local world, peer = Rig.fixture("Lobby", IPAD)
 		setDaily(world, peer, Fixtures.daily({ now = world.clock }))
 		local name = Candidates.profile(C, today().candidate).name
 		expect(textOf(peer, "Lobby", "DailyWho")):toBe(`Everyone plays as {name} today`)
@@ -60,11 +61,28 @@ describe("Lobby: the Daily Race card (D-080)", function()
 	end)
 
 	it("after today's run: the margin, and Play becomes practice", function()
-		local world, peer = Rig.fixture("Lobby", Rig.PHONE)
+		local world, peer = Rig.fixture("Lobby", IPAD)
 		setDaily(world, peer, Fixtures.daily({ now = world.clock, played = true, margin = 62, you = 7 }))
 		local info = textOf(peer, "Lobby", "DailyInfo")
 		check(string.find(info, "Won by 62 today", 1, true) ~= nil, `no margin in "{info}"`)
 		expect(textOf(peer, "Lobby", "DailyPlay")):toBe("Practice today's race")
+		Rig.noErrors(world)
+	end)
+
+	it("is one row on a phone: As the candidate, the countdown and streak, Play and Top 50", function()
+		local world, peer = Rig.fixture("Lobby", Rig.PHONE)
+		setDaily(world, peer, Fixtures.daily({ now = world.clock }))
+		local name = Candidates.profile(C, today().candidate).name
+		expect(textOf(peer, "Lobby", "DailyTitle")):toBe("Daily Race")
+		expect(textOf(peer, "Lobby", "DailyWho")):toBe(`As {name}`)
+		local info = textOf(peer, "Lobby", "DailyInfo")
+		check(string.find(info, "5h 1", 1, true) ~= nil, `no countdown in "{info}"`)
+		check(string.find(info, "3-day streak", 1, true) ~= nil, `no streak in "{info}"`)
+		expect(textOf(peer, "Lobby", "DailyPlay")):toBe("Play")
+		expect(textOf(peer, "Lobby", "DailyBoard")):toBe("Top 50")
+		setDaily(world, peer, Fixtures.daily({ now = world.clock, played = true, margin = 62, you = 7 }))
+		expect(textOf(peer, "Lobby", "DailyPlay")):toBe("Practice")
+		expect(strictAudit(world, peer, "Lobby")):toBe(0)
 		Rig.noErrors(world)
 	end)
 

@@ -31,15 +31,23 @@
 -- (SoundToggle, MotionToggle, SettingsTip; TimersToggle for admins, D-080), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet, DailyCard, DailySheet.
 --
--- The Daily Race (UI/DailyRace, D-080) is one card in the column under How to
+-- The Daily Race (UI/DailyRace, D-082) is one card in the column under How to
 -- play: today's candidate, the countdown, the streak, Play and Today's board.
--- It takes the room the phone's leaderboard rows had, so a phone shows the
--- top 3 only when it is at least PHONE_BOARD_H + DailyRace's card tall.
 --
--- Matchmaking (D-080, UI/LobbyMatch): the Online count under the record, a
--- bot game while waiting in the queue (WaitBot), "Invite a friend" in the
--- friend sheet and on the code screen (Invite, InviteHost), and the match on
--- its way (state "Found": the Starting section with FoundHint, FoundCancel).
+-- Matchmaking (D-083, UI/LobbyMatch): the Online count beside the record (one
+-- "Stats" row), a bot game while waiting in the queue (WaitBot), "Invite a
+-- friend" in the friend sheet and on the code screen (Invite, InviteHost), and
+-- the match on its way (state "Found": the Starting section with FoundHint,
+-- FoundCancel).
+--
+-- A phone (0.15.0; any screen too narrow for the card beside the column): the
+-- column starts below the corner toggles (CORNER_CLEAR), so the eyebrow and the
+-- wordmark never sit under them; the Daily Race card is one row
+-- (DailyRace.setCompact: "Play", "Top 50"); How to play shares a row with the
+-- Color button when the Color Pass is set up ("Extras"); and the leaderboard
+-- shows the top 3 when the screen is at least PHONE_BOARD_H tall (a 390x844
+-- phone), more for an admin's Review names button, else "You" and See all.
+-- iPad and desktop keep the column, the full Daily card and the card beside.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -70,8 +78,9 @@ local BOARD_W = 300 -- px, the leaderboard card beside the column
 local BOARD_GAP = Kit.space.lg -- px between the column and the card
 local SIDE_MIN_W = MAX_WIDTH + BOARD_W + BOARD_GAP + 2 * Kit.space.xl -- px of width for the card beside the column
 local TALL_BOARD_H = 560 -- px of height for the top 10 beside the column (else the top 3)
-local PHONE_BOARD_H = 740 -- px of height for the top 3 in a phone's column (else only "You" and See all)
-local DAILY_CARD_H = 130 -- px the Daily Race card takes in the column (D-080): added to PHONE_BOARD_H
+local PHONE_BOARD_H = 830 -- px of screen height for the top 3 in a phone's column (else only "You" and See all)
+local CORNER_CLEAR = Kit.MIN_TOUCH + Kit.space.sm -- px a phone's column starts below the corner toggles
+local REVIEW_ROOM = Kit.MIN_TOUCH + Kit.space.sm -- px an admin's Review names button takes from the board
 local STAGE_GLOW = 1.1 -- the stage glow's size, a share of the screen (an ellipse)
 local STAGE_FADE = 0.75 -- its transparency: a lit table, not a spotlight
 local CODE_PLATE_H = Kit.size.hero + 2 * Kit.space.lg -- px, the private match code's plate
@@ -114,15 +123,27 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- The lockup (Kit.wordmark, D-064): "LANDSLIDE" in Fredoka at up to 72 with
 	-- its glow and lip, the "RACE TO 270" ribbon under it.
 	local title = Kit.wordmark(nil, { Name = "Title", LayoutOrder = nextOrder(), Parent = content })
-	-- Always there (empty until the profile arrives), so nothing jumps.
-	local record = Kit.caption("", {
-		Name = "Record",
+	-- The record and the online count on one line (D-083). Always there (the
+	-- record empty until the profile arrives), so nothing jumps.
+	local stats = Kit.box({
+		Name = "Stats",
 		LayoutOrder = nextOrder(),
-		AutomaticSize = Enum.AutomaticSize.None,
-		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, Kit.size.caption + Kit.space.xs),
 		Parent = content,
 	})
-	local onlineOrder = nextOrder() -- the Online line (UI/LobbyMatch, D-080)
+	local statsList = Kit.list("Horizontal", Kit.space.md)
+	statsList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	statsList.VerticalAlignment = Enum.VerticalAlignment.Center
+	statsList.Parent = stats
+	local record = Kit.caption("", {
+		Name = "Record",
+		LayoutOrder = 1,
+		Size = UDim2.fromScale(0, 1),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = stats,
+	})
+	local onlineOrder = nextOrder() -- the Online line's slot (UI/LobbyMatch); it moves into Stats
 	local fullBanner = Kit.text("Server full. Try again in a minute.", {
 		Name = "ServerFull",
 		LayoutOrder = nextOrder(),
@@ -133,8 +154,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Visible = false,
 		Parent = content,
 	})
-	-- Breathing room between the hero block and the buttons.
-	Kit.box({
+	-- Breathing room between the hero block and the buttons (not on a phone).
+	local spacer = Kit.box({
 		Name = "Spacer",
 		LayoutOrder = nextOrder(),
 		Size = UDim2.new(1, 0, 0, Kit.space.sm),
@@ -211,6 +232,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = idle,
 	})
 	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 6, Parent = idle })
+	-- A phone: How to play and the Color button side by side (relayout).
+	local extras = Kit.box({
+		Name = "Extras",
+		LayoutOrder = 4,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Visible = false,
+		Parent = idle,
+	})
+	Kit.list("Horizontal", Kit.space.sm).Parent = extras
 	-- Admins only (D-069): the reported names to review.
 	local review = NameReview.new(parent, ctx, { LayoutOrder = 7, Parent = idle })
 	-- Sound and Reduce motion: the top-right corner (D-075), on every Lobby state;
@@ -363,48 +393,40 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			friend:close()
 		end,
 	})
-
-	-- The eyebrow under the corner settings (a phone with a tall column, e.g.
-	-- an admin's three toggles, D-080): it steps aside, and stays aside at
-	-- this screen size so the column does not jump back and forth.
-	local eyebrowClear = true
-	local eyebrowSize: Vector2? = nil
-	local function underCorner(): boolean
-		local toggles = settings:FindFirstChild("Toggles") :: GuiObject?
-		-- Not laid out yet (everything still at 0): no verdict.
-		if
-			toggles == nil
-			or not eyebrow.Visible
-			or toggles.AbsolutePosition.X <= 0
-			or eyebrow.AbsoluteSize.X <= 0
-		then
-			return false
-		end
-		local text = tostring(eyebrow.Text)
-		local bounds = (eyebrow :: any).TextBounds
-		local textW = if bounds ~= nil and bounds.X > 0
-			then bounds.X
-			else (utf8.len(text) or #text) * eyebrow.TextSize * 0.62
-		local at, box = eyebrow.AbsolutePosition, eyebrow.AbsoluteSize
-		local right = at.X + box.X / 2 + textW / 2
-		local top, bottom = toggles.AbsolutePosition.Y, toggles.AbsolutePosition.Y + toggles.AbsoluteSize.Y
-		return right > toggles.AbsolutePosition.X and at.Y < bottom and at.Y + box.Y > top
-	end
+	matchParts.online.LayoutOrder = 2
+	matchParts.online.Size = UDim2.fromScale(0, 1)
+	matchParts.online.AutomaticSize = Enum.AutomaticSize.X
+	matchParts.online.Parent = stats
 
 	local cardShadow: ImageLabel? = nil -- the card's shadow while it stands beside the column
+	local padding = content:FindFirstChildOfClass("UIPadding") :: UIPadding
+	local colorHolder = Kit.outer(colorPick.button)
+	local howToHolder = Kit.outer(howToPlay)
 	local function relayout()
 		local size = parent.AbsoluteSize
-		if size ~= eyebrowSize then
-			eyebrowSize = size
-			eyebrowClear = true
+		eyebrow.Visible = size.Y >= SHORT_SCREEN
+		local phone = size.X < SIDE_MIN_W
+		-- A phone's column starts below the corner toggles (the eyebrow and the
+		-- wordmark never sit under them); beside the card it is clear of them.
+		padding.PaddingTop = UDim.new(0, if phone then CORNER_CLEAR else 0)
+		spacer.Visible = not phone
+		daily.setCompact(phone)
+		-- How to play beside the Color button on a phone, when it shows.
+		local paired = phone and colorPick.button.Visible
+		extras.Visible = paired
+		local holder = if paired then extras else idle
+		if howToHolder.Parent ~= holder then
+			howToHolder.Parent = holder
+			colorHolder.Parent = holder
 		end
-		if eyebrowClear and underCorner() then
-			eyebrowClear = false
-		end
-		eyebrow.Visible = size.Y >= SHORT_SCREEN and eyebrowClear
+		local half = UDim2.new(0.5, -Kit.space.sm / 2, 0, Kit.MIN_TOUCH)
+		howToHolder.Size = if paired then half else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+		colorHolder.Size = if paired then half else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+		howToHolder.LayoutOrder = if paired then 1 else 4
+		colorHolder.LayoutOrder = if paired then 2 else 6
 		-- The leaderboard: beside the column when there is room, else at its end.
 		local card = board.card
-		if size.X >= SIDE_MIN_W then
+		if not phone then
 			local shift = (BOARD_W + BOARD_GAP) / 2
 			content.Position = UDim2.new(0.5, -shift, 0, 0)
 			card.Parent = parent
@@ -425,7 +447,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			card.AnchorPoint = Vector2.new(0, 0)
 			card.Position = UDim2.new()
 			card.Size = UDim2.fromScale(1, 0)
-			board.setRows(if size.Y >= PHONE_BOARD_H + DAILY_CARD_H then Leaderboard.COMPACT else 0)
+			local needed = PHONE_BOARD_H + (if review.button.Visible then REVIEW_ROOM else 0)
+			board.setRows(if size.Y >= needed then Leaderboard.COMPACT else 0)
 		end
 	end
 
@@ -456,6 +479,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			howTo.sheet:close()
 			daily.sheet:close()
 		end
+		relayout() -- the Color and Review buttons may have just shown or hidden
 		-- Only the idle Lobby has something to press first (UI audit rule "primary").
 		parent:SetAttribute("PrimaryOptional", status ~= "Idle")
 		if status == "Queued" then

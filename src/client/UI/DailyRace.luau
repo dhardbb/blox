@@ -16,6 +16,10 @@
 --                 DailyRows (DailyRow_<rank>)
 --   daily.update(info?)  from the screen's update (state.daily)
 --   daily.tick(now)      the countdown (server time)
+--   daily.setCompact(on) a phone's Lobby (0.15.0): one row, the buttons beside
+--                        the head ("Play" / "Practice", "Top 50"), the title
+--                        without its date, "As Dana Okafor", "5h 11m · 3-day
+--                        streak"; the same names, so taps and specs still work
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -35,6 +39,9 @@ local LINE_H = Kit.size.caption + 4 -- px, one caption line beside it
 local HEAD_H = Kit.size.body + 4 + 2 * LINE_H -- px, the title and two lines beside the portrait
 local SHEET_HEIGHT = 0.8 -- share of the screen height
 local PLAY_SHARE = 0.6 -- the Play button's share of the button row
+local COMPACT_FACE = 40 -- px, the portrait on a phone's one-row card
+local COMPACT_PLAY_W = 84 -- px, "Play" / "Practice" beside the head
+local COMPACT_BOARD_W = 68 -- px, "Top 50" beside it
 
 export type Daily = {
 	card: Frame,
@@ -42,6 +49,7 @@ export type Daily = {
 	update: (info: any?) -> (),
 	tick: (now: number) -> (),
 	open: () -> (),
+	setCompact: (on: boolean) -> (),
 }
 
 -- The line for a board with no rows to show, or nil when it has some.
@@ -133,7 +141,7 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		ctx.net.send("Daily")
 		sheet:open()
 	end
-	Kit.button(Words.BOARD, open, {
+	local boardButton = Kit.button(Words.BOARD, open, {
 		variant = "ghost",
 		Name = "DailyBoard",
 		LayoutOrder = 2,
@@ -162,12 +170,16 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 
 	local shown: any? = nil
 	local face: string? = nil -- the candidate whose portrait is drawn
+	local compact = false -- a phone's one-row card (setCompact)
 	local asked = -1 -- the day the client last asked about after it ended
 
 	local function infoText(now: number): string
 		local info = shown
 		if info == nil then
 			return ""
+		end
+		if compact then
+			return `{Words.timeShort(info.endsAt - now)} · {Words.streak(info.streak)}`
 		end
 		return `{Words.timeLeft(info.endsAt - now)} · {Words.streak(info.streak)} · {Words.today(
 			info.played,
@@ -185,15 +197,21 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 			local name = if Candidates.exists(info.candidate)
 				then Candidates.profile(ctx.config, info.candidate).name
 				else info.candidate
-			title.Text = `{Words.TITLE} · {Words.dateLabel(info.day)}`
-			who.Text = Words.everyone(name)
-			play.Text = if info.played then Words.PRACTICE else Words.PLAY
-			if face ~= info.candidate then
-				face = info.candidate
+			title.Text = if compact then Words.TITLE else `{Words.TITLE} · {Words.dateLabel(info.day)}`
+			who.Text = if compact then Words.as(name) else Words.everyone(name)
+			if compact then
+				play.Text = if info.played then Words.PRACTICE_SHORT else Words.PLAY_SHORT
+			else
+				play.Text = if info.played then Words.PRACTICE else Words.PLAY
+			end
+			local facePx = if compact then COMPACT_FACE else FACE
+			local faceKey = `{info.candidate}/{facePx}`
+			if face ~= faceKey then
+				face = faceKey
 				for _, child in faceSlot:GetChildren() do
 					child:Destroy()
 				end
-				Kit.portrait(info.candidate, name, FACE).Parent = faceSlot
+				Kit.portrait(info.candidate, name, facePx).Parent = faceSlot
 			end
 			infoLine.Text = infoText(ctx.now())
 		end
@@ -241,6 +259,40 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		end
 	end
 
+	-- A phone's Lobby: one row (the buttons move into the head, beside the text).
+	local function setCompact(on: boolean)
+		if on == compact then
+			return
+		end
+		compact = on
+		local facePx = if on then COMPACT_FACE else FACE
+		faceSlot.Size = UDim2.fromOffset(facePx, facePx)
+		local x = facePx + Kit.space.sm
+		local right = if on then COMPACT_PLAY_W + COMPACT_BOARD_W + 2 * Kit.space.sm else 0
+		for _, label in { title, who, infoLine } do
+			label.Position = UDim2.fromOffset(x, label.Position.Y.Offset)
+			label.Size = UDim2.new(1, -(x + right), 0, label.Size.Y.Offset)
+		end
+		if on then
+			buttons.Parent = head
+			buttons.AnchorPoint = Vector2.new(1, 0.5)
+			buttons.Position = UDim2.fromScale(1, 0.5)
+			buttons.Size = UDim2.fromOffset(COMPACT_PLAY_W + Kit.space.sm + COMPACT_BOARD_W, Kit.MIN_TOUCH)
+			Kit.outer(play).Size = UDim2.new(0, COMPACT_PLAY_W, 1, 0)
+			boardButton.Size = UDim2.new(0, COMPACT_BOARD_W, 1, 0)
+			boardButton.Text = Words.BOARD_SHORT
+		else
+			buttons.Parent = card
+			buttons.AnchorPoint = Vector2.new(0, 0)
+			buttons.Position = UDim2.new()
+			buttons.Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+			Kit.outer(play).Size = UDim2.new(PLAY_SHARE, -Kit.space.sm / 2, 1, 0)
+			boardButton.Size = UDim2.new(1 - PLAY_SHARE, -Kit.space.sm / 2, 1, 0)
+			boardButton.Text = Words.BOARD
+		end
+		render(shown)
+	end
+
 	render(nil)
 	ctx.net.send("Daily")
 
@@ -250,6 +302,7 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		update = update,
 		tick = tick,
 		open = open,
+		setCompact = setCompact,
 	}
 end
 
