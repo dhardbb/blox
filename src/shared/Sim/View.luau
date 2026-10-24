@@ -143,8 +143,16 @@ end
 local copy = State.deepCopy
 
 -- The view for player `you`. `names`: custom candidate names this viewer may see
--- (D-069), by player index; nil = none.
-function View.build(config: Config, match: MatchState, you: number, names: { [number]: string }?): View
+-- (D-069), by player index; nil = none. `yourMove`: the debate move `you` locked
+-- in this round, which the server holds until the round resolves (D-072); only
+-- ever this player's own.
+function View.build(
+	config: Config,
+	match: MatchState,
+	you: number,
+	names: { [number]: string }?,
+	yourMove: State.DebateInput?
+): View
 	assert(match.players[you], `unknown player {you}`)
 	local selected = match.phase ~= "Select"
 	local mapShown = selected -- leans are revealed with the map, after Select
@@ -253,7 +261,7 @@ function View.build(config: Config, match: MatchState, you: number, names: { [nu
 			zingers = table.clone(live.zingers),
 			rounds = copy(live.rounds),
 			board = Debate.board(config, match),
-			yourMove = copy(me.debateMove),
+			yourMove = copy(yourMove or me.debateMove),
 		}
 	end
 
