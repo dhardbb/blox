@@ -36,6 +36,14 @@ export type Moment =
 	| "LandslideLoss" -- the result after the rival's landslide
 	| "PlanTutorial" -- the week 3 plan in the tutorial: no deadline (D-075)
 	| "PlanEasy" -- the week 3 plan against the Easy bot: the plan timer doubled (D-075)
+	-- The short tutorial's key steps (D-080), against the Easy bot, no choice timers:
+	| "TutorialSelect" -- Select
+	| "TutorialPlan" -- week 1's plan
+	| "TutorialStance" -- week 2's stance
+	| "TutorialDebate" -- round 1 of week 3's debate
+	| "TutorialLast" -- the last week's plan (week 4)
+	| "TutorialElection" -- election night
+	| "TutorialOver" -- the result and "You're ready!"
 
 local Fixtures = {}
 
@@ -64,12 +72,45 @@ Fixtures.MOMENTS = table.freeze({
 	"LandslideLoss",
 	"PlanTutorial",
 	"PlanEasy",
+	"TutorialSelect",
+	"TutorialPlan",
+	"TutorialStance",
+	"TutorialDebate",
+	"TutorialLast",
+	"TutorialElection",
+	"TutorialOver",
 } :: { Moment })
+
+-- Moments played as the tutorial (D-075, D-080): its config, no choice timers.
+local TUTORIAL: { [string]: boolean } = {
+	PlanTutorial = true,
+	TutorialSelect = true,
+	TutorialPlan = true,
+	TutorialStance = true,
+	TutorialDebate = true,
+	TutorialLast = true,
+	TutorialElection = true,
+	TutorialOver = true,
+}
 
 local function reached(session: Session.Session, moment: Moment): boolean
 	local phase = session.match.phase
 	local stage = session.stage
-	if moment == "Select" then
+	if moment == "TutorialSelect" then
+		return phase == "Select"
+	elseif moment == "TutorialPlan" or moment == "TutorialLast" then
+		local week = if moment == "TutorialPlan" then 1 else session.config.WEEKS
+		return phase == "Plan" and session.match.week == week and stage == "Input"
+	elseif moment == "TutorialStance" then
+		return phase == "Decision" and stage == "Input"
+	elseif moment == "TutorialDebate" then
+		local live = session.match.debate
+		return phase == "Debate" and stage == "Input" and live ~= nil and live.round == 1
+	elseif moment == "TutorialElection" then
+		return phase == "Election" and stage == "Show"
+	elseif moment == "TutorialOver" then
+		return stage == "Over"
+	elseif moment == "Select" then
 		return phase == "Select"
 	elseif moment == "MapReveal" then
 		return phase == "MapReveal"
@@ -114,13 +155,11 @@ end
 local function play(config: Config, moment: Moment, s: number, candidate: string?): Session.StatePayload?
 	-- The tutorial and the Easy bot (D-075): a practice bot with a level, the
 	-- tutorial with no choice timers. Every other moment plays the standard bot.
-	local difficulty: Bot.Difficulty? = if moment == "PlanTutorial" or moment == "PlanEasy"
-		then "Easy"
-		else nil
+	local difficulty: Bot.Difficulty? = if TUTORIAL[moment] or moment == "PlanEasy" then "Easy" else nil
 	local session = Session.new(config, "fixture", s, {
 		{ id = "you", kind = "Human" },
 		{ id = "bot", kind = "Bot", candidate = "calloway", difficulty = difficulty },
-	}, 0, { tutorial = moment == "PlanTutorial" })
+	}, 0, { tutorial = TUTORIAL[moment] == true })
 	local rng = Rng.new(s * 13 + 1)
 	local t = 0
 	for _ = 1, 500 do
@@ -131,8 +170,9 @@ local function play(config: Config, moment: Moment, s: number, candidate: string
 			return nil
 		end
 		if session.stage == "Input" and not session.seats[1].locked then
-			local view = View.build(config, session.match, 1)
-			local input = Bot.act(config, view, rng, candidate or "okafor")
+			-- The session's config: a tutorial runs on its short schedule (D-080).
+			local view = View.build(session.config, session.match, 1)
+			local input = Bot.act(session.config, view, rng, candidate or "okafor")
 			local ok, reason = Session.submit(session, 1, session.step, input, t)
 			assert(ok, `fixture submit rejected: {reason}`)
 		else

@@ -1047,7 +1047,7 @@ function Explain.help(config: Config, view: View?): { Section }
 		table.insert(debateWeeks, tostring(week))
 	end
 	section("debates", "Debates", {
-		`Debates open weeks {table.concat(debateWeeks, " and ")}: {c.DEBATE_TOPICS} live rounds, one per topic, topics shown weeks in advance. Each round both pick Defend, Attack or Pivot at once ({num(
+		`Debates open week{if #debateWeeks == 1 then "" else "s"} {table.concat(debateWeeks, " and ")}: {c.DEBATE_TOPICS} live rounds, one per topic, topics shown weeks in advance. Each round both pick Defend, Attack or Pivot at once ({num(
 			c.TIMER_DEBATE_ROUND
 		)} s).`,
 		`Strength: Defend {num(c.DEBATE_DEFEND_BASE)}, +{num(c.DEBATE_OWN_ISSUE)} if the topic is your issue, +{num(
@@ -1075,7 +1075,9 @@ function Explain.help(config: Config, view: View?): { Section }
 
 	local choice = Explain.choiceLines(c)
 	section("events", "Events", {
-		`From week {c.EVENT_FIRST_WEEK} to {c.EVENT_LAST_WEEK}, each week has one public event.`,
+		if c.EVENT_CHOICE_ONLY and c.EVENT_FIRST_WEEK == c.EVENT_LAST_WEEK
+			then `The tutorial has one event, a Choice, in week {c.EVENT_FIRST_WEEK}; a real match has one almost every week.`
+			else `From week {c.EVENT_FIRST_WEEK} to {c.EVENT_LAST_WEEK}, each week has one public event.`,
 		`Spotlight: rallies and ads on its issue {times(c.EVENT_SPOTLIGHT_MULT)}. Regional: rallies in its region {times(
 			c.EVENT_REGIONAL_MULT
 		)}. Windfall: fundraisers {times(c.EVENT_WINDFALL_MULT)} in states where you trail in the public poll. An event adds at most {num(

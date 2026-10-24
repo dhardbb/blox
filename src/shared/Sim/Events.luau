@@ -3,7 +3,8 @@
 --
 -- Twenty-four events as data. Match.new shuffles them with the "events" fork of
 -- the match seed and deals one to each week from EVENT_FIRST_WEEK to
--- EVENT_LAST_WEEK, so no event repeats and weeks 1 and 12 have none. Only the
+-- EVENT_LAST_WEEK, so no event repeats and weeks 1 and 12 have none (the
+-- tutorial deals one Choice event into its week, EVENT_CHOICE_ONLY, D-080). Only the
 -- current week's event is public (View shows it during that week's Debate and
 -- Plan); the rest of the deck stays on the server.
 --
@@ -375,8 +376,11 @@ function Events.draw(config: Config, rng: Rng.Rng): { [number]: string }
 		return dealt
 	end
 	local ids: { string } = {}
-	for k, event in Events.deck do
-		ids[k] = event.id
+	for _, event in Events.deck do
+		-- The tutorial deals Choice events only (EVENT_CHOICE_ONLY, D-080).
+		if not config.EVENT_CHOICE_ONLY or event.kind == "Choice" then
+			table.insert(ids, event.id)
+		end
 	end
 	Rng.shuffle(Rng.fork(rng, "events"), ids)
 	local k = 0

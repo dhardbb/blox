@@ -36,6 +36,9 @@
 -- them. Graph (ResultsParts/GraphTab): both players' projected votes week by
 -- week and the real result, with the 270 line and the debate and stance weeks.
 -- Without an election (a forfeit) there are no tabs: Summary alone.
+-- After the tutorial (D-080) a card TutorialReady ("You're ready!", ReadyTitle,
+-- ReadyText) follows the Reason, and the primary button reads "Play a real
+-- match": it queues for a match against a person.
 -- Four text sizes: hero, heading, body, caption.
 --
 -- The moment (docs/UI-STYLE.md §2.7, D-053), once per match: the banner stamp
@@ -49,7 +52,9 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Landslide = require(ReplicatedStorage.Shared.UI.Landslide)
+local LobbyWords = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
@@ -184,11 +189,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 
 	local againBot = false
+	local afterTutorial = false -- the tutorial just ended: its primary is a real match (D-080)
 	local bar = ActionBar.new(page.footer :: Frame, {
 		primary = "Play again",
 		onPrimary = function()
 			ctx.store.dismissResult()
-			if againBot then
+			if againBot and not afterTutorial then
 				ctx.net.send("Practice", { difficulty = BotLevel.get() }) -- the level picked in the Lobby (D-059)
 			else
 				ctx.net.send("Queue")
@@ -511,6 +517,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Font = Kit.font.medium,
 			TextXAlignment = Enum.TextXAlignment.Center,
 		})
+		-- The tutorial's end (D-080): win or lose, the player is ready for a real match.
+		if current.tutorial then
+			local ready = Kit.card({ Name = "TutorialReady", LayoutOrder = nextOrder(), Parent = column })
+			Kit.heading(LobbyWords.READY_TITLE, { Name = "ReadyTitle", LayoutOrder = 1, Parent = ready })
+			Kit.text(LobbyWords.readyText(ConfigModule.defaults), {
+				Name = "ReadyText",
+				LayoutOrder = 2,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Parent = ready,
+			})
+		end
 		-- The rating line's room is always there, so the layout never shifts when
 		-- the change arrives (rated matches only).
 		local slot = Kit.box({
@@ -608,7 +626,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		local _, opponent = Data.opponent(current)
 		againBot = opponent ~= nil and opponent.kind == "Bot"
-		bar:setPrimary(if againBot then "Play vs Bot again" else "Play again", true)
+		afterTutorial = current.tutorial == true
+		bar:setPrimary(
+			if afterTutorial
+				then LobbyWords.READY_PLAY
+				elseif againBot then "Play vs Bot again"
+				else "Play again",
+			true
+		)
 
 		-- The tabs: a new match opens on Summary; a later payload of the same
 		-- match keeps the tab the player is on.

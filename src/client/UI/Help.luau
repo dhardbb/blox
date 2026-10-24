@@ -486,6 +486,14 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 
 	-- The numbers behind each tab, from Explain (refilled at every open).
 	local function fillNumbers()
+		-- Each tab's intro follows the match's config too: the tutorial's
+		-- election comes after its week 4, not week 12 (D-080).
+		for _, tab in Words.help(ctx.config) do
+			local intro = pages[tab.id] and pages[tab.id]:FindFirstChild(`HelpIntro_{tab.id}`)
+			if intro and intro:IsA("TextLabel") then
+				intro.Text = tab.text
+			end
+		end
 		local payload = ctx.store.get().payload
 		local view = if payload then payload.view else nil
 		local byId: { [string]: Explain.Section } = {}

@@ -60,7 +60,7 @@ describe("e2e: the tutorial (D-075)", function()
 		Support.fire(rig, p1, { op = "Practice", difficulty = "Hard" })
 		Support.run(rig, 1)
 		expect(serverSaid(rig, "match m1 started (Practice)")):toBe(1)
-		expect(serverSaid(rig, "bot Hard, tutorial")):toBe(1) -- the first one keeps the level picked
+		expect(serverSaid(rig, "bot Easy, tutorial")):toBe(1) -- always the Easy bot (D-080)
 		local payload = state(rig, p1).payload
 		expect(payload.stage):toBe("Input")
 		expect(payload.deadline):toBe(nil)
@@ -106,7 +106,7 @@ describe("e2e: the tutorial (D-075)", function()
 		Support.fire(rig, p1, { op = "Practice", difficulty = "Extreme", tutorial = true })
 		Support.run(rig, 1)
 		expect(serverSaid(rig, "match m2 started (Practice)")):toBe(1)
-		expect(serverSaid(rig, "bot Easy, tutorial")):toBe(1)
+		expect(serverSaid(rig, "bot Easy, tutorial")):toBe(2) -- m1 and m2: every tutorial is Easy (D-080)
 		local payload = state(rig, p1).payload
 		expect(payload.deadline):toBe(nil)
 		expect(payload.tutorial):toBe(true)

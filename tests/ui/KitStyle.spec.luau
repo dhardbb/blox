@@ -256,6 +256,10 @@ describe("CoachTip", function()
 		for id, text in CoachTip.TIPS do
 			check(c.Kit.words(text) <= 12, `tip {id} has {c.Kit.words(text)} words`)
 		end
+		-- The short tutorial's copy too (D-080).
+		for id, text in CoachTip.TUTORIAL do
+			check(c.Kit.words(text) <= 12, `tutorial tip {id} has {c.Kit.words(text)} words`)
+		end
 	end)
 end)
 

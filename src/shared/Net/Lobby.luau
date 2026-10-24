@@ -140,7 +140,8 @@ end
 
 -- Starts a practice match against the bot at `difficulty` (absent or unknown:
 -- Medium, D-057). With `tutorial` it is the tutorial (D-075): the first one
--- keeps the level the player picked; a replay always plays the Easy bot.
+-- and a replay both play the Easy bot (D-080: the short tutorial is tuned
+-- against it; D-075 kept the level picked for the first one).
 function Lobby.practice(
 	lobby: Lobby,
 	id: string,
@@ -152,7 +153,7 @@ function Lobby.practice(
 		return nil, reason
 	end
 	start(lobby, { id })
-	local level: Bot.Difficulty = if tutorial == "Replay" then "Easy" else Bot.difficulty(difficulty)
+	local level: Bot.Difficulty = if tutorial ~= nil then "Easy" else Bot.difficulty(difficulty)
 	return {
 		kind = "Practice",
 		players = { id },

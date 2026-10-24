@@ -745,6 +745,7 @@ describe("Campaign screen", function()
 
 	it("follows a whole autoplayed practice match", function()
 		local rig = Support.new(process.cwd, 5)
+		Support.returning(rig) -- a timed 12-week match, not the short tutorial (D-080)
 		local peer = Support.join(rig, "Player1")
 		Support.press(rig, peer, "Practice")
 		Support.run(rig, 1)

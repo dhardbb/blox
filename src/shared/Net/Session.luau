@@ -21,7 +21,9 @@
 -- tutorial (Options.tutorial) has no choice timer at all: its Input stages wait
 -- for the player. Inside the session that deadline is math.huge (every
 -- comparison and min still works); on the wire it is nil (StatePayload.deadline),
--- never a large number. Show and Reveal stages are always timed.
+-- never a large number. Show and Reveal stages are always timed. The tutorial
+-- is also short (D-080): the session plays it on Config.tutorial's schedule
+-- (4 weeks, one stance, one debate), and `session.config` is that config.
 
 local Bot = require("../Sim/Bot")
 local Candidates = require("../Sim/Candidates")
@@ -675,6 +677,11 @@ function Session.new(
 	assert(#specs >= 2, "a session needs two seats")
 	if options and options.events == false then
 		config = ConfigModule.with(config, { EVENTS_ENABLED = false })
+	end
+	if options and options.tutorial == true then
+		-- The short tutorial (D-080): 4 weeks, one stance, one debate. The whole
+		-- session (the match, the View, the bot) runs on this config.
+		config = ConfigModule.tutorial(config)
 	end
 	local ids = {}
 	local colorPass: { [string]: Match.ColorPass } = {}

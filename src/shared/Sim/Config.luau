@@ -148,6 +148,7 @@ local Config = {
 	EVENTS_ENABLED = true, -- draw a weekly event deck (private lobbies may turn it off)
 	EVENT_FIRST_WEEK = 2, -- first week with an event (none in week 1)
 	EVENT_LAST_WEEK = 11, -- last week with an event (none in week 12)
+	EVENT_CHOICE_ONLY = false, -- deal only Choice events into those weeks (the tutorial's one stance week, D-080)
 	EVENT_CAP = 2, -- most an event adds for one player in one state per week (support points; $ for Windfall); Choice payoffs are clamped to +/- this
 	EVENT_SPOTLIGHT_MULT = 1.3, -- rallies and positive media on the spotlight issue, every state
 	EVENT_REGIONAL_MULT = 1.5, -- rallies in the event's region
@@ -196,6 +197,15 @@ local Config = {
 	-- The tutorial (a player's first bot match, or a replay) has no choice timer at all.
 	BOT_TIME_MULT_EASY = 2, -- choice timers against an Easy bot (the designers' number)
 	BOT_TIME_MULT_MEDIUM = 1.5, -- choice timers against a Medium bot (the designers' number)
+
+	-- The tutorial (D-075, D-080): a player's first bot match, or a replay from How
+	-- to play. The same rules on a short schedule: Config.tutorial(config) puts
+	-- each of these over the key it names; a normal match never reads them.
+	TUTORIAL_WEEKS = 4, -- campaign weeks (WEEKS): one week each to learn the plan, a stance, a debate and the last push
+	TUTORIAL_CHOICE_WEEK = 2, -- the tutorial's one event, a Choice stance, is this week (EVENT_FIRST_WEEK = EVENT_LAST_WEEK, EVENT_CHOICE_ONLY)
+	TUTORIAL_DEBATE_WEEKS = { 3 }, -- its one live debate, three rounds (DEBATE_WEEKS)
+	TUTORIAL_CLOSING_FROM_WEEK = 4, -- the closing bonus on rallies and ads in its last week (CLOSING_FROM_WEEK)
+	TUTORIAL_START_CASH = 8, -- starting money (START_CASH)
 
 	-- Practice bot difficulty (D-057). Medium is the standard (balance harness) bot
 	-- and reads none of these. Every level decides from its own View only.
@@ -260,6 +270,20 @@ local function with(base: Config, changes: { [string]: any }): Config
 	return table.freeze(copy)
 end
 
+-- The tutorial's config (D-080): `base` on the tutorial's short schedule. Only
+-- the keys below change; everything else, EV_TO_WIN included, is `base`'s.
+local function tutorial(base: Config): Config
+	return with(base, {
+		WEEKS = base.TUTORIAL_WEEKS,
+		DEBATE_WEEKS = base.TUTORIAL_DEBATE_WEEKS,
+		EVENT_FIRST_WEEK = base.TUTORIAL_CHOICE_WEEK,
+		EVENT_LAST_WEEK = base.TUTORIAL_CHOICE_WEEK,
+		EVENT_CHOICE_ONLY = true,
+		CLOSING_FROM_WEEK = base.TUTORIAL_CLOSING_FROM_WEEK,
+		START_CASH = base.TUTORIAL_START_CASH,
+	})
+end
+
 -- Fundraising pool capacity of a state with `pop` million people (D-014).
 local function poolCapacity(config: Config, pop: number): number
 	return math.min(config.POOL_MAX, config.POOL_BASE + config.POOL_PER_MILLION * pop)
@@ -275,5 +299,6 @@ local defaults = table.freeze(Config)
 return table.freeze({
 	defaults = defaults,
 	with = with,
+	tutorial = tutorial,
 	poolCapacity = poolCapacity,
 })
