@@ -1111,7 +1111,8 @@ function ShapeMap.new(): MapInterface.Map
 	-- code in its own order (beside, under, over, the corners), then the same
 	-- spots twice and three times as far with a thin leader back to the code.
 	-- Codes never move. Rows go first (the lens), then pins, tags, plan badges
-	-- and the preview. Callout chips keep their marks left of the chip.
+	-- and the preview; no later mark covers a code or a value row, and pins
+	-- cover no mark at all. Callout chips keep their marks left of the chip.
 	type Box = { x0: number, y0: number, x1: number, y1: number }
 	type Dir = { number }
 	local BELOW: { Dir } =
@@ -1343,9 +1344,10 @@ function ShapeMap.new(): MapInterface.Map
 			w: number,
 			h: number,
 			dirs: { Dir },
-			optional: boolean?
+			optional: boolean?,
+			hard: number?
 		): (number, number, boolean)
-			return placeAround(codes[node.id], node.lx, node.ly, w, h, dirs, nil, optional)
+			return placeAround(codes[node.id], node.lx, node.ly, w, h, dirs, nil, optional, hard)
 		end
 
 		-- The lens rows (biggest states first: they have the room).
@@ -1394,6 +1396,9 @@ function ShapeMap.new(): MapInterface.Map
 			end
 		end
 
+		-- The codes and the value rows: no later mark may cover them.
+		local values = #occupied
+
 		-- Pins: yours last, so it is drawn over the rival's. Pins that share a
 		-- state stand side by side as one group, placed as one mark. A pin never
 		-- covers a code, a value row or another pin: those count as codes here.
@@ -1439,13 +1444,13 @@ function ShapeMap.new(): MapInterface.Map
 			if not node.ladder then
 				if node.badge.Visible then
 					local w = textW(node.badge.Text, TAG_CHAR) + 2 * TAG_PAD
-					local dx, dy = place(node, w, TAG_H, ABOVE)
+					local dx, dy = place(node, w, TAG_H, ABOVE, false, values)
 					node.badge.AnchorPoint = Vector2.new(0.5, 0.5)
 					node.badge.Position = UDim2.new(node.lx, dx, node.ly, dy)
 				end
 				local planBadge = node.hit:FindFirstChild("PlanBadge") :: GuiObject?
 				if planBadge then
-					local dx, dy = place(node, PLAN_BADGE_PX, PLAN_BADGE_PX, CORNER)
+					local dx, dy = place(node, PLAN_BADGE_PX, PLAN_BADGE_PX, CORNER, false, values)
 					planBadge.Position = onAnchorAt(node, dx, dy)
 				end
 			end
@@ -1456,11 +1461,11 @@ function ShapeMap.new(): MapInterface.Map
 				local w = textW(tag.Text, TAG_CHAR) + 2 * TAG_PAD
 				if node.ladder then
 					-- Left of the chip, past its tag.
-					local dx, dy = place(node, w, TAG_H, LEFT)
+					local dx, dy = place(node, w, TAG_H, LEFT, false, values)
 					tag.AnchorPoint = Vector2.new(0.5, 0.5)
 					tag.Position = UDim2.new(node.lx, dx, node.ly, dy)
 				else
-					local dx, dy = place(node, w, TAG_H, BESIDE)
+					local dx, dy = place(node, w, TAG_H, BESIDE, false, values)
 					tag.AnchorPoint = Vector2.new(0.5, 0.5)
 					tag.Position = UDim2.new(node.lx, dx, node.ly, dy)
 				end
