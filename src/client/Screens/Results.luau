@@ -8,6 +8,12 @@
 --   BannerBox     a stamp, "You won" (green) / "You lost" (orange, dark text: no
 --                 red anywhere on a loss), hero size, tilted, with the winner's
 --                 glow behind it; its label is Banner (D-056)
+--   LandslideBox  only after a landslide (D-062: the winner took more than 70%
+--                 of the votes; Shared/UI/Landslide): an eyebrow "YOU WON BY A"
+--                 (LandslideEyebrow; "REX WON BY A" for the loser), a big
+--                 "LANDSLIDE" stamp in the winner's color tilted the other way
+--                 (LandslideStamp, label LandslideLabel) and "You took 412 of
+--                 538 votes, over 70%." (LandslideLine)
 --   Reason        "280 votes to 258" (or the tiebreak, a forfeit)
 --   RatingSlot    the rating change, once the server sends it (rated matches)
 --   EVBar         Kit.raceBar, 14 px: you from the left, them from the right,
@@ -28,10 +34,14 @@
 -- The moment (docs/UI-STYLE.md §2.7, D-053), once per match: the banner stamp
 -- slams in (Motion.stamp; at once under reduced motion), both vote totals count
 -- up and the bar fills; a win drops confetti in both players' colors and white
--- and plays "victory"; a loss plays "defeat". Nothing waits on it.
+-- and plays "victory"; a loss plays "defeat". Nothing waits on it. After a
+-- landslide the LANDSLIDE stamp slams in LANDSLIDE_DELAY later; for the winner
+-- with a light sweeping across it (Motion.shine), twice the confetti and a
+-- second hit ("debateWin"); for the loser it lands quietly.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Landslide = require(ReplicatedStorage.Shared.UI.Landslide)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
@@ -61,6 +71,14 @@ local BANNER_GLOW = 0.6 -- the glow behind the banner, in the winner's color (tr
 local BANNER_GLOW_W = 1.1 -- the glow's width, a share of the column
 local COUNT_SECONDS = 0.6 -- s, the vote totals counting up
 local CONFETTI = 50 -- pieces on a win
+local LANDSLIDE_CONFETTI = 100 -- pieces on a landslide win (D-062)
+local LANDSLIDE_DELAY = 0.45 -- s after the banner's stamp, the LANDSLIDE stamp lands
+local LANDSLIDE_TILT = 4 -- degrees: the other way from the banner's −6, so the two read as two moments
+local LANDSLIDE_EYEBROW_H = Kit.size.caption + 6 -- px, "YOU WON BY A" over the stamp
+local LANDSLIDE_LINE_H = Kit.size.caption + 6 -- px, the votes line under it
+local LANDSLIDE_GLOW = 0.45 -- the glow behind the stamp, in the winner's color (transparency)
+local LANDSLIDE_GLOW_W = 1.2 -- its width, a share of the column
+local LANDSLIDE_BREATHE = { 0.45, 0.65, 1.6 } -- the winner's glow breathes between these transparencies, s per breath
 
 local DECIDED_BY: { [string]: string } = {
 	States = "Votes tied, so the most states won decided it.",
@@ -356,6 +374,62 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local banner = (stamp:FindFirstChild("Plate") :: Frame):FindFirstChild("Label") :: TextLabel
 		banner.Name = "Banner"
 		banner.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
+
+		-- First names, for the landslide's eyebrow and the reasons below.
+		local names: { string } = {}
+		for p = 1, #view.players do
+			local entry = view.players[p]
+			local full = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
+			names[p] = string.match(full, "^(%S+)") or full
+		end
+
+		-- A landslide (D-062): the big stamp in the winner's color, for both players.
+		local slide = Landslide.moment(ctx.config, view, result, names)
+		local slideStamp: Frame? = nil
+		local slideGlow: ImageLabel? = nil
+		if slide then
+			local stampRow = Kit.size.hero + 20 + STAMP_SLACK
+			local box = Kit.box({
+				Name = "LandslideBox",
+				LayoutOrder = nextOrder(),
+				Size = UDim2.new(1, 0, 0, LANDSLIDE_EYEBROW_H + stampRow + LANDSLIDE_LINE_H),
+				Parent = column,
+			})
+			slideGlow = Kit.glow(
+				box,
+				Kit.playerColor(view, slide.winner),
+				{ scale = LANDSLIDE_GLOW_W, stretch = true, transparency = LANDSLIDE_GLOW }
+			)
+			Kit.eyebrow(slide.eyebrow, {
+				Name = "LandslideEyebrow",
+				Size = UDim2.new(1, 0, 0, LANDSLIDE_EYEBROW_H),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				Parent = box,
+			})
+			local made = Kit.stamp(slide.stamp, Kit.playerColor(view, slide.winner), {
+				size = Kit.size.hero,
+				Name = "LandslideStamp",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, 0, 0, LANDSLIDE_EYEBROW_H + stampRow / 2),
+				Rotation = LANDSLIDE_TILT,
+				ZIndex = 3,
+				Parent = box,
+			})
+			local plate = made:FindFirstChild("Plate") :: Frame
+			local stampLabel = plate:FindFirstChild("Label") :: TextLabel
+			stampLabel.Name = "LandslideLabel"
+			stampLabel.TextTransparency = 0
+			label(box, slide.line, {
+				Name = "LandslideLine",
+				Position = UDim2.fromOffset(0, LANDSLIDE_EYEBROW_H + stampRow),
+				Size = UDim2.new(1, 0, 0, LANDSLIDE_LINE_H),
+				AutomaticSize = Enum.AutomaticSize.None,
+				TextSize = Kit.size.caption,
+				TextColor3 = Kit.colors.text,
+				TextXAlignment = Enum.TextXAlignment.Center,
+			})
+			slideStamp = made
+		end
 		label(column, reasonText(current, election), {
 			Name = "Reason",
 			LayoutOrder = nextOrder(),
@@ -417,12 +491,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		-- Why: three short reasons, the winner's side.
 		local winner = if result then result.winner else 0
-		local names: { string } = {}
-		for p = 1, #view.players do
-			local entry = view.players[p]
-			local full = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
-			names[p] = string.match(full, "^(%S+)") or full
-		end
 		local reasons: { string } = if election then Words.keyReasons(ctx.config, view, winner, names) else {}
 		if #reasons > 0 then
 			local why = Kit.stack(
@@ -481,14 +549,34 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 		Motion.stamp(stamp)
+		local landslide = slideStamp
+		if landslide then
+			Motion.stamp(landslide, LANDSLIDE_DELAY)
+		end
 		if result.winner == you then
 			local colors: { Color3 } = {}
 			for player = 1, #view.players do
 				table.insert(colors, Kit.playerColor(view, player))
 			end
 			table.insert(colors, Kit.colors.text)
-			Motion.confetti(parent, colors, CONFETTI)
+			Motion.confetti(parent, colors, if landslide then LANDSLIDE_CONFETTI else CONFETTI)
 			Audio.play("victory")
+			if landslide then
+				-- The reward: a second hit as the stamp lands, then a light sweeps it.
+				local plate = landslide:FindFirstChild("Plate") :: Frame
+				plate.Active = true -- Motion.shine sweeps only an active object
+				Motion.shine(plate)
+				local glow = slideGlow
+				if glow then
+					local b = LANDSLIDE_BREATHE
+					Motion.breathe(glow, "ImageTransparency", b[1], b[2], b[3])
+				end
+				task.delay(LANDSLIDE_DELAY, function()
+					if landslide.Parent ~= nil then
+						Audio.play("debateWin")
+					end
+				end)
+			end
 		else
 			Audio.play("defeat")
 		end

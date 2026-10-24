@@ -852,6 +852,12 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 
 ## Landslide (unreleased, D-062 to D-064)
 
+**The Landslide stamp (D-062).** A landslide is rare between two good players, so check it offline first:
+1. Workspace → Attributes → add `DebugScreen` (string) = `Landslide`, press Play. **Expect:** Results with the green "You won" stamp, under it "YOU WON BY A" and a big **LANDSLIDE** stamp in your color, tilted the other way, landing a moment after "You won", with lots of confetti, a second sound and a light sweeping across it; under it "You took … of 538 votes, over 70%." Set `DebugScreen` = `LandslideLoss`: the orange "You lost", then "REX WON BY A" and LANDSLIDE in Rex's color, no confetti. Remove the attribute afterwards.
+2. In a real practice match, beat the Easy bot by a lot (377 votes or more). **Expect:** the same stamp on your Results. A closer win (under 377) shows no stamp.
+3. Turn on Reduce motion and repeat step 1: the stamp is simply there, nothing slams or sweeps.
+4. **Send back:** an iPad screenshot of each, and whether it feels like a reward.
+
 **Polls at half price (D-063).**
 1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Helen Strand still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
 2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.

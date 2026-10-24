@@ -584,6 +584,10 @@ local SHOTS: { Shot } = {
 			Rig.push(world, peer, payload)
 		end,
 	},
+	-- D-062: the same screen after a landslide, for the winner and for the loser
+	-- (23-results is the ordinary win: no stamp).
+	{ name = "23b-results-landslide", moment = "Landslide", screen = "Results" },
+	{ name = "23c-results-landslide-loss", moment = "LandslideLoss", screen = "Results" },
 	{
 		name = "24-help",
 		moment = "Plan",

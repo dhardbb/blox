@@ -5,9 +5,11 @@
 
 local Bot = require("../Sim/Bot")
 local ConfigModule = require("../Sim/Config")
+local Election = require("../Sim/Election")
 local Events = require("../Sim/Events")
 local Rng = require("../Sim/Rng")
 local Session = require("../Net/Session")
+local StateData = require("../Sim/StateData")
 local View = require("../Sim/View")
 
 type Config = ConfigModule.Config
@@ -26,6 +28,8 @@ export type Moment =
 	| "Debate" -- the debate sequence
 	| "Election" -- election night
 	| "Over" -- the result
+	| "Landslide" -- the result after a landslide win: you took over 70% of the votes (D-062)
+	| "LandslideLoss" -- the result after the rival's landslide
 
 local Fixtures = {}
 
@@ -45,6 +49,8 @@ Fixtures.MOMENTS = table.freeze({
 	"Debate",
 	"Election",
 	"Over",
+	"Landslide",
+	"LandslideLoss",
 } :: { Moment })
 
 local function reached(session: Session.Session, moment: Moment): boolean
@@ -128,6 +134,43 @@ local function selectColor(config: Config, s: number): Session.StatePayload
 	return Session.payload(session, 1)
 end
 
+-- The Over payload turned into a landslide for `winner` (D-062): the loser's
+-- safest states, in reveal order, go to the winner until the winner holds more
+-- than LANDSLIDE_EV_SHARE of the votes; the totals and the result follow.
+local function landslide(config: Config, payload: Session.StatePayload, winner: number): Session.StatePayload
+	local election = payload.view.election
+	assert(election ~= nil, "the Over fixture has no election")
+	local total = 0
+	for _, r in election.results do
+		total += StateData.byId[r.state].ev
+	end
+	local function recount()
+		local ev, states = table.create(#election.ev, 0), table.create(#election.ev, 0)
+		for _, r in election.results do
+			if r.winner > 0 then
+				ev[r.winner] += StateData.byId[r.state].ev
+				states[r.winner] += 1
+			end
+		end
+		election.ev, election.statesWon = ev, states
+	end
+	recount()
+	for _, r in election.results do
+		if election.ev[winner] > config.LANDSLIDE_EV_SHARE * total then
+			break
+		end
+		if r.winner ~= winner then
+			r.winner = winner
+			recount()
+		end
+	end
+	election.winner = winner
+	election.decidedBy = "EV"
+	payload.result = { winner = winner, reason = "Election" }
+	assert(Election.landslide(config, election) == winner, "the landslide fixture is not a landslide")
+	return payload
+end
+
 -- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
 -- as candidate `candidate` (default Dana Okafor) against Rex Calloway. Stance,
 -- ChoiceWeek and ChoiceResolve try the next seeds in turn until one deals a Choice event
@@ -139,6 +182,10 @@ function Fixtures.payload(
 	candidate: string?
 ): Session.StatePayload
 	local first = seed or 18 -- 7 -> 18 with the 24-card deck (D-039): weeks 3 and 8 are still Windfalls
+	if moment == "Landslide" or moment == "LandslideLoss" then
+		local over = Fixtures.payload(config, "Over", seed, candidate)
+		return landslide(config, over, if moment == "Landslide" then over.you else 3 - over.you)
+	end
 	if seed == nil and (moment == "Election" or moment == "Over") then
 		-- Half-price polls (D-063) turned seed 18 into a loss for seat 1. Seed 26
 		-- is again a close win on votes with fewer states (290 to 248, 23 states to 28).
