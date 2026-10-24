@@ -1512,6 +1512,7 @@ function MatchService.start()
 			broadcastLobby()
 		end,
 		unhold = function(id: string, noticeCode: string?)
+			Lobby.withdraw(lobby, id) -- a question about a pairing that is gone
 			Lobby.unhold(lobby, id)
 			foundAs[id] = nil
 			if noticeCode then

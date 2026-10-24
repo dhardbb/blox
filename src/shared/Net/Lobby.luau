@@ -438,6 +438,18 @@ function Lobby.offerRemote(lobby: Lobby, id: string, untilAt: number): boolean
 	return true
 end
 
+-- The other server gave up on a remote offer before `id` answered: no
+-- question any more, and their place in line back (D-080).
+function Lobby.withdraw(lobby: Lobby, id: string): boolean
+	local offer = lobby.offers[id]
+	if offer == nil or not offer.remote then
+		return false
+	end
+	lobby.offers[id] = nil
+	requeue(lobby, id)
+	return true
+end
+
 -- Takes `id` out of the local line while they pair with a player on another
 -- server, or travel to a match server (D-080). They keep their place.
 function Lobby.hold(lobby: Lobby, id: string)

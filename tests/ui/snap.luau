@@ -1030,6 +1030,109 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "HelpOverlay", "HelpLeave")
 		end,
 	},
+	-- Matchmaking (D-080): the online count, a bot game while waiting, the
+	-- match on its way, invites, the prompt over a bot game, Rematch.
+	{
+		name = "01i-mm-lobby-online",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Idle")
+			lobby.online = 1234
+			Rig.storeOf(world, peer).setLobby(lobby)
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02l-mm-lobby-queue-bot",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Queued")
+			lobby.online = 1234
+			lobby.botAt = world.clock - 1
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02m-mm-lobby-found",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Idle")
+			lobby.state = "Found"
+			lobby.found = { phase = "Waiting", untilAt = world.clock + 12 }
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02n-mm-lobby-invite",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "PlayFriend", 0.5)
+		end,
+	},
+	{
+		name = "09v-mm-bot-opponent-found",
+		moment = "Plan",
+		screen = "FoundOverlay",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Idle")
+			lobby.state = "InMatch"
+			lobby.found = { phase = "Answer", untilAt = world.clock + 15 }
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "23h-mm-results-rematch-asked",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			local store = Rig.storeOf(world, peer)
+			local payload = Rig.deepCopy(store.get().payload)
+			for p, seat in payload.seats do
+				if p ~= payload.you then
+					seat.kind = "Human"
+					seat.difficulty = nil
+				end
+			end
+			world.current = peer
+			store.setPayload(payload)
+			store.setRematch({ matchId = payload.matchId, state = "Asked", untilAt = world.clock + 14 })
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "23i-mm-results-rematch-gone",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			local store = Rig.storeOf(world, peer)
+			local payload = Rig.deepCopy(store.get().payload)
+			for p, seat in payload.seats do
+				if p ~= payload.you then
+					seat.kind = "Human"
+					seat.difficulty = nil
+				end
+			end
+			world.current = peer
+			store.setPayload(payload)
+			store.setRematch({ matchId = payload.matchId, state = "Gone" })
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
 	{
 		name = "27-help-win",
 		moment = "Election",
