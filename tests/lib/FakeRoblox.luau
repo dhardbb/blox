@@ -96,6 +96,7 @@ export type DataState = {
 	orderedRequests: number, -- ordered-store requests so far
 	orderedWrites: number, -- successful ordered-store writes so far
 	sortedReads: number, -- GetSortedAsync calls so far
+	sortedReadsBy: { [string]: number }, -- the same per ordered store ("<name>" or "<name>/<scope>")
 }
 
 export type World = {
@@ -679,6 +680,7 @@ local function newOrderedDataStore(world: World, name: string): any
 	function store.GetSortedAsync(_self: any, ascending: boolean, pageSize: number): any
 		assert(type(pageSize) == "number" and pageSize >= 1 and pageSize <= 100, "pagesize must be 1 to 100")
 		world.data.sortedReads += 1
+		world.data.sortedReadsBy[name] = (world.data.sortedReadsBy[name] or 0) + 1
 		beginOrderedRequest(world)
 		local rows = {}
 		for key, value in keys do
@@ -718,8 +720,10 @@ local function newDataStoreService(world: World): any
 		GetDataStore = function(_self: any, name: string, _scope: string?): any
 			return newDataStore(world, name)
 		end,
-		GetOrderedDataStore = function(_self: any, name: string, _scope: string?): any
-			return newOrderedDataStore(world, name)
+		-- A scope other than "global" is its own store, kept as "<name>/<scope>".
+		GetOrderedDataStore = function(_self: any, name: string, scope: string?): any
+			local key = if scope ~= nil and scope ~= "global" then `{name}/{scope}` else name
+			return newOrderedDataStore(world, key)
 		end,
 	}
 end
@@ -1618,6 +1622,7 @@ function FakeRoblox.world(
 			orderedRequests = 0,
 			orderedWrites = 0,
 			sortedReads = 0,
+			sortedReadsBy = {},
 		},
 		jobId = options.jobId or "job-1",
 		closeHandlers = {},

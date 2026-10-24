@@ -17,6 +17,7 @@ local Profile = require(ReplicatedStorage.Shared.Net.Profile)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local DataService = require(script.Parent.DataService)
+local DailyService = require(script.Parent.DailyService)
 local Admins = require(script.Parent.Admins)
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local NameEligibility = require(script.Parent.NameEligibility)
@@ -229,6 +230,14 @@ end
 -- abandoned match change nothing. A player whose profile is still loading gets
 -- the result when the load finishes.
 local function settle(session: Session.Session)
+	if session.daily then
+		-- The Daily Race (D-080): its own score and streak; never the rating,
+		-- the practice record or the tutorial.
+		ratingsAtStart[session.id] = nil
+		resultIds[session.id] = nil
+		DailyService.settle(session)
+		return
+	end
 	local starts: { [string]: number }? = ratingsAtStart[session.id]
 	ratingsAtStart[session.id] = nil
 	local resultId = resultIds[session.id] or session.id
@@ -309,6 +318,7 @@ local function flush(session: Session.Session)
 		local out: Remotes.Message = { kind = message.kind, state = message.state, notice = message.notice }
 		Replication.send(seat.id, out)
 	end
+	DailyService.watch(session) -- a counted Daily Race run reaching week 1 (D-080)
 	if session.stage == "Over" and sessions[session.id] then
 		sessions[session.id] = nil
 		local ids = {}
@@ -655,12 +665,28 @@ local function startMatch(outcome: Lobby.Outcome)
 	matchCount += 1
 	local matchId = `m{matchCount}`
 	local seed = random:NextInteger(1, 2 ^ 31 - 1)
+	-- The Daily Race (D-080): the day's seed, candidates and bot level for everyone.
+	local race = if outcome.daily ~= nil then DailyService.race() else nil
+	if race and race.day ~= outcome.daily then
+		race = nil -- midnight passed between the request and here: play it as asked
+	end
+	local daily: Session.DailyRun? = nil
+	if race then
+		seed = race.seed
+		daily = { day = race.day, counted = DailyService.canCount(outcome.players[1], race.day) }
+	end
 	local specs: { Session.SeatSpec } = {}
 	for _, id in outcome.players do
-		table.insert(specs, humanSpec(id))
+		local spec = humanSpec(id)
+		if race then
+			spec.candidate = race.candidate
+		end
+		table.insert(specs, spec)
 	end
 	if outcome.kind == "Practice" then
-		local candidate = Candidates.ids[random:NextInteger(1, #Candidates.ids)]
+		local candidate = if race
+			then race.botCandidate
+			else Candidates.ids[random:NextInteger(1, #Candidates.ids)]
 		table.insert(specs, {
 			id = "bot",
 			kind = "Bot",
@@ -670,14 +696,11 @@ local function startMatch(outcome: Lobby.Outcome)
 	end
 	local created: Session.Session? = nil
 	local built, err = pcall(function(): string?
-		created = Session.new(
-			config,
-			matchId,
-			seed,
-			specs,
-			now(),
-			{ events = outcome.events, tutorial = outcome.kind == "Practice" and outcome.tutorial == true }
-		)
+		created = Session.new(config, matchId, seed, specs, now(), {
+			events = outcome.events,
+			tutorial = outcome.kind == "Practice" and outcome.tutorial == true and daily == nil,
+			daily = daily,
+		})
 		return nil
 	end)
 	local session = created
@@ -729,6 +752,10 @@ local function startMatch(outcome: Lobby.Outcome)
 	if outcome.tutorial then
 		against ..= ", tutorial"
 	end
+	if daily then
+		against ..= ", daily race"
+		DailyService.started(session)
+	end
 	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
 	flush(session)
 	if pairCapped then
@@ -756,6 +783,10 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 			elseif Profile.needsTutorial(DataService.profile(id)) then "First"
 			else nil
 		outcome, reason = Lobby.practice(lobby, id, request.difficulty, tutorial)
+	elseif request.op == "DailyRace" then
+		-- Today's Daily Race (D-080): never the tutorial; the first run past week 1 counts.
+		local race = DailyService.race()
+		outcome, reason = Lobby.daily(lobby, id, race.day, race.level)
 	elseif request.op == "Leave" then
 		Lobby.leave(lobby, id)
 	elseif request.op == "PrePick" then
@@ -865,6 +896,8 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 		end
 	elseif op == "Leaderboard" then
 		LeaderboardService.request(idOf(player))
+	elseif op == "Daily" then
+		DailyService.request(idOf(player))
 	elseif op == "Resync" then
 		local id = idOf(player)
 		local session = sessions[matchOf[id] or ""]
@@ -903,6 +936,7 @@ function MatchService.start()
 	DataService.onLoaded(function(id: string)
 		if matchOf[id] == nil then
 			sendLobby(id)
+			DailyService.tell(id) -- the streak and today's run are known now (D-080)
 		end
 		task.spawn(approveSavedName, id)
 		-- Ratings saved before the board existed join it on the player's next visit.

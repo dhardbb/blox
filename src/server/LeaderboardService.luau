@@ -152,6 +152,22 @@ local function nameOf(id: string): string
 	return names[id] or Leaderboard.cleanName(nil, id)
 end
 
+-- The same name lookups for another board's page (the Daily Race, D-080):
+-- rows keyed "Player_<UserId>". Yields, at most NAME_WAIT seconds.
+function LeaderboardService.lookUpNames(rows: { any })
+	lookUpAll(rows)
+end
+
+-- A player's cached username, or "Player <id>".
+function LeaderboardService.nameOf(id: string): string
+	local userId = tonumber(id)
+	local here = if userId and names[id] == nil then Players:GetPlayerByUserId(userId) else nil
+	if here then
+		names[id] = Leaderboard.cleanName(here.Name, id)
+	end
+	return nameOf(id)
+end
+
 -- The page of the top list, or nil when the store can't be read. Yields.
 local function fetch(): { any }?
 	local s = getStore()
