@@ -15,6 +15,8 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local check, need, tap, textOf = Rig.check, Rig.need, Rig.tap, Rig.textOf
 local PHONE = Rig.PHONE
 local DESKTOP = { x = 1280, y = 720 }
+-- A phone tall enough for the top 3 under the Daily Race card (D-080: 870 px and up).
+local TALL_PHONE = { x = 430, y = 932 }
 
 local function strictAudit(world: FakeRoblox.World, peer: FakeRoblox.Peer, screen: string): number
 	local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
@@ -177,8 +179,8 @@ describe("Lobby: How to play (D-059)", function()
 end)
 
 describe("Lobby: the leaderboard (D-059)", function()
-	it("shows the top 3 inside the column on a phone", function()
-		local world, peer = Rig.fixture("Lobby", PHONE)
+	it("shows the top 3 inside the column on a tall phone", function()
+		local world, peer = Rig.fixture("Lobby", TALL_PHONE)
 		local card = need(peer, "Lobby", "LeaderboardCard")
 		check(card:FindFirstAncestor("Idle") ~= nil, "the card is not in the column")
 		check(Rig.findIn(peer, "Lobby", "Row_3") ~= nil, "no third row")
@@ -187,6 +189,17 @@ describe("Lobby: the leaderboard (D-059)", function()
 		expect(strictAudit(world, peer, "Lobby")):toBe(0)
 		Rig.noErrors(world)
 	end)
+
+	it(
+		"keeps only the viewer's line and See all on a 390x844 phone (the Daily Race card took the room, D-080)",
+		function()
+			local world, peer = Rig.fixture("Lobby", PHONE)
+			expect(Rig.findIn(peer, "Lobby", "Row_1")):toBe(nil)
+			check(shownIn(peer, "Lobby", "LeaderboardYou"), "no viewer line")
+			expect(strictAudit(world, peer, "Lobby")):toBe(0)
+			Rig.noErrors(world)
+		end
+	)
 
 	it("keeps only the viewer's line and See all on a short phone", function()
 		local world, peer = Rig.fixture("Lobby", { x = 375, y = 667 })
@@ -228,7 +241,7 @@ describe("Lobby: the leaderboard (D-059)", function()
 	end)
 
 	it("says where an unlisted viewer stands, and when nobody is ranked or it can't load", function()
-		local world, peer = Rig.fixture("Lobby", PHONE)
+		local world, peer = Rig.fixture("Lobby", TALL_PHONE)
 		setBoard(world, peer, Fixtures.leaderboard({ you = 0 }))
 		expect(textOf(peer, "Lobby", "LeaderboardYou")):toBe("You: not in the top 50 · 1004")
 

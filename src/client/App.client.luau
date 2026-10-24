@@ -240,6 +240,7 @@ if type(fixture) == "string" then
 	if fixture == "Lobby" then
 		Store.setLobby(Fixtures.lobby("Idle"))
 		Store.setLeaderboard(Fixtures.leaderboard())
+		Store.setDaily(Fixtures.daily({ now = workspace:GetServerTimeNow() }))
 	else
 		local payload = Fixtures.payload(Config.defaults, fixture :: any)
 		-- Keep countdowns running: shift the fixture's times to now.

@@ -107,17 +107,17 @@ describe("e2e: the global leaderboard", function()
 		local p1 = Support.join(rig, "Player1")
 		local p2 = Support.join(rig, "Player2")
 		Support.run(rig, 2)
-		expect(rig.world.data.sortedReads):toBe(1) -- both Lobbies asked; one read
+		expect(rig.world.data.sortedReadsBy.Leaderboard_v1):toBe(1) -- both Lobbies asked; one read
 		for _ = 1, 3 do
 			ask(rig, p1)
 		end
-		expect(rig.world.data.sortedReads):toBe(1)
+		expect(rig.world.data.sortedReadsBy.Leaderboard_v1):toBe(1)
 		seed(rig, { Player_900 = 1500 })
 		ask(rig, p2)
 		expect(#board(rig, p2).entries):toBe(0) -- still the cached list
 		Support.run(rig, REFRESH)
 		ask(rig, p2)
-		expect(rig.world.data.sortedReads):toBe(2)
+		expect(rig.world.data.sortedReadsBy.Leaderboard_v1):toBe(2)
 		expect(#board(rig, p2).entries):toBe(1)
 		noErrors(rig)
 	end)

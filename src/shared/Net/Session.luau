@@ -65,6 +65,7 @@ export type Seat = {
 	debateGraceWeek: number?, -- the debate week this seat already spent a grace use in (one per debate, D-072)
 	leftEarly: boolean, -- disconnected before week 1 began and not back since (D-077)
 	prePick: any?, -- lobby pre-pick, used if Select times out
+	fixedCandidate: string?, -- Human: claimed for them as Select opens (the Daily Race, D-080)
 	botCandidate: string?,
 	botStyle: Bot.Style?,
 	botDifficulty: Bot.Difficulty?, -- practice difficulty (D-057); nil for a harness bot with an explicit style
@@ -133,6 +134,7 @@ export type StatePayload = {
 	stageStart: number,
 	deadline: number?, -- this seat's deadline (its own time bank included); nil = no deadline (the tutorial's choices, D-075)
 	tutorial: boolean?, -- true in the tutorial (D-075): choices have no timer
+	daily: DailyRun?, -- a Daily Race run (D-080)
 	you: number,
 	view: View.View,
 	events: { State.Event },
@@ -172,12 +174,20 @@ export type Session = {
 	timeScale: number, -- every choice timer is multiplied by this (a practice bot's level, D-075)
 	adminUntimed: boolean, -- the admin rule has the choice timers off right now (D-080)
 	adminUnrated: boolean, -- the timers were off at some point with two or more humans: unrated (D-080)
+	daily: DailyRun?, -- a Daily Race run (D-080)
+}
+
+-- A Daily Race run (D-080), as the server starts it.
+export type DailyRun = {
+	day: number, -- the race's day (whole days since 1970-01-01 UTC)
+	counted: boolean, -- the player's counted run today; false = a practice run
 }
 
 -- Match options a private lobby may set (public queue and practice use none).
 export type Options = {
 	events: boolean?, -- false: no event deck this match (D-027)
 	tutorial: boolean?, -- true: the tutorial, no choice timers (D-075; the server sets it for a bot match only)
+	daily: DailyRun?, -- a Daily Race run (D-080): never the tutorial
 }
 
 export type SeatSpec = {
@@ -189,7 +199,7 @@ export type SeatSpec = {
 	customName: string?, -- Human: a Name Pass owner's saved name, filtered for this match (D-069)
 	seesNames: boolean?, -- Human: may see custom names (D-069); default false
 	namePass: NamePass?, -- Human: may use the Name Pass (D-069)
-	candidate: string?, -- Bot: candidate to play
+	candidate: string?, -- Bot: candidate to play. Human: a fixed candidate, claimed for them as Select opens (the Daily Race, D-080)
 	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
 	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
 	admin: boolean?, -- Human: an admin, as the server checked it (D-080)
@@ -363,6 +373,7 @@ function Session.payload(session: Session, p: number): StatePayload
 		stageStart = session.stageStart,
 		deadline = deadline,
 		tutorial = if session.tutorial then true else nil,
+		daily = if session.daily then table.clone(session.daily) else nil,
 		you = p,
 		view = view,
 		events = View.events(session.events, p),
@@ -510,7 +521,8 @@ local function settleClaims(session: Session)
 end
 
 -- Bots submit as soon as an Input stage opens, from their own View. At Select a
--- bot claims its candidate first (one batch for every bot), or a free one.
+-- bot claims its candidate first (one batch for every bot, and for every human
+-- with a fixed candidate, D-080), or a free one.
 local function botInputs(session: Session)
 	local candidates: { [number]: string } = {}
 	if session.match.phase == "Select" then
@@ -518,11 +530,16 @@ local function botInputs(session: Session)
 		for p, seat in session.seats do
 			if isBot(seat) then
 				requests[p] = seat.botCandidate or "okafor"
+			elseif seat.fixedCandidate ~= nil then
+				requests[p] = seat.fixedCandidate
 			end
 		end
 		local nextMatch = Match.claim(session.config, session.match, requests)
 		session.match = nextMatch
 		for p in requests do
+			if not isBot(session.seats[p]) then
+				continue -- a fixed human candidate: claimed above, the player picks the rest
+			end
 			local claimed = Match.claimOf(session.match, p)
 			if claimed == nil then
 				claimed = Match.default(session.config, session.match, p).candidate
@@ -786,7 +803,12 @@ function Session.new(
 			debateGraceWeek = nil,
 			leftEarly = false,
 			prePick = spec.prePick,
-			botCandidate = spec.candidate,
+			fixedCandidate = if spec.kind == "Human"
+					and type(spec.candidate) == "string"
+					and Candidates.exists(spec.candidate)
+				then spec.candidate
+				else nil,
+			botCandidate = if spec.kind == "Bot" then spec.candidate else nil,
 			botStyle = spec.style or (if difficulty then Bot.styleFor(difficulty) else nil),
 			botDifficulty = difficulty,
 			botRng = if spec.kind == "Bot" then Rng.new(seed * 31 + p) else nil,
@@ -824,10 +846,14 @@ function Session.new(
 		pendingColorClaims = {},
 		introWeek = nil,
 		verdictNext = false,
-		tutorial = options ~= nil and options.tutorial == true,
+		-- A Daily Race is never the tutorial (D-080).
+		tutorial = options ~= nil and options.tutorial == true and options.daily == nil,
 		timeScale = timeScale,
 		adminUntimed = false,
 		adminUnrated = false,
+		daily = if options and options.daily
+			then { day = options.daily.day, counted = options.daily.counted == true }
+			else nil,
 	}
 	local _, adminOff = Session.adminRule(session)
 	session.adminUntimed = adminOff

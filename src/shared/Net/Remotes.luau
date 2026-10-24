@@ -4,6 +4,7 @@
 -- (server messages). Every request is one table with an `op`; every server
 -- message is one table with a `kind`. Net/Schemas validates requests at runtime.
 
+local Daily = require("./Daily")
 local Leaderboard = require("./Leaderboard")
 local Lobby = require("./Lobby")
 local Profile = require("./Profile")
@@ -38,6 +39,8 @@ export type Op =
 	| "Leaderboard" -- ask for the global leaderboard (D-059); answered with a "Leaderboard" message
 	| "Forfeit" -- leave the match in progress and lose it (D-059): { matchId }
 	| "SetTimersOff" -- admins: the "Timers off" toggle, saved and applied to their match (D-080): { on }
+	| "DailyRace" -- play today's Daily Race (D-080): today's candidate, the Hard bot; the first run past week 1 counts
+	| "Daily" -- ask for today's Daily Race and its board (D-080); answered with a "Daily" message
 
 export type Request = {
 	op: Op,
@@ -100,13 +103,14 @@ export type RatingChange = {
 
 -- Server -> client messages.
 export type Message = {
-	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard" | "Review",
+	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard" | "Review" | "Daily",
 	lobby: LobbyStatus?,
 	state: Session.StatePayload?,
 	notice: string?, -- e.g. "OpponentDisconnected"
 	rating: RatingChange?, -- Rating: sent once when a rated match ends
 	leaderboard: Leaderboard.Board?, -- Leaderboard: the top list and where this player stands
 	review: ReviewBoard?, -- Review: the reported names (admins only, D-069)
+	daily: Daily.Info?, -- Daily: today's race, your streak and the day's board (D-080)
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

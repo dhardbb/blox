@@ -28,6 +28,8 @@ export type State = {
 	leaderboard: any?, -- Net/Leaderboard.Board, the global leaderboard (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: any?, -- Remotes.ReviewBoard: admins' reported names (D-069)
+	daily: any?, -- Net/Daily.Info: today's Daily Race (D-080)
+	dailyRun: any?, -- Net/Daily.Run: the Daily Race run that ended last (D-080)
 }
 
 export type Net = {

@@ -35,6 +35,8 @@ local OPS: { [string]: boolean } = {
 	Leaderboard = true,
 	Forfeit = true,
 	SetTimersOff = true,
+	DailyRace = true, -- no fields (D-080)
+	Daily = true, -- no fields (D-080)
 }
 
 -- True if `value` is plain data within the size limits: only tables, strings,

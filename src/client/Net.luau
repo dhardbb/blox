@@ -115,6 +115,8 @@ local NOTICES: { [string]: string } = {
 	AdminTimersOffUnrated = "Timers off (admin): every choice waits until it's locked in. This match is unrated.",
 	AdminTimersOn = "Timers back on (admin): choices are timed again, starting full.",
 	AdminUnrated = "Timers were off (admin), so this match doesn't count for anyone's rating.",
+	DailyCounted = "Daily Race: this run counts once week 1 starts. Good luck!",
+	DailyPractice = "Practice run: today's Daily Race already counts. This one won't.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,
@@ -193,6 +195,8 @@ function Net.start()
 			Store.setReview(message.review)
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
+		elseif message.kind == "Daily" and message.daily then
+			Store.setDaily(message.daily)
 		elseif message.kind == "Notice" then
 			if message.notice == "NameReported" then
 				hideReported()
