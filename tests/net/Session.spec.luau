@@ -547,7 +547,7 @@ describe("Session: requests", function()
 end)
 
 describe("Session: the Decision stage (D-044)", function()
-	-- Plays (everyone locks the bot's choice) until the first Focus decision opens.
+	-- Plays (everyone locks the bot's choice) until the first decision of a kind opens.
 	local function toDecision(kind: string): (Session.Session, number)
 		local session = humans()
 		local t = 0
@@ -569,56 +569,32 @@ describe("Session: the Decision stage (D-044)", function()
 		error(`no {kind} decision came up`)
 	end
 
-	it("opens with its own absolute deadline, then the debate, with no reveal of its own", function()
-		local session, t = toDecision("Focus")
+	it("a stance opens with its own absolute deadline and no reveal of its own", function()
+		local session, t = toDecision("Stance")
 		expect(session.deadline):toBe(t + C.TIMER_DECISION)
 		local messages = Session.drain(session)
 		local state = messages[#messages].state :: Session.StatePayload
-		expect(state.view.decision):toBe("Focus")
+		expect(state.view.decision):toBe("Stance")
 		expect(state.deadline):toBe(t + C.TIMER_DECISION)
 		-- The time bank is for plans only.
 		expect(select(2, Session.bank(session, 1, session.step, t))):toBe("NotInput")
 		lockAll(session, t + 1)
-		expect(session.stage):toBe("Reveal")
-		expect(session.reveal):toBe("Debate")
-	end)
-
-	it("both locking in ends it early; the opponent's pick never reaches the other seat", function()
-		local session, t = toDecision("Focus")
-		local topics = session.match.debateTopics[session.match.week]
-		Session.drain(session)
-		expect((Session.submit(session, 2, session.step, { focus = topics[3] }, t + 1))):toBe(true)
+		expect(session.match.phase):toBe("Plan")
 		expect(session.stage):toBe("Input")
-		for _, message in Session.drain(session) do
-			if message.seat == 1 and message.state then
-				expect(message.state.view.debateFocus):toBe(nil)
-			end
-		end
-		expect((Session.submit(session, 1, session.step, { focus = topics[1] }, t + 2))):toBe(true)
-		expect(session.reveal):toBe("Debate")
-		local debate = session.match.debates[#session.match.debates]
-		expect(debate.focus):toEqual({ 1, 3 })
 	end)
 
 	it("rejects a bad decision with a reason code and leaves the seat open", function()
-		local session, t = toDecision("Focus")
-		local ok, reason = Session.submit(session, 1, session.step, { focus = "Nothing" }, t)
+		local session, t = toDecision("Stance")
+		local ok, reason = Session.submit(session, 1, session.step, { choice = "Z" }, t)
 		expect(ok):toBe(false)
-		expect(reason):toBe("BadFocus")
+		expect(reason):toBe("BadChoice")
 		expect(session.seats[1].locked):toBe(false)
-		ok, reason = Session.submit(session, 1, session.step, { actions = {} }, t)
-		expect(reason):toBe("BadFocus")
+		ok, reason = Session.submit(session, 1, session.step, { focus = "Jobs" }, t)
+		expect(reason):toBe("UnexpectedFocus")
 	end)
 
-	it("auto-submits the defaults when its timer runs out: no focus, the hedge", function()
-		local session, t = toDecision("Focus")
-		Session.update(session, t + C.TIMER_DECISION - 0.01)
-		expect(session.match.phase):toBe("Decision")
-		Session.update(session, t + C.TIMER_DECISION)
-		expect(session.reveal):toBe("Debate")
-		expect(session.match.debates[#session.match.debates].focus):toEqual({ 0, 0 })
-
-		session, t = toDecision("Stance")
+	it("auto-submits the hedge when its timer runs out", function()
+		local session, t = toDecision("Stance")
 		expect(session.deadline):toBe(t + C.TIMER_DECISION)
 		Session.update(session, t + C.TIMER_DECISION)
 		expect(session.match.phase):toBe("Plan")
@@ -645,6 +621,118 @@ describe("Session: the Decision stage (D-044)", function()
 		expect(session.match.phase):toBe("Decision")
 		expect(session.seats[2].locked):toBe(true)
 		expect(session.seats[2].input ~= nil):toBe(true)
+	end)
+end)
+
+describe("Session: debate rounds (D-062)", function()
+	-- Plays (everyone locks the bot's choice) until the debate's intro opens.
+	local function toIntro(session: Session.Session?): (Session.Session, number)
+		local s = session or humans()
+		local t = 0
+		for _ = 1, 400 do
+			if s.stage == "Show" and s.reveal == "DebateIntro" then
+				return s, t
+			end
+			if s.stage == "Input" then
+				lockAll(s, t)
+			else
+				t = Session.nextWake(s)
+				Session.update(s, t)
+			end
+		end
+		error("no debate came up")
+	end
+
+	it("runs intro, three rounds each with a clash, then the verdict, on absolute deadlines", function()
+		local session, t = toIntro()
+		expect(session.match.phase):toBe("Debate")
+		expect(session.deadline):toBe(t + C.TIMER_DEBATE_INTRO)
+		for round = 1, C.DEBATE_TOPICS do
+			Session.update(session, session.deadline)
+			t = session.stageStart
+			expect(session.stage):toBe("Input")
+			expect((session.match.debate :: any).round):toBe(round)
+			expect(session.deadline):toBe(t + C.TIMER_DEBATE_ROUND)
+			lockAll(session, t + 2)
+			expect(session.stage):toBe("Reveal")
+			expect(session.reveal):toBe("Clash")
+			expect(session.deadline):toBe(t + 2 + C.TIMER_DEBATE_CLASH)
+		end
+		expect(session.match.phase ~= "Debate"):toBe(true)
+		Session.update(session, session.deadline)
+		expect(session.stage):toBe("Reveal")
+		expect(session.reveal):toBe("Verdict")
+		expect(session.deadline):toBe(session.stageStart + C.TIMER_DEBATE_VERDICT)
+		expect(#session.match.debates):toBe(1)
+		-- Both skipping ends the verdict at once; a clash cannot be skipped.
+		local now = session.stageStart + 1
+		expect((Session.skip(session, 1, session.step, now))):toBe(true)
+		expect((Session.skip(session, 2, session.step, now))):toBe(true)
+		expect(session.stage):toBe("Input")
+	end)
+
+	it("a round's timer running out plays the canned answer", function()
+		local session = toIntro()
+		Session.update(session, session.deadline)
+		local t = session.stageStart
+		Session.update(session, t + C.TIMER_DEBATE_ROUND - 0.01)
+		expect(session.stage):toBe("Input")
+		Session.update(session, t + C.TIMER_DEBATE_ROUND)
+		expect(session.reveal):toBe("Clash")
+		local round = (session.match.debate :: any).rounds[1]
+		expect(round.canned):toEqual({ true, true })
+		expect(round.winner):toBe(0)
+	end)
+
+	it("the opponent's move never reaches the other seat before the clash", function()
+		local session = toIntro()
+		Session.update(session, session.deadline)
+		local t = session.stageStart
+		Session.drain(session)
+		expect((Session.submit(session, 2, session.step, { move = "Attack", zinger = true }, t + 1))):toBe(
+			true
+		)
+		for _, message in Session.drain(session) do
+			if message.seat == 1 and message.state then
+				local debate = message.state.view.debate :: any
+				expect(debate.yourMove):toBe(nil)
+				expect(debate.zingers[2]):toBe(1)
+			end
+		end
+		local ok, reason = Session.submit(session, 1, session.step, { move = "Shout" }, t + 1)
+		expect(ok):toBe(false)
+		expect(reason):toBe("BadMove")
+		expect((Session.submit(session, 1, session.step, { move = "Defend" }, t + 2))):toBe(true)
+		expect(session.reveal):toBe("Clash")
+		local round = (session.match.debate :: any).rounds[1]
+		expect(round.picks):toEqual({ "Defend", "Attack" })
+		expect(round.zingers):toEqual({ false, true })
+	end)
+
+	it("a debate spends at most one grace use", function()
+		local session = toIntro()
+		Session.update(session, session.deadline)
+		local t = session.stageStart
+		local before = session.seats[2].graceLeft
+		Session.disconnect(session, 2, t)
+		expect(session.seats[2].graceLeft):toBe(before - 1)
+		Session.reconnect(session, 2, t + 1)
+		Session.disconnect(session, 2, t + 2)
+		expect(session.seats[2].graceLeft):toBe(before - 1)
+		-- No new grace: the round closes on its deadline with a canned answer.
+		lockAll(session, t + 3)
+		expect(session.reveal):toBe("Clash")
+		expect((session.match.debate :: any).rounds[1].canned[2]):toBe(true)
+	end)
+
+	it("a bot seat answers every round by itself", function()
+		local session = practice()
+		session = toIntro(session)
+		Session.update(session, session.deadline)
+		expect(session.stage):toBe("Input")
+		expect(session.seats[2].locked):toBe(true)
+		local input = session.seats[2].input
+		expect(input ~= nil and input.canned == false):toBe(true)
 	end)
 end)
 
