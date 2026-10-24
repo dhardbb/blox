@@ -39,8 +39,9 @@ local function vsBot(difficulty: Bot.Difficulty?, tutorial: boolean?, seed: numb
 end
 
 local function auto(session: Session.Session, p: number): any
-	local view = View.build(C, session.match, p)
-	return Bot.act(C, view, Rng.new(p), "okafor")
+	-- The session's own config: the tutorial's is its short schedule (D-080).
+	local view = View.build(session.config, session.match, p)
+	return Bot.act(session.config, view, Rng.new(p), "okafor")
 end
 
 -- The Input timer each choice phase should get at `scale`.
@@ -212,8 +213,10 @@ describe("Session: the tutorial has no choice deadline (D-075)", function()
 				check((deadline :: number) - s.stageStart <= C.TIMER_ELECTION, "a reveal is too long")
 			end
 		end)
-		check(inputs > 20, `only {inputs} input stages`)
-		check(timed > 20, `only {timed} timed stages`)
+		-- The short tutorial (D-080): Select, 3 draft rounds, 4 plans, 1 stance,
+		-- 3 debate rounds.
+		expect(inputs):toBe(1 + #C.DRAFT_PRIORITY + C.TUTORIAL_WEEKS + 1 + C.DEBATE_TOPICS)
+		check(timed > 10, `only {timed} timed stages`)
 		expect((session.result :: Session.Result).reason):toBe("Election")
 	end)
 
@@ -280,14 +283,14 @@ describe("Session: the tutorial has no choice deadline (D-075)", function()
 end)
 
 describe("Lobby and requests: asking for the tutorial (D-075)", function()
-	it("a replay always plays the Easy bot; the first tutorial keeps the level picked", function()
+	it("the tutorial always plays the Easy bot, the first one and a replay (D-080)", function()
 		local lobby = Lobby.new(C)
 		local replay = Lobby.practice(lobby, "1", "Hard", "Replay") :: Lobby.Outcome
 		expect(replay.kind):toBe("Practice")
 		expect(replay.difficulty):toBe("Easy")
 		expect(replay.tutorial):toBe(true)
 		local first = Lobby.practice(lobby, "2", "Hard", "First") :: Lobby.Outcome
-		expect(first.difficulty):toBe("Hard")
+		expect(first.difficulty):toBe("Easy")
 		expect(first.tutorial):toBe(true)
 		local normal = Lobby.practice(lobby, "3", "Hard") :: Lobby.Outcome
 		expect(normal.difficulty):toBe("Hard")

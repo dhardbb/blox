@@ -69,6 +69,7 @@ describe("e2e: full matches", function()
 
 	it("a Practice request picks the bot's difficulty; the button plays Medium (D-057)", function()
 		local rig = newRig(12)
+		Support.returning(rig) -- not the tutorial, which always plays Easy (D-080)
 		local p1 = Support.join(rig, "Player1")
 		Support.fire(rig, p1, { op = "Practice", difficulty = "Extreme" })
 		local started = Support.outputLines(rig.world.server, "match m1 started (Practice)")
