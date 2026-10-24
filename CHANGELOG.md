@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### The end screen: final polls vs the result, and votes week by week (D-066)
+
+Results only; no rule or Config changes. Studio checklist: `docs/TESTING.md`, "End screen: Map and Graph".
+
+- **Summary | Map | Graph tabs on the end screen.** Summary is the screen you know (who won, the Landslide stamp, why).
+- **Map:** switch between **Final polls** (each state's last public poll, as you saw it the last week) and **Real results** (election night's winner and margin). States the polls got wrong wear a **MISS** tag, and one line names them ("Polls missed 3 states: CA, SC, OK"). Tap a state to compare its poll and its result.
+- **Graph:** both players' projected votes week by week (the header's numbers), then the real result, with the 270 line and "D"/"S" chips on debate and stance weeks: tap one to see what happened that week.
+- The match now keeps its weekly projected votes and sends them with the final results, so the graph is there after a rejoin too.
+
 ## Unreleased: Landslide (branch `brand`)
 
 The game is now called **Landslide** ("Race to 270"), a landslide win gets its own stamp on Results, the week's event sits under the score, and polls cost half. Studio checklist: `docs/TESTING.md`, "Landslide". Needed from the humans: rename the experience (see the checklist).

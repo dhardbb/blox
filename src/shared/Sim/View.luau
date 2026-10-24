@@ -126,6 +126,7 @@ export type View = {
 	raised: number, -- what your fundraisers raised last week
 	stance: Types.Choice?, -- your stance on this week's Choice event, from its Decision until the week resolves
 	election: State.ElectionResult?, -- from election night on
+	pollHistory: { State.PollPoint }?, -- from election night on: the projected votes each week's polls showed (D-066)
 }
 
 local View = {}
@@ -257,6 +258,7 @@ function View.build(config: Config, match: MatchState, you: number, names: { [nu
 	end
 
 	local drafting = match.phase == "Draft"
+	local over = match.phase == "Election" or match.phase == "Done"
 	return {
 		you = you,
 		phase = match.phase,
@@ -285,7 +287,8 @@ function View.build(config: Config, match: MatchState, you: number, names: { [nu
 		scouted = copy(me.scouted),
 		raised = me.raised,
 		stance = me.stance,
-		election = if match.phase == "Election" or match.phase == "Done" then copy(match.election) else nil,
+		election = if over then copy(match.election) else nil,
+		pollHistory = if over then copy(match.pollHistory) else nil,
 	}
 end
 

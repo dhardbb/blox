@@ -988,3 +988,16 @@ Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- 
 6. **Week 9:** the same; the Zinger is back. Results' "What decided it" still lists the states debates flipped.
 
 **Send back:** did you know why you won or lost each round? Did you ever pick a move because of what the bot did last round? Did the map move where you expected? Did it feel like its own event, or still like a quiz? How long did each debate take?
+
+## End screen: Map and Graph (unreleased, D-066)
+
+Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`, `lune run tests EVChart`, `lune run tests "Poll history"`, `lune run tests/ui/snap.luau -- 23` (shots `23d` to `23g`; 0 audit findings at all three sizes).
+
+1. **Play vs Bot** to the end on the iPad (Skip through election night). **Expect:** Results looks as before (You won / You lost, the stamp, why) with a row of three tabs at the top: **Summary** (selected), **Map**, **Graph**.
+2. **Map.** Tap it. **Expect:** two buttons "Final polls" (selected) and "Real results"; a line with the polls' votes ("Final polls: you 235, Rex 277"); "Polls missed N states: …"; the map colored by who led each state's last poll, with the lead in each circle; a **MISS** tag on each state the polls got wrong.
+3. Tap **Real results**. **Expect:** the map recolors by who actually won each state (the margin in the circle), the votes line says "Election night: …", the MISS tags stay on the same states. Flip back and forth: the MISS states change color.
+4. Tap a MISS state. **Expect:** a line under the map: "<State> · N votes. Final poll: Rex +1. Result: you by 1.3 points. The polls missed it." Tap it again to clear.
+5. **Graph.** **Expect:** a chart with your line and your opponent's in your colors, a white 270 line, week numbers along the bottom (every other week on a phone), the last point "Result" set a little apart with bigger ringed dots, and small "D" (debate) and "S" (stance vote) chips over those weeks. Tap a chip: the line under the chart says what happened ("Week 4 · Debate: Rex won 2 of 3 topics"). Under it: "You: … at the start, … in the final polls, … on election night."
+6. **Phone size (390x844) and the Mac.** **Expect:** each tab fits without scrolling; nothing overlaps; the lines look straight and joined (no gaps or stray pieces sticking out of the chart).
+7. **Rejoin:** leave the game on the Results screen and rejoin (if the match result is still shown). **Expect:** the Graph still shows every week.
+8. **Send back:** an iPad screenshot of each tab, whether the MISS tags made the polling errors easy to spot, whether the graph was readable on a phone, and any Output errors from `Results`, `MapTab` or `GraphTab`.

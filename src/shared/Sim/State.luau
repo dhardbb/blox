@@ -195,6 +195,15 @@ export type StateResult = {
 	margin: number, -- winner's final score minus the runner-up's
 }
 
+-- The projected electoral votes on the public polls of one week (Polls.projectedEV,
+-- the header's numbers), taken as that week's new polls come out: week 0 is the
+-- first polls after the draft, week w the polls at the end of week w (D-066).
+-- Public: everyone saw these numbers when they were published.
+export type PollPoint = {
+	week: number,
+	ev: { number }, -- by player
+}
+
 export type ElectionResult = {
 	ev: { number }, -- by player
 	statesWon: { number },
@@ -226,6 +235,7 @@ export type MatchState = {
 	debates: { DebateResult },
 	eventDeck: { [number]: string }, -- week -> event id (hidden: only the current week's is shown)
 	eventLog: { EventResult }, -- resolved events, oldest first
+	pollHistory: { PollPoint }, -- projected EV each time the weekly polls came out, oldest first (public, D-066)
 	election: ElectionResult?,
 }
 

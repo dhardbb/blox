@@ -12,6 +12,11 @@
 				"$path": "src/server"
 			}
 		},
+		"StarterGui": {
+			"$properties": {
+				"ClipsDescendantsSupportsRotation": "Enabled"
+			}
+		},
 		"StarterPlayer": {
 			"StarterPlayerScripts": {
 				"Client": {

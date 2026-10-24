@@ -3,8 +3,10 @@
 -- reasons, then the details one tap away. The player leaves with Back to lobby
 -- or goes straight into another match.
 --
--- Layout: a scrolling column over the pinned ActionBar ("Play vs Bot again" /
--- "Play again" primary, "Back to lobby" secondary):
+-- Layout: three tabs pinned at the top once the election is in (D-066; a
+-- segmented row of chips Tab_Summary | Tab_Map | Tab_Graph, "Summary" | "Map" |
+-- "Graph"), a scrolling column, and the pinned ActionBar ("Play vs Bot again" /
+-- "Play again" primary, "Back to lobby" secondary). Summary is the first view:
 --   BannerBox     a stamp, "You won" (green) / "You lost" (orange, dark text: no
 --                 red anywhere on a loss), hero size, tilted, with the winner's
 --                 glow behind it; its label is Banner (D-056)
@@ -29,6 +31,11 @@
 --   FullBreakdown ghost button: the BreakdownSheet with "What decided it"
 --                 (Decided, Decided_<k>: Swing.decided), the closest states
 --                 (Closest, Closest_<id>) and every debate (Debates, Debate_<k>).
+-- Map (ResultsParts/MapTab): the final polls against the real result, a switch
+-- between the two, MISS on the states the polls got wrong and one line naming
+-- them. Graph (ResultsParts/GraphTab): both players' projected votes week by
+-- week and the real result, with the 270 line and the debate and stance weeks.
+-- Without an election (a forfeit) there are no tabs: Summary alone.
 -- Four text sizes: hero, heading, body, caption.
 --
 -- The moment (docs/UI-STYLE.md §2.7, D-053), once per match: the banner stamp
@@ -53,8 +60,10 @@ local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local Audio = require(script.Parent.Parent.UI.Audio)
 local BotLevel = require(script.Parent.Parent.UI.BotLevel)
 local Data = require(script.Parent.Common.Data)
+local GraphTab = require(script.Parent.ResultsParts.GraphTab)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
+local MapTab = require(script.Parent.ResultsParts.MapTab)
 local Motion = require(script.Parent.Parent.UI.Motion)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
 local Types = require(script.Parent.Types)
@@ -80,6 +89,8 @@ local LANDSLIDE_LINE_H = Kit.size.caption + 6 -- px, the votes line under it
 local LANDSLIDE_GLOW = 0.45 -- the glow behind the stamp, in the winner's color (transparency)
 local LANDSLIDE_GLOW_W = 1.2 -- its width, a share of the column
 local LANDSLIDE_BREATHE = { 0.45, 0.65, 1.6 } -- the winner's glow breathes between these transparencies, s per breath
+local TAB_H = Kit.MIN_TOUCH -- px, the pinned tab row (D-066)
+local TABS = { "Summary", "Map", "Graph" }
 
 local DECIDED_BY: { [string]: string } = {
 	States = "Votes tied, so the most states won decided it.",
@@ -118,13 +129,49 @@ local function plural(n: number, word: string): string
 end
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
-	local page = Layout.page(parent, { maxWidth = MAX_WIDTH, footer = Kit.BAR_H })
+	local page = Layout.page(parent, { maxWidth = MAX_WIDTH, footer = Kit.BAR_H, header = TAB_H })
 
 	local rendered: Session.StatePayload? = nil
 	local celebrated: string? = nil -- the match whose moment has played
 	local details: Frame? = nil
 	local ratingLine: TextLabel? = nil
 	local sheet = Sheet.new(parent, { title = "Full breakdown", name = "BreakdownSheet" })
+
+	-- The tabs (D-066): Summary first; Map and Graph once the election is in.
+	local tabBar = page.header :: Frame
+	tabBar.Name = "Tabs"
+	tabBar.Visible = false
+	Kit.list("Horizontal", Kit.space.xs).Parent = tabBar
+	local mapTab = MapTab.new(page.content, 2)
+	local graphTab = GraphTab.new(page.content, 3)
+	local tab = "Summary"
+	local tabChips: { [string]: TextButton } = {}
+	local tabbed = false -- the tabs are shown (the match has an election)
+	local tabsFor: string? = nil -- the match the tabs were last reset for
+	local function showTab(id: string)
+		tab = id
+		for name, chip in tabChips do
+			Kit.setSelected(chip, name == id)
+		end
+		if details then
+			details.Visible = id == "Summary"
+		end
+		mapTab:show(id == "Map")
+		graphTab:show(id == "Graph")
+		page.scroll.CanvasPosition = Vector2.new(0, 0)
+	end
+	for k, id in TABS do
+		tabChips[id] = Kit.chip(id, function()
+			if id ~= tab then
+				showTab(id)
+			end
+		end, {
+			Name = `Tab_{id}`,
+			LayoutOrder = k,
+			Size = UDim2.new(1 / #TABS, -Kit.space.xs * (#TABS - 1) / #TABS, 1, 0),
+			Parent = tabBar,
+		})
+	end
 
 	local againBot = false
 	local bar = ActionBar.new(page.footer :: Frame, {
@@ -346,6 +393,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		local column = Kit.box({
 			Name = "Details",
+			LayoutOrder = 1,
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = page.content,
@@ -551,6 +599,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		againBot = opponent ~= nil and opponent.kind == "Bot"
 		bar:setPrimary(if againBot then "Play vs Bot again" else "Play again", true)
 
+		-- The tabs: a new match opens on Summary; a later payload of the same
+		-- match keeps the tab the player is on.
+		tabbed = election ~= nil
+		tabBar.Visible = tabbed
+		if tabbed then
+			mapTab:set(current, names)
+			graphTab:set(current, names)
+		end
+		if tabsFor ~= current.matchId or not tabbed then
+			tabsFor = current.matchId
+			showTab("Summary")
+		else
+			showTab(tab)
+		end
+
 		-- The moment, once per match (a later payload of the same match redraws quietly).
 		if result == nil or result.winner == 0 or celebrated == current.matchId then
 			return
@@ -600,6 +663,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local function relayout()
 		page.setPortrait(ctx.portrait())
+		if not tabbed then
+			-- No tabs: the column starts at the top.
+			local footerH = Kit.BAR_H + Layout.GAP
+			page.scroll.Position = UDim2.fromOffset(0, 0)
+			page.scroll.Size = UDim2.new(1, 0, 1, -footerH)
+		end
+		local width = page.content.AbsoluteSize.X - 4 -- the column's 2 px side padding
+		local height = page.scroll.AbsoluteSize.Y
+		if width > 0 and height > 0 then
+			mapTab:layout(width, height)
+			graphTab:layout(width, height)
+		end
 	end
 
 	relayout()
@@ -611,6 +686,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if current and current ~= rendered then
 				rendered = current
 				render(current)
+				relayout()
 			end
 			-- Rated matches: "Rating 1000 → 1016 (+16)", once the server sends it.
 			local change = state.rating

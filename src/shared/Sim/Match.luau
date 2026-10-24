@@ -290,6 +290,7 @@ function Match.new(
 		debates = {},
 		eventDeck = Events.draw(config, rng),
 		eventLog = {},
+		pollHistory = {},
 		election = nil,
 	}
 	-- Red and blue by default; a Color Pass owner's favorite is claimed as
@@ -558,6 +559,12 @@ local function decideOrPlan(match: MatchState, kind: Decision.Kind?)
 	match.phase = if kind ~= nil then "Decision" else "Plan"
 end
 
+-- Keeps the projected votes on the polls just published (D-066): the end-of-match
+-- chart's week-by-week line. Reads public numbers only; draws nothing from the seed.
+local function recordPolls(match: MatchState)
+	table.insert(match.pollHistory, { week = match.week, ev = Polls.projectedEV(match) })
+end
+
 local function enterWeek(config: Config, match: MatchState, week: number)
 	match.week = week
 	if week > config.WEEKS then
@@ -613,6 +620,7 @@ function Match.advance(
 			Draft.applyBonuses(config, match)
 			Polls.update(config, match, true)
 			Polls.updateUnderdog(config, match)
+			recordPolls(match)
 			table.insert(events, { kind = "Polls" })
 			enterWeek(config, match, 1)
 		end
@@ -621,6 +629,7 @@ function Match.advance(
 		decideOrPlan(match, nil)
 	elseif phase == "Plan" then
 		events = Resolve.week(config, match, collect(config, match, given))
+		recordPolls(match)
 		enterWeek(config, match, match.week + 1)
 	elseif phase == "Debate" then
 		local round, finished = Debate.round(config, match, collect(config, match, given))
