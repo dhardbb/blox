@@ -71,6 +71,10 @@ export type Profile = {
 	-- Reports this player sent since `at` (D-078: NAME_REPORTS_PER_DAY per
 	-- NAME_REPORT_WINDOW, kept here so a rejoin does not reset it). Optional.
 	reportLog: { at: number, count: number }?,
+	-- An admin's "Timers off" toggle (D-080): true turns the choice timers off
+	-- in their matches where every human is an admin. Saved for anyone, used
+	-- only while the server counts them as an admin. Optional: no version bump.
+	adminTimersOff: boolean?,
 }
 
 -- What the lobby shows.
@@ -249,6 +253,9 @@ function Profile.migrate(raw: any, config: Config?): Profile
 	end
 	if raw.tutorialDone == true then
 		out.tutorialDone = true
+	end
+	if raw.adminTimersOff == true then
+		out.adminTimersOff = true
 	end
 	if type(raw.hiddenNames) == "table" and type(raw.hiddenOrder) == "table" then
 		local names: { [string]: string } = {}
@@ -633,6 +640,14 @@ end
 function Profile.withTutorialDone(profile: Profile): Profile
 	local out = copy(profile)
 	out.tutorialDone = true
+	return out
+end
+
+-- The profile with the admin "Timers off" toggle set (D-080); off is stored as
+-- no field at all.
+function Profile.withTimersOff(profile: Profile, on: boolean): Profile
+	local out = copy(profile)
+	out.adminTimersOff = if on then true else nil
 	return out
 end
 

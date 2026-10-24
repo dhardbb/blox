@@ -34,6 +34,7 @@ local OPS: { [string]: boolean } = {
 	Resync = true,
 	Leaderboard = true,
 	Forfeit = true,
+	SetTimersOff = true,
 }
 
 -- True if `value` is plain data within the size limits: only tables, strings,
@@ -147,6 +148,13 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			end
 			request.name = raw.name
 		end
+	elseif op == "SetTimersOff" then
+		-- An admin's "Timers off" toggle (D-080): a boolean, required. Who is an
+		-- admin, and what it does, is the server's check.
+		if type(raw.on) ~= "boolean" then
+			return false, "BadShape", nil
+		end
+		request.on = raw.on
 	elseif op == "Forfeit" then
 		-- The match being left: a stale request can never end a newer match.
 		if type(raw.matchId) ~= "string" then

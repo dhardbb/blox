@@ -16,6 +16,14 @@ Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from t
 - **Always the Easy bot:** the first tutorial no longer uses the level picked in the Lobby. How to play's **Play the tutorial** starts the short version ("A short 4-week match against the Easy bot, with tips and no timers.").
 - Help in the tutorial follows its schedule (election after week 4, the debate in week 3, one stance event). A normal match is unchanged (balance harness identical). New `Config` keys: `TUTORIAL_WEEKS` 4, `TUTORIAL_CHOICE_WEEK` 2, `TUTORIAL_DEBATE_WEEKS` {3}, `TUTORIAL_CLOSING_FROM_WEEK` 4, `TUTORIAL_START_CASH` 8, `EVENT_CHOICE_ONLY` false; new harness `tests/harness/tutorial.luau`.
 
+### Admin: timers off (D-080)
+
+- **Admins can turn the choice timers off in their own games** to take notes during playtests. The toggle (a struck-through clock) is in the Lobby's top-right corner, next to Sound and Reduce motion, and at the top of the in-match "?" sheet; only admins see it, and it is saved with their profile.
+- **It only works when every player in the match is an admin** (the owner against a bot, or the owner and the partner in a private match). In a match with anyone else it does nothing and the sheet says "Only in games where every player is an admin."; nobody else can ever be kept waiting.
+- Turning it on or off mid-match acts at once: an open choice loses its deadline, or gets a fresh full timer back. Both players see "No timer (admin)" in the header. Reveals, debates' clashes and election night still play by themselves.
+- A match between people where the timers were off at any point is **unrated** (both are told). Bot matches were already unrated.
+- New `Config.SET_TIMERS_OFF_COOLDOWN` (1 s, a server limit). Studio checklist: `docs/TESTING.md`, "Admin: timers off". Nothing needed from the humans.
+
 ## 0.14.0: Map polish, issue symbols, the tutorial, fixes (Oct 24, 2026)
 
 A clearer map (bigger on phones, every state's votes, a Close filter), symbols for issues, an untimed first bot match with more time against easier bots, the Lobby's settings in the corner, and fixes from a full bug review (rated results across servers, win trading, name review safety, debate reconnects). Needed from the humans: nothing new (the 0.13.0 list still applies).

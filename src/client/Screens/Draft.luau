@@ -537,7 +537,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function showTimer(payload: Session.StatePayload, now: number)
 		local deadline = payload.deadline
 		if deadline == nil then
-			header:setNoTimer()
+			header:setNoTimer(Header.noTimerText(payload))
 			return
 		end
 		header:setTimer(deadline - now, if mode == "Input" then nil else 0, deadline - payload.stageStart)

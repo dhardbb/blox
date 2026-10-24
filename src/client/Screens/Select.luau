@@ -1120,7 +1120,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		local deadline = current.deadline
 		if deadline == nil then
-			header:setNoTimer() -- the tutorial (D-075)
+			header:setNoTimer(Header.noTimerText(current)) -- the tutorial (D-075), an admin (D-080)
 			return
 		end
 		-- The bar runs over the stage's own length (a bot match scales it, D-075).

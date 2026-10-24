@@ -24,6 +24,14 @@
 -- never a large number. Show and Reveal stages are always timed. The tutorial
 -- is also short (D-080): the session plays it on Config.tutorial's schedule
 -- (4 weeks, one stance, one debate), and `session.config` is that config.
+--
+-- Admin "Timers off" (D-080): an admin may turn the choice timers off for
+-- their own matches. It applies only while every human seat is an admin (the
+-- server's check, SeatSpec.admin) and at least one of them has it on
+-- (Session.adminRule); a match with any other human keeps its timers whatever
+-- the admins ask. It uses the tutorial's no-deadline machinery, takes effect
+-- at once (an open choice loses its deadline, or gets a fresh full timer back)
+-- and makes a match between two or more humans unrated (Result.timersOff).
 
 local Bot = require("../Sim/Bot")
 local Candidates = require("../Sim/Candidates")
@@ -68,6 +76,14 @@ export type Seat = {
 	namePass: NamePass?, -- this player may use the Name Pass (it is set up and they are eligible)
 	shownNames: { [number]: string? }, -- other seats' names as filtered for THIS viewer (Session.showName)
 	hiddenNames: { [number]: string }, -- names this viewer reported: never shown to them again
+	admin: boolean, -- an admin, as the server checked it (D-080); never true for a bot
+	timersOff: boolean, -- this admin's "Timers off" toggle (D-080); false for anyone else
+}
+
+-- The admin "Timers off" toggle as an admin's seat sees it (D-080).
+export type AdminTimers = {
+	on: boolean, -- this admin's own toggle
+	allowed: boolean, -- every human in the match is an admin: the toggle can work here
 }
 
 -- The Name Pass as one seat sees it (D-069): present only for a player who is
@@ -93,6 +109,9 @@ export type Result = {
 	-- The match counts for no one's rating (D-077): a player forfeited or left
 	-- before week 1 began. Absent otherwise.
 	unrated: boolean?,
+	-- Unrated because an admin turned the timers off in a match between people
+	-- (D-080). Absent otherwise.
+	timersOff: boolean?,
 }
 
 export type SeatInfo = {
@@ -120,6 +139,8 @@ export type StatePayload = {
 	seats: { SeatInfo },
 	result: Result?,
 	naming: Naming?, -- the Name Pass for this seat (D-069); absent unless they may use it
+	adminNoTimer: boolean?, -- true while an admin has the choice timers off (D-080): "No timer (admin)"
+	adminTimers: AdminTimers?, -- an admin's seat only (D-080): their toggle and whether it can work here
 }
 
 export type Message = {
@@ -149,6 +170,8 @@ export type Session = {
 	verdictNext: boolean, -- the last round's clash is on: the debate's verdict follows it
 	tutorial: boolean, -- the tutorial (D-075): Input stages have no deadline
 	timeScale: number, -- every choice timer is multiplied by this (a practice bot's level, D-075)
+	adminUntimed: boolean, -- the admin rule has the choice timers off right now (D-080)
+	adminUnrated: boolean, -- the timers were off at some point with two or more humans: unrated (D-080)
 }
 
 -- Match options a private lobby may set (public queue and practice use none).
@@ -169,6 +192,8 @@ export type SeatSpec = {
 	candidate: string?, -- Bot: candidate to play
 	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
 	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
+	admin: boolean?, -- Human: an admin, as the server checked it (D-080)
+	timersOff: boolean?, -- Human: this admin's saved "Timers off" toggle (D-080); ignored unless admin
 }
 
 local Session = {}
@@ -183,6 +208,7 @@ Session.Reason = table.freeze({
 	Over = "Over",
 	NotSelect = "NotSelect",
 	NoTimer = "NoTimer", -- the time bank in a step without a timer (the tutorial, D-075)
+	AdminOnly = "AdminOnly", -- "Timers off" from a seat that is not an admin (D-080)
 })
 
 -- The deadline of an Input stage that waits for its players (the tutorial,
@@ -198,6 +224,11 @@ Session.COLOR_TAKEN = "ColorTaken"
 Session.OPPONENT_FORFEITED = "OpponentForfeited"
 -- Notice sent to the player as the tutorial starts: no timers (D-075).
 Session.TUTORIAL = "Tutorial"
+-- Notices sent to every human when the admin rule turns the choice timers off
+-- (with "and this match is unrated" when two or more humans play) or back on (D-080).
+Session.ADMIN_TIMERS_OFF = "AdminTimersOff"
+Session.ADMIN_TIMERS_OFF_UNRATED = "AdminTimersOffUnrated"
+Session.ADMIN_TIMERS_ON = "AdminTimersOn"
 
 local function isBot(seat: Seat): boolean
 	return seat.kind == "Bot"
@@ -222,6 +253,40 @@ function Session.timeScale(config: Config, difficulty: Bot.Difficulty?): number
 		return config.BOT_TIME_MULT_MEDIUM
 	end
 	return 1
+end
+
+-- The admin rule (D-080): `allowed` when every human seat is an admin (and
+-- there is at least one), `on` when it is allowed and one of them has
+-- "Timers off" on. Bots never count either way.
+function Session.adminRule(session: Session): (boolean, boolean)
+	local humans, any = 0, false
+	for _, seat in session.seats do
+		if seat.kind == "Human" then
+			if not seat.admin then
+				return false, false
+			end
+			humans += 1
+			any = any or seat.timersOff
+		end
+	end
+	return humans > 0, humans > 0 and any
+end
+
+-- How many human seats the match has.
+local function humanCount(session: Session): number
+	local n = 0
+	for _, seat in session.seats do
+		if seat.kind == "Human" then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Input stages wait for their players: the tutorial (D-075), or the admin
+-- rule (D-080).
+local function untimed(session: Session): boolean
+	return session.tutorial or session.adminUntimed
 end
 
 local function inputDuration(config: Config, phase: State.Phase): number
@@ -306,6 +371,10 @@ function Session.payload(session: Session, p: number): StatePayload
 		naming = if seat.namePass
 			then { id = seat.namePass.id, owned = seat.namePass.owned, name = seat.customName }
 			else nil,
+		adminNoTimer = if session.adminUntimed then true else nil,
+		adminTimers = if seat.admin
+			then { on = seat.timersOff, allowed = (Session.adminRule(session)) }
+			else nil,
 	}
 end
 
@@ -348,6 +417,11 @@ local function setStage(session: Session, stage: Stage, now: number, duration: n
 end
 
 local function finish(session: Session, now: number, result: Result)
+	-- Timers were off between people (D-080): nobody's rating moves.
+	if session.adminUnrated and result.reason ~= "Abandoned" and not result.unrated then
+		result.unrated = true
+		result.timersOff = true
+	end
 	session.result = result
 	setStage(session, "Over", now, 0)
 end
@@ -502,7 +576,7 @@ enterPhase = function(session: Session, now: number)
 			seat.input = nil
 			seat.bankUsed = 0
 		end
-		local duration = if session.tutorial
+		local duration = if untimed(session)
 			then Session.NO_DEADLINE
 			else inputDuration(config, phase) * session.timeScale
 		setStage(session, "Input", now, duration)
@@ -721,6 +795,8 @@ function Session.new(
 			namePass = if spec.kind == "Human" and spec.namePass then table.clone(spec.namePass) else nil,
 			shownNames = {},
 			hiddenNames = {},
+			admin = spec.kind == "Human" and spec.admin == true,
+			timersOff = spec.kind == "Human" and spec.admin == true and spec.timersOff == true,
 		}
 	end
 	-- Against a practice bot, its level sets the choice timers (D-075).
@@ -750,11 +826,23 @@ function Session.new(
 		verdictNext = false,
 		tutorial = options ~= nil and options.tutorial == true,
 		timeScale = timeScale,
+		adminUntimed = false,
+		adminUnrated = false,
 	}
+	local _, adminOff = Session.adminRule(session)
+	session.adminUntimed = adminOff
+	session.adminUnrated = adminOff and humanCount(session) >= 2
 	if session.tutorial then
 		-- Told before the first State, so the notice is the first thing they read.
 		for p in session.seats do
 			tell(session, p, Session.TUTORIAL)
+		end
+	elseif adminOff then
+		local notice = if session.adminUnrated
+			then Session.ADMIN_TIMERS_OFF_UNRATED
+			else Session.ADMIN_TIMERS_OFF
+		for p in session.seats do
+			tell(session, p, notice)
 		end
 	end
 	enterPhase(session, now)
@@ -1017,6 +1105,58 @@ function Session.clearName(session: Session, p: number)
 	if session.stage ~= "Over" then
 		broadcast(session)
 	end
+end
+
+-- An admin turns their "Timers off" toggle on or off for this match (D-080).
+-- The server has already checked that the player is an admin and saved the
+-- toggle; this checks the seat again (a bot or a non-admin seat is turned
+-- down, "AdminOnly"). The toggle is kept even where it cannot work (a human
+-- in the match is not an admin); the rule only changes when every human is an
+-- admin. When it changes, every human is told, and an open choice step follows
+-- at once: timers off drops its deadline; back on gives it a fresh full timer
+-- (its own length again, a bot level's multiplier included). A step that is not
+-- a choice keeps running; the next choice step follows the rule. Never throws.
+function Session.setTimersOff(session: Session, p: number, on: boolean, now: number): (boolean, string?)
+	local seat = session.seats[p]
+	if seat == nil or seat.kind ~= "Human" or not seat.admin then
+		return false, Session.Reason.AdminOnly
+	end
+	if session.stage == "Over" then
+		return false, Session.Reason.Over
+	end
+	seat.timersOff = on == true
+	local _, off = Session.adminRule(session)
+	if off ~= session.adminUntimed then
+		session.adminUntimed = off
+		local unrated = off and humanCount(session) >= 2
+		if unrated then
+			session.adminUnrated = true
+		end
+		if not session.tutorial then
+			local notice = if not off
+				then Session.ADMIN_TIMERS_ON
+				elseif unrated then Session.ADMIN_TIMERS_OFF_UNRATED
+				else Session.ADMIN_TIMERS_OFF
+			for q in session.seats do
+				tell(session, q, notice)
+			end
+			if session.stage == "Input" then
+				for _, other in session.seats do
+					other.bankUsed = 0
+				end
+				if off then
+					session.deadline = Session.NO_DEADLINE
+				else
+					session.stageStart = now
+					session.deadline = now
+						+ inputDuration(session.config, session.match.phase) * session.timeScale
+				end
+			end
+		end
+	end
+	broadcast(session)
+	Session.update(session, now)
+	return true, nil
 end
 
 -- A player takes one chunk of their time bank during a Plan stage.
