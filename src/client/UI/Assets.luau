@@ -10,8 +10,8 @@
 --           fill atlases (D-062, scripts/mapgen/make.py), tinted per state
 --   mapBorders  assets/map/map-borders.png: the state border lines, tinted dark
 --
--- The map's ids start empty: until all three are uploaded the game keeps the
--- circle map (Map/NodeMap), so nothing breaks before the upload.
+-- If a map id is ever emptied again, the game falls back to the circle map
+-- (Map/NodeMap) until all three are set.
 -- While an id is "" the helpers still build their ImageLabel (attribute Asset
 -- names it, so the headless snapshots draw a stand-in) but it shows nothing in
 -- the game. After the upload, put each "rbxassetid://<number>" here.
@@ -25,9 +25,9 @@ local Assets: { [string]: Asset } = {
 	shadow = { id = "rbxassetid://81207934470509", kind = "slice" },
 	glow = { id = "rbxassetid://109577761634341", kind = "radial" },
 	dots = { id = "rbxassetid://77034414001634", kind = "tile" },
-	mapStates1 = { id = "", kind = "atlas" },
-	mapStates2 = { id = "", kind = "atlas" },
-	mapBorders = { id = "", kind = "overlay" },
+	mapStates1 = { id = "rbxassetid://105693687672536", kind = "atlas" },
+	mapStates2 = { id = "rbxassetid://84531905119471", kind = "atlas" },
+	mapBorders = { id = "rbxassetid://127447041117262", kind = "overlay" },
 }
 
 return table.freeze(Assets)

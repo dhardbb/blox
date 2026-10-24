@@ -20,4 +20,4 @@ mapStates2 = { id = "rbxassetid://…", kind = "atlas" },
 mapBorders = { id = "rbxassetid://…", kind = "overlay" },
 ```
 
-Until all three ids are set the game keeps the old circle map, so nothing breaks before the upload. If the generator is run again and the PNGs change, upload them again (the rectangles in `MapShapeData.luau` must match the uploaded images).
+Uploaded Oct 24, 2026 (ids in `Assets.luau`). If any id is empty the game keeps the old circle map. If the generator is run again and the PNGs change, upload them again (the rectangles in `MapShapeData.luau` must match the uploaded images).

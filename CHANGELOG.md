@@ -6,7 +6,7 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ### The real US map (D-062)
 
-Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Real US map". **Needed from the humans:** upload `assets/map/map-states-1.png`, `assets/map/map-states-2.png` and `assets/map/map-borders.png` and send the three ids (`assets/map/README.md`); until then the game keeps the circle map.
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Real US map". The three map images are uploaded and their ids are in `Assets.luau` (if one is ever emptied, the game falls back to the circle map).
 
 - **The map is a real map of the United States:** every state in its true shape, filled by who leads its poll as before, with thin dark borders. Alaska and Hawaii sit in the bottom left. The nine small Northeast states (VT, NH, MA, RI, CT, NJ, DE, MD, DC) are labeled chips in a column at the right edge, each with a thin line to where it really is.
 - Tap anywhere inside a state to pick it, even a small one next to a big neighbor; tap a chip for the small Northeast states. The selected state gets a white outline.

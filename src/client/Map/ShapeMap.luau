@@ -135,19 +135,22 @@ type Node = {
 	badgeStroke: UIStroke,
 	outline: Frame?,
 	outlineParts: { Frame },
+	stackH: number, -- px, the label stack's height at the last paint
+	preview: TextLabel?, -- the plan preview's tag (D-063), made on first use
 	bloom: ImageLabel?,
 }
 
--- Every atlas and the borders uploaded: the real map can show. Until then
--- NodeMap.new() keeps the circles.
-function ShapeMap.ready(): boolean
+-- Every atlas and the borders uploaded (in `assets`, default UI/Assets): the
+-- real map can show. Otherwise NodeMap.new() keeps the circles.
+function ShapeMap.ready(assets: { [string]: Assets.Asset }?): boolean
+	local list: any = assets or Assets
 	for k in MapShape.data.atlases do
-		local asset = (Assets :: any)[`mapStates{k}`]
+		local asset = list[`mapStates{k}`]
 		if asset == nil or asset.id == "" then
 			return false
 		end
 	end
-	local borders = (Assets :: any).mapBorders
+	local borders = list.mapBorders
 	return borders ~= nil and borders.id ~= ""
 end
 
