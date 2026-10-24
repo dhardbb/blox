@@ -574,7 +574,7 @@ describe("Election screen: the show (polish WP-2)", function()
 	it("says who reaches 270 on the tipping call", function()
 		local rig = fixtureRig(nil, 0)
 		local seen = false
-		for _ = 1, 200 do
+		for _ = 1, 10 * FULL_TIME do
 			FakeRoblox.run(rig.world, 0.1)
 			local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
 			if string.find(label, "REACHES 270", 1, true) then
@@ -657,14 +657,14 @@ describe("Election screen: front-page moments (D-056, WP-3)", function()
 			FakeRoblox.run(rig.world, 0.1)
 			if maybe(rig.peer, "Stamp270") then
 				seen = true
-				-- The fixture's crossing is the last call: the strip holds for the stamp.
+				-- The strip holds for the stamp (also when the crossing is the last call).
 				check(visible(rig.peer, "Counters"), "the banner hid the 270! stamp at once")
 				check(not visible(rig.peer, "Goal"), "270 TO WIN peeks out under the stamp")
 				break
 			end
 		end
 		check(seen, "no 270! stamp")
-		FakeRoblox.run(rig.world, 3)
+		FakeRoblox.run(rig.world, FULL_TIME)
 		expect(visible(rig.peer, "BannerPanel")):toBe(true)
 		expect(feedLines(rig.peer)):toBe(#election.results)
 		noErrors(rig.world)

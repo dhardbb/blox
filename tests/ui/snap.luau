@@ -117,7 +117,7 @@ local function kitGallery(world: World, peer: Peer)
 	Kit.text("You lead by 3. Rally here to grow it.", { LayoutOrder = 3, Parent = card })
 	Kit.caption("Public poll · updated this week", { LayoutOrder = 4, Parent = card })
 	local chips = Kit.stack({ LayoutOrder = 3, Parent = columnA }, "Horizontal", Kit.space.sm)
-	for i, label in { "Rally", "Ad $3", "Poll $1" } do
+	for i, label in { "Rally", "Ad $3", "Poll $0.5" } do
 		local chip = Kit.chip(
 			label,
 			function() end,

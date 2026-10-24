@@ -2,6 +2,12 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased: Landslide (branch `brand`)
+
+The game is now called **Landslide** ("Race to 270"), a landslide win gets its own stamp on Results, the week's event sits under the score, and polls cost half. Studio checklist: `docs/TESTING.md`, "Landslide". Needed from the humans: rename the experience (see the checklist).
+
+- **Polls cost half (D-063):** a state poll is $0.5 (was $1), a region poll $1.5 (was $3). Every price on screen follows. In the bot-vs-bot harness the bots buy about as many polls and put the saved money into ads and ground game; win rates moved within noise.
+
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 
 A new look (navy stage, white accent, orange losses, chunky buttons, a lit map, stamps for the big moments), a global leaderboard, Easy to Extreme bots, Leave match, How to play, and Color Pass colors claimed first come, first served. Needed from the humans: the Color Pass id (see 0.11.0).

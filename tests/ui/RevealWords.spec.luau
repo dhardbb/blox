@@ -246,7 +246,7 @@ describe("Words: election night and Results", function()
 			check(a == nil or tonumber(a) >= tonumber(b), `"{text}" reads backwards`)
 		end
 		check(
-			table.find(reasons, "Dana won the bigger states (20 to 31)") ~= nil,
+			table.find(reasons, "Dana won the bigger states (23 to 28)") ~= nil,
 			table.concat(reasons, " | ")
 		)
 	end)

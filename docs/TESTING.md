@@ -30,7 +30,7 @@ Studio's local 2-player test only works on one computer. To play from two places
 
 **Once, on the Mac (in Studio, with the latest build synced):**
 1. Clear any debug attribute: Workspace → Properties → Attributes should not list `DebugScreen` or `DebugText`.
-2. **File → Publish to Roblox**. Give it a name (e.g. "270 playtest"), pick a genre, **Save**. It stays private: only you and invited testers can play.
+2. **File → Publish to Roblox**. Give it a name (e.g. "Landslide playtest"), pick a genre, **Save**. It stays private: only you and invited testers can play.
 3. Be Roblox friends with your partner. **File → Invite early testers**, search for them, **Invite**. Roblox may ask you to verify your age first.
 4. Optional, to keep ratings between sessions: Creator Dashboard → your experience → keep it private; DataStores work automatically in live servers.
 
@@ -849,3 +849,10 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 7. **State card.** The six actions each start with their icon on a small dark circle; the poll is a small race bar with a tick in the middle. The event card shows "THIS WEEK" over "Windfall · …". The **Key** chip (magnifier) beside the lens chips opens "How to read the map".
 8. **Help (?).** The five tabs sit in one dark track (two rows on a phone), the open one raised with a white outline. "How to win" shows the race bar; "Actions" shows each icon on a round plate. At the end, under a thin line, **Leave match** is orange-outlined. **How to play** (Lobby): the step numbers are round, the election-night winners are tags filled blue / red.
 9. **No errors** from `Lobby`, `Leaderboard`, `Select`, `Draft`, `TopBar`, `StateCard`, `EventCard`, `Focus` or `Help` in the Output window. *Send back:* the Output log.
+
+## Landslide (unreleased, D-062 to D-064)
+
+**Polls at half price (D-063).**
+1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Helen Strand still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
+2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.
+3. **Send back:** whether you polled more than before, and any price on screen that still says $1 or $3 for a poll.

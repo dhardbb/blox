@@ -29,6 +29,8 @@ export type Moment =
 
 local Fixtures = {}
 
+local END_SEED = 26 -- the default seed of the Election and Over moments
+
 Fixtures.MOMENTS = table.freeze({
 	"Select",
 	"SelectColor",
@@ -137,6 +139,11 @@ function Fixtures.payload(
 	candidate: string?
 ): Session.StatePayload
 	local first = seed or 18 -- 7 -> 18 with the 24-card deck (D-039): weeks 3 and 8 are still Windfalls
+	if seed == nil and (moment == "Election" or moment == "Over") then
+		-- Half-price polls (D-063) turned seed 18 into a loss for seat 1. Seed 26
+		-- is again a close win on votes with fewer states (290 to 248, 23 states to 28).
+		first = END_SEED
+	end
 	if moment == "SelectColor" then
 		return selectColor(config, first)
 	end
