@@ -37,10 +37,12 @@ local function count(peer: FakeRoblox.Peer, text: string): number
 end
 
 -- Every UI spec and snapshot draws the real map (Map/ShapeMap, D-070), even
--- before its images are uploaded: NodeMap.preview.
+-- before its images are uploaded: NodeMap.preview. The same for the issue
+-- symbols (D-075): IssueIcons.preview lays them out as if uploaded.
 local function newWorld(seed: number, screen: { x: number, y: number }?): FakeRoblox.World
 	local world = FakeRoblox.world({ root = process.cwd, seed = seed, screen = screen })
 	FakeRoblox.setModuleField(world, "src/client/Map/NodeMap.luau", "preview", true)
+	FakeRoblox.setModuleField(world, "src/client/UI/IssueIcons.luau", "preview", true)
 	return world
 end
 

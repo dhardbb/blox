@@ -127,6 +127,25 @@ describe("UI audit rules", function()
 		expectRules(t, { "textFloor" })
 	end)
 
+	it("holds issue symbols to Kit.MIN_ICON and their tint to the palette (D-075)", function()
+		local t = tree()
+		local icon = t.Kit.issueIcon("Jobs", t.Kit.MIN_ICON)
+		icon.Position = UDim2.fromOffset(0, 60)
+		icon.Parent = t.root
+		expectRules(t, {})
+		local small = t.Kit.issueIcon("Farms", t.Kit.MIN_ICON - 2)
+		small.Position = UDim2.fromOffset(40, 60)
+		small.Parent = t.root
+		expectRules(t, { "iconFloor" })
+		small:Destroy()
+		icon.ImageColor3 = FakeRoblox.types.Color3.fromRGB(1, 2, 3)
+		local found = {}
+		for _, finding in t.Audit.check(t.root, { style = true }) do
+			table.insert(found, finding.rule)
+		end
+		expect(table.concat(found, ",")):toBe("tokenColor")
+	end)
+
 	it("flags text under 12 px and sizes off the type scale", function()
 		local t = tree()
 		t.Kit.text("your home", { TextSize = 11, Parent = t.root })

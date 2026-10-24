@@ -13,6 +13,11 @@
 --   truncated     a text that neither wraps nor scales does not fit
 --   textFloor     a text under Kit.MIN_TEXT, or TextScaled without a UITextSizeConstraint
 --                 whose MinTextSize is at least Kit.MIN_TEXT
+--   iconFloor     an issue symbol (Kit.issueIcon's image, attribute IssueIcon) under
+--                 Kit.MIN_ICON in either direction: the symbols stand in for words, so
+--                 they get a floor like text does (D-075). A symbol's text fallback
+--                 (attribute IconFallback, the code before the upload) is plain text
+--                 and goes through the text rules
 --   typeScale     a text size that is not one of the five Kit.size tokens (TextScaled
 --                 texts are judged by their MaxTextSize). Kit.size.wordmark (72) is
 --                 allowed on a text with attribute Wordmark; a monogram's initials
@@ -31,7 +36,7 @@
 -- Style rules (docs/UI-STYLE.md, style v2). Audit.run checks them; Audit.check
 -- only with { style = true }, so the layout specs that call check() directly
 -- keep testing layout alone:
---   tokenColor    a visible fill, text or UIStroke color off the palette (Kit.colors
+--   tokenColor    a visible fill, text, UIStroke or issue symbol tint off the palette (Kit.colors
 --                 and the six player colors). Skipped on the map and under an
 --                 instance with attribute DataColor = true (Kit.dataColor): map
 --                 fills, feed tints and EV bars are data, not chrome
@@ -84,6 +89,7 @@ export type Rule =
 	| "mapNodes"
 	| "truncated"
 	| "textFloor"
+	| "iconFloor"
 	| "typeScale"
 	| "contained"
 	| "primary"
@@ -123,6 +129,7 @@ local RULES: { Rule } = {
 	"mapNodes",
 	"truncated",
 	"textFloor",
+	"iconFloor",
 	"typeScale",
 	"contained",
 	"primary",
@@ -342,6 +349,18 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 			end
 		end
 
+		local symbol = inst:IsA("ImageLabel") and type(inst:GetAttribute("IssueIcon")) == "string"
+		if symbol and (size.X < Kit.MIN_ICON - 0.5 or size.Y < Kit.MIN_ICON - 0.5) then
+			add(
+				"iconFloor",
+				inst,
+				`issue symbol {inst:GetAttribute("IssueIcon")} in {inst.Parent and inst.Parent.Name or "?"} is {math.floor(
+					size.X
+				)}x{math.floor(size.Y)}px (min {Kit.MIN_ICON})`,
+				onMap
+			)
+		end
+
 		if isText(inst) then
 			local text = inst :: any
 			if text.Text ~= "" then
@@ -427,6 +446,12 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 					and not onPalette(text.TextColor3)
 				then
 					add("tokenColor", inst, `{inst.Name} text {hex(text.TextColor3)} is not a token`, false)
+				end
+			end
+			if symbol then
+				local image = inst :: ImageLabel
+				if (image.ImageTransparency or 0) < 1 and not onPalette(image.ImageColor3) then
+					add("tokenColor", inst, `{inst.Name} tint {hex(image.ImageColor3)} is not a token`, false)
 				end
 			end
 			local stroke = inst:FindFirstChildOfClass("UIStroke") :: UIStroke?
