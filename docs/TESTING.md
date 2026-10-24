@@ -849,3 +849,16 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 7. **State card.** The six actions each start with their icon on a small dark circle; the poll is a small race bar with a tick in the middle. The event card shows "THIS WEEK" over "Windfall · …". The **Key** chip (magnifier) beside the lens chips opens "How to read the map".
 8. **Help (?).** The five tabs sit in one dark track (two rows on a phone), the open one raised with a white outline. "How to win" shows the race bar; "Actions" shows each icon on a round plate. At the end, under a thin line, **Leave match** is orange-outlined. **How to play** (Lobby): the step numbers are round, the election-night winners are tags filled blue / red.
 9. **No errors** from `Lobby`, `Leaderboard`, `Select`, `Draft`, `TopBar`, `StateCard`, `EventCard`, `Focus` or `Help` in the Output window. *Send back:* the Output log.
+
+## Debates as live rounds (unreleased, D-062)
+
+Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- debate --size phone` (also `ipad`, `desktop`; 0 audit findings), `lune run tests/harness/balance.luau` (the "Debate" lines). Duel: `defend`, `attack`, `pivot`, add `zinger`.
+
+1. **Play vs Bot (Medium), on the iPad and a phone.** In week 4 the Debate screen opens: both faces with the crowd meter between them, "WEEK 4 DEBATE · 3 ROUNDS" and the three topics, each tagged with whose issue it is. **Expect:** after 3 s, round 1.
+2. **A round.** The moderator asks a question; the pills say whose issue it is, who leads its states and the counter. There are three big buttons: "Defend 6" with "D +4 · A +3 · P −1" on the right, and so on (your score minus theirs against their Defend, Attack and Pivot). Pivot says which issue's states it would land on. In your first debate, a move that can't lose has a green "Safe" tag and a tip explains it. Tap a move: the map lights where a win would land. Hold a move to preview it without picking. **Why?** shows each strength in parts.
+3. **Lock in** stays greyed ("Pick a move") until you tap one. Tap **Stake Zinger**, then Lock in. **Expect:** "Pivot + Zinger · kept secret"; Rex shows "locked in ✓" when he is done. Let one round run out without picking: you get a weak Defend.
+4. **The clash** (4 s): both moves, the scores, "Your Defend beats Attack: +3", a stamp (YOU WIN BY 3 / REX WINS BY 3 / SPLIT), the line naming the states it swung and any FLIP on the map. The crowd meter slides. *Send back:* a screenshot of one clash.
+5. **The verdict:** who won the crowd, a line per round, the map showing the whole debate's moves; **Skip** works. Then the stance (in a Choice week) or the plan.
+6. **Week 9:** the same; the Zinger is back. Results' "What decided it" still lists the states debates flipped.
+
+**Send back:** did you know why you won or lost each round? Did you ever pick a move because of what the bot did last round? Did the map move where you expected? Did it feel like its own event, or still like a quiz? How long did each debate take?

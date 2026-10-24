@@ -981,3 +981,67 @@ WP-2 of the front-page pass (art direction §4), on the white accent (D-058). Cl
 **Client.** Select shows a row of six swatches under the color line when `view.canPickColor` (both steps; hidden for everyone else, who keep the line alone): each a 44 px round chip with a 36 px monogram (your candidate's initials, or your name before a pick) in that color over the color's name. Your color wears the white selection outline; the color your opponent claimed is dimmed, shows their initials and reads "Taken", and does nothing; a tap on any other sends `ClaimColor` (`Net.claimColor`) and the outline moves at once, settling on the server's answer. No buy link on Select: ownership is checked when the match starts, so a purchase mid-Select could not unlock this match's picker (the Lobby's sheet sells the pass). The `ColorTaken` notice reads "Rex took Crimson first. Pick another color." (the opponent's first name once they hold a candidate, and the color last asked for or the saved favorite; `Words.colorTaken`); the rejection text is "Your opponent has that color. Pick another." The Lobby sheet's tie line now says "Same color as your opponent? Whoever claims it first gets it." Debug: `color Teal`. Phone 390x844 still fits step 1 without scrolling; shots `03b-select-color`, `03c-select-color-change` and `04b-select-color-issues` (fixture moment `SelectColor`: you hold Violet, Rex claimed Teal) report 0 audit findings at all three sizes. Also fixed: four client type errors luau-lsp reported (two `FindFirstChild` chains, a tone cast, and `Leaderboard.Board`, which the WP-2 merge had dropped); no behavior change.
 
 **Tests.** `Match.spec` (first come, taken colors, the same-step coin flip over 1,000 seeds, favorites and a shared favorite, non-owners, changing color, the end-of-Select deal, more than two players, determinism, no other seeded stream moved), `Session.spec` (the request, notices, a shared favorite, a timeout), `Lobby.spec` (the schema), `ColorPass.spec` (an owner claims through the real server, by request and by tapping a swatch; a non-owner is refused), `Select.spec` (the picker hidden for non-owners; outline, Taken, a tap claims, step 2, audit at three sizes; the notice wording), `DebugUI.spec` (`color`).
+
+## Debates as live rounds
+
+### D-062 — Debates are three live rounds: Defend, Attack or Pivot, with visible counters and a stakes Zinger (approved reshape, Oct 24, 2026, branch `debates`)
+
+**Feedback.** The designers: debates "kinda feel like glorified stance questions rather than their own thing". They chose "Live rounds: short back-and-forth rounds: attack, defend or pivot to your platform, with visible counters. More drama, more reading the opponent", within their standing rules: skill-based and learnable (no blind rock-paper-scissors), tied to the states you need, visible on the map, deciding about 1 match in 5. The proposal and its paper model are in `docs/proposals/debates-live-rounds.md` (revision 2 after the lead's audit). This replaces the focus decision, the roll and the gaffe of D-040 and D-044.
+
+**Rules.** A debate week opens with its Debate phase: one round per topic (the topics are still drawn at match start and announced weeks ahead). Each round both players pick, at once and in secret, Defend, Attack or Pivot, and may stake their one Zinger. Strength is public arithmetic (`Debate.board`, the same function for the server, the View, the bots, the screen and the duel board):
+
+| Move | Base | Bonuses |
+|---|---|---|
+| Defend | 2 | +3 the topic is on your platform · +1 you lead the topic's states |
+| Attack | 2 | +2 it is on an opponent's platform · +1 you trail its states · +2 you trail the crowd |
+| Pivot | 4 | +1 it is not on your platform |
+
+The move you played last round is −2. "Lead the topic's states": the EV of the topic's states where you lead the public poll is more than every other player's. Defend beats Attack, Attack beats Pivot, Pivot beats Defend: the counter adds `DEBATE_COUNTER` = +2 in round 1, +3 in rounds 2 and 3. The higher score wins; equal is a split. No dice: the debate's seeded stream is retired.
+
+A win gives `DEBATE_ROUND_WIN` (0.8) support in each of the winner's landing states, ×`DEBATE_ZINGER_MULT` (2) if it staked its Zinger (Hale ×4). Defend and Attack land in the topic's states. Pivot lands in the player's pivot issue: the platform issue other than the topic whose states hold the most EV within `DEBATE_PIVOT_CLOSE` (5) public-poll points. A split gives each tied player `DEBATE_ROUND_SPLIT` (0.5) in its own landing states. A player who lost to a counter loses `DEBATE_BACKFIRE` (0.5) where its move aimed. Gains use the normal split and losses go to undecided, all from one start-of-round snapshot (D-001). The polls are republished after every round with the same error terms (`Polls.refresh`), so the map shows each round live. The winner gains crowd by its margin (at most 4), ×Zinger. A final crowd lead of `DEBATE_OVATION` (8) is a standing ovation: +2 momentum in every battleground. There is no flat national bonus (0.05 a crowd point was invisible under poll noise). A Zinger is spent whether the round is won or lost, and a second one is `ZingerSpent`.
+
+**Timeouts and disconnects.** No move in time is a canned answer: Defend at a flat `DEBATE_CANNED` (2). It never earns or suffers a counter and never backfires, and a round won against it gains at most 1 crowd. A disconnect during a debate spends at most one grace use (D-005); a second drop in the same debate gets canned answers at once.
+
+**N players and fairness.** "Their platform" means any opponent's. The counter is earned once if your move counters any non-canned opponent's. The unique top score wins and a tie at the top splits. "Trail the crowd" means below the top. `Debate.spec` checks the seat-swap mirror, three-player debates and determinism.
+
+**Payloads and View.** `{ move = "Defend" | "Attack" | "Pivot", zinger = true? }` is validated whole: `BadMove`, `BadShape`, `ZingerSpent`, `WrongPhase`. A plan carrying a move is `UnexpectedMove`. A client can never send the canned flag. `view.debate` (Debate phase only) carries the week, round, topics, crowd, Zingers left, finished rounds, the board, and `yourMove` (yours alone). The opponent's pending move is `PlayerState.debateMove` and `View.spec` forbids the key. `DebateResult` keeps its old fields for older readers: a "topic" is a round, `gaffes` are backfires, and `focus`/`prep`/`national` are always 0. It adds `rounds`, `crowd` and `ovation`. The Focus decision, `debateFocus`, `focusEdge`, `debateStat`, `DEBATE_STAT`, `DEBATE_MAX_STAT_GAP`, `DEBATE_FOCUS`, `DEBATE_PLATFORM_BONUS`, `DEBATE_ROLL_MAX`, `Debate.odds`, the topic-win, national, sweep and gaffe numbers, and `TIMER_DEBATE` are gone.
+
+**Flow and timers.** The flow is: intro (Show, `TIMER_DEBATE_INTRO` 3 s), then three times round (Input, `TIMER_DEBATE_ROUND` 15 s; it ends early once both lock in) and clash (Reveal, `TIMER_DEBATE_CLASH` 4 s), then verdict (Reveal, `TIMER_DEBATE_VERDICT` 5 s, skippable), then a stance if it is a Choice week, then the plan. All deadlines are absolute server times (`Session.setStage`). The worst case per debate is 65 s, against 30 s for the focus and reveal before. On the D-005 steps that is 1,050 s, the 17.5-minute line, which `Config.spec` pins. **True worst case with every stance and debate step run out: 1,050 + 8 × 20 = 1,210 s (20:10); it was 940 + 200 = 1,140 s (19:00).** Typical: a round locks in after about 7 s, so a debate takes about 41 s against about 18 s before, roughly +46 s a match.
+
+**Bots (all from their own View, D-057).**
+- Medium (the harness bot) values each cell of the round's 3×3 table by its result first (win +1, split 0, loss −1), plus at most half a point for what its map effects are worth. Map worth is EV × closeness of the landing states, the bot's usual weight. It plays the move with the best worst cell.
+- Medium stakes its Zinger where its landing states are worth most: it compares this round with every later topic judged on today's facts, shares ties evenly by its own rng, and stakes in round 3 otherwise.
+- Easy plays a random move half the time (`BOT_EASY_SLIP`) and stakes in a random round.
+- Hard best-replies to the move Medium would play from the opponent's side (`BOT_DEBATE_READ` 0.15). At 0.5 Hard read Medium so well that it won 86% of matches.
+- Extreme also blends in the opponent's own past moves this match (`BOT_EXTREME_HISTORY` 0.5).
+
+New harness styles: `RandomMove`, `NoAnswer`, `AlwaysDefend`, `AlwaysAttack`, `AlwaysPivot`; `RandomFocus` and `NoFocus` are gone.
+
+**Tuning (from the proposal).**
+- `DEBATE_PIVOT_BASE` 3 → 4. At 3, always Defending beat the standard bot 52.3% ± 2.5 (1,500 matches), so Defend was dominant. At 4 the three always-one-move bots measure 32–39%.
+- `DEBATE_ROUND_WIN` 1.0 → 0.8. At 1.0 debates decided 25.9% of winners (2,000 matches); at 0.8, 23.7%.
+- Hale's Zinger: ×3 measured 43.7%, ×4 49.2%, two Zingers at ×2 41.2%, two at ×3 48.9% (1,400 matches each, Hale against the field). ×4 is the simplest of the two that sit in the band.
+- The paper model for the final numbers: rounds pre-decided by public facts 22% (round 1 33%, rounds 2–3 17%). A move that cannot lose exists 45% of the time (round 1 69%).
+
+**Harness** (`lune run tests/harness/balance.luau 2000`; "before" is this branch's start, `front-page` v0.12.0, on the same seeds).
+
+| Check | After | Before | Target |
+|---|---|---|---|
+| Debates change the winner (recount) / EV swung | **23.7%** / 19.3 EV | 25.9% / 22.9 EV | 15–25% |
+| Medium's moves (D / A / P) | 25.5 / 31.9 / 42.6% | — (one focus) | each 20–50% |
+| AlwaysDefend / AlwaysAttack / AlwaysPivot vs Medium | 37.2 / 34.8 / 36.2% | — | each ≤ 45% |
+| RandomMove / NoAnswer vs Medium | 37.6 / 17.8% | RandomFocus 51.9 / NoFocus 26.6% | ≤ 42 / ≤ 35% |
+| Rounds a player had a can't-lose move / and did not lose | 44.2% / 100% | — | informational |
+| Rounds that split (bot vs bot) | 31.6% | — | ≤ 35% (two bots both take the safe move) |
+| Zinger staked in rounds 1 / 2 / 3; staked rounds won | 51 / 24 / 25%; 41% | — | — (the audit's +3 Zinger: 93% in round 1) |
+| Standing ovations per match | 0.14 | — | — |
+| Candidates | Okafor **58.8**, Calloway 53.0, Venkat 49.5, Hale 47.5, Alvarado **43.8**, Reyes 48.7, Strand 46.8, Begay 52.1 | Okafor 53.3, Calloway **57.4**, Venkat **55.1**, Hale 48.7, Alvarado **43.1**, Reyes 47.3, Strand 48.8, Begay 46.6 | 45–55% |
+| Comeback / 40+ EV / 100+ EV | 38.5 / 57.8 / 15.7% | 37.5 / 60.8 / 20.8% | ✓ |
+| Difficulty (400 matches): Easy / Hard / Extreme vs Medium, Extreme vs Hard | 18.8 / 67.5 / 76.5 / 58.8% | 17.0 / 64.3 / 78.3 / 60.3% | 15–25 / 60–70 / 75–85 / > 50 |
+
+*For the designers.*
+1. Okafor moved up (+5.5, about one and a half standard deviations at 480 games) and Alvarado is where she was. A candidate pass is the next step, as D-047 said.
+2. Bots split 32% of rounds because both take the safe move when there is one. People should split less. The playtest checklist asks.
+3. The splits pay +0.5 each, so a split still moves the map. If they feel flat, the lever is a crowd tie-breaker.
+4. The "Safe" tag shows only in a player's first debate of the session, with a coach tip.
+5. The old Reveal debate scoreboard (`CampaignParts/Reveal.luau`, its debate rows) is no longer reached: debates have their own screen. Its owner can remove it.
