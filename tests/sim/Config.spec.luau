@@ -138,12 +138,12 @@ describe("Config", function()
 		local worst = C.TIMER_SELECT
 			+ C.TIMER_MAP_REVEAL
 			+ #C.DRAFT_PRIORITY * (C.TIMER_DRAFT_ROUND + C.DRAFT_REVEAL)
-			+ C.WEEKS * (C.TIMER_PLAN + C.TIMER_RESOLVE)
+			+ C.WEEKS * (C.TIMER_PLAN + C.TIMER_RESOLVE_MAX)
 			+ C.TIME_BANK * 2
 			+ #C.DEBATE_WEEKS * C.TIMER_DEBATE
 			+ C.TIMER_ELECTION
 			+ C.TRANSITION_ALLOWANCE
-		expect(worst):toBe(940) -- 1042 before D-045 (eight draft rounds), 932 after; TIMER_SELECT 30 -> 38 for the two-step Select (D-048)
+		expect(worst):toBe(1012) -- 1042 before D-045 (eight draft rounds), 932 after; TIMER_SELECT 30 -> 38 for the two-step Select (D-048); the reveal up to 14 s on big weeks, 940 -> 1012 (D-063)
 		expect(worst):toBeLessThan(17.5 * 60 + 1)
 	end)
 

@@ -523,7 +523,8 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- The moment "New polls are in" lands (5.4 s in): its stamp, the sweep, the real score.
+		-- The moment "New polls are in" lands (just after the last move, 2.1 s
+		-- before the end): its stamp, the sweep, the real score.
 		name = "16d-resolve-settle",
 		moment = "Plan",
 		screen = "Campaign",
@@ -533,7 +534,7 @@ local SHOTS: { Shot } = {
 			payload.stageStart += shift
 			payload.deadline += shift
 			Rig.push(world, peer, payload)
-			FakeRoblox.run(world, 4.8)
+			FakeRoblox.run(world, payload.deadline - payload.stageStart - 2.7)
 		end,
 	},
 	{
@@ -547,7 +548,7 @@ local SHOTS: { Shot } = {
 			payload.stageStart += shift
 			payload.deadline += shift
 			Rig.push(world, peer, payload)
-			FakeRoblox.run(world, 6)
+			FakeRoblox.run(world, payload.deadline - payload.stageStart - 0.9) -- the end of the reveal (it grows with its steps, D-063)
 		end,
 	},
 	{ name = "18-choice-resolve", moment = "ChoiceResolve", screen = "Campaign" },

@@ -18,6 +18,7 @@ local Bot = require("../Sim/Bot")
 local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
 local Match = require("../Sim/Match")
+local Resolve = require("../Sim/Resolve")
 local Rng = require("../Sim/Rng")
 local State = require("../Sim/State")
 local View = require("../Sim/View")
@@ -400,7 +401,7 @@ local function closeInput(session: Session, now: number)
 
 	local reveal = if phase == "Draft"
 		then config.DRAFT_REVEAL
-		elseif phase == "Plan" then config.TIMER_RESOLVE
+		elseif phase == "Plan" then Resolve.revealTime(config, session.events)
 		else 0
 	if reveal > 0 then
 		setStage(session, "Reveal", now, reveal)

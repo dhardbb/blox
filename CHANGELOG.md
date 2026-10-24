@@ -11,7 +11,8 @@ Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING
 - **Each move is followed by its effect.** In the end-of-week results, every shown move (yours and your opponent's, in the order shown) now moves the map's colors and leads and the header's projected votes and race bar right away. Every state the move touched shows its points ("+1.5" in your color, "−1.5" in orange against you); a lead change says FLIP, flashes in the new leader's color and shows in the header ("Rex: Rally · NY → Rex +28").
 - **"New polls are in" is the last step,** with its own look: a stamp, "Polls shifted 4 states", a pulse sweeping the map. It lands exactly on the real new polls (momentum and poll noise on top of the moves). "What changed" still lists the whole week's real flips and biggest moves.
 - The per-move numbers are estimates from the polls both players saw (the server never reveals true support); one line behind "Why?" says so.
-- The header no longer jumps to the week's result when the reveal opens. Same reveal length; Skip still ends it early.
+- The header no longer jumps to the week's result when the reveal opens. Skip still ends it early.
+- **Busy weeks get a longer reveal** so each move is seen to land: 4.5 s + 0.55 s per step, between 8 and 14 s (9.4 s on average, about +16 s a match). New Config: `TIMER_RESOLVE_BASE`, `TIMER_RESOLVE_PER_STEP`, `TIMER_RESOLVE_MAX`.
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 

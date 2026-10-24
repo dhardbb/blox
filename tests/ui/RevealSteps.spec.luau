@@ -11,6 +11,7 @@ local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
 local Fixtures = require("@ui/Fixtures")
 local Match = require("@sim/Match")
+local Resolve = require("@sim/Resolve")
 local RevealSteps = require("@ui/RevealSteps")
 local Rng = require("@sim/Rng")
 local State = require("@sim/State")
@@ -182,6 +183,11 @@ describe("RevealSteps: the steps", function()
 			end
 			expect(#RevealSteps.eventsUpTo(tally, #tally.steps)):toBe(shown)
 			check(#tally.steps <= shown + 1, "more steps than events")
+			-- The server's reveal time counts at least as many steps as any screen shows (D-063).
+			check(
+				#tally.steps <= Resolve.revealSteps(week.events),
+				`{#tally.steps} steps on screen, the server timed {Resolve.revealSteps(week.events)}`
+			)
 			local first = tally.steps[1]
 			if first.kind == "Move" and first.player ~= nil then
 				expect(first.player):toBe(Words.revealFirst(before))
