@@ -43,7 +43,7 @@
 -- true unless world.chat.blocked["from:to"]; both wait the DataStore latency
 -- and fail while world.chat.failures > 0 (FakeRoblox.setCanChat, blockChat).
 --
--- Matchmaking (docs/DESIGN.md D-080): MemoryStoreService (sorted maps and hash
+-- Matchmaking (docs/DESIGN.md D-083): MemoryStoreService (sorted maps and hash
 -- maps in world.memory, items expire on the simulated clock; pass one world's
 -- `memory` to another to stand for two servers; failures and reruns
 -- switches), TeleportService (ReserveServerAsync, TeleportAsync: logged in
@@ -142,13 +142,13 @@ export type World = {
 	nameLookups: number, -- GetNameFromUserIdAsync calls so far
 	placeId: number, -- game.PlaceId (0 = unpublished, the default)
 	privateServerId: string, -- the server's game.PrivateServerId ("" = a public server; set: a reserved match server)
-	memory: MemoryState, -- MemoryStoreService (D-080); share it between worlds for two servers
-	teleport: TeleportState, -- TeleportService (D-080)
-	social: SocialState, -- SocialService (D-080)
+	memory: MemoryState, -- MemoryStoreService (D-083); share it between worlds for two servers
+	teleport: TeleportState, -- TeleportService (D-083)
+	social: SocialState, -- SocialService (D-083)
 	joinData: { [number]: any }, -- user id -> what Player:GetJoinData() returns (default {})
 }
 
--- The fake MemoryStoreService's state (D-080): sorted maps and hash maps by
+-- The fake MemoryStoreService's state (D-083): sorted maps and hash maps by
 -- name, item -> { value, sortKey, expires (world clock) }.
 export type MemoryState = {
 	sorted: { [string]: { [string]: any } },
@@ -159,7 +159,7 @@ export type MemoryState = {
 	rangeReads: number, -- GetRangeAsync calls so far
 }
 
--- The fake TeleportService's state (D-080).
+-- The fake TeleportService's state (D-083).
 export type TeleportState = {
 	sent: { { userId: number, placeId: number, access: string?, data: any, at: number } },
 	servers: { { placeId: number, access: string, privateId: string } }, -- ReserveServerAsync results
@@ -169,7 +169,7 @@ export type TeleportState = {
 	reserveFailures: number, -- the next N ReserveServerAsync calls throw
 }
 
--- The fake SocialService's state (D-080).
+-- The fake SocialService's state (D-083).
 export type SocialState = {
 	canInvite: boolean, -- CanSendGameInviteAsync's answer (default true)
 	failures: number, -- the next N CanSendGameInviteAsync calls fail
@@ -631,7 +631,7 @@ local function newMessagingService(world: World): any
 	}
 end
 
--- ---------------------------------------------------------------- matchmaking (D-080)
+-- ---------------------------------------------------------------- matchmaking (D-083)
 
 -- One memory-store item: a deep copy of the value, its sort key, and the
 -- world clock at which it expires.
@@ -843,7 +843,7 @@ local function newMemoryStoreService(world: World): any
 	}
 end
 
--- TeleportService for the server (D-080). ReserveServerAsync hands out
+-- TeleportService for the server (D-083). ReserveServerAsync hands out
 -- "access-<n>" / "ps-<n>" (fails while world.teleport.reserveFailures > 0);
 -- TeleportAsync logs every call in world.teleport.sent and, unless
 -- world.teleport.failures > 0 (it throws) or world.teleport.initFailures > 0
@@ -919,7 +919,7 @@ local function newTeleportService(world: World): any
 	return service
 end
 
--- SocialService for a client (D-080): CanSendGameInviteAsync answers
+-- SocialService for a client (D-083): CanSendGameInviteAsync answers
 -- world.social.canInvite after the latency (fails while world.social.failures
 -- > 0); PromptGameInvite logs { userId, launchData, message } in
 -- world.social.prompts.
@@ -1474,7 +1474,7 @@ function methods.BindToClose(self: any, callback: () -> ())
 	table.insert((rawget(self, "_world") :: World).closeHandlers, callback)
 end
 
--- TeleportOptions (D-080): the teleport data rides in a hidden property.
+-- TeleportOptions (D-083): the teleport data rides in a hidden property.
 function methods.SetTeleportData(self: any, data: any)
 	rawget(self, "_props")._TeleportData = deepCopy(data)
 end
@@ -1483,7 +1483,7 @@ function methods.GetTeleportData(self: any): any
 	return deepCopy(rawget(self, "_props")._TeleportData)
 end
 
--- Player:GetJoinData() (D-080): world.joinData[UserId], else an empty table.
+-- Player:GetJoinData() (D-083): world.joinData[UserId], else an empty table.
 function methods.GetJoinData(self: any): any
 	local world: World = rawget(self, "_world")
 	return deepCopy(world.joinData[self.UserId] or {})
@@ -1975,8 +1975,8 @@ function FakeRoblox.world(
 		jobId: string?, -- the server's game.JobId (default "job-1")
 		stores: { [string]: { [string]: any } }?, -- share another world's DataStore keys (two servers)
 		placeId: number?, -- game.PlaceId (default 0: unpublished)
-		privateServerId: string?, -- a reserved match server's game.PrivateServerId (D-080)
-		memory: MemoryState?, -- share another world's memory stores (two servers, D-080)
+		privateServerId: string?, -- a reserved match server's game.PrivateServerId (D-083)
+		memory: MemoryState?, -- share another world's memory stores (two servers, D-083)
 		studio: boolean?, -- what RunService:IsStudio() answers from the start (default true)
 	}
 ): World

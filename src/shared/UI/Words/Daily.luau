@@ -1,5 +1,5 @@
 --!strict
--- Copy for the Daily Race (docs/DESIGN.md D-080): the Lobby's card, the day's
+-- Copy for the Daily Race (docs/DESIGN.md D-082): the Lobby's card, the day's
 -- board sheet and the Results summary. Plain words, labels of at most 8 words,
 -- any text block at most 30 words (the UI audit's wallOfText). Pure.
 

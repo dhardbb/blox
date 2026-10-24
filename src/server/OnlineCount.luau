@@ -1,5 +1,5 @@
 --!strict
--- The Lobby's "1,234 online" (docs/DESIGN.md D-080; rules in Net/Online).
+-- The Lobby's "1,234 online" (docs/DESIGN.md D-083; rules in Net/Online).
 -- Every Matchmaking.ONLINE_PERIOD seconds this server writes its player count
 -- to the sorted map ONLINE_MAP (key = its JobId, expiring after ONLINE_TTL)
 -- and reads the shared total; if the total is older than a period it sums the

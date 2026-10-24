@@ -1,5 +1,5 @@
 --!strict
--- The Daily Race on the fake engine (D-080): the Lobby's card (today's
+-- The Daily Race on the fake engine (D-082): the Lobby's card (today's
 -- candidate, the countdown, the streak, Play / Practice), its board sheet with
 -- "You: #N", Play starting the real server's race straight on the issues step,
 -- and the Results summary of a counted and a practice run. Strict audit 0 at
@@ -41,7 +41,7 @@ local function today(): any
 	return SimDaily.race(C, Fixtures.DAILY_DAY)
 end
 
-describe("Lobby: the Daily Race card (D-080)", function()
+describe("Lobby: the Daily Race card (D-082)", function()
 	it("shows today's candidate for everyone, the time left and the streak", function()
 		local world, peer = Rig.fixture("Lobby", IPAD)
 		setDaily(world, peer, Fixtures.daily({ now = world.clock }))
@@ -145,7 +145,7 @@ describe("Lobby: the Daily Race card (D-080)", function()
 	end)
 end)
 
-describe("Results: the Daily Race summary (D-080)", function()
+describe("Results: the Daily Race summary (D-082)", function()
 	local function over(world: FakeRoblox.World, peer: FakeRoblox.Peer, counted: boolean): string
 		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
 		payload.daily = { day = Fixtures.DAILY_DAY, counted = counted }

@@ -1,5 +1,5 @@
 --!strict
--- Matchmaking end to end on the fake engine (docs/DESIGN.md D-080): several
+-- Matchmaking end to end on the fake engine (docs/DESIGN.md D-083): several
 -- worlds stand for several servers of one game, sharing memory stores and
 -- data stores. Players queue or host on different servers, get paired, are
 -- teleported (logged by the fake TeleportService), and the test joins them to
@@ -154,7 +154,7 @@ local function matchServer(
 	return w3, peers
 end
 
-describe("e2e matchmaking: across servers (D-080)", function()
+describe("e2e matchmaking: across servers (D-083)", function()
 	it("pairs two queued players on different servers and starts their match on a match server", function()
 		local w1, w2, a, b = twoServers()
 		FakeRoblox.fire(w1, a, { op = "Queue" })
@@ -392,7 +392,7 @@ describe("e2e matchmaking: across servers (D-080)", function()
 	end)
 end)
 
-describe("e2e matchmaking: Studio and failures fall back to in-server (D-080)", function()
+describe("e2e matchmaking: Studio and failures fall back to in-server (D-083)", function()
 	it("matches in-server in Studio with no memory store or teleport, and counts this server", function()
 		local world = FakeRoblox.world({ root = process.cwd, seed = 3 })
 		local a, b = join(world, "A", 1), join(world, "B", 2)
@@ -425,7 +425,7 @@ describe("e2e matchmaking: Studio and failures fall back to in-server (D-080)", 
 	end)
 end)
 
-describe("e2e matchmaking: online count (D-080)", function()
+describe("e2e matchmaking: online count (D-083)", function()
 	it("adds up the players on every server", function()
 		local w1, w2, a, _b = twoServers()
 		local c = join(w2, "C", 3)
@@ -444,7 +444,7 @@ describe("e2e matchmaking: online count (D-080)", function()
 	end)
 end)
 
-describe("e2e matchmaking: invites (D-080)", function()
+describe("e2e matchmaking: invites (D-083)", function()
 	it("takes an invited friend straight into the host's private match", function()
 		local world = FakeRoblox.world({ root = process.cwd, seed = 3 })
 		local host = join(world, "Host", 1)
@@ -513,7 +513,7 @@ describe("e2e matchmaking: invites (D-080)", function()
 	end)
 end)
 
-describe("e2e matchmaking: a bot game while waiting (D-080)", function()
+describe("e2e matchmaking: a bot game while waiting (D-083)", function()
 	local function queuedWithBot(): (World, Peer)
 		local world = FakeRoblox.world({ root = process.cwd, seed = 3 })
 		local a = join(world, "A", 1)
@@ -591,7 +591,7 @@ describe("e2e matchmaking: a bot game while waiting (D-080)", function()
 	end)
 end)
 
-describe("e2e matchmaking: rematch (D-080)", function()
+describe("e2e matchmaking: rematch (D-083)", function()
 	-- A and B queue on one server and autoplay a whole match to Results.
 	local function playedMatch(seed: number): (World, Peer, Peer)
 		local world = FakeRoblox.world({ root = process.cwd, seed = seed })

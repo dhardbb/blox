@@ -152,7 +152,7 @@ local function nameOf(id: string): string
 	return names[id] or Leaderboard.cleanName(nil, id)
 end
 
--- The same name lookups for another board's page (the Daily Race, D-080):
+-- The same name lookups for another board's page (the Daily Race, D-082):
 -- rows keyed "Player_<UserId>". Yields, at most NAME_WAIT seconds.
 function LeaderboardService.lookUpNames(rows: { any })
 	lookUpAll(rows)

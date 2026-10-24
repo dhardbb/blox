@@ -29,7 +29,7 @@
 --           (SoundToggle and MotionToggle, attributes On and Label, at the
 --           right) and the TextLabel "SettingsTip" (hidden until wanted)
 --
--- Admins (D-080): a third toggle, TimersToggle (the clock, struck through and
+-- Admins (D-081): a third toggle, TimersToggle (the clock, struck through and
 -- lit while on), left of the pair, shown only after Settings.setTimers(corner,
 -- off) with a boolean (nil hides it: everyone who is not an admin). A tap
 -- repaints it at once and calls props.onTimers(off); the server's answer comes
@@ -167,7 +167,7 @@ local function toggle(name: string, order: number, onActivate: () -> ()): TextBu
 end
 
 -- `strike` strikes a glyph through (an icon with no "off" form); `always`
--- strikes an uploaded image too (the admin's clock, D-080, has none).
+-- strikes an uploaded image too (the admin's clock, D-081, has none).
 local function paintToggle(
 	button: TextButton,
 	on: boolean,
@@ -207,7 +207,7 @@ end
 function Settings.corner(props: { [string]: any }?): Frame
 	local p: { [string]: any } = props or {}
 	local pairWidth = 2 * Kit.MIN_TOUCH + Kit.space.sm
-	local timersOff: boolean? = nil -- the admin toggle (D-080); nil: not shown
+	local timersOff: boolean? = nil -- the admin toggle (D-081); nil: not shown
 	local root = Kit.box({
 		Name = p.Name or "CornerSettings",
 		AnchorPoint = Vector2.new(1, 0),
@@ -282,7 +282,7 @@ function Settings.corner(props: { [string]: any }?): Frame
 	end)
 	sound.Parent = pair
 	motion.Parent = pair
-	-- Admins only (D-080): turn the choice timers off in their own matches.
+	-- Admins only (D-081): turn the choice timers off in their own matches.
 	local timers: TextButton
 	timers = toggle("TimersToggle", 0, function()
 		local off = not (timersOff == true)
@@ -361,7 +361,7 @@ function Settings.corner(props: { [string]: any }?): Frame
 	return root
 end
 
--- Shows a corner's admin toggle with `off` (the saved "Timers off", D-080), or
+-- Shows a corner's admin toggle with `off` (the saved "Timers off", D-081), or
 -- hides it (nil: not an admin).
 function Settings.setTimers(corner: Frame, off: boolean?)
 	local set = timerSetters[corner]

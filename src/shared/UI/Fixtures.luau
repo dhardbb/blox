@@ -360,7 +360,7 @@ function Fixtures.leaderboard(options: { count: number?, you: number?, status: s
 	}
 end
 
--- Today's Daily Race as the server sends it (Net/Daily.Info, D-080), on
+-- Today's Daily Race as the server sends it (Net/Daily.Info, D-082), on
 -- 2026-10-24. `options.now` is the server time the countdown runs from (the
 -- race ends 5 h 12 m later); `played` / `margin`: today's counted run began /
 -- ended with that margin; `you`: the viewer's rank on the day's board (default

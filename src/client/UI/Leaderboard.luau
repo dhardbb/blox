@@ -171,7 +171,7 @@ local function entryRow(parent: Instance, name: string, entry: any, mine: boolea
 	return line
 end
 
--- One row as the Daily Race's board draws it too (D-080): `entry` has rank,
+-- One row as the Daily Race's board draws it too (D-082): `entry` has rank,
 -- name and `rating`, the value shown at the right (any text, e.g. "+62").
 Leaderboard.row = entryRow
 

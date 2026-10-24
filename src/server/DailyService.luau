@@ -1,5 +1,5 @@
 --!strict
--- The Daily Race on the server (docs/DESIGN.md D-080). Sim/Daily derives the
+-- The Daily Race on the server (docs/DESIGN.md D-082). Sim/Daily derives the
 -- race from the UTC day; Net/Daily holds the scoring, streak and board rules;
 -- this module does the clock, the profile writes, the day's OrderedDataStore
 -- and what each player is told (message kind "Daily", Net/Daily.Info).
@@ -279,7 +279,7 @@ function DailyService.started(session: Session.Session)
 end
 
 -- After every flush: a counted run that has reached week 1 is now the player's
--- run of the day (D-080). Saved once; the streak grows.
+-- run of the day (D-082). Saved once; the streak grows.
 function DailyService.watch(session: Session.Session)
 	local run = session.daily
 	if run == nil or not run.counted or marked[session.id] or session.match.week < 1 then

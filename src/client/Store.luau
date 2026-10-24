@@ -30,9 +30,9 @@ export type State = {
 	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: Remotes.ReviewBoard?, -- admins: the reported names, as last sent (D-069)
-	daily: Daily.Info?, -- today's Daily Race, the streak and the day's board, as last sent (D-080)
-	dailyRun: Daily.Run?, -- the Daily Race run that ended last (its Results summary, D-080)
-	rematch: Rematch.Status?, -- where a rematch of the last match stands (D-080)
+	daily: Daily.Info?, -- today's Daily Race, the streak and the day's board, as last sent (D-082)
+	dailyRun: Daily.Run?, -- the Daily Race run that ended last (its Results summary, D-082)
+	rematch: Rematch.Status?, -- where a rematch of the last match stands (D-083)
 }
 
 local Store = {}
@@ -138,7 +138,7 @@ function Store.setReview(board: Remotes.ReviewBoard)
 	changed()
 end
 
--- Today's Daily Race as the server sent it (D-080). A message that carries a
+-- Today's Daily Race as the server sent it (D-082). A message that carries a
 -- finished run also keeps that run for the Results screen.
 function Store.setDaily(info: Daily.Info)
 	state.daily = info

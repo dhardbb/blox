@@ -1,5 +1,5 @@
 --!strict
--- "Opponent found! Leave this bot game?" (docs/DESIGN.md D-080). A player who
+-- "Opponent found! Leave this bot game?" (docs/DESIGN.md D-083). A player who
 -- plays the bot while waiting in the queue keeps their place in line; when an
 -- opponent is found the server asks them (LobbyStatus.found.phase "Answer",
 -- due at found.untilAt, Config.QUEUE_ACCEPT_SECONDS after it was asked).

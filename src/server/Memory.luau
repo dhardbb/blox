@@ -1,6 +1,6 @@
 --!strict
 -- MemoryStoreService access for matching across servers and the online count
--- (docs/DESIGN.md D-080). Every call is pcall'd and retried with backoff
+-- (docs/DESIGN.md D-083). Every call is pcall'd and retried with backoff
 -- (Matchmaking.ATTEMPTS, BACKOFF); a failure returns false and never throws.
 --
 -- Off in Studio and in an unpublished place (PlaceId 0): Studio's memory stores

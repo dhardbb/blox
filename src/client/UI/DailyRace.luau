@@ -1,5 +1,5 @@
 --!strict
--- The Daily Race card on the Lobby (docs/DESIGN.md D-080): today's candidate
+-- The Daily Race card on the Lobby (docs/DESIGN.md D-082): today's candidate
 -- (portrait and name, "Everyone plays as Dana Okafor today"), the time until
 -- the next race, your streak and today's run, and two buttons: "Play today's
 -- race" (op DailyRace; "Practice today's race" once today's run counts) and

@@ -1,5 +1,5 @@
 --!strict
--- Matching across servers (docs/DESIGN.md D-080). Pure: server/CrossServer does
+-- Matching across servers (docs/DESIGN.md D-083). Pure: server/CrossServer does
 -- the MemoryStore, TeleportService and timing, and uses these helpers for every
 -- value it reads or writes, so the rules are tested without an engine.
 --
@@ -19,7 +19,7 @@
 --                claims (the oldest waiting player never claims), so two
 --                servers never claim each other's players at once.
 --   2. Answer    the owner: Claimed -> Accepted, or Declined (the player left,
---                or turned the match down from a bot game, D-080).
+--                or turned the match down from a bot game, D-083).
 --   3. Ready     the claimer: Accepted -> Ready (access = the reserved server's
 --                access code), after writing the match spec under the reserved
 --                server's PrivateServerId in SPEC_MAP. Then it teleports its player.
@@ -67,7 +67,7 @@ export type Ticket = {
 	job: string, -- the JobId of the server they are on
 	at: number, -- unix time they started waiting (the queue's order)
 	touched: number, -- unix time of the owner's last refresh
-	busy: boolean?, -- Queue: playing a bot game while they wait (D-080)
+	busy: boolean?, -- Queue: playing a bot game while they wait (D-083)
 	events: boolean?, -- Code: false = the host turned events off (D-027)
 	state: TicketState,
 	by: string?, -- Claimed and after: the other player
@@ -348,7 +348,7 @@ function Matchmaking.isSpec(value: any): boolean
 	return players[1] ~= players[2]
 end
 
--- An invite's launch data: the host's private code (D-080). At most LAUNCH_MAX
+-- An invite's launch data: the host's private code (D-083). At most LAUNCH_MAX
 -- characters (ExperienceInviteOptions.LaunchData).
 function Matchmaking.launchData(code: string): string
 	return Matchmaking.LAUNCH_PREFIX .. code
@@ -367,7 +367,7 @@ function Matchmaking.codeFromLaunch(data: any): string?
 	return if Matchmaking.isCode(code) then code else nil
 end
 
--- Teleport data (D-080). Only presentation rides on it (it passes through the
+-- Teleport data (D-083). Only presentation rides on it (it passes through the
 -- client): to a match server the pairing's key (for the logs), back to the
 -- lobby a notice and whether to queue again.
 export type Travel = {

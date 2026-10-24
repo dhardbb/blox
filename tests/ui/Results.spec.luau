@@ -99,7 +99,7 @@ describe("Results layout", function()
 		Rig.noErrors(world)
 	end)
 
-	it("pins Rematch and Back to lobby in the action bar (D-080)", function()
+	it("pins Rematch and Back to lobby in the action bar (D-083)", function()
 		local world, peer = Rig.fixture("Over", Rig.PHONE)
 		local again = Rig.need(peer, "Results", "Rematch")
 		expect(again:GetAttribute("PrimaryAction")):toBe(true)

@@ -69,7 +69,7 @@ local REASONS: { [string]: string } = {
 	CodeTaken = "That code is already in use. Try hosting again.",
 	InMatch = "You're already in a match.",
 	BadCode = "Codes are 5 characters: letters A-Z and numbers 2-9.",
-	-- Matchmaking (D-080)
+	-- Matchmaking (D-083)
 	Matching = "You're already joining a match.",
 	NotQueued = "Join the queue first.",
 	BotTooSoon = `A bot game opens after {Config.defaults.QUEUE_BOT_OFFER_SECONDS} seconds in the queue.`,
@@ -103,7 +103,7 @@ local REASONS: { [string]: string } = {
 	NotAdmin = "Only the game's owners can review names.",
 	ReviewFailed = "The review list couldn't be saved. Try again in a minute.",
 	ReviewChanged = "That name changed since the list loaded. Check it again.",
-	-- Admin "Timers off" (D-080)
+	-- Admin "Timers off" (D-081)
 	AdminOnly = "Only the game's admins can turn timers off.",
 	TimersNotSaved = "Your saved data didn't load, so the timer setting can't be saved.",
 	-- The server's own checks
@@ -131,7 +131,7 @@ local NOTICES: { [string]: string } = {
 	AdminUnrated = "Timers were off (admin), so this match doesn't count for anyone's rating.",
 	DailyCounted = "Daily Race: this run counts once week 1 starts. Good luck!",
 	DailyPractice = "Practice run: today's Daily Race already counts. This one won't.",
-	-- Matchmaking (D-080)
+	-- Matchmaking (D-083)
 	WaitBot = "You're still in the queue. We'll ask before you leave this bot game.",
 	OfferDeclined = "You left the queue and kept playing. Find a match again any time.",
 	OfferExpired = "No answer in time, so you left the queue. Enjoy the bot game!",
@@ -322,7 +322,7 @@ function Net.bank()
 	matchRequest("Bank")
 end
 
--- Answers "Opponent found! Leave this bot game?" (D-080). Joining ends the
+-- Answers "Opponent found! Leave this bot game?" (D-083). Joining ends the
 -- bot game: its end skips Results (Store.leave), straight to the new match.
 function Net.answer(accept: boolean)
 	local payload = Store.get().payload
@@ -332,7 +332,7 @@ function Net.answer(accept: boolean)
 	Net.send("Answer", { accept = accept })
 end
 
--- Rematch on Results (D-080): the match this player just finished.
+-- Rematch on Results (D-083): the match this player just finished.
 function Net.rematch()
 	local payload = Store.get().payload
 	if payload == nil or payload.stage ~= "Over" then
@@ -342,7 +342,7 @@ function Net.rematch()
 end
 
 -- Opens Roblox's invite prompt with the private code in the invite's launch
--- data (D-080), once SocialService says this player may invite. Says so in
+-- data (D-083), once SocialService says this player may invite. Says so in
 -- the toast when they can't (a platform without invites, an error). Yields.
 function Net.invite(code: string)
 	local ok, can = pcall(function(): boolean

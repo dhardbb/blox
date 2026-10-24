@@ -197,7 +197,7 @@ local Config = {
 	-- The tutorial (a player's first bot match, or a replay) has no choice timer at all.
 	BOT_TIME_MULT_EASY = 2, -- choice timers against an Easy bot (the designers' number)
 	BOT_TIME_MULT_MEDIUM = 1.5, -- choice timers against a Medium bot (the designers' number)
-	-- The Daily Race (D-080): one seeded race a UTC day, the same for everyone.
+	-- The Daily Race (D-082): one seeded race a UTC day, the same for everyone.
 	DAILY_BOT_LEVEL = "Hard", -- the bot's level in every Daily Race, so its timers are Hard's x1
 	DAILY_FORFEIT_MARGIN = -538, -- the score of a counted run left or abandoned after week 1 began: every vote lost
 
@@ -241,7 +241,7 @@ local Config = {
 	NAME_BLOCKLIST_RETRY = 20, -- seconds between tries while the reviewed blocklist has never loaded (names wait, D-078)
 	SET_NAME_COOLDOWN = 2, -- seconds between one player's SetName requests (each may call the text filter)
 	SET_COLOR_COOLDOWN = 1, -- seconds between one player's SetColor requests
-	SET_TIMERS_OFF_COOLDOWN = 1, -- seconds between one admin's SetTimersOff requests (each writes saved data, D-080)
+	SET_TIMERS_OFF_COOLDOWN = 1, -- seconds between one admin's SetTimersOff requests (each writes saved data, D-081)
 
 	-- Admins (D-069): free Color and Name Passes and the name review panel. The
 	-- experience owner (game.CreatorId, or for a group-owned game its members of
@@ -258,9 +258,9 @@ local Config = {
 	ELO_FLOOR = 100, -- ratings never fall below this (D-028)
 	RATED_PAIR_DAILY_MAX = 3, -- rated games one pair of players may play in RATED_PAIR_WINDOW; more are unrated (D-077)
 	RATED_PAIR_WINDOW = 86400, -- seconds that cap looks back (a day)
-	MATCHES_PER_SERVER = 50, -- concurrent matches per server: a full 50-player server can all play the bot at once (D-080)
+	MATCHES_PER_SERVER = 50, -- concurrent matches per server: a full 50-player server can all play the bot at once (D-083)
 
-	-- Matchmaking (D-080)
+	-- Matchmaking (D-083)
 	QUEUE_BOT_OFFER_SECONDS = 30, -- seconds in the queue before "Play a bot while you wait" is offered
 	QUEUE_ACCEPT_SECONDS = 15, -- seconds a player in a bot game has to answer "Opponent found! Leave this bot game?"
 	REMATCH_WINDOW_SECONDS = 20, -- seconds after a match against a person in which both may tap Rematch

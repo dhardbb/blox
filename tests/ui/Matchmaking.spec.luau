@@ -1,5 +1,5 @@
 --!strict
--- Matchmaking on screen (docs/DESIGN.md D-080), on fixtures: the online count,
+-- Matchmaking on screen (docs/DESIGN.md D-083), on fixtures: the online count,
 -- a bot game while waiting, the match on its way, invites, "Opponent found!
 -- Leave this bot game?" over a match screen, and Rematch on Results. Each
 -- state is audited (strict UI audit 0) at phone, iPad and desktop.
@@ -48,7 +48,7 @@ local function lobby(state: string, extra: { [string]: any }): any
 	return status
 end
 
-describe("Lobby: the online count (D-080)", function()
+describe("Lobby: the online count (D-083)", function()
 	it("shows 1,234 online when the server knows it, and nothing when it doesn't", function()
 		for _, size in SIZES do
 			local world, peer = Rig.fixture("Lobby", size)
@@ -73,7 +73,7 @@ describe("Lobby: the online count (D-080)", function()
 	end)
 end)
 
-describe("Lobby: a bot game while waiting (D-080)", function()
+describe("Lobby: a bot game while waiting (D-083)", function()
 	it("offers it once the server's botAt has passed, and sends WaitBot", function()
 		for _, size in SIZES do
 			local world, peer = Rig.fixture("Lobby", size)
@@ -91,7 +91,7 @@ describe("Lobby: a bot game while waiting (D-080)", function()
 	end)
 end)
 
-describe("Lobby: the match on its way (D-080)", function()
+describe("Lobby: the match on its way (D-083)", function()
 	it("says what is happening in each phase, with Cancel where it makes sense", function()
 		for _, size in SIZES do
 			local world, peer = Rig.fixture("Lobby", size)
@@ -127,7 +127,7 @@ describe("Lobby: the match on its way (D-080)", function()
 	end)
 end)
 
-describe("Lobby: invites (D-080)", function()
+describe("Lobby: invites (D-083)", function()
 	it("Invite a friend in the sheet makes a code, then opens the invite with it", function()
 		for _, size in SIZES do
 			local world, peer = Rig.fixture("Lobby", size)
@@ -155,7 +155,7 @@ describe("Lobby: invites (D-080)", function()
 	end)
 end)
 
-describe("Opponent found! during a bot game (D-080)", function()
+describe("Opponent found! during a bot game (D-083)", function()
 	it("asks over the match screen with a countdown, and answers", function()
 		for _, size in SIZES do
 			local world, peer = Rig.fixture("Plan", size)
@@ -198,7 +198,7 @@ describe("Opponent found! during a bot game (D-080)", function()
 	end)
 end)
 
-describe("Results: Rematch (D-080)", function()
+describe("Results: Rematch (D-083)", function()
 	-- The Over fixture against a person.
 	local function versusPerson(size: { x: number, y: number }): (FakeRoblox.World, FakeRoblox.Peer, any)
 		local world, peer = Rig.fixture("Over", size)

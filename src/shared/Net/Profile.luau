@@ -72,11 +72,11 @@ export type Profile = {
 	-- Reports this player sent since `at` (D-078: NAME_REPORTS_PER_DAY per
 	-- NAME_REPORT_WINDOW, kept here so a rejoin does not reset it). Optional.
 	reportLog: { at: number, count: number }?,
-	-- An admin's "Timers off" toggle (D-080): true turns the choice timers off
+	-- An admin's "Timers off" toggle (D-081): true turns the choice timers off
 	-- in their matches where every human is an admin. Saved for anyone, used
 	-- only while the server counts them as an admin. Optional: no version bump.
 	adminTimersOff: boolean?,
-	-- The Daily Race (D-080): the last counted run's day, its margin once it
+	-- The Daily Race (D-082): the last counted run's day, its margin once it
 	-- ended, and the streak of consecutive days. Never touches the rating, the
 	-- practice record or the tutorial. Optional: no version bump.
 	daily: Daily.Record?,
@@ -652,7 +652,7 @@ function Profile.withTutorialDone(profile: Profile): Profile
 	return out
 end
 
--- The profile with the admin "Timers off" toggle set (D-080); off is stored as
+-- The profile with the admin "Timers off" toggle set (D-081); off is stored as
 -- no field at all.
 function Profile.withTimersOff(profile: Profile, on: boolean): Profile
 	local out = copy(profile)
@@ -660,14 +660,14 @@ function Profile.withTimersOff(profile: Profile, on: boolean): Profile
 	return out
 end
 
--- The profile once day `day`'s counted Daily Race run begins (D-080; week 1).
+-- The profile once day `day`'s counted Daily Race run begins (D-082; week 1).
 function Profile.withDailyBegun(profile: Profile, day: number): Profile
 	local out = copy(profile)
 	out.daily = Daily.begin(profile.daily, day)
 	return out
 end
 
--- The profile once day `day`'s counted run ended (D-080). The first end only.
+-- The profile once day `day`'s counted run ended (D-082). The first end only.
 function Profile.withDailyResult(
 	profile: Profile,
 	day: number,

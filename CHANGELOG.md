@@ -16,7 +16,7 @@ Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from t
 - **Always the Easy bot:** the first tutorial no longer uses the level picked in the Lobby. How to play's **Play the tutorial** starts the short version ("A short 4-week match against the Easy bot, with tips and no timers.").
 - Help in the tutorial follows its schedule (election after week 4, the debate in week 3, one stance event). A normal match is unchanged (balance harness identical). New `Config` keys: `TUTORIAL_WEEKS` 4, `TUTORIAL_CHOICE_WEEK` 2, `TUTORIAL_DEBATE_WEEKS` {3}, `TUTORIAL_CLOSING_FROM_WEEK` 4, `TUTORIAL_START_CASH` 8, `EVENT_CHOICE_ONLY` false; new harness `tests/harness/tutorial.luau`.
 
-### Admin: timers off (D-080)
+### Admin: timers off (D-081)
 
 - **Admins can turn the choice timers off in their own games** to take notes during playtests. The toggle (a struck-through clock) is in the Lobby's top-right corner, next to Sound and Reduce motion, and at the top of the in-match "?" sheet; only admins see it, and it is saved with their profile.
 - **It only works when every player in the match is an admin** (the owner against a bot, or the owner and the partner in a private match). In a match with anyone else it does nothing and the sheet says "Only in games where every player is an admin."; nobody else can ever be kept waiting.
@@ -24,7 +24,7 @@ Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from t
 - A match between people where the timers were off at any point is **unrated** (both are told). Bot matches were already unrated.
 - New `Config.SET_TIMERS_OFF_COOLDOWN` (1 s, a server limit). Studio checklist: `docs/TESTING.md`, "Admin: timers off". Nothing needed from the humans.
 
-### The Daily Race (D-080)
+### The Daily Race (D-082)
 
 - **One race a day, the same for everyone.** A new **Daily Race** card in the Lobby: today's candidate (everyone plays as them today, a different one every day), the time left until the next race, your streak and how today's run went. **Play today's race** starts it straight on picking your three issues, against the Hard bot (normal timers). The map, the issues, the events and the bot's candidate are the same for every player that day.
 - **One counted run a day.** Your first run that reaches week 1 counts; leaving before then counts for nothing. Later runs that day are practice and say so. A counted run you leave counts as a full loss.
@@ -33,7 +33,7 @@ Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from t
 - The Daily Race never changes your rating or your record, and is never the tutorial. New `Config.DAILY_BOT_LEVEL` ("Hard") and `DAILY_FORFEIT_MARGIN` (-538).
 - Studio checklist: `docs/TESTING.md`, "The Daily Race". Needed from the humans: nothing new (DataStores need the published place, as for the leaderboard).
 
-### Matchmaking: across servers, invites, rematch (D-080)
+### Matchmaking: across servers, invites, rematch (D-083)
 
 - **Find match and private codes work across servers.** Players still waiting after their own server had its go are matched with players on any server of the game; both are moved to a fresh match server, which starts the match (rated as before) and sends them back to a lobby afterwards (Back to lobby). Two players on one server still start at once without moving. In Studio everything stays in-server, as before.
 - **Bigger servers:** up to 50 matches per server (`MATCHES_PER_SERVER` 10 → 50), so a 50-player lobby works. **Needed from the humans:** set Max Players to 50 in Game Settings (`docs/TESTING.md`, "Matchmaking", step 0).

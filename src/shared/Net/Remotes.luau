@@ -39,13 +39,13 @@ export type Op =
 	| "Resync" -- ask for the current state again
 	| "Leaderboard" -- ask for the global leaderboard (D-059); answered with a "Leaderboard" message
 	| "Forfeit" -- leave the match in progress and lose it (D-059): { matchId }
-	| "SetTimersOff" -- admins: the "Timers off" toggle, saved and applied to their match (D-080): { on }
-	| "DailyRace" -- play today's Daily Race (D-080): today's candidate, the Hard bot; the first run past week 1 counts
-	| "Daily" -- ask for today's Daily Race and its board (D-080); answered with a "Daily" message
-	| "WaitBot" -- play the bot while waiting in the queue (D-080): { difficulty? }
-	| "Answer" -- answer "Opponent found! Leave this bot game?" (D-080): { accept }
-	| "Rematch" -- on Results: play the same opponent again (D-080): { matchId } (the finished match)
-	| "Return" -- in a match server: go back to a lobby server (D-080)
+	| "SetTimersOff" -- admins: the "Timers off" toggle, saved and applied to their match (D-081): { on }
+	| "DailyRace" -- play today's Daily Race (D-082): today's candidate, the Hard bot; the first run past week 1 counts
+	| "Daily" -- ask for today's Daily Race and its board (D-082); answered with a "Daily" message
+	| "WaitBot" -- play the bot while waiting in the queue (D-083): { difficulty? }
+	| "Answer" -- answer "Opponent found! Leave this bot game?" (D-083): { accept }
+	| "Rematch" -- on Results: play the same opponent again (D-083): { matchId } (the finished match)
+	| "Return" -- in a match server: go back to a lobby server (D-083)
 
 export type Request = {
 	op: Op,
@@ -60,11 +60,11 @@ export type Request = {
 	tutorial: boolean?, -- Practice: true replays the tutorial (How to play, D-075): Easy bot, no choice timers
 	name: string?, -- SetName: the custom name as typed (absent = the candidate's own); ReviewKeep/ReviewRemove: the name the admin saw
 	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)
-	on: boolean?, -- SetTimersOff: true turns the admin's choice timers off (D-080)
-	accept: boolean?, -- Answer: true joins the match found, false keeps playing the bot (D-080)
+	on: boolean?, -- SetTimersOff: true turns the admin's choice timers off (D-081)
+	accept: boolean?, -- Answer: true joins the match found, false keeps playing the bot (D-083)
 }
 
--- An opponent was found and the match is on its way (LobbyStatus.found, D-080).
+-- An opponent was found and the match is on its way (LobbyStatus.found, D-083).
 export type FoundPhase =
 	"Answer" -- you are in a bot game: join the match or keep playing (by untilAt)
 	| "Waiting" -- the opponent is in a bot game and has until untilAt to answer
@@ -94,11 +94,11 @@ export type LobbyStatus = {
 	color: string?, -- the saved color pick; absent = auto (red or blue)
 	colorPass: ColorPass?, -- absent while the pass is not set up
 	review: { count: number }?, -- admins only (D-069): reported names waiting for review
-	admin: { timersOff: boolean }?, -- admins only (D-080): their saved "Timers off" toggle
-	online: number?, -- players online in every server of the game (D-080); absent while unknown
-	botAt: number?, -- Queued: server time from which a bot game while waiting is offered (D-080)
-	found: Found?, -- Found, or InMatch in a bot game while waiting: the match on its way (D-080)
-	matchServer: boolean?, -- this is a match server: Back to lobby goes to a lobby server (D-080)
+	admin: { timersOff: boolean }?, -- admins only (D-081): their saved "Timers off" toggle
+	online: number?, -- players online in every server of the game (D-083); absent while unknown
+	botAt: number?, -- Queued: server time from which a bot game while waiting is offered (D-083)
+	found: Found?, -- Found, or InMatch in a bot game while waiting: the match on its way (D-083)
+	matchServer: boolean?, -- this is a match server: Back to lobby goes to a lobby server (D-083)
 }
 
 -- One reported name in the admins' review panel (D-069).
@@ -141,8 +141,8 @@ export type Message = {
 	rating: RatingChange?, -- Rating: sent once when a rated match ends
 	leaderboard: Leaderboard.Board?, -- Leaderboard: the top list and where this player stands
 	review: ReviewBoard?, -- Review: the reported names (admins only, D-069)
-	daily: Daily.Info?, -- Daily: today's race, your streak and the day's board (D-080)
-	rematch: Rematch.Status?, -- Rematch: where a rematch of the last match stands (D-080)
+	daily: Daily.Info?, -- Daily: today's race, your streak and the day's board (D-082)
+	rematch: Rematch.Status?, -- Rematch: where a rematch of the last match stands (D-083)
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

@@ -1,5 +1,5 @@
 --!strict
--- Copy for matchmaking (docs/DESIGN.md D-080): the online count, a bot game
+-- Copy for matchmaking (docs/DESIGN.md D-083): the online count, a bot game
 -- while waiting, "Opponent found!", the match on its way, invites and the
 -- rematch. Labels of at most 8 words, text blocks of at most 30 (the UI
 -- audit). Pure.

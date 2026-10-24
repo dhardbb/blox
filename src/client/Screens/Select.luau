@@ -979,7 +979,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		elseif isReady() and prePickLoaded then
 			bar:setStatus("Your last pick is loaded", "muted")
 		elseif payload ~= nil and payload.daily ~= nil and claimed() ~= nil then
-			-- The Daily Race (D-080): the candidate is today's, for everyone.
+			-- The Daily Race (D-082): the candidate is today's, for everyone.
 			local name = Words.firstName(Candidates.profile(ctx.config, claimed() :: string).name)
 			bar:setStatus(`Daily Race: everyone is {name} today`, "muted")
 		else
@@ -1124,7 +1124,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		local deadline = current.deadline
 		if deadline == nil then
-			header:setNoTimer(Header.noTimerText(current)) -- the tutorial (D-075), an admin (D-080)
+			header:setNoTimer(Header.noTimerText(current)) -- the tutorial (D-075), an admin (D-081)
 			return
 		end
 		-- The bar runs over the stage's own length (a bot match scales it, D-075).

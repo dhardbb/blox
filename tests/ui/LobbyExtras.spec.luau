@@ -15,7 +15,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local check, need, tap, textOf = Rig.check, Rig.need, Rig.tap, Rig.textOf
 local PHONE = Rig.PHONE
 local DESKTOP = { x = 1280, y = 720 }
--- A phone tall enough for the top 3 under the Daily Race card (D-080: 870 px and up).
+-- A phone tall enough for the top 3 under the Daily Race card (D-082: 870 px and up).
 local TALL_PHONE = { x = 430, y = 932 }
 
 local function strictAudit(world: FakeRoblox.World, peer: FakeRoblox.Peer, screen: string): number

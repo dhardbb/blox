@@ -1104,9 +1104,9 @@ Server and client. Agents: `lune run tests Tutorial`, `lune run tests/harness/tu
 
 **Send back:** your tutorial time, a phone or iPad screenshot of the "You're ready!" screen, and whether 4 weeks felt like enough to learn the game.
 
-## Admin: timers off (unreleased, D-080)
+## Admin: timers off (unreleased, D-081)
 
-Agents: `lune run tests "D-080"`, `lune run tests "Admin Timers off"`, `lune run tests/ui/snap.luau -- admin --size phone` (and `ipad`, `desktop`: 0 audit findings).
+Agents: `lune run tests "D-081"`, `lune run tests "Admin Timers off"`, `lune run tests/ui/snap.luau -- admin --size phone` (and `ipad`, `desktop`: 0 audit findings).
 
 1. **The toggle (owner's account).** Open the game. **Expect:** a third icon, a clock, left of Sound and Reduce motion in the top-right corner. Tap it. **Expect:** the clock is outlined and struck through, and "Timers off (admin)" shows beside it for a moment. Leave and rejoin (wait 15 s first): it is still on.
 2. **Not for everyone.** On a non-admin account. **Expect:** only the Sound and Reduce motion toggles.
@@ -1116,7 +1116,7 @@ Agents: `lune run tests "D-080"`, `lune run tests "Admin Timers off"`, `lune run
 6. **With anyone else.** Owner (toggle on) against a non-admin account (private code or Find match). **Expect:** normal timers for both; the owner's "?" sheet shows the toggle with "Only in games where every player is an admin."; the other player sees no toggle and no "(admin)".
 7. **Send back:** a phone and an iPad screenshot of the header with "No timer (admin)" and of the corner; the Output lines containing `timers` and `is unrated`, and any errors.
 
-## The Daily Race (unreleased, D-080)
+## The Daily Race (unreleased, D-082)
 
 Agents: `lune run tests "Daily:"`, `lune run tests "e2e: the Daily"`, `lune run tests "Daily Race"`, `lune run tests/ui/snap.luau -- daily` and `-- 01-lobby` (0 audit findings at all three sizes). The board and the counted run need DataStores: test them in the published place (Studio: "Enable Studio Access to API Services" also works).
 
@@ -1131,7 +1131,7 @@ Agents: `lune run tests "Daily:"`, `lune run tests "e2e: the Daily"`, `lune run 
 
 **Send back:** a phone and an iPad screenshot of the Lobby card, one of Results after the counted run and one after a practice run, the board sheet, and the Output lines containing `daily race`.
 
-## Matchmaking (unreleased, D-080)
+## Matchmaking (unreleased, D-083)
 
 Agents: `lune run tests Matchmaking` (pure rules, e2e on the fake engine with two and three servers, UI at three sizes), `lune run tests/ui/snap.luau -- -mm- --size phone` (and `ipad`, `desktop`; 0 audit findings).
 

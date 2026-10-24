@@ -1426,7 +1426,7 @@ About 2 minutes of it is watching (the map reveal, three draft reveals, four wee
 
 ## Admin: timers off
 
-### D-080 — Admins can turn the choice timers off in games where every human is an admin; such a match between people is unrated (rule change for admins only, Oct 24, 2026, branch `admin-timer`)
+### D-081 — Admins can turn the choice timers off in games where every human is an admin; such a match between people is unrated (rule change for admins only, Oct 24, 2026, branch `admin-timer`)
 
 **Ask.** The owner: "give me an admin option to turn off the timer in my games so i can better take notes during play testing."
 
@@ -1446,7 +1446,7 @@ About 2 minutes of it is watching (the map reveal, three draft reveals, four wee
 
 ## The Daily Race
 
-### D-080 — One seeded race a UTC day, the same candidate for everyone, one counted run (new mode, Oct 24, 2026, branch `daily-race`)
+### D-082 — One seeded race a UTC day, the same candidate for everyone, one counted run (new mode, Oct 24, 2026, branch `daily-race`)
 
 **Ask.** The user: "add the daily race, but add a stipulation that a different candidate is required to be used everyday and the candidate is the same for all players".
 
@@ -1474,7 +1474,7 @@ About 2 minutes of it is watching (the map reveal, three draft reveals, four wee
 
 ## Matchmaking: across servers, invites, rematch
 
-### D-080 — Matching across servers, bigger servers, a bot game while you wait, online count, rematch and invites (Oct 24, 2026, branch `matchmaking`)
+### D-083 — Matching across servers, bigger servers, a bot game while you wait, online count, rematch and invites (Oct 24, 2026, branch `matchmaking`)
 
 **Ask.** The designers: "add a rematch button, the 'online now' count … add matching across servers, make bigger servers, add an option to play bot games while waiting, and add functioning invites."
 

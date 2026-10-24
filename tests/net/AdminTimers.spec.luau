@@ -1,5 +1,5 @@
 --!strict
--- Admin "Timers off" (D-080): the choice timers turn off only while every human
+-- Admin "Timers off" (D-081): the choice timers turn off only while every human
 -- in the match is an admin and one of them has the toggle on; a match with any
 -- other human keeps its timers. Mid-match changes act at once on an open
 -- choice; a match between people with the timers off is unrated; the bot
@@ -93,7 +93,7 @@ local function playOut(session: Session.Session, think: number, during: ((Sessio
 	error("the match did not end")
 end
 
-describe("Session: who gets the admin rule (D-080)", function()
+describe("Session: who gets the admin rule (D-081)", function()
 	it("an admin against the bot with Timers off: no choice deadline, told once", function()
 		local session = new({ human("1", true, true), bot("Hard") })
 		local allowed, on = Session.adminRule(session)
@@ -190,7 +190,7 @@ describe("Session: who gets the admin rule (D-080)", function()
 	end)
 end)
 
-describe("Session.setTimersOff (D-080)", function()
+describe("Session.setTimersOff (D-081)", function()
 	it("turns off mid-step, waits, then back on with a fresh full timer", function()
 		local session = new({ human("1", true, false), bot("Easy") })
 		Session.drain(session)
@@ -299,7 +299,7 @@ describe("Session.setTimersOff (D-080)", function()
 	end)
 end)
 
-describe("Session: ratings with the timers off (D-080)", function()
+describe("Session: ratings with the timers off (D-081)", function()
 	it("two admins who had the timers off at any point: unrated, flagged timersOff", function()
 		local session = new({ human("1", true), human("2", true) })
 		local turnedOn = false
@@ -354,7 +354,7 @@ describe("Session: ratings with the timers off (D-080)", function()
 	end)
 end)
 
-describe("SetTimersOff request and saved toggle (D-080)", function()
+describe("SetTimersOff request and saved toggle (D-081)", function()
 	it("needs a boolean `on`, keeps nothing else", function()
 		local ok, reason, request = Schemas.request({ op = "SetTimersOff", on = true, admin = true })
 		expect(ok):toBe(true)

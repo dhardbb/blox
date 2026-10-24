@@ -1,5 +1,5 @@
 --!strict
--- Rematch on the Results screen (docs/DESIGN.md D-080). Pure: MatchService keeps
+-- Rematch on the Results screen (docs/DESIGN.md D-083). Pure: MatchService keeps
 -- one offer per finished match and asks these helpers what a tap does.
 --
 -- Against the bot a tap starts a new match at once against the same level.

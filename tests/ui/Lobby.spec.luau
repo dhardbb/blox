@@ -290,7 +290,7 @@ describe("Results", function()
 		noErrors(world)
 	end)
 
-	it("goes back to the lobby, or asks for a rematch (D-080)", function()
+	it("goes back to the lobby, or asks for a rematch (D-083)", function()
 		local world, peer = mountFixture("Over", nil)
 		tap(world, peer, "Results", "BackToLobby")
 		check(FakeRoblox.find(peer, "Lobby") ~= nil, "no Lobby after Back to lobby")

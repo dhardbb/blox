@@ -4,7 +4,7 @@
 -- and cleanup. The game logic lives in Net/Session and Sim; this module only
 -- feeds them requests and the server time and sends what they produce.
 --
--- Matchmaking (D-080): players still waiting after the local lobby had its go
+-- Matchmaking (D-083): players still waiting after the local lobby had its go
 -- are matched across servers (server/CrossServer); a match server (a reserved
 -- server) starts the match it was made for and sends its players back to a
 -- lobby server afterwards; a queued player may play the bot while they wait;
@@ -70,7 +70,7 @@ local lastRequest: { [string]: { [string]: number } } = {} -- player id -> op ->
 local random = Random.new()
 local matchCount = 0
 
--- Matchmaking (D-080).
+-- Matchmaking (D-083).
 local REQUEST_COOLDOWN = 1 -- s between one player's WaitBot, Answer, Rematch or Return requests
 local JOIN_COOLDOWN = 2 -- s between one player's lookups of a code on another server (a MemoryStore read)
 local PROFILE_WAIT = 10 -- s a match server waits for both saved profiles before starting unrated
@@ -122,7 +122,7 @@ local function idOf(player: Player): string
 	return tostring(player.UserId)
 end
 
--- What a player whose match is on its way sees (D-080), or nil.
+-- What a player whose match is on its way sees (D-083), or nil.
 local function foundOf(id: string): Remotes.Found?
 	local pending = Lobby.pending(lobby, id)
 	if pending then
@@ -156,7 +156,7 @@ local function sendLobby(id: string)
 			else nil,
 		-- Admins only: the review button's count (D-069).
 		review = if Admins.isAdminId(tonumber(id) or 0) then { count = NameReview.pendingCount() } else nil,
-		-- Admins only: the corner's "Timers off" toggle as saved (D-080).
+		-- Admins only: the corner's "Timers off" toggle as saved (D-081).
 		admin = if Admins.isAdminId(tonumber(id) or 0)
 			then { timersOff = profile ~= nil and profile.adminTimersOff == true }
 			else nil,
@@ -235,7 +235,7 @@ local function humanSpec(id: string): Session.SeatSpec
 	local owns = PassService.ownsColorPass(id)
 	local profile = if owns then DataService.profile(id) else nil
 	local namePass = namePassOf(id)
-	-- Admins (D-080), checked here on the server: their saved "Timers off".
+	-- Admins (D-081), checked here on the server: their saved "Timers off".
 	local admin = Admins.isAdminId(tonumber(id) or 0)
 	local saved = if admin then DataService.profile(id) else nil
 	return {
@@ -302,7 +302,7 @@ end
 -- the result when the load finishes.
 local function settle(session: Session.Session)
 	if session.daily then
-		-- The Daily Race (D-080): its own score and streak; never the rating,
+		-- The Daily Race (D-082): its own score and streak; never the rating,
 		-- the practice record or the tutorial.
 		ratingsAtStart[session.id] = nil
 		resultIds[session.id] = nil
@@ -326,7 +326,7 @@ local function settle(session: Session.Session)
 	end
 	if result.unrated and starts then
 		-- A forfeit or a drop before week 1 counts for no one (D-077); nor does a
-		-- match where an admin had the timers off (D-080).
+		-- match where an admin had the timers off (D-081).
 		starts = nil
 		local why = if result.timersOff then "an admin turned the timers off" else "it ended before week 1"
 		print(`[270] match {session.id} is unrated: {why}`)
@@ -387,7 +387,7 @@ local function settle(session: Session.Session)
 	end
 end
 
--- ---------------------------------------------------------------- rematch (D-080)
+-- ---------------------------------------------------------------- rematch (D-083)
 
 -- Tells each player still here where a rematch stands.
 local function sendRematch(entry: RematchEntry)
@@ -464,7 +464,7 @@ local function flush(session: Session.Session)
 		local out: Remotes.Message = { kind = message.kind, state = message.state, notice = message.notice }
 		Replication.send(seat.id, out)
 	end
-	DailyService.watch(session) -- a counted Daily Race run reaching week 1 (D-080)
+	DailyService.watch(session) -- a counted Daily Race run reaching week 1 (D-082)
 	if session.stage == "Over" and sessions[session.id] then
 		sessions[session.id] = nil
 		local ids = {}
@@ -483,7 +483,7 @@ local function flush(session: Session.Session)
 			warn(`[270] match {session.id}: could not apply the result to saved data: {err}`)
 		end
 		openRematch(session)
-		-- A bot game while waiting is over: they are still in line (D-080).
+		-- A bot game while waiting is over: they are still in line (D-083).
 		for _, id in ids do
 			local at = queuedAt[id]
 			if at and table.find(lobby.queue, id) then
@@ -816,12 +816,12 @@ local function newCode(): string
 end
 
 -- Starts the match a lobby outcome describes. `fixedSeed`: a match server's
--- match uses the seed in its spec (D-080).
+-- match uses the seed in its spec (D-083).
 local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 	matchCount += 1
 	local matchId = `m{matchCount}`
 	local seed = fixedSeed or random:NextInteger(1, 2 ^ 31 - 1)
-	-- The Daily Race (D-080): the day's seed, candidates and bot level for everyone.
+	-- The Daily Race (D-082): the day's seed, candidates and bot level for everyone.
 	local race = if outcome.daily ~= nil then DailyService.race() else nil
 	if race and race.day ~= outcome.daily then
 		race = nil -- midnight passed between the request and here: play it as asked
@@ -831,7 +831,7 @@ local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 		seed = race.seed
 		daily = { day = race.day, counted = DailyService.canCount(outcome.players[1], race.day) }
 	end
-	-- Whatever they were waiting for elsewhere is over (D-080). A bot game while
+	-- Whatever they were waiting for elsewhere is over (D-083). A bot game while
 	-- waiting keeps their place in line, here and across servers.
 	for _, id in outcome.players do
 		leaveRematch(id)
@@ -956,7 +956,7 @@ local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 	task.spawn(shareNames, session)
 end
 
--- ---------------------------------------------------------------- matchmaking (D-080)
+-- ---------------------------------------------------------------- matchmaking (D-083)
 
 local function notify(id: string, code: string)
 	Replication.send(id, { kind = "Notice", notice = code })
@@ -976,7 +976,7 @@ local function relist()
 end
 
 -- Acts on what a lobby step produced: a match starts; an offer asks its
--- players (the ones in a bot game answer, the others wait, D-080).
+-- players (the ones in a bot game answer, the others wait, D-083).
 local function apply(outcome: Lobby.Outcome?)
 	if outcome == nil then
 		return
@@ -1017,7 +1017,7 @@ local function declined(id: string, outcome: Lobby.Outcome, why: string, remote:
 	broadcastLobby()
 end
 
--- Answer (D-080): "Opponent found! Leave this bot game?" Accept ends the bot
+-- Answer (D-083): "Opponent found! Leave this bot game?" Accept ends the bot
 -- game (abandoned: unrated, nothing saved, the tutorial flag untouched) and
 -- starts the match once every player in a bot game has accepted. Returns a
 -- reason code when there is nothing to answer.
@@ -1055,7 +1055,7 @@ local function answerOffer(id: string, accept: boolean): string?
 	return reason
 end
 
--- Rematch (D-080): against the bot a new match at the same level at once;
+-- Rematch (D-083): against the bot a new match at the same level at once;
 -- against a person once both have tapped within the window.
 local function rematchRequest(player: Player, matchId: string): string?
 	local id = idOf(player)
@@ -1112,7 +1112,7 @@ local function rematchRequest(player: Player, matchId: string): string?
 	return nil
 end
 
--- Return (D-080): from a match server back to a lobby server.
+-- Return (D-083): from a match server back to a lobby server.
 local function returnToLobby(player: Player): string?
 	local id = idOf(player)
 	if not matchServer then
@@ -1159,7 +1159,7 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 		or op == "WaitBot"
 		or op == "DailyRace"
 	then
-		-- Starting anything else gives up a rematch (D-080).
+		-- Starting anything else gives up a rematch (D-083).
 		leaveRematch(id)
 	end
 	if op == "Queue" then
@@ -1195,7 +1195,7 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 			else nil
 		outcome, reason = Lobby.practice(lobby, id, request.difficulty, tutorial)
 	elseif op == "DailyRace" then
-		-- Today's Daily Race (D-080): never the tutorial; the first run past week 1 counts.
+		-- Today's Daily Race (D-082): never the tutorial; the first run past week 1 counts.
 		local race = DailyService.race()
 		outcome, reason = Lobby.daily(lobby, id, race.day, race.level)
 	elseif op == "WaitBot" then
@@ -1303,7 +1303,7 @@ local function forfeit(player: Player, request: Remotes.Request)
 	flush(session)
 end
 
--- SetTimersOff (D-080): an admin's "Timers off" toggle. Admins only, checked
+-- SetTimersOff (D-081): an admin's "Timers off" toggle. Admins only, checked
 -- here on every request (never the client's word); cooled down like the other
 -- saved settings. Saved in their profile and applied to their match at once
 -- (Session.setTimersOff: only where every human is an admin). Returns a reason
@@ -1344,7 +1344,7 @@ local function setTimersOff(player: Player, on: boolean): string?
 end
 
 -- Sends a player their current screen again (their match's State, or the
--- lobby), so a toggle painted ahead of the server's answer goes back (D-080).
+-- lobby), so a toggle painted ahead of the server's answer goes back (D-081).
 local function resend(id: string)
 	local session = sessions[matchOf[id] or ""]
 	if session then
@@ -1404,7 +1404,7 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 	end
 end
 
--- ---------------------------------------------------------------- arrivals (D-080)
+-- ---------------------------------------------------------------- arrivals (D-083)
 
 -- A match server starts its match once both players are here and their saved
 -- profiles have loaded, or PROFILE_WAIT after both arrived (then unrated, as
@@ -1459,7 +1459,7 @@ local function sendBack(noticeCode: string, requeue: boolean)
 	end
 end
 
--- A match server reads its spec and waits for its players (D-080).
+-- A match server reads its spec and waits for its players (D-083).
 local function runMatchServer()
 	local loaded = CrossServer.loadSpec()
 	spec = loaded
@@ -1488,7 +1488,7 @@ local function runMatchServer()
 end
 
 -- An invited friend joined with the host's code in their launch data
--- (D-080): straight into the host's private match, on this server or another.
+-- (D-083): straight into the host's private match, on this server or another.
 local function inviteJoin(player: Player, code: string)
 	local id = idOf(player)
 	if playerOf(id) ~= player or matchOf[id] ~= nil or Lobby.state(lobby, id) ~= "Idle" then
@@ -1513,7 +1513,7 @@ local function inviteJoin(player: Player, code: string)
 	sendLobby(id)
 end
 
--- How a player arrived (D-080): back from a match server (a notice, and
+-- How a player arrived (D-083): back from a match server (a notice, and
 -- maybe straight back into the queue), or from a friend's invite (its launch
 -- data carries the host's code). GetJoinData is server-side; launch data can
 -- take a few seconds to appear, so it is read again a few times. Yields.
@@ -1558,7 +1558,7 @@ local function readArrival(player: Player)
 end
 
 -- Offers nobody answered, rematch windows that closed, and a match server
--- whose players are all here (D-080).
+-- whose players are all here (D-083).
 local function matchmakingTick(t: number)
 	for _, item in Lobby.expire(lobby, t) do
 		declined(item.id, item.outcome, "OfferExpired", item.remote)
@@ -1602,7 +1602,7 @@ function MatchService.start()
 	DataService.onLoaded(function(id: string)
 		if matchOf[id] == nil then
 			sendLobby(id)
-			DailyService.tell(id) -- the streak and today's run are known now (D-080)
+			DailyService.tell(id) -- the streak and today's run are known now (D-082)
 		end
 		tryStartSpec()
 		task.spawn(approveSavedName, id)
@@ -1612,7 +1612,7 @@ function MatchService.start()
 			LeaderboardService.record(id, profile.rating)
 		end
 	end)
-	-- Matching across servers and the online count (D-080). Both are off in
+	-- Matching across servers and the online count (D-083). Both are off in
 	-- Studio and in an unpublished place: matches are made in-server there.
 	CrossServer.start({
 		isWaiting = function(id: string): boolean
@@ -1736,7 +1736,7 @@ function MatchService.start()
 			end)
 			flush(session)
 		else
-			-- A match server's player waits for their opponent (D-080).
+			-- A match server's player waits for their opponent (D-083).
 			if matchServer and not specStarted and (spec == nil or table.find(spec.players, id) ~= nil) then
 				Lobby.hold(lobby, id)
 				foundAs[id] = { phase = "Arriving" }
@@ -1759,7 +1759,7 @@ function MatchService.start()
 		NameEligibility.forget(player)
 		Admins.forget(player)
 		NameService.forget(player)
-		-- Matchmaking (D-080): their tickets and a rematch with them are gone;
+		-- Matchmaking (D-083): their tickets and a rematch with them are gone;
 		-- anyone they were paired with here is first in line again.
 		leaveRematch(id)
 		CrossServer.forget(id)

@@ -1,5 +1,5 @@
 --!strict
--- The Daily Race's day -> race derivation (D-080): UTC dates, the seeded
+-- The Daily Race's day -> race derivation (D-082): UTC dates, the seeded
 -- candidate rotation (never the same candidate two days running, every cycle
 -- uses the whole roster), the bot's candidate and level, and the seed.
 

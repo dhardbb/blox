@@ -107,7 +107,7 @@ local function pollsGround(world: World, peer: Peer)
 end
 
 -- Rallies in PA twice and in OH once (presses, so a repeated button is found).
--- Steps that turn the fixture into an admin's match (D-080): `allowed` (every
+-- Steps that turn the fixture into an admin's match (D-081): `allowed` (every
 -- human an admin): the timers are off; else the opponent is not an admin and
 -- the timers run.
 local function adminTimers(allowed: boolean): (World, Peer) -> ()
@@ -434,7 +434,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- The Daily Race card (D-080) after today's counted run: the margin, and
+		-- The Daily Race card (D-082) after today's counted run: the margin, and
 		-- Play becomes practice.
 		name = "01i-lobby-daily-played",
 		moment = "Lobby",
@@ -448,7 +448,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- The day's board (D-080): the top 50 by margin, you at #7.
+		-- The day's board (D-082): the top 50 by margin, you at #7.
 		name = "02l-lobby-daily-sheet",
 		moment = "Lobby",
 		screen = "Lobby",
@@ -520,7 +520,7 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Lobby", "MotionToggle")
 		end,
 	},
-	-- D-080: an admin's corner: Timers off, just tapped on (its tooltip showing).
+	-- D-081: an admin's corner: Timers off, just tapped on (its tooltip showing).
 	{
 		name = "01i-lobby-admin-timers",
 		moment = "Lobby",
@@ -695,7 +695,7 @@ local SHOTS: { Shot } = {
 	-- Easy bot (the plan timer doubled).
 	{ name = "09t-campaign-plan-tutorial", moment = "PlanTutorial", screen = "Campaign" },
 	{ name = "09u-campaign-plan-easy", moment = "PlanEasy", screen = "Campaign" },
-	-- D-080: an admin's match with the timers off ("No timer (admin)"), its
+	-- D-081: an admin's match with the timers off ("No timer (admin)"), its
 	-- "?" sheet, the same sheet in a match with a non-admin, and Select.
 	{
 		name = "09v-campaign-plan-admin-timers",
@@ -1010,7 +1010,7 @@ local SHOTS: { Shot } = {
 	},
 	-- D-062: the same screen after a landslide, for the winner and for the loser
 	-- (23-results is the ordinary win: no stamp).
-	-- D-080: a Daily Race run's summary, counted and practice.
+	-- D-082: a Daily Race run's summary, counted and practice.
 	{
 		name = "23h-results-daily",
 		moment = "Over",
@@ -1164,7 +1164,7 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "HelpOverlay", "HelpLeave")
 		end,
 	},
-	-- Matchmaking (D-080): the online count, a bot game while waiting, the
+	-- Matchmaking (D-083): the online count, a bot game while waiting, the
 	-- match on its way, invites, the prompt over a bot game, Rematch.
 	{
 		name = "01i-mm-lobby-online",

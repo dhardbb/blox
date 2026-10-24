@@ -1,5 +1,5 @@
 --!strict
--- The Lobby's matchmaking parts (docs/DESIGN.md D-080), kept out of
+-- The Lobby's matchmaking parts (docs/DESIGN.md D-083), kept out of
 -- Screens/Lobby so that screen only places them:
 --   Online       "1,234 online" under the record (hidden while unknown; while
 --                queued the waiting hint carries it)

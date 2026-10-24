@@ -238,7 +238,7 @@ local function autoInput(payload: Session.StatePayload): any?
 		return nil
 	end
 	local candidate = Candidates.ids[Rng.nextInt(rng, 1, #Candidates.ids)]
-	-- A candidate already ours (claimed, or fixed by the Daily Race, D-080) stays.
+	-- A candidate already ours (claimed, or fixed by the Daily Race, D-082) stays.
 	local claims: { [string]: number } = payload.view.claims or {}
 	for id, owner in claims do
 		if owner == payload.you then

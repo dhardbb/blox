@@ -1,5 +1,5 @@
 --!strict
--- Teleports for matching across servers (docs/DESIGN.md D-080), as the
+-- Teleports for matching across servers (docs/DESIGN.md D-083), as the
 -- "Teleport between places" guide recommends: TeleportAsync from the server in
 -- a pcall, retried (Matchmaking.TELEPORT_ATTEMPTS), and TeleportInitFailed
 -- (a teleport that started but failed, leaving the player here) retried with

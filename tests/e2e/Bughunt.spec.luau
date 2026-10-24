@@ -228,7 +228,7 @@ describe("e2e bug hunt: the lobby status stays current", function()
 	it("clears 'server full' when a match ends, for players who were not in it", function()
 		local rig = newRig(12)
 		local fillers = {}
-		-- One practice match per filler fills every match slot (D-080: 50).
+		-- One practice match per filler fills every match slot (D-083: 50).
 		for k = 1, Config.defaults.MATCHES_PER_SERVER do
 			table.insert(fillers, Support.join(rig, `Filler{k}`))
 		end

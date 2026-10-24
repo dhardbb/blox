@@ -1,5 +1,5 @@
 --!strict
--- Matchmaking's pure rules (docs/DESIGN.md D-080): tickets for matching across
+-- Matchmaking's pure rules (docs/DESIGN.md D-083): tickets for matching across
 -- servers, the online count, the rematch state machine, the lobby's bot game
 -- while waiting and its offers, and the new requests.
 
@@ -255,7 +255,7 @@ describe("Rematch", function()
 	end)
 end)
 
-describe("Lobby: a bot game while waiting (D-080)", function()
+describe("Lobby: a bot game while waiting (D-083)", function()
 	it("is offered only after QUEUE_BOT_OFFER_SECONDS in the queue, and keeps the place in line", function()
 		local lobby = Lobby.new(C)
 		local wait = C.QUEUE_BOT_OFFER_SECONDS
@@ -374,7 +374,7 @@ describe("Lobby: a bot game while waiting (D-080)", function()
 	end)
 end)
 
-describe("Lobby: holds, direct matches and capacity (D-080)", function()
+describe("Lobby: holds, direct matches and capacity (D-083)", function()
 	it("holds a player out of the line and gives them their place back", function()
 		local lobby = Lobby.new(C)
 		Lobby.queue(lobby, "a", NOW)
@@ -425,7 +425,7 @@ describe("Lobby: holds, direct matches and capacity (D-080)", function()
 	end)
 end)
 
-describe("Schemas: the matchmaking requests (D-080)", function()
+describe("Schemas: the matchmaking requests (D-083)", function()
 	it("accepts WaitBot, Answer, Rematch and Return, and checks their fields", function()
 		local function check(raw: any): (boolean, string?, any)
 			return Schemas.request(raw)

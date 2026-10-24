@@ -1,5 +1,5 @@
 --!strict
--- "1,234 online" on the Lobby (docs/DESIGN.md D-080). Pure: server/OnlineCount
+-- "1,234 online" on the Lobby (docs/DESIGN.md D-083). Pure: server/OnlineCount
 -- does the MemoryStore side. Every server writes its player count to a sorted
 -- map (key = its JobId, value = { n, at }) with a short expiry every
 -- Matchmaking.ONLINE_PERIOD seconds; whichever server finds the shared total

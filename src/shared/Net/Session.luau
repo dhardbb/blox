@@ -25,7 +25,7 @@
 -- is also short (D-080): the session plays it on Config.tutorial's schedule
 -- (4 weeks, one stance, one debate), and `session.config` is that config.
 --
--- Admin "Timers off" (D-080): an admin may turn the choice timers off for
+-- Admin "Timers off" (D-081): an admin may turn the choice timers off for
 -- their own matches. It applies only while every human seat is an admin (the
 -- server's check, SeatSpec.admin) and at least one of them has it on
 -- (Session.adminRule); a match with any other human keeps its timers whatever
@@ -65,7 +65,7 @@ export type Seat = {
 	debateGraceWeek: number?, -- the debate week this seat already spent a grace use in (one per debate, D-072)
 	leftEarly: boolean, -- disconnected before week 1 began and not back since (D-077)
 	prePick: any?, -- lobby pre-pick, used if Select times out
-	fixedCandidate: string?, -- Human: claimed for them as Select opens (the Daily Race, D-080)
+	fixedCandidate: string?, -- Human: claimed for them as Select opens (the Daily Race, D-082)
 	botCandidate: string?,
 	botStyle: Bot.Style?,
 	botDifficulty: Bot.Difficulty?, -- practice difficulty (D-057); nil for a harness bot with an explicit style
@@ -77,11 +77,11 @@ export type Seat = {
 	namePass: NamePass?, -- this player may use the Name Pass (it is set up and they are eligible)
 	shownNames: { [number]: string? }, -- other seats' names as filtered for THIS viewer (Session.showName)
 	hiddenNames: { [number]: string }, -- names this viewer reported: never shown to them again
-	admin: boolean, -- an admin, as the server checked it (D-080); never true for a bot
-	timersOff: boolean, -- this admin's "Timers off" toggle (D-080); false for anyone else
+	admin: boolean, -- an admin, as the server checked it (D-081); never true for a bot
+	timersOff: boolean, -- this admin's "Timers off" toggle (D-081); false for anyone else
 }
 
--- The admin "Timers off" toggle as an admin's seat sees it (D-080).
+-- The admin "Timers off" toggle as an admin's seat sees it (D-081).
 export type AdminTimers = {
 	on: boolean, -- this admin's own toggle
 	allowed: boolean, -- every human in the match is an admin: the toggle can work here
@@ -111,7 +111,7 @@ export type Result = {
 	-- before week 1 began. Absent otherwise.
 	unrated: boolean?,
 	-- Unrated because an admin turned the timers off in a match between people
-	-- (D-080). Absent otherwise.
+	-- (D-081). Absent otherwise.
 	timersOff: boolean?,
 }
 
@@ -134,15 +134,15 @@ export type StatePayload = {
 	stageStart: number,
 	deadline: number?, -- this seat's deadline (its own time bank included); nil = no deadline (the tutorial's choices, D-075)
 	tutorial: boolean?, -- true in the tutorial (D-075): choices have no timer
-	daily: DailyRun?, -- a Daily Race run (D-080)
+	daily: DailyRun?, -- a Daily Race run (D-082)
 	you: number,
 	view: View.View,
 	events: { State.Event },
 	seats: { SeatInfo },
 	result: Result?,
 	naming: Naming?, -- the Name Pass for this seat (D-069); absent unless they may use it
-	adminNoTimer: boolean?, -- true while an admin has the choice timers off (D-080): "No timer (admin)"
-	adminTimers: AdminTimers?, -- an admin's seat only (D-080): their toggle and whether it can work here
+	adminNoTimer: boolean?, -- true while an admin has the choice timers off (D-081): "No timer (admin)"
+	adminTimers: AdminTimers?, -- an admin's seat only (D-081): their toggle and whether it can work here
 }
 
 export type Message = {
@@ -172,12 +172,12 @@ export type Session = {
 	verdictNext: boolean, -- the last round's clash is on: the debate's verdict follows it
 	tutorial: boolean, -- the tutorial (D-075): Input stages have no deadline
 	timeScale: number, -- every choice timer is multiplied by this (a practice bot's level, D-075)
-	adminUntimed: boolean, -- the admin rule has the choice timers off right now (D-080)
-	adminUnrated: boolean, -- the timers were off at some point with two or more humans: unrated (D-080)
-	daily: DailyRun?, -- a Daily Race run (D-080)
+	adminUntimed: boolean, -- the admin rule has the choice timers off right now (D-081)
+	adminUnrated: boolean, -- the timers were off at some point with two or more humans: unrated (D-081)
+	daily: DailyRun?, -- a Daily Race run (D-082)
 }
 
--- A Daily Race run (D-080), as the server starts it.
+-- A Daily Race run (D-082), as the server starts it.
 export type DailyRun = {
 	day: number, -- the race's day (whole days since 1970-01-01 UTC)
 	counted: boolean, -- the player's counted run today; false = a practice run
@@ -187,7 +187,7 @@ export type DailyRun = {
 export type Options = {
 	events: boolean?, -- false: no event deck this match (D-027)
 	tutorial: boolean?, -- true: the tutorial, no choice timers (D-075; the server sets it for a bot match only)
-	daily: DailyRun?, -- a Daily Race run (D-080): never the tutorial
+	daily: DailyRun?, -- a Daily Race run (D-082): never the tutorial
 }
 
 export type SeatSpec = {
@@ -199,11 +199,11 @@ export type SeatSpec = {
 	customName: string?, -- Human: a Name Pass owner's saved name, filtered for this match (D-069)
 	seesNames: boolean?, -- Human: may see custom names (D-069); default false
 	namePass: NamePass?, -- Human: may use the Name Pass (D-069)
-	candidate: string?, -- Bot: candidate to play. Human: a fixed candidate, claimed for them as Select opens (the Daily Race, D-080)
+	candidate: string?, -- Bot: candidate to play. Human: a fixed candidate, claimed for them as Select opens (the Daily Race, D-082)
 	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
 	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
-	admin: boolean?, -- Human: an admin, as the server checked it (D-080)
-	timersOff: boolean?, -- Human: this admin's saved "Timers off" toggle (D-080); ignored unless admin
+	admin: boolean?, -- Human: an admin, as the server checked it (D-081)
+	timersOff: boolean?, -- Human: this admin's saved "Timers off" toggle (D-081); ignored unless admin
 }
 
 local Session = {}
@@ -218,7 +218,7 @@ Session.Reason = table.freeze({
 	Over = "Over",
 	NotSelect = "NotSelect",
 	NoTimer = "NoTimer", -- the time bank in a step without a timer (the tutorial, D-075)
-	AdminOnly = "AdminOnly", -- "Timers off" from a seat that is not an admin (D-080)
+	AdminOnly = "AdminOnly", -- "Timers off" from a seat that is not an admin (D-081)
 })
 
 -- The deadline of an Input stage that waits for its players (the tutorial,
@@ -235,7 +235,7 @@ Session.OPPONENT_FORFEITED = "OpponentForfeited"
 -- Notice sent to the player as the tutorial starts: no timers (D-075).
 Session.TUTORIAL = "Tutorial"
 -- Notices sent to every human when the admin rule turns the choice timers off
--- (with "and this match is unrated" when two or more humans play) or back on (D-080).
+-- (with "and this match is unrated" when two or more humans play) or back on (D-081).
 Session.ADMIN_TIMERS_OFF = "AdminTimersOff"
 Session.ADMIN_TIMERS_OFF_UNRATED = "AdminTimersOffUnrated"
 Session.ADMIN_TIMERS_ON = "AdminTimersOn"
@@ -265,7 +265,7 @@ function Session.timeScale(config: Config, difficulty: Bot.Difficulty?): number
 	return 1
 end
 
--- The admin rule (D-080): `allowed` when every human seat is an admin (and
+-- The admin rule (D-081): `allowed` when every human seat is an admin (and
 -- there is at least one), `on` when it is allowed and one of them has
 -- "Timers off" on. Bots never count either way. A Daily Race (D-082) keeps
 -- its timers for everyone: its board compares runs against the same clock.
@@ -298,7 +298,7 @@ local function humanCount(session: Session): number
 end
 
 -- Input stages wait for their players: the tutorial (D-075), or the admin
--- rule (D-080).
+-- rule (D-081).
 local function untimed(session: Session): boolean
 	return session.tutorial or session.adminUntimed
 end
@@ -432,7 +432,7 @@ local function setStage(session: Session, stage: Stage, now: number, duration: n
 end
 
 local function finish(session: Session, now: number, result: Result)
-	-- Timers were off between people (D-080): nobody's rating moves.
+	-- Timers were off between people (D-081): nobody's rating moves.
 	if session.adminUnrated and result.reason ~= "Abandoned" and not result.unrated then
 		result.unrated = true
 		result.timersOff = true
@@ -526,7 +526,7 @@ end
 
 -- Bots submit as soon as an Input stage opens, from their own View. At Select a
 -- bot claims its candidate first (one batch for every bot, and for every human
--- with a fixed candidate, D-080), or a free one.
+-- with a fixed candidate, D-082), or a free one.
 local function botInputs(session: Session)
 	local candidates: { [number]: string } = {}
 	if session.match.phase == "Select" then
@@ -850,7 +850,7 @@ function Session.new(
 		pendingColorClaims = {},
 		introWeek = nil,
 		verdictNext = false,
-		-- A Daily Race is never the tutorial (D-080).
+		-- A Daily Race is never the tutorial (D-082).
 		tutorial = options ~= nil and options.tutorial == true and options.daily == nil,
 		timeScale = timeScale,
 		adminUntimed = false,
@@ -1137,7 +1137,7 @@ function Session.clearName(session: Session, p: number)
 	end
 end
 
--- An admin turns their "Timers off" toggle on or off for this match (D-080).
+-- An admin turns their "Timers off" toggle on or off for this match (D-081).
 -- The server has already checked that the player is an admin and saved the
 -- toggle; this checks the seat again (a bot or a non-admin seat is turned
 -- down, "AdminOnly"). The toggle is kept even where it cannot work (a human

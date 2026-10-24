@@ -1,5 +1,5 @@
 --!strict
--- The Daily Race (docs/DESIGN.md D-080): one race a UTC day, the same for every
+-- The Daily Race (docs/DESIGN.md D-082): one race a UTC day, the same for every
 -- player. Everything about it comes from the day number alone (whole days since
 -- 1970-01-01 UTC; the server passes os.time() // 86400), through Sim/Rng:
 --
@@ -13,7 +13,7 @@
 -- cycle uses every candidate once), and when a cycle would open with the
 -- candidate the previous one closed on, its first two days swap. So no
 -- candidate ever runs two days in a row. The platform is not part of the race:
--- every player picks their own three issues from the same issue map (D-080).
+-- every player picks their own three issues from the same issue map (D-082).
 --
 -- Pure: no clock, no Roblox. The same day always gives the same race.
 

@@ -27,7 +27,7 @@
 --   HelpSettingsLabel and the row Settings with SoundChip and MotionChip),
 --   HelpLeave (D-059: "Leave match" at the end, only in a live match and only
 --   when App gave ctx.leave; it closes Help and opens the confirmation).
---   HelpAdmin (D-080, admins only: the payload's adminTimers): above the tabs,
+--   HelpAdmin (D-081, admins only: the payload's adminTimers): above the tabs,
 --   the chip HelpAdminTimers ("Timers off (admin)", outlined while on; a tap
 --   sends SetTimersOff) and the line HelpAdminNote (what it does here, or
 --   "Only in games where every player is an admin.").
@@ -297,9 +297,9 @@ Help.art = table.freeze({
 
 -- ---------------------------------------------------------------- mount
 
-Help.ADMIN_TIMERS = "Timers off (admin)" -- the admin chip's label (D-080)
+Help.ADMIN_TIMERS = "Timers off (admin)" -- the admin chip's label (D-081)
 
--- The line under the admin chip (D-080): what "Timers off" does in this match,
+-- The line under the admin chip (D-081): what "Timers off" does in this match,
 -- or why it does nothing here.
 function Help.adminNote(on: boolean, allowed: boolean, payload: any): string
 	if not allowed then
@@ -402,7 +402,7 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 	local pages: { [string]: Frame } = {}
 	local showTab: (tab: string) -> ()
 
-	-- Admins only (D-080): "Timers off" for this match, above the tabs.
+	-- Admins only (D-081): "Timers off" for this match, above the tabs.
 	local adminBox = Kit.stack({
 		Name = "HelpAdmin",
 		LayoutOrder = 0,

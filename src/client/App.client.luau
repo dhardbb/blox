@@ -266,7 +266,7 @@ else
 	Net.start()
 end
 
--- "Opponent found! Leave this bot game?" (D-080): over any screen while a
+-- "Opponent found! Leave this bot game?" (D-083): over any screen while a
 -- bot game is played in the queue; the same layer as Leave.
 FoundPrompt.mount(background, ctx)
 

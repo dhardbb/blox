@@ -1,5 +1,5 @@
 --!strict
--- The Daily Race's rules off the engine (D-080): scoring and its tie-breaks,
+-- The Daily Race's rules off the engine (D-082): scoring and its tie-breaks,
 -- weeks behind, the streak's lifecycle and its place in the profile, the day's
 -- board, the lobby's Daily outcome, the request schema, and a Session with the
 -- day's fixed candidate (claimed at Select, nobody may change it).

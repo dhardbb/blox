@@ -1,5 +1,5 @@
 --!strict
--- Matching across servers (docs/DESIGN.md D-080; the ticket rules are in
+-- Matching across servers (docs/DESIGN.md D-083; the ticket rules are in
 -- Net/Matchmaking). The local lobby (Net/Lobby) always pairs players on this
 -- server first and at once; this module puts every player still waiting into
 -- the game-wide queue, every hosted private code into the game-wide code
@@ -654,7 +654,7 @@ function CrossServer.forget(id: string)
 	end)
 end
 
--- A player in a bot game answered a claim from another server (D-080).
+-- A player in a bot game answered a claim from another server (D-083).
 function CrossServer.answer(id: string, accept: boolean)
 	if not running then
 		return
@@ -740,7 +740,7 @@ end
 
 -- ---------------------------------------------------------------- match servers
 
--- True if this server is a reserved server: a match server (D-080).
+-- True if this server is a reserved server: a match server (D-083).
 function CrossServer.isMatchServer(): boolean
 	local ok, result = pcall(function(): boolean
 		return game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0

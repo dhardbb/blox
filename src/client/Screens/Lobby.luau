@@ -28,7 +28,7 @@
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, CornerSettings
--- (SoundToggle, MotionToggle, SettingsTip; TimersToggle for admins, D-080), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
+-- (SoundToggle, MotionToggle, SettingsTip; TimersToggle for admins, D-081), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet, DailyCard, DailySheet.
 --
 -- The Daily Race (UI/DailyRace, D-082) is one card in the column under How to
@@ -244,7 +244,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- Admins only (D-069): the reported names to review.
 	local review = NameReview.new(parent, ctx, { LayoutOrder = 7, Parent = idle })
 	-- Sound and Reduce motion: the top-right corner (D-075), on every Lobby state;
-	-- for admins also "Timers off" (D-080), saved by the server.
+	-- for admins also "Timers off" (D-081), saved by the server.
 	local settings = Settings.corner({
 		Parent = parent,
 		onTimers = function(off: boolean)
@@ -252,7 +252,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end,
 	})
 	local board = Leaderboard.new(parent, ctx)
-	-- The Daily Race (D-080): one card in the column.
+	-- The Daily Race (D-082): one card in the column.
 	local daily = DailyRace.new(parent, ctx, { LayoutOrder = 5, Parent = idle })
 
 	-- The sheet: make a code, or enter one.

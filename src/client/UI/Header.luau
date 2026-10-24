@@ -24,7 +24,7 @@
 --                  tutorial, D-075): the timer's place reads "No timer"
 --                  (Header.NO_TIMER), muted, no bar, no warning, no ticks;
 --                  attribute NoTimer = true until the next setTimer. An
---                  admin's "Timers off" (D-080) passes Header.noTimerText(payload):
+--                  admin's "Timers off" (D-081) passes Header.noTimerText(payload):
 --                  "No timer" over "(admin)" on two lines, in the same place
 --   header:setTimerLabel(label?)                 -- "Results in" -> "Results in 0:32"
 --   header:setNow(text?)                         -- the "what to do now" line (needs
@@ -49,7 +49,7 @@ local Motion = require(script.Parent.Motion)
 local Header = {}
 
 Header.NO_TIMER = "No timer" -- what the timer's place reads in a step without a deadline (D-075)
-Header.NO_TIMER_ADMIN = "No timer\n(admin)" -- the same while an admin has the timers off (D-080)
+Header.NO_TIMER_ADMIN = "No timer\n(admin)" -- the same while an admin has the timers off (D-081)
 
 -- What the timer's place reads in a step without a deadline: nil (the plain
 -- "No timer") or, while an admin has the timers off, Header.NO_TIMER_ADMIN.

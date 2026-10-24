@@ -35,8 +35,8 @@ local OPS: { [string]: boolean } = {
 	Leaderboard = true,
 	Forfeit = true,
 	SetTimersOff = true,
-	DailyRace = true, -- no fields (D-080)
-	Daily = true, -- no fields (D-080)
+	DailyRace = true, -- no fields (D-082)
+	Daily = true, -- no fields (D-082)
 	WaitBot = true,
 	Answer = true,
 	Rematch = true,
@@ -155,7 +155,7 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			request.name = raw.name
 		end
 	elseif op == "SetTimersOff" then
-		-- An admin's "Timers off" toggle (D-080): a boolean, required. Who is an
+		-- An admin's "Timers off" toggle (D-081): a boolean, required. Who is an
 		-- admin, and what it does, is the server's check.
 		if type(raw.on) ~= "boolean" then
 			return false, "BadShape", nil
@@ -171,7 +171,7 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 		request.accept = raw.accept
 	elseif op == "Forfeit" or op == "Rematch" then
 		-- Forfeit: the match being left, so a stale request can never end a newer
-		-- match. Rematch: the finished match to play again (D-080).
+		-- match. Rematch: the finished match to play again (D-083).
 		if type(raw.matchId) ~= "string" then
 			return false, "BadShape", nil
 		end

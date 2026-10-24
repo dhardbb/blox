@@ -3,7 +3,7 @@
 -- Pure bookkeeping; MatchService does the Roblox side and makes the codes.
 -- Up to MATCHES_PER_SERVER matches run at once (practice games count).
 --
--- Matchmaking (D-080) adds:
+-- Matchmaking (D-083) adds:
 --   * a bot game while you wait: after QUEUE_BOT_OFFER_SECONDS in the queue a
 --     player may play the bot (Lobby.waitBot) and keeps their place in line;
 --   * offers: when the queue pairs a player who is in such a bot game, the
@@ -21,7 +21,7 @@ local ConfigModule = require("../Sim/Config")
 
 type Config = ConfigModule.Config
 
--- A pairing that waits for players in a bot game to answer (D-080).
+-- A pairing that waits for players in a bot game to answer (D-083).
 export type Offer = {
 	players: { string }, -- the pair, first in line first
 	busy: { [string]: boolean }, -- players in a bot game: they must accept
@@ -38,16 +38,16 @@ export type Lobby = {
 	hosting: { [string]: string }, -- host id -> code
 	options: { [string]: Options }, -- code -> the host's match options
 	playing: { [string]: boolean }, -- ids in a match
-	since: { [string]: number }, -- queued (or held) id -> server time they joined the line (D-080)
-	botWait: { [string]: boolean }, -- queued ids playing the bot while they wait (D-080)
-	offers: { [string]: Offer }, -- id -> the offer they are in (D-080)
-	held: { [string]: boolean }, -- ids pairing across servers or leaving for a match server (D-080)
+	since: { [string]: number }, -- queued (or held) id -> server time they joined the line (D-083)
+	botWait: { [string]: boolean }, -- queued ids playing the bot while they wait (D-083)
+	offers: { [string]: Offer }, -- id -> the offer they are in (D-083)
+	held: { [string]: boolean }, -- ids pairing across servers or leaving for a match server (D-083)
 	botAfter: number, -- Config.QUEUE_BOT_OFFER_SECONDS
 	acceptWindow: number, -- Config.QUEUE_ACCEPT_SECONDS
 }
 
 -- "Found": an opponent was found and the match is on its way (an offer waiting
--- on the other player's answer, or a pairing across servers, D-080).
+-- on the other player's answer, or a pairing across servers, D-083).
 export type PlayerState = "Idle" | "Queued" | "Hosting" | "InMatch" | "Found"
 
 -- What a private host may choose (same shape as Net/Session.Options).
@@ -63,8 +63,8 @@ export type Outcome = {
 	events: boolean?, -- Match from a private code: false if the host turned events off
 	difficulty: Bot.Difficulty?, -- Practice: the bot's difficulty (D-057)
 	tutorial: boolean?, -- Practice: the tutorial, no choice timers (D-075)
-	daily: number?, -- Practice: a Daily Race run on this day (D-080); never the tutorial
-	waiting: boolean?, -- Practice: a bot game while the player waits in the queue (D-080)
+	daily: number?, -- Practice: a Daily Race run on this day (D-082); never the tutorial
+	waiting: boolean?, -- Practice: a bot game while the player waits in the queue (D-083)
 }
 
 -- Why a practice match is the tutorial (D-075): "First", the player has not
@@ -72,7 +72,7 @@ export type Outcome = {
 -- from How to play.
 export type Tutorial = "First" | "Replay"
 
--- Reason codes added by D-080.
+-- Reason codes added by D-083.
 local Reason = table.freeze({
 	Matching = "Matching", -- already joining a match (an offer or a pairing across servers)
 	NotQueued = "NotQueued", -- a bot game while waiting needs a place in the queue
@@ -179,7 +179,7 @@ end
 
 -- Pairs the two players at the front of the line. Two players free to play
 -- start a match; if one of them is in a bot game, an offer waits for their
--- answer (D-080). Nil if fewer than two are waiting.
+-- answer (D-083). Nil if fewer than two are waiting.
 function Lobby.pair(lobby: Lobby, now: number?): Outcome?
 	if #lobby.queue < 2 then
 		return nil
@@ -217,7 +217,7 @@ function Lobby.pair(lobby: Lobby, now: number?): Outcome?
 end
 
 -- Joins the public queue; pairs the two longest-waiting players. `now` (server
--- time) starts the clock for a bot game while waiting (D-080).
+-- time) starts the clock for a bot game while waiting (D-083).
 function Lobby.queue(lobby: Lobby, id: string, now: number?): (Outcome?, string?)
 	local reason = check(lobby, id)
 	if reason then
@@ -264,7 +264,7 @@ function Lobby.join(lobby: Lobby, id: string, code: string): (Outcome?, string?)
 		return nil, "OwnCode"
 	end
 	if lobby.held[host] then
-		return nil, "CodeBusy" -- a player on another server is joining it (D-080)
+		return nil, "CodeBusy" -- a player on another server is joining it (D-083)
 	end
 	local pair = { host, id }
 	local options = lobby.options[code]
@@ -297,7 +297,7 @@ function Lobby.practice(
 		nil
 end
 
--- Starts a run of day `day`'s Daily Race against the bot at `level` (D-080:
+-- Starts a run of day `day`'s Daily Race against the bot at `level` (D-082:
 -- Config.DAILY_BOT_LEVEL). A Daily Race is never the tutorial.
 function Lobby.daily(lobby: Lobby, id: string, day: number, level: string?): (Outcome?, string?)
 	local reason = check(lobby, id)
@@ -309,7 +309,7 @@ function Lobby.daily(lobby: Lobby, id: string, day: number, level: string?): (Ou
 end
 
 -- Server time from which a queued player may play the bot while waiting, or
--- nil if they are not waiting in the queue (D-080).
+-- nil if they are not waiting in the queue (D-083).
 function Lobby.botAt(lobby: Lobby, id: string): number?
 	if lobby.playing[id] or table.find(lobby.queue, id) == nil then
 		return nil
@@ -317,7 +317,7 @@ function Lobby.botAt(lobby: Lobby, id: string): number?
 	return (lobby.since[id] or 0) + lobby.botAfter
 end
 
--- A bot game while waiting (D-080): a practice match against `difficulty`,
+-- A bot game while waiting (D-083): a practice match against `difficulty`,
 -- unrated and never the tutorial, while the player keeps their place in line.
 function Lobby.waitBot(lobby: Lobby, id: string, now: number, difficulty: string?): (Outcome?, string?)
 	if lobby.playing[id] then
@@ -352,7 +352,7 @@ function Lobby.pending(lobby: Lobby, id: string): Offer?
 	return nil
 end
 
--- Player `id` answers their offer (D-080). The caller ends their bot game
+-- Player `id` answers their offer (D-083). The caller ends their bot game
 -- before an accept (Lobby.ended), so the slot it held is free again.
 -- Accept: once every player in a bot game has accepted, the match starts
 -- (kind "Match"); until then nil. Decline: they keep playing their bot game
@@ -429,7 +429,7 @@ function Lobby.expire(lobby: Lobby, now: number): { { id: string, outcome: Outco
 end
 
 -- A player on another server was paired with `id`, who is in a bot game
--- while waiting (D-080): they answer like a local offer (Lobby.answer, which
+-- while waiting (D-083): they answer like a local offer (Lobby.answer, which
 -- returns kind "Remote" once they accept), by `untilAt`. False if `id` is not
 -- in a bot game while waiting in line here.
 function Lobby.offerRemote(lobby: Lobby, id: string, untilAt: number): boolean
@@ -452,7 +452,7 @@ function Lobby.offerRemote(lobby: Lobby, id: string, untilAt: number): boolean
 end
 
 -- The other server gave up on a remote offer before `id` answered: no
--- question any more, and their place in line back (D-080).
+-- question any more, and their place in line back (D-083).
 function Lobby.withdraw(lobby: Lobby, id: string): boolean
 	local offer = lobby.offers[id]
 	if offer == nil or not offer.remote then
@@ -464,7 +464,7 @@ function Lobby.withdraw(lobby: Lobby, id: string): boolean
 end
 
 -- Takes `id` out of the local line while they pair with a player on another
--- server, or travel to a match server (D-080). They keep their place.
+-- server, or travel to a match server (D-083). They keep their place.
 function Lobby.hold(lobby: Lobby, id: string)
 	local at = table.find(lobby.queue, id)
 	if at then
@@ -486,7 +486,7 @@ function Lobby.unhold(lobby: Lobby, id: string)
 end
 
 -- A match between `ids` decided elsewhere: a rematch, or the match a match
--- server was made for (D-080). Nil and a reason if any of them is busy or the
+-- server was made for (D-083). Nil and a reason if any of them is busy or the
 -- server is full.
 function Lobby.direct(lobby: Lobby, ids: { string }, options: Options?): (Outcome?, string?)
 	for _, id in ids do
@@ -507,7 +507,7 @@ function Lobby.direct(lobby: Lobby, ids: { string }, options: Options?): (Outcom
 end
 
 -- A match is over (or abandoned): its players are free again. A player whose
--- bot game while waiting ends is still in line (D-080).
+-- bot game while waiting ends is still in line (D-083).
 function Lobby.ended(lobby: Lobby, ids: { string })
 	lobby.active = math.max(0, lobby.active - 1)
 	for _, id in ids do

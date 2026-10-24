@@ -1,5 +1,5 @@
 --!strict
--- Admin "Timers off" (D-080) on the real server and client: the Lobby's corner
+-- Admin "Timers off" (D-081) on the real server and client: the Lobby's corner
 -- toggle (admins only) is saved in the profile; a bot match then has no choice
 -- deadline and the header reads "No timer (admin)"; a non-admin's request is
 -- turned down; a match with a non-admin keeps its timers and the "?" sheet says
@@ -77,7 +77,7 @@ local function private(w: FakeRoblox.World, a: FakeRoblox.Peer, b: FakeRoblox.Pe
 	FakeRoblox.run(w, 1)
 end
 
-describe("Admin Timers off: the Lobby toggle (D-080)", function()
+describe("Admin Timers off: the Lobby toggle (D-081)", function()
 	it("shows only to admins, saves to the profile, and is checked on the server", function()
 		local w = world(80, 1)
 		local admin, adminId = join(w, "A")
@@ -115,7 +115,7 @@ describe("Admin Timers off: the Lobby toggle (D-080)", function()
 	end)
 end)
 
-describe("Admin Timers off in a match (D-080)", function()
+describe("Admin Timers off in a match (D-081)", function()
 	it("against the bot: no deadline, 'No timer (admin)' in the header, the sheet's toggle", function()
 		local w = world(81, 1)
 		local admin = join(w, "A")

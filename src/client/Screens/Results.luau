@@ -1,7 +1,7 @@
 --!strict
 -- Results (docs/UI-STYLE.md §4.9): who won, big, and why in three short
 -- reasons, then the details one tap away. The player leaves with Back to lobby
--- or plays the same opponent again (Rematch, D-080).
+-- or plays the same opponent again (Rematch, D-083).
 --
 -- Layout: three tabs pinned at the top once the election is in (D-073; a
 -- segmented row of chips Tab_Summary | Tab_Map | Tab_Graph, "Summary" | "Map" |
@@ -18,7 +18,7 @@
 --                 538 votes, over 70%." (LandslideLine)
 --   Reason        "280 votes to 258" (or the tiebreak, a forfeit)
 --   RatingSlot    the rating change, once the server sends it (rated matches)
---   DailySummary  a Daily Race run only (D-080): an eyebrow with the day,
+--   DailySummary  a Daily Race run only (D-082): an eyebrow with the day,
 --                 DailyLine ("You won by 62 votes.", or "Practice run: …") and
 --                 DailyMore (rank today and streak, or why it did not count),
 --                 filled when the server's Daily message arrives
@@ -44,7 +44,7 @@
 -- ReadyText) follows the Reason, and the primary button reads "Play a real
 -- match" (not Rematch): it queues for a match against a person.
 --
--- Rematch (D-080; Net/Rematch): against the bot a new match at the same level
+-- Rematch (D-083; Net/Rematch): against the bot a new match at the same level
 -- at once; against a person both tap within Config.REMATCH_WINDOW_SECONDS
 -- (the bar's status line counts down: "Waiting for Rex… · 14 s", "Rex wants a
 -- rematch! · 9 s"), then a new match with a new seed and the same seats. The
@@ -203,7 +203,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local againBot = false
 	local afterTutorial = false -- the tutorial just ended: its primary is a real match (D-080)
-	local againDaily = false -- a Daily Race run: the primary plays today's race again (practice, D-080)
+	local againDaily = false -- a Daily Race run: the primary plays today's race again (practice, D-082)
 	local dailyLine: TextLabel? = nil
 	local dailyMore: TextLabel? = nil
 	local rivalName = "your opponent" -- the opponent's first name, for the rematch line
@@ -232,7 +232,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		secondary = "Back to lobby",
 		onSecondary = function()
 			ctx.store.dismissResult()
-			-- A match server sends its players back to a lobby server (D-080).
+			-- A match server sends its players back to a lobby server (D-083).
 			local lobby = ctx.store.get().lobby
 			if lobby and lobby.matchServer then
 				ctx.net.send("Return")
@@ -241,7 +241,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		secondaryName = "BackToLobby",
 	})
 
-	-- The Rematch button and the status line follow the server's word (D-080).
+	-- The Rematch button and the status line follow the server's word (D-083).
 	local function showRematch(state: Types.State)
 		local current = state.payload
 		if current == nil then
@@ -606,7 +606,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = "RatingSlot",
 			LayoutOrder = nextOrder(),
 			Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
-			Visible = current.daily == nil, -- a Daily Race never moves a rating (D-080)
+			Visible = current.daily == nil, -- a Daily Race never moves a rating (D-082)
 			Parent = column,
 		})
 		ratingLine = Kit.text("", {
@@ -617,7 +617,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Visible = false,
 			Parent = slot,
 		})
-		-- A Daily Race run (D-080): its own summary, filled by update().
+		-- A Daily Race run (D-082): its own summary, filled by update().
 		dailyLine, dailyMore = nil, nil
 		local run = current.daily
 		if run then
@@ -818,7 +818,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				render(current)
 				relayout()
 			end
-			-- A Daily Race run (D-080): the server's word on it, once it arrives.
+			-- A Daily Race run (D-082): the server's word on it, once it arrives.
 			local runLine, moreLine = dailyLine, dailyMore
 			local mine = state.dailyRun
 			if runLine and moreLine and current and mine and mine.matchId == current.matchId then

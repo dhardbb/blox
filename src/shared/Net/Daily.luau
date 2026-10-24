@@ -1,5 +1,5 @@
 --!strict
--- The Daily Race's scoring, streak and board (docs/DESIGN.md D-080). Pure: the
+-- The Daily Race's scoring, streak and board (docs/DESIGN.md D-082). Pure: the
 -- server's DailyService does the OrderedDataStore, the names and the profile
 -- writes and uses these rules; Sim/Daily derives the race itself from the day.
 --

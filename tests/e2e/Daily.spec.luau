@@ -1,5 +1,5 @@
 --!strict
--- End to end: the Daily Race (D-080) on the real server and client. A run gets
+-- End to end: the Daily Race (D-082) on the real server and client. A run gets
 -- the day's seed, candidate and Hard bot (never the tutorial); leaving before
 -- week 1 counts for nothing; the first run past week 1 is the day's run, saved
 -- in the profile with its streak and written to the day's OrderedDataStore;
@@ -73,7 +73,7 @@ local function playOut(rig: Support.Rig, peer: FakeRoblox.Peer, matchId: string)
 	Support.run(rig, 16) -- the batched save (every 15 s) writes the profile
 end
 
-describe("e2e: the Daily Race (D-080)", function()
+describe("e2e: the Daily Race (D-082)", function()
 	it(
 		"plays the day's race: its candidate, the Hard bot, no tutorial; leaving early counts for nothing",
 		function()
