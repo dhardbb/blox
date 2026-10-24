@@ -12,7 +12,7 @@
 -- map's * marks (EventMapNote), the stance taken (ChoiceTaken) and, for a
 -- candidate who previews the deck, next week's event (NextEvent). With only
 -- next week's event known, the strip shows that ("Next week: …"). Hidden
--- during every reveal (B1). It pulses once when a new week's event arrives.
+-- during every reveal (B1). Its gold plate pulses once when a new week's event arrives.
 --
 --   local strip = EventCard.strip(parent, sheetParent, model)
 --   strip:render(p); strip:height() -> number (0 when hidden)
@@ -552,7 +552,9 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 			local key = `{shown.week}:{shown.id}`
 			if pulsedFor ~= key then
 				pulsedFor = key
-				Motion.pulseOnce(root)
+				-- The gold plate pulses, not the whole strip: a full-width strip
+				-- scaled 3% would run past the screen's edge and clip its arrow.
+				Motion.pulseOnce(plate)
 			end
 			if iconKind ~= shown.kind then
 				-- The plate's icon follows the event's kind.
