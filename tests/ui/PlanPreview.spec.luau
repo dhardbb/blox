@@ -118,6 +118,21 @@ describe("PlanPreview (D-071)", function()
 		local _, after2 = PlanPreview.votes(C, v, draft)
 		expect(after2):toBe(200)
 	end)
+
+	it("with three players, passing one rival is not enough while another still leads", function()
+		local v = view()
+		local me, them = v.you, if v.you == 1 then 2 else 1
+		local third = #v.players + 1
+		v.players[third] = Rig.deepCopy(v.players[them])
+		v.players[third].id = "third"
+		v.projectedEV[third] = 0
+		local oh = v.states[State.indexOf.OH]
+		oh.poll = { support = table.create(third, 0), undecided = 10 }
+		oh.poll.support[me], oh.poll.support[them], oh.poll.support[third] = 39.8, 40, 45
+		v.projectedEV[me] = 200
+		local _, after = PlanPreview.votes(C, v, draftOf({ { kind = "Media", state = "OH" } }))
+		expect(after):toBe(200)
+	end)
 end)
 
 describe("Plan preview on the Campaign map", function()

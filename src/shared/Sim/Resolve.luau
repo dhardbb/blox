@@ -490,14 +490,17 @@ Resolve.REVEAL_STILL = table.freeze({
 
 -- The steps the week's reveal has at most on any screen: each player's moves
 -- (or one step for only still events), one for events with no player, and the
--- new polls. Counts every player's events, private ones included, so both
--- seats get the same number.
+-- new polls. Counts public events only: both seats get the same number, and the
+-- reveal's length never tells a player what the other did in private (bought
+-- internal polls).
 function Resolve.revealSteps(events: { Event }): number
 	local moves: { [number]: number } = {}
 	local still: { [number]: boolean } = {}
 	for _, event in events do
 		local key = event.player or 0
-		if Resolve.REVEAL_MOVES[event.kind] then
+		if event.private then
+			continue
+		elseif Resolve.REVEAL_MOVES[event.kind] then
 			moves[key] = (moves[key] or 0) + 1
 		elseif Resolve.REVEAL_STILL[event.kind] then
 			still[key] = true
