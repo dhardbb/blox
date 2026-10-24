@@ -271,8 +271,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local reveal = Reveal.new(side, model, ORDER.reveal, {
 		-- The reveal's latest line becomes the header's now line.
-		caption = function(text: string)
+		caption = function(text: string, polls: boolean?)
 			model.caption = text
+			model.captionPolls = polls == true
 			top:render(ctx.now())
 		end,
 		-- The map and the header's score show the same moment of the reveal.
@@ -468,7 +469,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- A reveal shows what moved (D-042); the stance preview is on the Decision screen (D-044).
 		local swing = model.revealSwing
 		if swing then
-			marks = SwingMarks.reveal(view, swing.net, swing.flips, marks)
+			marks = if swing.step
+				then SwingMarks.step(view, swing.net, swing.flips, marks)
+				else SwingMarks.reveal(view, swing.net, swing.flips, marks)
 		end
 		map:setMarks(marks :: any)
 	end
@@ -643,6 +646,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			model.revealSwing = nil
 			model.revealEV = nil
 			model.caption = nil
+			model.captionPolls = nil
 		end
 		syncBadges(p)
 		reveal:render(p)

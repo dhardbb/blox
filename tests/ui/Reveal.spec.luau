@@ -133,7 +133,6 @@ describe("Reveal: a running tally (D-063)", function()
 		local mine, theirs = score(peer)
 		expect(mine):toBe(before.projectedEV[view.you])
 		expect(theirs):toBe(before.projectedEV[them])
-		check(not shown(peer, "RevealNote"), "the estimate note shows during the intro")
 		local start = payload.stageStart
 		local changedMidway = false
 		for k = 1, #steps - 1 do
@@ -145,7 +144,17 @@ describe("Reveal: a running tally (D-063)", function()
 			if mine ~= before.projectedEV[view.you] or theirs ~= before.projectedEV[them] then
 				changedMidway = true
 			end
-			check(shown(peer, "RevealNote"), `no estimate note at step {k}`)
+			check(not shown(peer, "RevealPolls"), `the new polls show at step {k}`)
+			local flip = steps[k].flips[1]
+			if flip then
+				local head = Rig.need(peer, "Campaign", "ThemHead"):FindFirstChild("Label")
+				local rival = string.match(tostring(head.Text), "^(.-)'s week$") or "?"
+				local now = Rig.textOf(peer, "Campaign", "NowText")
+				check(
+					Rig.contains(now, Words.leaderArrow(view, flip, rival)),
+					`step {k} hides its flip: {now}`
+				)
+			end
 			expect(Rig.textOf(peer, "Campaign", "RevealSummary")):toBe("")
 		end
 		check(changedMidway, "the score never moved before the polls settled")
@@ -153,8 +162,15 @@ describe("Reveal: a running tally (D-063)", function()
 		mine, theirs = score(peer)
 		expect(mine):toBe(view.projectedEV[view.you])
 		expect(theirs):toBe(view.projectedEV[them])
-		check(not shown(peer, "RevealNote"), "the estimate note outstays the moves")
 		check(Rig.textOf(peer, "Campaign", "RevealSummary") ~= "", "the reveal never finished")
+		-- The last step reads as the polls updating: its stamp, what they shifted, its header line.
+		check(shown(peer, "RevealPolls"), "no New polls are in stamp")
+		expect(Rig.textOf(peer, "Campaign", "RevealPollsStamp")):toBe(Words.SETTLE)
+		expect(Rig.textOf(peer, "Campaign", "RevealPollsLine")):toBe(Words.pollShift(#steps[#steps].flips))
+		expect(Rig.textOf(peer, "Campaign", "NowText")):toBe(Words.SETTLE)
+		-- The estimates are explained once, behind Why?.
+		expect(Rig.textOf(peer, "Campaign", "RevealEstimate")):toBe(Words.ESTIMATE_NOTE)
+		check(not shown(peer, "RevealEstimate"), "the estimate line shows before Why?")
 		Rig.noErrors(world)
 	end)
 

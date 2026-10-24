@@ -523,6 +523,20 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- The moment "New polls are in" lands (5.4 s in): its stamp, the sweep, the real score.
+		name = "16d-resolve-settle",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Resolve")
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+			FakeRoblox.run(world, 4.8)
+		end,
+	},
+	{
 		-- From the week-3 plan, so the reveal knows the polls before it ("What changed").
 		name = "17-resolve-end",
 		moment = "Plan",

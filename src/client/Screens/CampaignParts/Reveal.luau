@@ -11,14 +11,18 @@
 -- answers last). A step is one move (with the still events around it, such as
 -- a flight or a fundraiser), followed at once by its effect: its states bump
 -- with a ring in the actor's color and a pop, the map's fill and leads move to
--- the running tally (badged with the step's points; FLIP and a ring where the
--- leader changes) and the header's projected votes and race bar count to it.
+-- the running tally, every touched state shows its points toward you
+-- (SwingMarks.step: your color up, orange down), a leader change says FLIP,
+-- flashes in the new leader's color and rides on the header line ("Rex: Rally ·
+-- NY → Rex +28"), and the header's projected votes and race bar count to it.
 -- Those per-move numbers are estimates from the polls both players saw (the
--- server never says what one action did; RevealSteps says why), and the panel
--- says so. Three: "Polls settle", the real new polls: the map and the score
--- land exactly on them, a ring on every state the settle flipped, and "What
--- changed" rows (the whole week's real flips and biggest moves) come in one
--- after another. Every cue goes with one of those visuals.
+-- server never says what one action did; RevealSteps says why); one line behind
+-- Why? says so. Three: "New polls are in", the real new polls, with their own
+-- look: a stamp, "Polls shifted 4 states", a pulse sweeping the map west to
+-- east, the header line in the display font. The map and the score land
+-- exactly on them, a ring on every state they flipped, and "What changed" rows
+-- (the whole week's real flips and biggest moves) come in one after another.
+-- Every cue goes with one of those visuals.
 -- The week's events arrive one step at a time, merged into two groups,
 -- "Your week" and "{Rex}'s week" (one line per action and state: "Rally in
 -- Texas ×2 · Farms & Rural", never the same line twice). Once the new polls are
@@ -39,7 +43,7 @@
 -- badges the flips and the biggest moves only.
 --
 --   local reveal = Reveal.new(parent, model, order, hooks)
---     hooks.caption(text)   the line over the map
+--     hooks.caption(text, polls?)   the header's now line (polls: the "New polls are in" step)
 --     hooks.paint(view)     repaint the map (and the header's score) from this view's polls
 --     hooks.focus(id?)      highlight a state on the map
 --     hooks.swing(swing?)   badge what moved on the map (nil: the usual marks)
@@ -51,8 +55,9 @@
 --
 -- Element names: RevealPanel, RevealEyebrow, RevealTitle, RevealIntro, RevealOrder, RevealGroups, YouGroup, YouHead,
 -- RevealLine<k> (your lines), ThemGroup, ThemHead, RevealThem<k>, RevealChanged,
--- RevealFlipRow<k> (its Mark and RevealFlip<k>), RevealFlipMore, RevealMoves, RevealMove<k>, RevealNote, RevealSummary,
--- WhyButton, RevealWhy (details), RevealChoice; DebateRows, DebateHead,
+-- RevealFlipRow<k> (its Mark and RevealFlip<k>), RevealFlipMore, RevealMoves, RevealMove<k>, RevealPolls (its stamp's label is
+-- RevealPollsStamp, RevealPollsLine), RevealSummary,
+-- WhyButton, RevealWhy (details), RevealEstimate, RevealChoice; DebateRows, DebateHead,
 -- DebateRow<t>, DebateTopic<t>, DebateScore<t>, DebateVerdict<t>,
 -- DebateSwing<t>, DebateGaffe<t>, DebateHeadlineBox (its Stamp's label is
 -- DebateHeadline), DebateOther, DebateParts<t>,
@@ -66,6 +71,7 @@ local Explain = require(SharedFolder.UI.Explain)
 local SimState = require(SharedFolder.Sim.State)
 local RevealSteps = require(SharedFolder.UI.RevealSteps)
 local ViewModule = require(SharedFolder.Sim.View)
+local StateData = require(SharedFolder.Sim.StateData)
 local Words = require(SharedFolder.UI.Words.Reveal)
 
 local Audio = require(script.Parent.Parent.Parent.UI.Audio)
@@ -83,6 +89,8 @@ local Reveal = {}
 
 local REVEAL_TAIL = 2 -- seconds kept at the end of the resolve reveal for the new polls
 local REVEAL_INTRO = 0.5 -- seconds of "Both plans are in" before the first action lands
+local SWEEP = 0.6 -- seconds the "New polls are in" pulse takes to cross the map, west to east
+local SWEEP_WEST, SWEEP_EAST = -125, -67 -- longitudes the sweep runs between (Alaska and Hawaii go first)
 local LAND_MAX = 3 -- most states one beat bumps on the map (a catch-up beat can hold many)
 local THEIR_PITCH = 0.94 -- the opponent's actions land a little lower than yours
 local REVEAL_BEAT = 0.25 -- fastest pace: one tick of the router
@@ -98,7 +106,7 @@ local STAMP_SLACK = 24 -- px over the stamp's height in its row: room for its ti
 local STAMP_INSET = 6 -- px the debate stamp keeps from each side (its tilted corners stay in)
 
 export type Hooks = {
-	caption: (text: string) -> (),
+	caption: (text: string, polls: boolean?) -> (),
 	paint: (view: View) -> (),
 	focus: (id: string?) -> (),
 	swing: (swing: Model.RevealSwing?) -> (),
@@ -213,7 +221,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	local themGroup, themDot, themHead, themLines = group("ThemGroup", 2, "RevealThem")
 
 	local changed =
-		Kit.stack({ Name = "RevealChanged", LayoutOrder = 4, Parent = root }, "Vertical", Kit.space.xs)
+		Kit.stack({ Name = "RevealChanged", LayoutOrder = 5, Parent = root }, "Vertical", Kit.space.xs)
 	Kit.text(
 		"What changed",
 		{ Name = "ChangedHead", LayoutOrder = 0, Font = Kit.font.bold, Parent = changed }
@@ -378,8 +386,28 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 
 	-- ------------------------------------------------------------ summary and Why?
 
-	-- While the moves land: their points on the map are estimates (D-063).
-	local note = Kit.caption("", { Name = "RevealNote", LayoutOrder = 5, Visible = false, Parent = root })
+	-- The last step (D-063): a "New polls are in" stamp and what the polls
+	-- shifted, right under the title (above the groups, so a phone sees it).
+	local pollsBox = Kit.stack(
+		{ Name = "RevealPolls", LayoutOrder = 2, Visible = false, Parent = root },
+		"Vertical",
+		Kit.space.xs
+	)
+	local pollsStampBox = Kit.box({
+		Name = "PollsStampBox",
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, Kit.size.heading + 28 + STAMP_SLACK),
+		Parent = pollsBox,
+	})
+	local pollsLine = Kit.text("", {
+		Name = "RevealPollsLine",
+		LayoutOrder = 2,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Font = Kit.font.bold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = pollsBox,
+	})
 	local summary = Kit.caption("", { Name = "RevealSummary", LayoutOrder = 6, Parent = root })
 
 	local whyOpen = false
@@ -404,6 +432,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		Visible = false,
 		Parent = root,
 	})
+	-- The per-move numbers are estimates: said once, behind Why? (D-063).
+	local estimateText = Kit.caption("", { Name = "RevealEstimate", LayoutOrder = 0, Parent = why })
 	local choiceText = Kit.caption(
 		"",
 		{ Name = "RevealChoice", LayoutOrder = 1, TextColor3 = Kit.colors.text, Parent = why }
@@ -435,6 +465,31 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			why.Visible = false
 			whyButton.Text = "Why? +"
 		end
+	end
+
+	-- A stamp in `box` (cleared first), as wide as its words, never wider than
+	-- the panel, slammed in; its label is named `labelName`.
+	local function stampInto(box: Frame, text: string, color: Color3, labelName: string)
+		for _, child in box:GetChildren() do
+			child:Destroy()
+		end
+		local stamp = Kit.stamp(text, color, {
+			size = Kit.size.heading,
+			Name = "Stamp",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+		})
+		local natural = stamp.Size
+		stamp.Size = UDim2.new(1, -2 * STAMP_INSET, 0, natural.Y.Offset)
+		Kit.new(
+			"UISizeConstraint",
+			{ MaxSize = Vector2.new(natural.X.Offset, natural.Y.Offset), Parent = stamp }
+		)
+		local label = (stamp:FindFirstChild("Plate") :: Frame):FindFirstChild("Label") :: TextLabel
+		label.Name = labelName
+		label.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
+		stamp.Parent = box
+		Motion.stamp(stamp)
 	end
 
 	-- ------------------------------------------------------------ state
@@ -602,8 +657,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		portrait(themDot, Model.candidateName(config, view, them), Kit.playerColor(view, them))
 		changed.Visible = false
 		summary.Text = ""
-		note.Text = Words.ESTIMATE_NOTE
-		note.Visible = false
+		pollsBox.Visible = false
+		estimateText.Text = if oldView then Words.ESTIMATE_NOTE else ""
 		choiceText.Text = ""
 		setWhy(false)
 		maybeTip()
@@ -623,7 +678,36 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		local one = Words.group(view, { event })
 		local text = one.mine[1] or one.theirs[1]
 		local short = if text then string.match(text, "^(.-) · ") or text else nil
-		return if short then `{who}: {short}` else ""
+		if short == nil then
+			return ""
+		end
+		-- A leader change rides along, short enough for a phone: "You: Rally · OH → you +17".
+		local flip = entry.flips[1]
+		if flip then
+			local kind = string.match(short, "^(.-) in ") or short
+			return `{who}: {kind} {Kit.glyph.dot} {Words.leaderArrow(view, flip, themName(view))}`
+		end
+		return `{who}: {short}`
+	end
+
+	-- "New polls are in": a pulse crosses the map west to east over every
+	-- polled state (decorative: nothing under reduced motion).
+	local function sweep(view: View)
+		local map = hooks.map
+		if map == nil or Motion.reduced() then
+			return
+		end
+		for _, s in view.states do
+			if s.poll then
+				local lon = math.clamp(StateData.byId[s.id].lon, SWEEP_WEST, SWEEP_EAST)
+				local delay = SWEEP * (lon - SWEEP_WEST) / (SWEEP_EAST - SWEEP_WEST)
+				task.delay(delay, function()
+					if root.Parent ~= nil then
+						map:pulse(s.id, Kit.colors.muted)
+					end
+				end)
+			end
+		end
 	end
 
 	local function tickResolve(p: Payload, now: number)
@@ -714,16 +798,29 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			end
 		end
 		if oldView and latest and latest.kind == "Move" then
-			hooks.swing({ net = Words.topMarks(latest.net, latest.flips), flips = latest.flips })
+			-- Every state the move touched shows its points; a leader change says FLIP.
+			hooks.swing({ net = latest.net, flips = latest.flips, step = true })
+			if next(latest.net) ~= nil then
+				setWhy(true)
+			end
 		end
 		ringFlips(view, rings)
+		local map = hooks.map
+		if map then
+			-- A leader change also bumps the state in its new leader's color.
+			for _, flip in rings do
+				map:pulse(
+					flip.state,
+					if flip.to > 0 then Kit.playerColor(view, flip.to) else Kit.colors.muted
+				)
+			end
+		end
 		if latest then
-			hooks.caption(stepCaption(view, latest))
+			hooks.caption(stepCaption(view, latest), latest.kind == "Settle")
 		end
 		hooks.paint(RevealSteps.viewAt(current, count))
 		-- Once the moves are done, the map follows the player's own pick again.
 		hooks.focus(if count < n then focus else model.selected)
-		note.Visible = oldView ~= nil and count < n
 		if count < n then
 			return
 		end
@@ -746,16 +843,23 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		showMoves(view, moves)
 		changed.Visible = #flips > 0 or #moves > 0
 		title.Text = Words.flipHeadline(view, flips, themName(view))
+		-- The polls' own look: a stamp, what they shifted, a sweep across the map.
+		pollsLine.Text = if old then Words.pollShift(#steps[n].flips) else ""
+		pollsLine.Visible = old ~= nil
+		pollsBox.Visible = true
 		if not flipsRung then
-			-- Beat three, once: rings on what the settle flipped.
+			-- Beat three, once: the stamp, the sweep, rings on what the polls flipped.
 			flipsRung = true
+			stampInto(pollsStampBox, Words.SETTLE, Kit.colors.raisedHover, "RevealPollsStamp")
 			if old then
+				sweep(view)
 				ringFlips(view, steps[n].flips)
 			end
 			Motion.pop(title)
+			Motion.enter(pollsLine, 4)
 			enterChanged()
 		end
-		summary.Text = Words.settleLine(old ~= nil, #flips > 0)
+		summary.Text = if #flips > 0 then "Tap a state for details." else "No state changed leader this week."
 	end
 
 	local function startDebate(p: Payload)
@@ -773,6 +877,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		end
 		headlineBox.Visible = false
 		debateOther.Visible = false
+		estimateText.Text = ""
 		choiceText.Text = ""
 		callouts.Text = ""
 		setWhy(false)
@@ -782,31 +887,11 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	-- The debate's headline as a stamp in its tone's color (green: you won it;
 	-- orange: they did; raised: even), slammed in once.
 	local function stampHeadline(text: string, tone: Words.Tone)
-		for _, child in headlineBox:GetChildren() do
-			child:Destroy()
-		end
 		local color = if tone == "good"
 			then Kit.colors.good
 			elseif tone == "loss" or tone == "bad" then Kit.colors.loss
 			else Kit.colors.raisedHover
-		local stamp = Kit.stamp(text, color, {
-			size = Kit.size.heading,
-			Name = "Stamp",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-		})
-		-- As wide as the words need, never wider than the panel (the label scales).
-		local natural = stamp.Size
-		stamp.Size = UDim2.new(1, -2 * STAMP_INSET, 0, natural.Y.Offset)
-		Kit.new(
-			"UISizeConstraint",
-			{ MaxSize = Vector2.new(natural.X.Offset, natural.Y.Offset), Parent = stamp }
-		)
-		local label = (stamp:FindFirstChild("Plate") :: Frame):FindFirstChild("Label") :: TextLabel
-		label.Name = "DebateHeadline"
-		label.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
-		stamp.Parent = headlineBox
-		Motion.stamp(stamp)
+		stampInto(headlineBox, text, color, "DebateHeadline")
 	end
 
 	local function tickDebate(p: Payload, now: number)
@@ -935,9 +1020,10 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			debateBox.Visible = p.reveal == "Debate"
 			debateWhy.Visible = p.reveal == "Debate"
 			choiceText.Visible = p.reveal == "Resolve" and choiceText.Text ~= ""
+			estimateText.Visible = p.reveal == "Resolve" and estimateText.Text ~= ""
 			if p.reveal ~= "Resolve" then
 				changed.Visible = false
-				note.Visible = false
+				pollsBox.Visible = false
 			end
 		end,
 		tick = function(_self: Reveal, p: Payload, now: number)
@@ -947,6 +1033,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				end
 				tickResolve(p, now)
 				choiceText.Visible = choiceText.Text ~= ""
+				estimateText.Visible = estimateText.Text ~= ""
 			elseif p.reveal == "Debate" then
 				if step ~= p.step then
 					startDebate(p)

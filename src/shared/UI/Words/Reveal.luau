@@ -27,7 +27,7 @@
 --   Words.nextTime(config, view, winner, names) -> string?  the loser's one "Try next time" line
 --   Words.revealFirst(view) -> (player, trails)         whose actions land first in a week's reveal
 --   Words.orderLine(view, first, trails, them) -> string "Rex trails, so Rex's actions land first"
---   Words.SETTLE · Words.ESTIMATE_NOTE · Words.settleLine(estimated, anyFlip)  the running tally's lines (D-063)
+--   Words.SETTLE · ESTIMATE_NOTE · pollShift(flips) · leaderArrow(view, flip, them)  the running tally (D-063)
 --   Words.help(config) -> { Tab }                       the five Help tabs
 --
 -- `them` is the opponent's display name ("Rex"); `names` is display names by
@@ -716,17 +716,28 @@ function Words.revealFirst(view: View): (number, boolean)
 	return view.you, false
 end
 
--- The running tally (D-063, Shared/UI/RevealSteps): the header's line for the
--- last step, the panel's note while the moves land, and its line once the
--- real polls are in.
-Words.SETTLE = "Polls settle"
-Words.ESTIMATE_NOTE = "The map shows about what each move did. The real polls land last."
+-- The running tally (D-063, Shared/UI/RevealSteps): the last step's name, the
+-- line behind "Why?" on the per-move numbers, what the new polls changed, and
+-- a leader change at a glance.
+Words.SETTLE = "New polls are in"
+Words.ESTIMATE_NOTE =
+	"≈ Each move's points are estimated from the polls you both saw. The new polls are the real numbers."
 
-function Words.settleLine(estimated: boolean, anyFlip: boolean): string
-	local head = if estimated
-		then "Polls settle: momentum and poll noise on top of the moves."
-		else "New polls are in."
-	return if anyFlip then `{head} Tap a state for details.` else `{head} No state changed leader.`
+-- "Polls shifted 4 states" (the leader changes the new polls made on top of the moves).
+function Words.pollShift(flips: number): string
+	if flips == 0 then
+		return "Polls moved a little · no state changed hands"
+	end
+	return `Polls shifted {plural(flips, "state")}`
+end
+
+-- A leader change in a few characters: "OH → you +17", "OH → Rex +17", "OH → tie".
+function Words.leaderArrow(view: View, flip: Swing.Flip, them: string): string
+	if flip.to == 0 then
+		return `{flip.state} → tie`
+	end
+	local who = if flip.to == view.you then "you" else them
+	return `{flip.state} → {who} +{flip.ev}`
 end
 
 -- The line under "Both plans are in": who goes first, and why.

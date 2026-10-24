@@ -16,7 +16,7 @@
 -- action reads the snapshot of its own Resolve step (rallies the week's start,
 -- ads and attacks after the rallies, pivots after the ads, stances after the
 -- pivots), so neither the display order nor the viewer's seat changes any
--- action's number (D-001). The last step, "Polls settle", is whatever is left:
+-- action's number (D-001). The last step, "New polls are in", is whatever is left:
 -- momentum drift, the new poll noise, and anything the estimates missed. It
 -- moves the map and the score onto exactly the new View's polls and
 -- projected votes.

@@ -32,7 +32,8 @@ type Issue = SharedTypes.Issue
 export type Payload = Session.StatePayload
 export type PivotStage = "drop" | "add"
 -- What a reveal asks the map to show: net points toward you per state, and flips.
-export type RevealSwing = { net: { [string]: number }, flips: { Swing.Flip } }
+-- `step`: one move of the week's reveal (every touched state badged, D-063).
+export type RevealSwing = { net: { [string]: number }, flips: { Swing.Flip }, step: boolean? }
 
 export type Model = {
 	config: Config,
@@ -57,6 +58,7 @@ export type Model = {
 	revealSwing: RevealSwing?, -- what a reveal shows moved on the map, else nil
 	revealEV: { number }?, -- the projected votes the header shows during a reveal (the running tally, D-063), else nil
 	caption: string?, -- the reveal's latest line, shown as the header's now line
+	captionPolls: boolean?, -- the caption is the reveal's "New polls are in" step (its own header look, D-063)
 	moreActions: boolean, -- the state card shows every action, not just the main ones
 	details: boolean, -- the state card's Details are open
 	messages: { Types.Message },

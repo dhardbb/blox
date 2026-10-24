@@ -20,8 +20,14 @@
 -- or toward them, in theirs: ownership, not a loss); a flip says just FLIP,
 -- edged in the new leader's color (grey for a tie: white means "selected").
 --
+-- Step (one move of the week's reveal, D-063): every state the move touched
+-- carries its signed points toward you: "+1.5" in your color when it helps you,
+-- "−1.5" in orange when it hurts you; a state whose leader changed also says
+-- FLIP, edged in the new leader's color, with a strong glow.
+--
 --   SwingMarks.preview(view, preview, keep) -> marks
 --   SwingMarks.reveal(view, net, flips, keep) -> marks
+--   SwingMarks.step(view, net, flips, keep) -> marks
 -- `keep` is the screen's usual marks; their owner rings are kept.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -144,6 +150,33 @@ function SwingMarks.reveal(view: View, net: { [string]: number }, flips: { Swing
 			-- A flip says FLIP alone: the panel has its points, and a short tag
 			-- keeps the busy debate map readable.
 			mark.badge = nil
+			local color = if flip.to == 0 then Kit.colors.undecided else Kit.playerColor(view, flip.to)
+			mark.note = FLIP
+			mark.noteColor = color
+			mark.halo = color
+			mark.haloStrong = true
+		end
+	end
+	return marks
+end
+
+function SwingMarks.step(view: View, net: { [string]: number }, flips: { Swing.Flip }, keep: Marks): Marks
+	local mine = Kit.playerColor(view, view.you)
+	local marks: Marks = {}
+	for _, s in view.states do
+		local mark = base(keep, s.id)
+		local points = net[s.id]
+		if points ~= nil and points ~= 0 then
+			local color = if points > 0 then mine else Kit.colors.loss
+			mark.halo = color
+			mark.badge = Numbers.signed(points)
+			mark.badgeColor = color
+		end
+		marks[s.id] = mark
+	end
+	for _, flip in flips do
+		local mark = marks[flip.state]
+		if mark then
 			local color = if flip.to == 0 then Kit.colors.undecided else Kit.playerColor(view, flip.to)
 			mark.note = FLIP
 			mark.noteColor = color

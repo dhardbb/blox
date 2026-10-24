@@ -8,9 +8,9 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING.md`, "The week's results, move by move".
 
-- **Each move is followed by its effect.** In the end-of-week results, every shown move (yours and your opponent's, in the order shown) now moves the map's colors and leads and the header's projected votes and race bar right away, with its points on the state and FLIP where the lead changes.
-- **"Polls settle" is the last step.** It lands exactly on the real new polls: momentum, poll noise and anything the per-move estimates missed. "What changed" still lists the whole week's real flips and biggest moves.
-- The per-move numbers are estimates from the polls both players saw (the server never reveals true support); a line in the panel says so.
+- **Each move is followed by its effect.** In the end-of-week results, every shown move (yours and your opponent's, in the order shown) now moves the map's colors and leads and the header's projected votes and race bar right away. Every state the move touched shows its points ("+1.5" in your color, "−1.5" in orange against you); a lead change says FLIP, flashes in the new leader's color and shows in the header ("Rex: Rally · NY → Rex +28").
+- **"New polls are in" is the last step,** with its own look: a stamp, "Polls shifted 4 states", a pulse sweeping the map. It lands exactly on the real new polls (momentum and poll noise on top of the moves). "What changed" still lists the whole week's real flips and biggest moves.
+- The per-move numbers are estimates from the polls both players saw (the server never reveals true support); one line behind "Why?" says so.
 - The header no longer jumps to the week's result when the reveal opens. Same reveal length; Skip still ends it early.
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
