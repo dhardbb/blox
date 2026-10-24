@@ -185,6 +185,8 @@ local Config = {
 	-- Custom candidate names (the Name Pass, D-063). Not rules: who may name a
 	-- candidate, and how long a name may be.
 	NAME_MAX_LENGTH = 16, -- characters in a custom name, after trimming (the "16" the designers asked for)
+	NAME_SIMILAR_DISTANCE = 1, -- a name within this many letter edits of a blocklist entry counts as that entry (D-063)
+	NAME_SIMILAR_MIN_LETTERS = 5, -- shorter blocklist entries must match exactly (one edit away from a short word is too many names)
 
 	-- Meta
 	ELO_K = 32, -- rating K-factor

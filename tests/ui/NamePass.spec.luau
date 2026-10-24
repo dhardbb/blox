@@ -172,7 +172,7 @@ describe("Name Pass: setting a name (D-063)", function()
 			{
 				{ "The Zork", "NameFiltered" },
 				{ "   ", "NameEmpty" },
-				{ string.rep("x", 17), "NameTooLong" },
+				{ "Abcdefghijklmnopq", "NameTooLong" },
 				{ "Zed #1", "NameBadText" },
 			}
 		do
@@ -311,6 +311,49 @@ describe("Name Pass: who sees a name, pairs (D-063)", function()
 	end)
 end)
 
+describe("Name Pass: filtered per viewer, like chat (D-063)", function()
+	local function duel(seed: number, setup: (world: FakeRoblox.World, b: number) -> ())
+		local world = Rig.newWorld(seed)
+		FakeRoblox.setNamePass(world, PASS)
+		local first = world.nextUserId
+		FakeRoblox.setCanChat(world, first, true)
+		FakeRoblox.setCanChat(world, first + 1, true)
+		setup(world, first + 1)
+		local a = joinWith(world, "A", { owns = true, saved = { customName = "Big Wave" } })
+		local b = joinWith(world, "B", {})
+		FakeRoblox.run(world, 12)
+		FakeRoblox.fire(world, a, { op = "Queue" })
+		FakeRoblox.fire(world, b, { op = "Queue" })
+		FakeRoblox.run(world, 2)
+		local pa, pb = Rig.payloadOf(world, a), Rig.payloadOf(world, b)
+		return world, pa.view.players[pa.you].customName, pb.view.players[pa.you].customName
+	end
+
+	it("a viewer whose own filter level hides the name sees the candidate's own", function()
+		local world, own, seen = duel(15, function(world, b)
+			world.text.hiddenFor[b] = { "wave" }
+		end)
+		expect(own):toBe("Big Wave")
+		expect(seen):toBe(nil)
+		Rig.noErrors(world)
+	end)
+
+	it("a viewer whose filter call fails sees the candidate's own", function()
+		local world, own, seen = duel(16, function(world)
+			world.text.userFailures = 1
+		end)
+		expect(own):toBe("Big Wave")
+		expect(seen):toBe(nil)
+		Rig.noErrors(world)
+	end)
+
+	it("a viewer the filter lets see it gets the name", function()
+		local world, _, seen = duel(17, function() end)
+		expect(seen):toBe("Big Wave")
+		Rig.noErrors(world)
+	end)
+end)
+
 describe("Name Pass: Select (D-063)", function()
 	it("offers the pass to an eligible player without it, and Rename after the purchase", function()
 		local world, peer = live(13, { owns = false, chat = true })
@@ -340,7 +383,7 @@ describe("Name Pass: Select (D-063)", function()
 		Rig.tap(world, peer, "Select", "NameSave", 1)
 		check(Rig.need(peer, "Select", "NameSheet").Visible == true, "the sheet closed on a refusal")
 		expect(tostring(Rig.need(peer, "Select", "NameStatus").Text)):toBe(
-			"That name isn't allowed. Try another name."
+			"That name isn't allowed. Try another."
 		)
 		expect(mine(world, peer)):toBe("Captain Zed")
 		Rig.noErrors(world)

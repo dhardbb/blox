@@ -283,7 +283,8 @@ end
 
 -- Shows each custom name in a match to every other player allowed to see it
 -- (D-063): an eligible viewer whom Roblox lets receive the setter's messages
--- (NameEligibility.canSee). Everyone else keeps the candidate's own name.
+-- (NameEligibility.canSee), as the filter shows it to that viewer
+-- (NameService.forViewer). Everyone else keeps the candidate's own name.
 -- Yields (the checks); a match that ended meanwhile is left alone.
 local function shareNames(session: Session.Session)
 	for q, setter in session.seats do
@@ -297,12 +298,15 @@ local function shareNames(session: Session.Session)
 				continue
 			end
 			local to = playerOf(viewer.id)
-			local allowed = to ~= nil and NameEligibility.canSee(from, to)
+			-- Filtered for this viewer, like chat (NameService.forViewer).
+			local text = if to ~= nil and NameEligibility.canSee(from, to)
+				then NameService.forViewer(from, to, name)
+				else nil
 			if sessions[session.id] ~= session then
 				return
 			end
 			guard(session, function()
-				Session.showName(session, p, q, name, if allowed then name else nil)
+				Session.showName(session, p, q, name, text)
 			end)
 		end
 	end
@@ -636,6 +640,7 @@ function MatchService.start()
 		prePicks[id] = nil
 		approvedNames[id] = nil
 		NameEligibility.forget(player)
+		NameService.forget(player)
 		if before == "Queued" or before == "Hosting" then
 			broadcastLobby()
 		end

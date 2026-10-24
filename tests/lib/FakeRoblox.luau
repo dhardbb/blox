@@ -32,7 +32,9 @@
 -- fromUserId, context) waits the DataStore latency, fails while
 -- world.text.failures > 0, and returns a result whose
 -- GetNonChatStringForBroadcastAsync() writes "#" over every word in
--- world.text.hidden (case ignored), as Roblox's filter does; world.text.calls
+-- world.text.hidden (case ignored), as Roblox's filter does, and whose
+-- GetNonChatStringForUserAsync(viewer) also hides world.text.hiddenFor[viewer]
+-- (failing while world.text.userFailures > 0); world.text.calls
 -- counts the calls. FakeRoblox.setNamePass sets Net/Products.NAME_PASS_ID and
 -- TextChatService (name eligibility, D-063): CanUserChatAsync(userId) answers
 -- world.chat.allowed[userId] (default false), CanUsersChatAsync(from, to) is
@@ -135,6 +137,8 @@ export type MarketState = {
 -- The fake TextService's world-level state (D-063). Tests flip the switches.
 export type TextState = {
 	hidden: { string }, -- words the filter hides ("#" for each character)
+	hiddenFor: { [number]: { string } }, -- more words hidden from one viewer (GetNonChatStringForUserAsync)
+	userFailures: number, -- the next N GetNonChatStringForUserAsync calls fail
 	failures: number, -- the next N FilterStringAsync calls fail
 	calls: number, -- FilterStringAsync calls so far
 	contexts: { string }, -- the TextFilterContext name of each call, in order
@@ -574,9 +578,32 @@ local function newTextService(world: World): any
 					at = string.find(lower, string.lower(word), at + #word, true)
 				end
 			end
+			local function hide(words: { string }, from: string): string
+				local out = from
+				for _, word in words do
+					local lower = string.lower(out)
+					local at = string.find(lower, string.lower(word), 1, true)
+					while at do
+						out = string.sub(out, 1, at - 1)
+							.. string.rep("#", #word)
+							.. string.sub(out, at + #word)
+						lower = string.lower(out)
+						at = string.find(lower, string.lower(word), at + #word, true)
+					end
+				end
+				return out
+			end
 			return {
 				GetNonChatStringForBroadcastAsync = function(_result: any): string
 					return shown
+				end,
+				GetNonChatStringForUserAsync = function(_result: any, toUserId: number): string
+					requestDelay(world)
+					if state.userFailures > 0 then
+						state.userFailures -= 1
+						error("HTTP 500 (simulated TextFilterResult failure)", 0)
+					end
+					return hide(state.hiddenFor[toUserId] or {}, shown)
 				end,
 			}
 		end,
@@ -1507,7 +1534,14 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		sounds = {},
 		brokenAssets = {},
 		market = { owned = {}, failures = 0, checks = 0, prompts = {} },
-		text = { hidden = { "zork" }, failures = 0, calls = 0, contexts = {} },
+		text = {
+			hidden = { "zork" },
+			hiddenFor = {},
+			userFailures = 0,
+			failures = 0,
+			calls = 0,
+			contexts = {},
+		},
 		chat = { allowed = {}, blocked = {}, failures = 0, calls = 0 },
 		overrides = {},
 		userNames = {},

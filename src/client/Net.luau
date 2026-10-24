@@ -70,10 +70,12 @@ local REASONS: { [string]: string } = {
 	-- Custom names (D-063)
 	NoNamePass = "Naming your candidate needs the Name Pass.",
 	NameNotEligible = "Custom names are for age-checked players 16 and over.",
-	NameBadText = "That name has a character that can't be used. Try another name.",
+	NameBadText = "Use letters, spaces, - ' and . only. Try another.",
 	NameEmpty = "Type a name first.",
+	NameTooShort = "Use at least 2 letters.",
+	NameRepeats = "No letter three times in a row. Try another.",
 	NameTooLong = `Names can be at most {Config.defaults.NAME_MAX_LENGTH} characters.`,
-	NameFiltered = "That name isn't allowed. Try another name.",
+	NameFiltered = "That name isn't allowed. Try another.",
 	NameFilterFailed = "Names can't be checked right now. Try again in a minute.",
 	NameNotSaved = "Your saved data didn't load, so your name can't be saved.",
 	-- The server's own checks
