@@ -297,7 +297,7 @@ describe("UI audit style rules", function()
 		local Kit = t.c.Kit
 		Kit.panel({ Size = UDim2.fromOffset(100, 100), Parent = t.root })
 		Kit.text("Amber", {
-			TextColor3 = Kit.color({ r = 240, g = 186, b = 36 }),
+			TextColor3 = Kit.color(require("@ui/Colors").player.Amber),
 			Size = UDim2.fromOffset(100, 22),
 			Parent = t.root,
 		})
@@ -477,8 +477,8 @@ describe("Colors bands and the audit's motion rules", function()
 		check(same3(Colors.bandFill({ 51, 49 }, colors), Colors.neutral), "a toss-up is not neutral")
 		check(same3(Colors.bandFill({ 40, 60 }, colors), blue), "a safe state is not the full color")
 		check(
-			same3(Colors.bandFill({ 52, 47 }, colors), Colors.tint(Colors.neutral, red, 0.45)),
-			"lean is not 45%"
+			same3(Colors.bandFill({ 52, 47 }, colors), Colors.tint(Colors.neutral, red, 0.6)),
+			"lean is not 60% (D-064)"
 		)
 		check(same3(Colors.bandFill(nil, colors), Colors.neutral), "no poll is not neutral")
 		expect(c.Kit.colors.surfaceTop ~= nil):toBe(true)

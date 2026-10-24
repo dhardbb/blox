@@ -41,8 +41,67 @@ describe("Colors", function()
 		expect(Colors.stateFill(nil, colors)):toEqual(Colors.neutral)
 		local full = Colors.stateFill({ 55, 40 }, colors)
 		expect(full):toEqual(Colors.mix(Colors.neutral, Colors.player.Crimson, 1))
+		-- Half the full margin is past half the color (FILL_CURVE, D-064).
 		local half = Colors.stateFill({ 40, 46 }, colors)
-		expect(half):toEqual(Colors.mix(Colors.neutral, Colors.player.Cobalt, 0.5))
+		expect(half):toEqual(Colors.mix(Colors.neutral, Colors.player.Cobalt, 0.5 ^ Colors.FILL_CURVE))
+	end)
+
+	it("keeps player text readable and as saturated as it can (D-064)", function()
+		for name, c in Colors.player do
+			local t = Colors.textOn(c)
+			local ratio = Colors.contrast(t, Colors.surfaceTop)
+			check(ratio >= Colors.TEXT_CONTRAST, `{name} text is only {ratio}:1 on a card`)
+			-- A color that already reads is left alone; a dark one is lifted, never darkened.
+			if Colors.contrast(c, Colors.surfaceTop) >= Colors.TEXT_CONTRAST then
+				expect(t):toEqual({ r = c.r, g = c.g, b = c.b })
+			else
+				check(Colors.luma(t) > Colors.luma(c), `{name} text is not lighter than the fill`)
+			end
+		end
+		-- Crimson keeps its hue: brightened, red stays the biggest channel by far.
+		local red = Colors.textOn(Colors.player.Crimson)
+		check(red.r == 252 and red.g < 100, `Crimson text is {red.r}, {red.g}, {red.b}`)
+		-- A slate stays a slate: brightened with its channels in the same order.
+		local grey = Colors.textOn(Colors.neutral)
+		check(grey.b > grey.g and grey.g > grey.r, `neutral text is {grey.r}, {grey.g}, {grey.b}`)
+		expect(Colors.contrast(Colors.text, Colors.text)):toBe(1)
+	end)
+
+	it("keeps the player colors apart from each other and from the loss orange (D-056, D-064)", function()
+		-- CIE76 distance in L*a*b* (D65); D-056's "about 30" floor.
+		local function lab(c: Colors.RGB): (number, number, number)
+			local function lin(v: number): number
+				local s = v / 255
+				return if s <= 0.04045 then s / 12.92 else ((s + 0.055) / 1.055) ^ 2.4
+			end
+			local r, g, b = lin(c.r), lin(c.g), lin(c.b)
+			local x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
+			local y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+			local z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
+			local function f(t: number): number
+				return if t > 0.008856 then t ^ (1 / 3) else 7.787 * t + 16 / 116
+			end
+			return 116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))
+		end
+		local function dist(a: Colors.RGB, b: Colors.RGB): number
+			local l1, a1, b1 = lab(a)
+			local l2, a2, b2 = lab(b)
+			return math.sqrt((l1 - l2) ^ 2 + (a1 - a2) ^ 2 + (b1 - b2) ^ 2)
+		end
+		local names = {}
+		for name in Colors.player do
+			table.insert(names, name)
+		end
+		table.sort(names)
+		for i, a in names do
+			local d = dist(Colors.player[a], Colors.loss)
+			check(d >= 40, `{a} is only {d} from the loss orange`)
+			for j = i + 1, #names do
+				local b = names[j]
+				local e = dist(Colors.player[a], Colors.player[b])
+				check(e >= 35, `{a} and {b} are only {e} apart`)
+			end
+		end
 	end)
 
 	it("has the design-system tokens (D-030)", function()

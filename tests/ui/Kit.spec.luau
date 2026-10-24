@@ -87,7 +87,7 @@ describe("Kit tokens", function()
 		check(same(Kit.colors.disabledText, Kit.colors.muted), "disabledText is not muted")
 		check(Kit.colors.field ~= nil and Kit.colors.neutral ~= nil, "field or neutral is missing")
 		local view = { players = { { color = "Teal" }, { color = nil } } }
-		check(same(Kit.playerColor(view, 1), Kit.color({ r = 24, g = 168, b = 178 })), "Teal is wrong")
+		check(same(Kit.playerColor(view, 1), Kit.color({ r = 0, g = 164, b = 186 })), "Teal is wrong")
 		check(same(Kit.playerColor(view, 2), Kit.colors.neutral), "no color is not neutral")
 	end)
 
@@ -569,10 +569,10 @@ describe("Kit foundation: orange losses and chunky buttons", function()
 		check(same(Kit.tone("loss"), Kit.colors.loss), "tone loss")
 		check(same(Kit.tone("bad"), Kit.colors.loss), "tone bad")
 		check(same(Kit.tone("white"), Kit.colors.text), "tone white")
-		check(same(Kit.colors.background, Kit.color({ r = 13, g = 17, b = 30 })), "the stage is not navy")
+		check(same(Kit.colors.background, Kit.color({ r = 11, g = 16, b = 34 })), "the stage is not navy")
 		local view = { players = { { color = "Crimson" }, { color = "Cobalt" } } }
-		check(same(Kit.playerText(view, 1), Kit.color({ r = 215, g = 100, b = 117 })), "Crimson text")
-		check(same(Kit.playerColor(view, 1), Kit.color({ r = 206, g = 52, b = 72 })), "Crimson fill changed")
+		check(same(Kit.playerText(view, 1), Kit.color({ r = 252, g = 76, b = 113 })), "Crimson text")
+		check(same(Kit.playerColor(view, 1), Kit.color({ r = 212, g = 28, b = 66 })), "Crimson fill changed")
 		check(same(Kit.textColor(Kit.playerColor(view, 2)), Kit.playerText(view, 2)), "textColor")
 	end)
 
