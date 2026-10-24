@@ -2,6 +2,10 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+- **Experience page art and text (draft):** a 512x512 icon (three variants; `icon.png` is the recommended map-and-270 one), four 1920x1080 thumbnails (the candidates over election night, a real campaign week, a real debate round, the landslide win) and `DESCRIPTION.md` (title "Landslide: Race to 270", the description, and the content maturity answers we expect: Minimal). All in `assets/promo/`, drawn by `assets/promo/make.py` from the game's palette, wordmark, portraits, map and UI snapshots. No game code changed. Studio checklist: `docs/TESTING.md`, "Promo art". Needed from the humans: upload them in the Creator Dashboard if you like them.
+
 ## 0.14.0: Map polish, issue symbols, the tutorial, fixes (Oct 24, 2026)
 
 A clearer map (bigger on phones, every state's votes, a Close filter), symbols for issues, an untimed first bot match with more time against easier bots, the Lobby's settings in the corner, and fixes from a full bug review (rated results across servers, win trading, name review safety, debate reconnects). Needed from the humans: nothing new (the 0.13.0 list still applies).

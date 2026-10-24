@@ -1078,3 +1078,16 @@ Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests "M
 11. **iPad and desktop.** **Expect:** the map looks as in 0.13.0 apart from the bracket, the quieter pins, the insets and the items above.
 
 **Send back:** a phone screenshot of Votes, Polls and Money, one with Close on, one of the end of a busy week's results, one of election night, and whether you would want Close on by default on a phone; plus any Output errors from `ShapeMap`, `Lens` or `SwingMarks`.
+
+## Promo art: icon, thumbnails, description (unreleased)
+
+Files in `assets/promo/` (open them in Preview). Nothing changes in the game. The text, the alt text and the questionnaire answers are in `assets/promo/DESCRIPTION.md`.
+
+1. **Look at the art.** Open `icon.png`, `icon-faceoff.png`, `icon-stamp.png` and the four `thumb-*.png`. Should see: the icon readable even when small (the US map in blue and red, a big "270", "LANDSLIDE" on the ribbon); the thumbnails' big captions at the top and nothing important in the bottom strip (Roblox puts the player count there). Send back: which icon you prefer (we recommend `icon.png`, the map one) and any thumbnail you'd drop or change.
+2. **Icon.** Creator Dashboard → the experience → **Configurations → Places** → the start place (the one with a star) → **Icon** → media type **Image** → **Change** → `icon.png` → check the preview → **Save Changes**. It shows after Roblox moderation. Send back: a screenshot of the experience page once it shows.
+3. **Thumbnails.** Same place → **Thumbnails** → **Experience Detail Page** tab: upload `thumb-1-hero.png`, `thumb-2-campaign.png`, `thumb-3-debate.png`, `thumb-4-landslide.png` in that order and give each the alt text from `DESCRIPTION.md`. Then the **Home Page** tab → **Edit active thumbnails** → tick **Active** on 2 to 5 of them → **Save changes** → **Start** (Roblox then shows each player the one that works best for them). Send back: any upload Roblox rejects, with its message.
+4. **Title and description.** In Studio: **Home → Game Settings → Basic Info**, set the name to `Landslide: Race to 270` and paste the description block from `DESCRIPTION.md` → **Save**. First check the "Before publishing" list there (Daily Race shipped? four bot levels?). Should see: no "too long" warning (it's 800 characters). Send back: the text as you published it, if you changed it.
+5. **Content rating.** Creator Dashboard → the experience → **Publish settings → Content rating → Start** (or **Restart**). Answer as in the table in `DESCRIPTION.md`. Should see: the preview page shows **Minimal** and no descriptors. Send back: a screenshot of that preview page before you press **Submit**, especially if anything other than Minimal shows.
+
+To redraw the art after the UI, the portraits or the map change: `python3 assets/promo/make.py --sheet build/promo/sheet.png` from the repository root (needs Pillow, lune and Roblox Studio installed on the Mac, for its Fredoka One and Builder Sans fonts). The two gameplay thumbnails come from the game's headless snapshots, which draw the text in Helvetica rather than Builder Sans; if you'd rather have true in-game pictures, take 1920x1080 screenshots in Studio of the same moments (week 3 plan with Pennsylvania open; debate round 2) and send them over.
+
