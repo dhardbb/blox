@@ -11,6 +11,7 @@
 
 local ConfigModule = require("../Sim/Config")
 local Election = require("../Sim/Election")
+local Session = require("../Net/Session")
 local StateData = require("../Sim/StateData")
 local ViewModule = require("../Sim/View")
 
@@ -29,10 +30,7 @@ export type Moment = {
 	line: string, -- under it: "You took 412 of 538 votes, over 70%."
 }
 
--- The match result as Session sends it (only the fields read here).
-export type Result = { winner: number, reason: string }
-
-function Landslide.moment(config: Config, view: View, result: Result?, names: { string }): Moment?
+function Landslide.moment(config: Config, view: View, result: Session.Result?, names: { string }): Moment?
 	local election = view.election
 	if result == nil or result.reason ~= "Election" or election == nil then
 		return nil
