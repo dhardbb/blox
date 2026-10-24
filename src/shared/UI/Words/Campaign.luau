@@ -311,8 +311,8 @@ function Words.key(id: string): { string }
 	if id == "Issues" then
 		table.insert(lines, "The code is the state's top issue. Filled: it is one of yours.")
 	elseif id == "Polls" then
-		table.insert(lines, "The number is the poll leader's lead, in points.")
-		table.insert(lines, "~ means no poll yet: the state's lean.")
+		table.insert(lines, "The number is the leader's lead in points; ~ means no poll yet.")
+		table.insert(lines, "▲ momentum in its color; ● your ground game, ○ theirs as last polled.")
 	elseif id == "Money" then
 		table.insert(lines, "What one more fundraiser there would raise this week.")
 		table.insert(lines, "Faded: your plan already empties that state's money.")
@@ -320,6 +320,7 @@ function Words.key(id: string): { string }
 		table.insert(lines, "The number is how many votes the state is worth.")
 		table.insert(lines, "★ and a white outline: a battleground, where every action counts more.")
 	end
+	table.insert(lines, "Faint numbers: what your plan moves there, if nothing else changes.")
 	table.insert(lines, "Tap a state to see it and act there.")
 	return lines
 end

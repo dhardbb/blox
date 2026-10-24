@@ -304,6 +304,77 @@ describe("Map lenses", function()
 		Rig.noErrors(world)
 	end)
 
+	it("Polls also marks momentum and ground game, from your own View only (D-062)", function()
+		local world, peer = Rig.fixture("Plan")
+		local Lens, Kit = modules(world, peer)
+		local view = Rig.deepCopy(Fixtures.payload(C, "Plan").view)
+		local you = view.you
+		local them = if you == 1 then 2 else 1
+		local byId = {}
+		for _, s in view.states do
+			s.momentum = table.create(#view.players, 0)
+			s.gotv = 0
+			byId[s.id] = s
+		end
+		byId.OH.momentum[them] = 3 -- a strong lead: ▲▲ in their color
+		byId.PA.momentum[you], byId.PA.momentum[them] = 1.5, 1 -- a small one: ▲ in yours
+		byId.WI.momentum[you], byId.WI.momentum[them] = 2, 2 -- tied: nobody drifts
+		byId.PA.gotv = 2
+		local scouted = table.create(#view.players, 0)
+		scouted[them] = 3
+		view.scouted = { { state = "PA", week = 2, gotv = scouted } }
+		local lines = Lens.lines("Polls", { config = C, view = view })
+		check(same(lines.OH.momentum, Kit.playerColor(view, them)), "OH's chevron is not theirs")
+		expect(lines.OH.momentumStrong):toBe(true)
+		check(same(lines.PA.momentum, Kit.playerColor(view, you)), "PA's chevron is not yours")
+		expect(lines.PA.momentumStrong):toBe(nil)
+		expect(lines.WI.momentum):toBe(nil)
+		local pips = lines.PA.pips
+		check(pips ~= nil and #pips == 2, "PA should show your pips and their polled ones")
+		expect(pips[1].count):toBe(2)
+		expect(pips[1].hollow):toBe(nil)
+		expect(pips[2].count):toBe(3)
+		expect(pips[2].hollow):toBe(true)
+		-- Their ground game is never guessed: no poll of yours saw OH.
+		expect(lines.OH.pips):toBe(nil)
+		-- Only Polls carries the extras.
+		for _, id in { "EV", "Issues", "Money" } do
+			local other = Lens.lines(id :: any, { config = C, view = view })
+			check(other.OH.momentum == nil and other.PA.pips == nil, `{id} shows the Polls marks`)
+		end
+		-- The legend explains them, in Polls only.
+		local legend = Lens.mapLegend({ config = C, view = view }, "Polls")
+		check(legend ~= nil and #legend == 3, "no Polls legend")
+		expect(Lens.mapLegend({ config = C, view = view }, "EV")):toBe(nil)
+		Rig.noErrors(world)
+	end)
+
+	it("shows the Polls marks and their legend on the Campaign map", function()
+		local world, peer = Rig.fixture("Plan")
+		local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
+		for _, s in payload.view.states do
+			if s.id == "TX" then
+				s.gotv = 3
+			end
+		end
+		Rig.push(world, peer, payload)
+		local map = mapOf(peer, "Campaign")
+		Rig.tap(world, peer, "Campaign", "LensEV")
+		expect(map.MapLegend.Visible):toBe(false)
+		expect(map.Nodes.TX.Extras.Visible):toBe(false)
+		Rig.tap(world, peer, "Campaign", "LensPolls")
+		expect(map.MapLegend.Visible):toBe(true)
+		expect(map.Nodes.TX.Extras.Visible):toBe(true)
+		local yours = 0
+		for _, pip in map.Nodes.TX.Extras.Pips:GetChildren() do
+			if pip.Name == "Yours" then
+				yours += 1
+			end
+		end
+		expect(yours):toBe(3)
+		Rig.noErrors(world)
+	end)
+
 	it("Money: Explain's fundraiser number per state, dimmed once your plan empties the pool", function()
 		local world, peer = Rig.fixture("Plan")
 		local Lens = modules(world, peer)
@@ -330,15 +401,15 @@ describe("Map lenses", function()
 		Rig.noErrors(world)
 	end)
 
-	it("dims a drained state on the map and lights it again in another lens", function()
+	it("dims a drained state on the circle map and lights it again in another lens", function()
 		local world, peer = Rig.fixture("Plan")
-		-- A NodeMap of its own, driven directly.
+		-- A circle map of its own, driven directly.
 		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 		local NodeMap = FakeRoblox.require(world, peer, "src/client/Map/NodeMap.luau")
 		local gui = Kit.new("ScreenGui", { Name = "TestGui" })
 		local stage =
 			Kit.box({ Name = "Stage", Size = FakeRoblox.types.UDim2.fromOffset(832, 520), Parent = gui })
-		local m = NodeMap.new()
+		local m = NodeMap.circles()
 		m.root.Parent = stage
 		local node = m.root.Nodes:FindFirstChild("OH")
 		local label = node:FindFirstChild("Label")
@@ -362,6 +433,41 @@ describe("Map lenses", function()
 		m:setLens({})
 		expect(node.Lens.Visible):toBe(false)
 		expect(label.Position.Y.Scale):toBe(y0)
+	end)
+
+	it("dims a drained state on the real map and shows its value beside the code (D-062)", function()
+		local world, peer = Rig.fixture("Plan")
+		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
+		local NodeMap = FakeRoblox.require(world, peer, "src/client/Map/NodeMap.luau")
+		local gui = Kit.new("ScreenGui", { Name = "TestGui" })
+		local stage =
+			Kit.box({ Name = "Stage", Size = FakeRoblox.types.UDim2.fromOffset(832, 520), Parent = gui })
+		local m = NodeMap.new()
+		m.root.Parent = stage
+		local node = m.root.Nodes:FindFirstChild("OH")
+		local shape = m.root.Shapes.ShapeOH
+		m:setLens({ OH = { parts = { { text = "$0.0" } }, dim = true } })
+		FakeRoblox.run(world, 0.05) -- the mark layout runs once a frame
+		check(shape.ImageTransparency > 0, "a drained state is not dimmed")
+		expect(node.Lens.Visible):toBe(true)
+		local label, row = node.Label, node.Lens
+		-- Beside or under the code, never on it (D-062's mark layout).
+		local lp, ls, rp, rs =
+			label.AbsolutePosition, label.AbsoluteSize, row.AbsolutePosition, row.AbsoluteSize
+		check(
+			not (
+					rp.X + 1 < lp.X + ls.X
+					and lp.X + 1 < rp.X + rs.X
+					and rp.Y + 1 < lp.Y + ls.Y
+					and lp.Y + 1 < rp.Y + rs.Y
+				),
+			"the value covers the code"
+		)
+		m:setLens({ OH = { parts = { { text = "17" } } } })
+		expect(shape.ImageTransparency):toBe(0)
+		expect(node.Lens.Part1.Text):toBe("17")
+		m:setLens({})
+		expect(node.Lens.Visible):toBe(false)
 	end)
 
 	it("remembers the lens for the session, from the draft into the campaign", function()
@@ -443,7 +549,12 @@ describe("Lens motion", function()
 		end
 		check(shownPills > 10, `only {shownPills} lens pills`)
 		Rig.tap(world, peer, "Campaign", "OH", 0.5)
-		local ring = map.Nodes.OH.Circle:FindFirstChildOfClass("UIStroke")
+		-- The real map outlines the selection (3 px); a callout state's chip edge draws in.
+		local outline = map.Outlines:FindFirstChild("OutlineOH")
+		check(outline ~= nil and outline.Visible, "no selection outline")
+		expect(outline:GetChildren()[1].Size.Y.Offset):toBe(3)
+		Rig.tap(world, peer, "Campaign", "RI", 0.5)
+		local ring = map.Nodes.RI.Chip:FindFirstChildOfClass("UIStroke")
 		expect(ring.Thickness):toBe(3)
 		Rig.noErrors(world)
 	end)

@@ -264,7 +264,7 @@ One Rojo project, one Roblox place, many concurrent matches per server. The simu
   src/client/
     App.client.luau       -- screen router
     Screens/              -- Lobby, Select (candidate + platform), Draft, Campaign, Debate, ElectionNight, Results
-    Map/                  -- MapInterface.luau, NodeMap.luau (MVP), later ShapeMap.luau
+    Map/                  -- MapInterface.luau, ShapeMap.luau (real shapes, D-062), NodeMap.luau (circles until the upload)
     Components/           -- Button, Panel, Timer, Tooltip, StateCard, ActionTray
     Store.luau            -- client-side copy of the latest View + pending plan
   tests/
@@ -375,7 +375,7 @@ None of these are in scope until the 1v1 game is balanced and finished, but seve
 
 - **4-player free-for-all with elimination.** Four candidates run at once; anyone under 5% national true support at the end of a week drops out and their voters return to undecided; play continues until two remain, then the normal election. Prepare now: support is keyed by player id, the draft and `View` take a player list, and nothing assumes two sides.
 - **Spoiler seat.** A third player who cannot win the presidency but wins their own objective (for example, finish above 5% nationally or deny either major candidate 270). Prepare now: win conditions are per-player objects, not a single global check.
-- **Real state shapes.** The humans upload state decals; `ShapeMap.luau` implements `MapInterface` with image buttons. Maine and Nebraska district splits come with it.
+- **Real state shapes.** Done in D-062: generated atlases the humans upload, `ShapeMap.luau` behind `MapInterface`. Maine and Nebraska district splits are still open.
 - **Running mate.** A second pick at character select that adds a second home state and a minor perk.
 - **Replays and spectating.** Seed + input log replays a match exactly; a spectator `View` with no fog after the match ends.
 - **Ranked seasons and cosmetics.** Seasonal rating resets, candidate skins, map themes, a daily seeded challenge against the bot with a leaderboard.

@@ -43,6 +43,7 @@ local EventCard = require(script.Parent.CampaignParts.EventCard)
 local Focus = require(script.Parent.CampaignParts.Focus)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
+local MapPins = require(script.Parent.Parent.Map.Pins)
 local Messages = require(script.Parent.Common.Messages)
 local Model = require(script.Parent.CampaignParts.Model)
 local Motion = require(script.Parent.Parent.UI.Motion)
@@ -292,6 +293,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		map:setMarks(marks :: any)
 		map:setRoute({}, {})
+		map:setPins(MapPins.of(config, view))
 	end
 
 	local opponentWas: string? = nil -- the opponent's state at the last bar render

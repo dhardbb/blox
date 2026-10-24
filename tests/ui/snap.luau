@@ -85,6 +85,37 @@ local function withEvent(id: string, upcoming: boolean?): (World, Peer) -> ()
 	end
 end
 
+-- The Polls lens with ground game (D-062): your units in PA, WI and GA, and
+-- what your polls saw of theirs in PA and AZ.
+local function pollsGround(world: World, peer: Peer)
+	local payload = Fixtures.payload(Config.defaults, "Plan")
+	local units = { PA = 3, WI = 2, GA = 1 }
+	for _, s in payload.view.states do
+		s.gotv = units[s.id] or s.gotv
+	end
+	payload.view.scouted = {
+		{ state = "PA", week = 2, gotv = { 3, 2 } },
+		{ state = "AZ", week = 2, gotv = { 0, 3 } },
+	}
+	local shift = world.clock - payload.stageStart
+	payload.stageStart += shift
+	payload.deadline += shift
+	Rig.push(world, peer, payload)
+	tapIf(world, peer, "Campaign", "LensPolls")
+end
+
+-- Rallies in PA twice and in OH once (presses, so a repeated button is found).
+local function planPreview(world: World, peer: Peer)
+	for _, name in { "PA", "Rally", "Rally", "OH", "Rally" } do
+		if FakeRoblox.find(peer, name) then
+			FakeRoblox.press(world, peer, name)
+			FakeRoblox.run(world, 0.3)
+		else
+			print(`  (no {name})`)
+		end
+	end
+end
+
 local function lens(id: string): (World, Peer) -> ()
 	return function(world, peer)
 		tapIf(world, peer, "Campaign", `Lens{id}`)
@@ -606,6 +637,46 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Campaign", "Fundraise")
 		end,
 	},
+	-- The plan preview (D-063): an empty plan, then a rally in PA twice and one in OH.
+	{ name = "10c-plan-preview-empty", moment = "Plan", screen = "Campaign" },
+	{
+		name = "10d-plan-preview",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			planPreview(world, peer)
+		end,
+	},
+	{
+		-- The same plan on the Polls lens with ground game: the tags stay readable.
+		name = "10e-plan-preview-polls",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			pollsGround(world, peer)
+			planPreview(world, peer)
+		end,
+	},
+	{
+		-- Both candidates in Ohio, a plan there: the pins and tags stay off the codes.
+		name = "10f-pins-same-state",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Plan")
+			for _, player in payload.view.players do
+				player.location = "OH"
+			end
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+			for _, name in { "OH", "Rally" } do
+				FakeRoblox.press(world, peer, name)
+				FakeRoblox.run(world, 0.3)
+			end
+		end,
+	},
 	{
 		-- The map key: what the four color steps mean, in both players' colors.
 		name = "10b-campaign-map-key",
@@ -618,6 +689,16 @@ local SHOTS: { Shot } = {
 	{ name = "11-lens-ev", moment = "Plan", screen = "Campaign", steps = lens("EV") },
 	{ name = "12-lens-issues", moment = "Plan", screen = "Campaign", steps = lens("Issues") },
 	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
+	{
+		-- The Polls lens with ground game on the map (D-062): your units in PA, WI
+		-- and GA, and what your polls saw of theirs in PA and AZ.
+		name = "13b-lens-polls-ground",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			pollsGround(world, peer)
+		end,
+	},
 	{ name = "14-lens-money", moment = "Plan", screen = "Campaign", steps = lens("Money") },
 	{ name = "15-campaign-choice-week", moment = "ChoiceWeek", screen = "Campaign" },
 	{

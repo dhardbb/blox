@@ -1,5 +1,11 @@
 --!strict
--- The MVP map: one circle per state from Shared/UI/MapLayout, built from plain
+-- The map every screen mounts: NodeMap.new() returns the real map (Map/ShapeMap,
+-- D-062) once its images are uploaded (UI/Assets mapStates*, mapBorders), and
+-- these circles until then, so the game always has a map. NodeMap.preview = true
+-- (the headless specs and snapshots) takes the real map without the uploads;
+-- NodeMap.circles() always builds the circles.
+--
+-- The circle map: one circle per state from Shared/UI/MapLayout, built from plain
 -- frames (no art assets). Fill steps toward the public-poll leader's color in
 -- four bands by the lead in points (Colors.bandFill: toss-up grey, lean, likely,
 -- safe; the Campaign "Map key" shows them), lit a little from the top; a
@@ -60,10 +66,16 @@ local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local MapInterface = require(script.Parent.MapInterface)
 local MapLayout = require(ReplicatedStorage.Shared.UI.MapLayout)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local Legend = require(script.Parent.Legend)
 local Motion = require(script.Parent.Parent.UI.Motion)
+local Pins = require(script.Parent.Pins)
+local ShapeMap = require(script.Parent.ShapeMap)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 
 local NodeMap = {}
+
+-- Build the real map even before its images are uploaded (tests and snapshots).
+NodeMap.preview = false
 
 local MIN_TAP = Kit.MAP_NODE_MIN -- px, smallest tap target per state
 local LINE_PX = 2
@@ -121,6 +133,9 @@ local LENS_FADE = 0.15 -- s, the lens pills fading in on a lens switch
 local PART_BG = 0 -- a lens plate's backing transparency at rest
 local GHOST_STROKE = 0.5 -- the ghost tag's outline transparency
 local GHOST_BG = 0.3 -- the ghost tag's backing transparency
+local PIN_PX = 22 -- px, a candidate pin's face on the circle map
+local PREVIEW_LOW = 0.85 -- a circle whose bottom is below this (box heights) shows its plan preview over it
+local LEGEND_RECT = { x = 0.3, y = 0.9, w = 0.5, h = 0.09 } -- the legend strip (under the Gulf)
 
 type Node = {
 	id: string,
@@ -300,7 +315,15 @@ local function paintLens(
 	node.label.Size = UDim2.fromScale(MapLayout.LABEL_SCALE * k, if shown then LABEL_H_LENS * k else LABEL_H)
 end
 
+-- The real map when it can show, else the circles.
 function NodeMap.new(): MapInterface.Map
+	if NodeMap.preview or ShapeMap.ready() then
+		return ShapeMap.new()
+	end
+	return NodeMap.circles()
+end
+
+function NodeMap.circles(): MapInterface.Map
 	local root = Kit.new("Frame", {
 		Name = "NodeMap",
 		BackgroundTransparency = 1,
@@ -644,9 +667,14 @@ function NodeMap.new(): MapInterface.Map
 			node.bloom.ImageTransparency = if strong then BLOOM_STRONG else BLOOM_SOFT
 		end
 		local glyph = if mark and mark.arrow then ARROWS[mark.arrow] else nil
+		local arrowColor = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
+		if glyph == nil and line and line.momentum then
+			-- The Polls lens's momentum (D-062); the circles have no room for pips.
+			glyph, arrowColor = ARROWS.up, line.momentum
+		end
 		node.arrow.Visible = glyph ~= nil
 		node.arrow.Text = glyph or ""
-		node.arrow.TextColor3 = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
+		node.arrow.TextColor3 = arrowColor
 	end
 
 	local map = {} :: any
@@ -899,6 +927,74 @@ function NodeMap.new(): MapInterface.Map
 		fills[id] = color
 		Motion.tween(node.circle, { BackgroundColor3 = color }, Motion.t.call, Motion.ease.soft)
 		Motion.ring(node.circle, color)
+	end
+
+	-- Candidate pins stand on the circle's top edge (D-062).
+	local pinLayer = Kit.box({ Name = "Pins", ZIndex = 6, Parent = root })
+	function map.setPins(_self: any, pins: { MapInterface.Pin })
+		for _, child in pinLayer:GetChildren() do
+			child:Destroy()
+		end
+		local seen: { [string]: number } = {}
+		for _, pin in pins do
+			local node = byId[pin.state]
+			if node then
+				local k = (seen[pin.state] or 0) + 1
+				seen[pin.state] = k
+				local frame = Pins.build(pin, PIN_PX)
+				local top = node.y - node.r * CIRCLE_SHARE * MapLayout.ASPECT
+				frame.Position = UDim2.new(node.x, (k - 1) * PIN_PX, top, 0)
+				frame.ZIndex = if pin.you then 2 else 1
+				frame.Parent = pinLayer
+			end
+		end
+	end
+
+	-- The plan preview (D-063): a faint tag under each circle it moves, on top.
+	local previewLayer = Kit.box({ Name = "Preview", ZIndex = 7, Parent = root })
+	function map.setPreview(_self: any, tags: { [string]: MapInterface.PreviewTag }?)
+		for _, child in previewLayer:GetChildren() do
+			child:Destroy()
+		end
+		local list: { [string]: MapInterface.PreviewTag } = tags or {}
+		for id, spec in list do
+			local node = byId[id]
+			if node then
+				local color = if spec.negative then Kit.colors.loss else Kit.colors.good
+				-- Under the circle; over it near the map's bottom (Alaska, Hawaii).
+				local ry = node.r * CIRCLE_SHARE * MapLayout.ASPECT
+				local low = node.y + ry > PREVIEW_LOW
+				local tag = Kit.text(spec.text, {
+					Name = id,
+					AutomaticSize = Enum.AutomaticSize.X,
+					Size = UDim2.fromOffset(0, TAG_H),
+					AnchorPoint = Vector2.new(0.5, if low then 1 else 0),
+					Position = if low
+						then UDim2.new(node.x, 0, node.y - ry, TAG_DIP)
+						else UDim2.new(node.x, 0, node.y + ry, -TAG_DIP),
+					TextSize = Kit.size.caption,
+					Font = Kit.font.display,
+					TextColor3 = color,
+					BackgroundColor3 = Kit.colors.field,
+					BackgroundTransparency = GHOST_BG,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					TextWrapped = false,
+					Parent = previewLayer,
+				})
+				Kit.dataColor(tag)
+				Kit.new("UICorner", { CornerRadius = UDim.new(0, TAG_RADIUS), Parent = tag })
+				Kit.new("UIPadding", {
+					PaddingLeft = UDim.new(0, TAG_PAD),
+					PaddingRight = UDim.new(0, TAG_PAD),
+					Parent = tag,
+				})
+			end
+		end
+	end
+
+	local legend = Legend.new(root, LEGEND_RECT)
+	function map.setLegend(_self: any, items: { MapInterface.LegendItem }?)
+		Legend.fill(legend, items)
 	end
 
 	function map.destroy(_self: any)

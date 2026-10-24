@@ -36,8 +36,12 @@ local function count(peer: FakeRoblox.Peer, text: string): number
 	return n
 end
 
+-- Every UI spec and snapshot draws the real map (Map/ShapeMap, D-062), even
+-- before its images are uploaded: NodeMap.preview.
 local function newWorld(seed: number, screen: { x: number, y: number }?): FakeRoblox.World
-	return FakeRoblox.world({ root = process.cwd, seed = seed, screen = screen })
+	local world = FakeRoblox.world({ root = process.cwd, seed = seed, screen = screen })
+	FakeRoblox.setModuleField(world, "src/client/Map/NodeMap.luau", "preview", true)
+	return world
 end
 
 export type FixtureOptions = {

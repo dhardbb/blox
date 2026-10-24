@@ -1,9 +1,10 @@
 --!strict
--- Map lenses (D-046, docs/UI-STYLE.md §4.6): what the map shows inside each
--- state's circle, under its code, one layer at a time and one mark per state, so
--- the map stays quiet (who leads by fill color) and the details live in the
--- state card. The fill by public-poll leader is the same in every lens; screens
--- keep their event and stance badges (the Tags layer).
+-- Map lenses (D-046, docs/UI-STYLE.md §4.6): what the map shows at each
+-- state's label, one layer at a time, so the map stays quiet (who leads by fill
+-- color) and the details live in the state card. One mark per state, except
+-- Polls (D-062). The fill by public-poll leader is the same in every lens;
+-- screens keep their event and stance badges (the Tags layer) and the
+-- candidate pins in every lens.
 --
 --   EV      "Votes": the state's electoral votes on a dark plate; on a
 --           battleground "★13", outlined in white (good news, never orange,
@@ -12,15 +13,23 @@
 --           platform (filled in your color), else its first top issue
 --   Polls   the public-poll lead ("+3") on a plate filled in the leader's
 --           color, "tie", or the lean before the first poll ("~+2", the
---           leader's readable text color: a lean, not a poll). Your internal
---           polls, momentum and ground game are on the state card (Details)
+--           leader's readable text color: a lean, not a poll). Under it, a
+--           small row (D-062): ▲ in the momentum leader's color (▲▲ for a
+--           lead of Lens.STRONG or more: their support drifts up each week),
+--           your ground-game units as filled dots in your color, and the
+--           opponent's as hollow dots, only as your internal polls saw them
+--           (View.scouted, D-049). Polls is the lens for "where is it moving
+--           and who is working it", so it may carry three marks; the map's
+--           legend row (Lens.mapLegend) says what they mean. Your internal
+--           poll numbers stay on the state card (Details)
 --   Money   what one more fundraiser there would raise this week, from
 --           Explain.action (the state card's number); dim when your plan
 --           already empties the pool
 --
--- Reads only the player's own View (and, for Money, their drafted plan). The
--- lens choice is remembered for the session: a module-level value, so every
--- screen that mounts a map starts on the lens the player last picked.
+-- Reads only the player's own View (and, for Money, their drafted plan): public
+-- momentum, your own ground game and your own scouting. The lens choice is
+-- remembered for the session: a module-level value, so every screen that mounts
+-- a map starts on the lens the player last picked.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -40,6 +49,7 @@ type View = ViewModule.View
 type StateView = ViewModule.StateView
 type Part = MapInterface.LensPart
 type Line = MapInterface.LensLine
+type LegendItem = MapInterface.LegendItem
 
 export type Id = "EV" | "Issues" | "Polls" | "Money"
 
@@ -60,6 +70,8 @@ Lens.LABEL =
 -- Display only (UI numbers, not gameplay).
 Lens.TIE = 0.5 -- a public-poll lead under this many points reads "tie"
 Lens.DRAINED = 0.05 -- $ a fundraiser would still raise: under this, the pool is spent
+Lens.MOMENTUM = 0.05 -- a momentum lead under this shows no chevron (nobody drifts)
+Lens.STRONG = 2 -- a momentum lead of this much or more shows ▲▲
 
 -- Short codes for the issue chips. An issue without one shows its first three letters.
 Lens.ISSUE_CODE = table.freeze({
@@ -93,7 +105,7 @@ function Lens.legend(_config: ConfigModule.Config, id: Id): string
 	if id == "Issues" then
 		return "Top issue · filled = one of yours"
 	elseif id == "Polls" then
-		return "Who leads the poll, by how much"
+		return `Poll lead · {Kit.glyph.up} momentum · {Kit.glyph.bullet} ground game`
 	elseif id == "Money" then
 		return "What one more fundraiser raises"
 	end
@@ -175,19 +187,51 @@ local function issuesLine(ctx: Context, s: StateView): Line
 	return { parts = if first then { { text = Lens.issueCode(first) } } else {} }
 end
 
+-- The momentum leader's color and whether the lead is strong, or nil.
+function Lens.momentumOf(view: View, s: StateView): (Color3?, boolean)
+	local leader, lead = leaderOf(s.momentum)
+	if leader == nil or lead < Lens.MOMENTUM then
+		return nil, false
+	end
+	return colorOf(view, leader), lead >= Lens.STRONG
+end
+
+-- Ground-game pips: yours (filled), then each opponent's as your polls saw it (hollow).
+function Lens.pipsOf(view: View, s: StateView): { MapInterface.Pips }
+	local pips: { MapInterface.Pips } = {}
+	if s.gotv > 0 then
+		table.insert(pips, { count = s.gotv, color = colorOf(view, view.you) })
+	end
+	local scout = Explain.scoutOf(view, s.id)
+	if scout then
+		for p, units in scout.gotv do
+			if p ~= view.you and units > 0 then
+				table.insert(pips, { count = units, color = colorOf(view, p), hollow = true })
+			end
+		end
+	end
+	return pips
+end
+
 local function pollsLine(ctx: Context, s: StateView): Line
 	local view = ctx.view
+	local parts: { Part } = {}
 	if s.poll then
-		return { parts = { leadPart(view, s.poll.support, "") } }
+		parts = { leadPart(view, s.poll.support, "") }
 	elseif s.leanTo and s.lean > 0 then
 		-- Before the first poll: the lean, marked "~".
-		return {
-			parts = {
-				{ text = `~+{math.floor(s.lean + 0.5)}`, color = Kit.textColor(colorOf(view, s.leanTo)) },
-			},
+		parts = {
+			{ text = `~+{math.floor(s.lean + 0.5)}`, color = Kit.textColor(colorOf(view, s.leanTo)) },
 		}
 	end
-	return { parts = {} }
+	local momentum, strong = Lens.momentumOf(view, s)
+	local pips = Lens.pipsOf(view, s)
+	return {
+		parts = parts,
+		momentum = momentum,
+		momentumStrong = if momentum and strong then true else nil,
+		pips = if #pips > 0 then pips else nil,
+	}
 end
 
 -- What one more fundraiser here would raise (Explain's number), from the plan so far.
@@ -213,6 +257,34 @@ local LINES: { [Id]: (Context, StateView) -> Line } = {
 	Polls = pollsLine,
 	Money = moneyLine,
 }
+
+-- The map's legend row for lens `id` (D-062): Polls explains its extra marks;
+-- the other lenses need none (their one mark is in Lens.legend and the Map key).
+function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
+	if id ~= "Polls" then
+		return nil
+	end
+	local view = ctx.view
+	-- "▲ momentum   ● ○ ground game": the dots in your color (filled) and the
+	-- opponent's (hollow); the Map key says the hollow ones are what your polls saw.
+	local items: { LegendItem } = {
+		{ mark = "up", text = "momentum" },
+		{ mark = "pip", color = colorOf(view, view.you), text = "" },
+	}
+	local rival = nil
+	for p in view.players do
+		if p ~= view.you then
+			rival = p
+			break
+		end
+	end
+	table.insert(items, {
+		mark = "hollow",
+		color = if rival then colorOf(view, rival) else Kit.colors.muted,
+		text = "ground game",
+	})
+	return items
+end
 
 -- Every state's line in lens `id`, keyed by state id.
 function Lens.lines(id: Id, ctx: Context): { [string]: Line }

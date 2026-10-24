@@ -75,10 +75,11 @@ describe("Reduced motion", function()
 		map:badge("OH", "coins")
 		world.current = nil
 		check(button:FindFirstChild("MotionScale") == nil, "a button moved under reduced motion")
-		local oh = map.root:FindFirstChild("OH", true)
+		local oh = map.root.Nodes.OH
 		check(oh.PlanBadge ~= nil, "the badge itself is information: it must still show")
 		check(oh.PlanBadge:FindFirstChild("MotionScale") == nil, "the badge popped")
-		check(oh.Circle:FindFirstChild("Ring") == nil, "a ring under reduced motion")
+		check(oh:FindFirstChild("Ring", true) == nil, "a ring under reduced motion")
+		check(map.root.Shapes.ShapeOH:FindFirstChild("MotionScale") == nil, "the shape pulsed")
 		Rig.noErrors(world)
 	end)
 

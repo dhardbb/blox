@@ -737,9 +737,11 @@ local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
 local newInstance: (world: World, className: string, name: string?) -> any
 local addPresentationServices: (world: World, peer: Peer) -> ()
 
--- Rough layout: size from UDim2 against the parent's size, clamped by a child
--- UISizeConstraint (padding and list layouts ignored), enough for the UI audit's
--- 44 px, truncation and on-screen checks.
+-- Rough layout: size from UDim2 against the parent's size, fitted by a child
+-- UIAspectRatioConstraint (Roblox's default FitWithinMaxSize: the largest box
+-- of that ratio inside the size) and clamped by a child UISizeConstraint
+-- (padding and list layouts ignored), enough for the UI audit's 44 px,
+-- truncation and on-screen checks.
 local function absoluteSize(world: World, inst: any): (number, number)
 	local raw = rawget(inst, "_props")
 	local parent = rawget(inst, "_parent")
@@ -759,6 +761,15 @@ local function absoluteSize(world: World, inst: any): (number, number)
 		local name = raw.AutomaticSize.Name
 		if (name == "X" or name == "XY") and raw.Text ~= nil and not raw.TextWrapped then
 			x = math.max(x, #tostring(raw.Text) * (raw.TextSize or 14) * 0.55)
+		end
+	end
+	for _, child in rawget(inst, "_children") do
+		if child.ClassName == "UIAspectRatioConstraint" then
+			local ratio = rawget(child, "_props").AspectRatio or 1
+			if ratio > 0 and x > 0 and y > 0 then
+				x = math.min(x, y * ratio)
+				y = x / ratio
+			end
 		end
 	end
 	for _, child in rawget(inst, "_children") do
@@ -847,6 +858,17 @@ function methods.FindFirstAncestor(self: any, name: string): any
 	local node = rawget(self, "_parent")
 	while node do
 		if rawget(node, "_props").Name == name then
+			return node
+		end
+		node = rawget(node, "_parent")
+	end
+	return nil
+end
+
+function methods.FindFirstAncestorWhichIsA(self: any, className: string): any
+	local node = rawget(self, "_parent")
+	while node do
+		if node:IsA(className) then
 			return node
 		end
 		node = rawget(node, "_parent")
@@ -1458,6 +1480,10 @@ addPresentationServices = function(world: World, peer: Peer)
 	services.GuiService = setmetatable({
 		GetPropertyChangedSignal = function(_self: any, name: string): any
 			return if name == "ReducedMotionEnabled" then reducedSignal else newSignal(world)
+		end,
+		-- The top bar's inset (Snapshot draws the same 58 px strip).
+		GetGuiInset = function(_self: any): (any, any)
+			return vector2(0, 58), vector2(0, 0)
 		end,
 	}, {
 		__index = function(_, key: string): any
