@@ -701,6 +701,10 @@ function Motion.stamp(inst: Instance, delay: number?)
 	end
 end
 
+-- The light is a layer the size and shape of `button` (its UICorner copied)
+-- whose UIGradient carries the band and slides across it (Offset), so it never
+-- shows past the button: clipping fails on a rotated parent (a tilted stamp)
+-- and on rounded corners (GuiObject.ClipsDescendants, UICorner).
 function Motion.shine(button: GuiObject): () -> ()
 	if Motion.headless or Motion.reduced() then
 		return function() end
@@ -709,33 +713,43 @@ function Motion.shine(button: GuiObject): () -> ()
 	local band = Instance.new("Frame")
 	band.Name = "Shine"
 	band:SetAttribute("Decor", true)
-	band.AnchorPoint = Vector2.new(0.5, 0)
-	band.Position = UDim2.fromScale(-0.3, 0)
-	band.Size = UDim2.new(0, Motion.SHINE_W, 1, 0)
+	band.Size = UDim2.fromScale(1, 1)
 	band.BackgroundColor3 = Color3.new(1, 1, 1)
 	band.BackgroundTransparency = 1
 	band.BorderSizePixel = 0
 	band.ZIndex = 2
+	local corner = button:FindFirstChildOfClass("UICorner")
+	if corner then
+		local round = Instance.new("UICorner")
+		round.CornerRadius = corner.CornerRadius
+		round.Parent = band
+	end
 	local soft = Instance.new("UIGradient")
 	soft.Rotation = 20
-	soft.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.5, 0),
-		NumberSequenceKeypoint.new(1, 1),
-	})
 	soft.Parent = band
 	band.Parent = button
-	button.ClipsDescendants = true
 	local function sweep()
 		if not alive or band.Parent == nil then
 			return
 		end
 		if (button :: any).Active ~= false and not Motion.reduced() then
-			band.Position = UDim2.fromScale(-0.3, 0)
+			-- The band's share of the width: SHINE_W px, within reason.
+			local width = button.AbsoluteSize.X
+			local half = math.clamp(if width > 0 then Motion.SHINE_W / width / 2 else 0.1, 0.02, 0.2)
+			soft.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.5 - half, 1),
+				NumberSequenceKeypoint.new(0.5, 0),
+				NumberSequenceKeypoint.new(0.5 + half, 1),
+				NumberSequenceKeypoint.new(1, 1),
+			})
+			-- Past either edge the gradient holds its end value: transparent.
+			local reach = 0.5 + half
+			soft.Offset = Vector2.new(-reach, 0)
 			band.BackgroundTransparency = Motion.SHINE_TRANSPARENCY
 			play(
-				band,
-				{ Position = UDim2.fromScale(1.3, 0) },
+				soft,
+				{ Offset = Vector2.new(reach, 0) },
 				Motion.SHINE_SECONDS,
 				Motion.ease.linear,
 				function()
