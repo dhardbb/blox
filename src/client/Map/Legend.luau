@@ -11,8 +11,8 @@ local MapInterface = require(script.Parent.MapInterface)
 
 local Legend = {}
 
-local GAP = 8 -- px between items
-local CHAR_W = 6.8 -- px, an estimated caption character (to drop optional items on a phone)
+local GAP = 6 -- px between items
+local CHAR_W = 8 -- px, an estimated caption character (to drop items on a phone)
 local PIP = 8 -- px, a pip mark
 local ROW_H = Kit.size.caption + 2 -- px
 
@@ -29,7 +29,7 @@ function Legend.new(root: Instance, rect: Rect): Frame
 	})
 	Kit.dataColor(frame)
 	local list = Kit.list("Horizontal", GAP)
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	list.VerticalAlignment = Enum.VerticalAlignment.Center
 	list.Parent = frame
 	return frame
@@ -42,25 +42,28 @@ function Legend.fill(frame: Frame, items: { MapInterface.LegendItem }?)
 		end
 	end
 	local all: { MapInterface.LegendItem } = items or {}
-	-- Drop optional items, last first, until the row fits the strip.
+	-- Too wide for the strip (a phone)? Drop the items with the highest `drop`
+	-- first, a whole level at a time, until the row fits.
 	local list = table.clone(all)
 	local function width(): number
 		local w = 0
 		for k, item in list do
-			w += (utf8.len(item.text) or #item.text) * CHAR_W + (if item.mark == "none" then 0 else PIP + 3) + (if k
-					> 1
-				then GAP
-				else 0)
+			local mark = if item.mark == "none" then 0 else PIP + 3
+			w += (utf8.len(item.text) or #item.text) * CHAR_W + mark + (if k > 1 then GAP else 0)
 		end
 		return w
 	end
 	local room = frame.AbsoluteSize.X
-	if room > 0 then
+	while room > 0 and width() > room do
+		local level = 0
+		for _, item in list do
+			level = math.max(level, item.drop or 0)
+		end
+		if level == 0 then
+			break
+		end
 		for k = #list, 1, -1 do
-			if width() <= room then
-				break
-			end
-			if list[k].optional then
+			if (list[k].drop or 0) == level then
 				table.remove(list, k)
 			end
 		end

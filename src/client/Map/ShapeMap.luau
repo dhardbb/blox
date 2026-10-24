@@ -68,11 +68,21 @@ local CHIP_RING_PX = 1 -- a chip's resting edge
 local CHIP_PAD_X, CHIP_PAD_Y = 2, 2 -- px between a chip and its cell's edges
 local CHIP_RADIUS = 6 -- px, a chip's corners
 local LEADER_PX = 1
-local ROUTE_PX = 4
+local ROUTE_PX = 2 -- the planned route: thin and dim, under every mark
+local ROUTE_FADE = 0.5 -- its transparency (a flight's: ROUTE_FLIGHT)
+local ROUTE_FLIGHT = 0.75
+local MARK_GAP = 2 -- px between a code and a mark beside it
+local GRID = 48 -- px, the mark layout's lookup cells
+local MARK_LEADER_FADE = 0.5 -- a mark leader's transparency
+local CODE_COST = 1000 -- layout score per px² of a mark over a code or off the map
+local MARK_COST = 20 -- ... per px² over another mark
+local FAR_COST = 40 -- ... for each step farther from the code
+local CODE_CHAR = 0.72 -- a code character's width, share of its height (bold capitals)
+local PART_CHAR = 8 -- px, an estimated character of a lens value (Fredoka 14)
+local TAG_CHAR = 8 -- px, ... of a tag
 local TAG_H = Kit.size.caption + 5 -- px, the tag's height
 local TAG_PAD = 4 -- px, the tag's side padding
 local TAG_RADIUS = 6 -- px, a tag's and a lens plate's corners
-local TAG_DIP = 4 -- px a tag reaches down into its label's top
 local PLAN_BADGE_PX = 16 -- px, the planned-action badge
 local DIM_FILL = 0.45 -- shape transparency of a dimmed state
 local DIM_TEXT = 0.3 -- label transparency of a dimmed state
@@ -100,16 +110,13 @@ local HALO_STRONG = 0.25 -- ... for a state whose poll leader changes
 local BLOOM_SCALE = 1.6 -- a moved state's bloom, share of its rect
 local BLOOM_SOFT = 0.4
 local BLOOM_STRONG = 0.1
-local PIN_MIN, PIN_MAX = 18, 28 -- px, a pin's face
-local PIN_SHARE = 0.045 -- the face's size, share of the map's width
-local PIN_SPREAD = 0.2 -- two close pins stand at least (1 + this) faces apart
+local PIN_MIN, PIN_MAX = 14, 20 -- px, a pin's face
+local PIN_SHARE = 0.03 -- the face's size, share of the map's width
 local ARROWS = { up = "▲", down = "▼" }
 local PREVIEW_BG = 0.35 -- the plan preview tag's backing transparency (a ghost)
 local PREVIEW_TEXT = 0.1 -- ... its number's transparency
 local PREVIEW_EDGE = 0.45 -- ... its edge's transparency
-local PREVIEW_GAP = 2 -- px between the label stack and the preview tag
 local ARROW_PX = 18 -- px, a mark's arrow box
-local ARROW_GAP = 12 -- px from the code's middle to its arrow
 
 type Part = { label: TextLabel, edge: UIStroke }
 
@@ -281,7 +288,8 @@ function ShapeMap.new(): MapInterface.Map
 	local borderLayer = Kit.box({ Name = "Borders", ZIndex = 3, Parent = root })
 	local outlineLayer = Kit.box({ Name = "Outlines", ZIndex = 4, Parent = root })
 	local leaders = Kit.box({ Name = "Leaders", ZIndex = 4, Parent = root })
-	local routeLayer = Kit.box({ Name = "Route", ZIndex = 5, Parent = root })
+	local routeLayer = Kit.box({ Name = "Route", ZIndex = 4, Parent = root })
+	local markLeaders = Kit.box({ Name = "MarkLeaders", ZIndex = 5, Parent = root })
 	local nodeLayer = Kit.box({ Name = "Nodes", ZIndex = 6, Parent = root })
 	local tagLayer = Kit.box({ Name = "Tags", ZIndex = 7, Parent = root })
 	local pinLayer = Kit.box({ Name = "Pins", ZIndex = 8, Parent = root })
@@ -298,11 +306,11 @@ function ShapeMap.new(): MapInterface.Map
 	local stopBreath: () -> () = function() end
 
 	-- The borders: one white-lines image over the land, tinted the stage navy.
-	local b = data.borders
+	local lines = data.borders
 	local borders = Kit.new("ImageLabel", {
 		Name = "BorderLines",
-		Position = UDim2.fromScale(b.x, b.y),
-		Size = UDim2.fromScale(b.w, b.h),
+		Position = UDim2.fromScale(lines.x, lines.y),
+		Size = UDim2.fromScale(lines.w, lines.h),
 		BackgroundTransparency = 1,
 		Image = assetId("mapBorders"),
 		ImageColor3 = Kit.colors.background,
@@ -324,14 +332,36 @@ function ShapeMap.new(): MapInterface.Map
 	local previews: { [string]: MapInterface.PreviewTag } = {}
 	local lastWidth = -1
 
+	-- The box's size, read once per update (every px rule below needs it).
+	local cachedSize: Vector2? = nil
+	local function sizeNow(): Vector2
+		return cachedSize or root.AbsoluteSize
+	end
+
 	local function widthPx(): number
-		return root.AbsoluteSize.X
+		return sizeNow().X
 	end
 
 	-- The box in px, as its children are laid out.
 	local function boxPx(): (number, number)
-		local size = root.AbsoluteSize
+		local size = sizeNow()
 		return size.X, size.Y
+	end
+
+	-- Runs one update with the box's size read once.
+	local function measured(work: () -> ())
+		local outer = cachedSize
+		cachedSize = root.AbsoluteSize
+		work()
+		cachedSize = outer
+	end
+
+	-- The box as drawn (the aspect constraint already fits AbsoluteSize; this
+	-- keeps the mark layout honest if it ever does not).
+	local function boxDims(): (number, number)
+		local bw, bh = boxPx()
+		local w = math.min(bw, bh * ASPECT)
+		return w, w / ASPECT
 	end
 
 	local function fire(id: string?)
@@ -571,7 +601,7 @@ function ShapeMap.new(): MapInterface.Map
 		local arrow = Kit.text("", {
 			Name = "Arrow",
 			AnchorPoint = if chip then Vector2.new(1, 0.5) else Vector2.new(0, 0.5),
-			Position = if chip then UDim2.new(0, -CHIP_PAD_X, 0.5, 0) else UDim2.new(0.5, ARROW_GAP, 0.5, 0),
+			Position = if chip then UDim2.new(0, -CHIP_PAD_X, 0.5, 0) else UDim2.fromScale(1, 0.5),
 			Size = UDim2.fromOffset(ARROW_PX, ARROW_PX),
 			TextScaled = true,
 			TextSize = Kit.size.caption,
@@ -686,10 +716,22 @@ function ShapeMap.new(): MapInterface.Map
 		return UDim2.new(x, y)
 	end
 
+	-- `dx`, `dy` px from the node's anchor, inside its tap square.
+	local function onAnchorAt(node: Node, dx: number, dy: number): UDim2
+		local at = onAnchor(node, 0.5, dy)
+		return UDim2.new(at.X.Scale, at.X.Offset + dx, at.Y.Scale, at.Y.Offset)
+	end
+
 	-- A share of the laid-out width as a size (px when the square grew).
 	local function across(node: Node, share: number, pad: number): UDim
 		local w, _, growX = natural(node)
 		return if growX then UDim.new(0, share * w - pad) else UDim.new(share, -pad)
+	end
+
+	-- The code's width in px (its two letters at the label's size).
+	local function codeWidth(node: Node): number
+		local lh = labelPx(node)
+		return math.ceil((utf8.len(node.id) or 2) * math.min(lh, Kit.size.heading) * CODE_CHAR) + 2
 	end
 
 	-- The chip's size in px, from its cell (not its tap square, which may be bigger).
@@ -880,50 +922,22 @@ function ShapeMap.new(): MapInterface.Map
 			node.extras.Position = onAnchor(node, 0, 0)
 			return
 		end
-		local rows: { { inst: GuiObject, h: number } } = { { inst = node.label :: GuiObject, h = lh } }
-		if node.lensRow.Visible then
-			table.insert(rows, { inst = node.lensRow :: GuiObject, h = PART_H })
-		end
-		if node.extras.Visible then
-			table.insert(rows, { inst = node.extras :: GuiObject, h = EXTRA_H })
-		end
-		local total = 0
-		for k, row in rows do
-			total += row.h + (if k > 1 then ROW_GAP else 0)
-		end
-		node.stackH = total
-		node.halo.Size = UDim2.fromOffset(HALO_W, total + 2 * HALO_PAD)
+		-- The code sits on the anchor, its box as wide as its letters; its rows,
+		-- tags and pins are placed by layoutMarks around it, never over another
+		-- state's code.
+		node.label.Size = UDim2.fromOffset(codeWidth(node), lh)
+		node.label.Position = onAnchor(node, 0.5, 0)
+		node.halo.Size = UDim2.fromOffset(HALO_W, lh + 2 * HALO_PAD)
 		node.halo.Position = onAnchor(node, 0.5, 0)
-		local y = -total / 2
-		for k, row in rows do
-			if k > 1 then
-				y += ROW_GAP
-			end
-			row.inst.Position = onAnchor(node, 0.5, y + row.h / 2)
-			y += row.h
-		end
 	end
 
-	-- Where a node's tag sits: on top of its label (a chip: at its left edge).
+	-- A callout state's tag sits left of its chip, over the sea; the others'
+	-- tags are placed by layoutMarks.
 	local function placeTag(node: Node, tag: GuiObject)
 		if node.ladder then
-			-- Left of the chip, over the sea between the coast and the column.
 			local chip = node.shape.chip :: MapShape.Rect
 			tag.AnchorPoint = Vector2.new(1, 0.5)
 			tag.Position = UDim2.fromScale(chip.x, node.ly)
-			return
-		end
-		local lh = labelPx(node)
-		local up = lh / 2 + (if node.lensRow.Visible then (PART_H + ROW_GAP) / 2 else 0)
-		local _, bh = boxPx()
-		local topPx = node.ly * bh - up
-		local ax = math.clamp(node.lx, 0.1, 0.9)
-		if bh > 0 and topPx - TAG_H + TAG_DIP < 0 then
-			tag.AnchorPoint = Vector2.new(ax, 0)
-			tag.Position = UDim2.fromScale(node.lx, 0)
-		else
-			tag.AnchorPoint = Vector2.new(ax, 1)
-			tag.Position = UDim2.new(node.lx, 0, node.ly, -up + TAG_DIP)
 		end
 	end
 
@@ -997,54 +1011,37 @@ function ShapeMap.new(): MapInterface.Map
 		node.arrow.TextColor3 = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
 	end
 
+	-- Builds the pins; layoutMarks places them.
+	local pinFrames: { { pin: MapInterface.Pin, frame: Frame } } = {}
+	-- What the last layout was computed from, and the rows it left out.
+	local lastSignature = ""
+	local hiddenRows: { Node } = {}
+
+	local lastPins = ""
 	local function paintPins()
+		local bw = boxDims()
+		local px = math.clamp(math.floor((if bw > 0 then bw else 600) * PIN_SHARE), PIN_MIN, PIN_MAX)
+		local keys = { tostring(px) }
+		for _, pin in pins do
+			table.insert(keys, `{pin.state}:{pin.name}:{pin.tag}:{pin.color}:{pin.you}`)
+		end
+		local key = table.concat(keys, "|")
+		if key == lastPins then
+			return -- the same pins: keep them where the layout put them
+		end
+		lastPins = key
+		lastSignature = "" -- new frames need placing
 		for _, child in pinLayer:GetChildren() do
 			child:Destroy()
 		end
-		local bw, bh = boxPx()
-		local px = math.clamp(math.floor((if bw > 0 then bw else 600) * PIN_SHARE), PIN_MIN, PIN_MAX)
-		-- Each pin's tip in px: on its state's label top (a callout state: on its
-		-- real place), never above the map's top edge (a pin on WA or ME then
-		-- covers its code).
-		type Spot = { pin: MapInterface.Pin, x: number, y: number, frame: Frame }
-		local spots: { Spot } = {}
+		table.clear(pinFrames)
 		for _, pin in pins do
-			local node = byId[pin.state]
-			if node then
+			if byId[pin.state] then
 				local frame = Pins.build(pin, px)
-				local s = node.shape
-				local up = if node.ladder then 0 else labelPx(node) / 2
-				local tall = frame.Size.Y.Offset
-				local y = s.ly * bh - up
-				if bh > 0 then
-					y = math.max(y, tall)
-				end
-				table.insert(spots, { pin = pin, x = s.lx * bw, y = y, frame = frame })
+				frame.ZIndex = if pin.you then 2 else 1
+				frame.Parent = pinLayer
+				table.insert(pinFrames, { pin = pin, frame = frame })
 			end
-		end
-		-- Two pins that would cover each other (the same state, or neighbors)
-		-- stand side by side, each half the overlap away.
-		local wide = px * (1 + PIN_SPREAD)
-		for i = 1, #spots do
-			for j = i + 1, #spots do
-				local p, q = spots[i], spots[j]
-				local dx = q.x - p.x
-				if math.abs(dx) < wide and math.abs(q.y - p.y) < px * 2 then
-					local push = (wide - math.abs(dx)) / 2
-					local sign = if dx >= 0 then 1 else -1
-					p.x -= sign * push
-					q.x += sign * push
-				end
-			end
-		end
-		local half = px / 2 + Pins.FLAG_H
-		for _, spot in spots do
-			local x = if bw > 0 then math.clamp(spot.x, half, bw - half) else spot.x
-			spot.frame.Position = if bw > 0
-				then UDim2.fromScale(x / bw, spot.y / bh)
-				else UDim2.fromScale(0.5, 0.5)
-			spot.frame.ZIndex = if spot.pin.you then 2 else 1
-			spot.frame.Parent = pinLayer
 		end
 	end
 
@@ -1104,16 +1101,362 @@ function ShapeMap.new(): MapInterface.Map
 			label.Position = UDim2.new(chip.x, -2 - past, node.ly, 0)
 			return
 		end
-		local _, bh = boxPx()
-		local below = node.stackH / 2 + PREVIEW_GAP
-		if bh > 0 and node.ly * bh + below + TAG_H > bh then
-			-- Near the bottom: over the code instead.
-			label.AnchorPoint = Vector2.new(0.5, 1)
-			label.Position = UDim2.new(node.lx, 0, node.ly, -below)
-		else
-			label.AnchorPoint = Vector2.new(0.5, 0)
-			label.Position = UDim2.new(node.lx, 0, node.ly, below)
+	end
+
+	-- ---------------------------------------------------------------- mark layout
+
+	-- Every mark around a state's code (its lens rows, tag, plan badge, plan
+	-- preview, pins) is placed so it covers no state's code, and as little as
+	-- possible of the marks placed before it: each tries spots around its own
+	-- code in its own order (beside, under, over, the corners), then the same
+	-- spots twice and three times as far with a thin leader back to the code.
+	-- Codes never move. Rows go first (the lens), then pins, tags, plan badges
+	-- and the preview. Callout chips keep their marks left of the chip.
+	type Box = { x0: number, y0: number, x1: number, y1: number }
+	type Dir = { number }
+	local BELOW: { Dir } =
+		{ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } }
+	local BESIDE: { Dir } =
+		{ { 1, 0 }, { -1, 0 }, { 1, 1 }, { -1, 1 }, { 0, 1 }, { 1, -1 }, { -1, -1 }, { 0, -1 } }
+	local ABOVE: { Dir } =
+		{ { 0, -1 }, { 1, -1 }, { -1, -1 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 1, 1 }, { -1, 1 } }
+	local CORNER: { Dir } =
+		{ { 1, -1 }, { -1, -1 }, { 1, 0 }, { -1, 0 }, { 1, 1 }, { -1, 1 }, { 0, -1 }, { 0, 1 } }
+	local LEFT: { Dir } = { { -1, 0 } }
+	-- Spot distances, shares of the gap to the code's edge: marks stay close
+	-- (a short leader at most); pins may go a little farther.
+	local NEAR = { 1, 1.6 }
+	local PIN_REACH = { 1, 1.6, 2.3 }
+	local occupied: { Box } = {} -- the codes and the marks of the last layout
+	local grid: { [number]: { number } } = {} -- occupied indices by GRID px cell
+	local stamp: { number } = {} -- occupied index -> the last query that saw it
+	local query = 0
+
+	local function cells(box: Box, visit: (key: number) -> ())
+		for gx = math.floor(box.x0 / GRID), math.floor(box.x1 / GRID) do
+			for gy = math.floor(box.y0 / GRID), math.floor(box.y1 / GRID) do
+				visit((gx + 1024) * 4096 + gy + 1024)
+			end
 		end
+	end
+
+	local function occupy(box: Box)
+		table.insert(occupied, box)
+		local index = #occupied
+		cells(box, function(key: number)
+			local list = grid[key]
+			if list == nil then
+				list = {}
+				grid[key] = list
+			end
+			table.insert(list, index)
+		end)
+	end
+	local lastCodeCount = 0
+	local codes: { [string]: Box } = {}
+
+	local function overlap(a: Box, b: Box): number
+		local w = math.min(a.x1, b.x1) - math.max(a.x0, b.x0)
+		local h = math.min(a.y1, b.y1) - math.max(a.y0, b.y0)
+		return if w > 0 and h > 0 then w * h else 0
+	end
+
+	-- An estimated text width at caption size (layout only; AutomaticSize draws it).
+	local function textW(text: string, perChar: number): number
+		return (utf8.len(text) or #text) * perChar
+	end
+
+	-- The best spot for a `w` x `h` mark around code box `c`: its center in px
+	-- and whether it is far enough to want a leader.
+	local function bestSpot(
+		c: Box,
+		w: number,
+		h: number,
+		dirs: { Dir },
+		codeCount: number,
+		reaches: { number }?
+	): (number, number, boolean, boolean)
+		local bw, bh = boxDims()
+		local cx, cy = (c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2
+		local hw, hh = (c.x1 - c.x0) / 2, (c.y1 - c.y0) / 2
+		local best, bx, by, far, covers = math.huge, cx, cy + hh + h / 2 + MARK_GAP, false, true
+		local steps: { number } = reaches or NEAR
+		for r, reach in steps do
+			for k, dir in dirs do
+				local x = cx + dir[1] * (hw + MARK_GAP + w / 2) * reach
+				local y = cy + dir[2] * (hh + MARK_GAP + h / 2) * reach
+				local box = { x0 = x - w / 2, y0 = y - h / 2, x1 = x + w / 2, y1 = y + h / 2 }
+				local score = (r - 1) * FAR_COST + k
+				local outside = w * h
+					- math.max(0, math.min(box.x1, bw) - math.max(box.x0, 0))
+						* math.max(0, math.min(box.y1, bh) - math.max(box.y0, 0))
+				local bad = outside > 1
+				score += outside * CODE_COST
+				query += 1
+				cells(box, function(key: number)
+					local list: { number } = grid[key] or {}
+					for _, i in list do
+						if stamp[i] ~= query then
+							stamp[i] = query
+							local area = overlap(box, occupied[i])
+							if area > 0 then
+								score += area * (if i <= codeCount then CODE_COST else MARK_COST)
+								bad = bad or (i <= codeCount and area > 1)
+							end
+						end
+					end
+				end)
+				if score < best then
+					best, bx, by, far, covers = score, x, y, r > 1, bad
+				end
+			end
+		end
+		return bx, by, far, covers
+	end
+
+	-- A thin line from a code to a mark that stands off it.
+	local function leader(fromX: number, fromY: number, toX: number, toY: number)
+		local dx, dy = toX - fromX, toY - fromY
+		Kit.new("Frame", {
+			Name = "MarkLeader",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset((fromX + toX) / 2, (fromY + toY) / 2),
+			Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy), LEADER_PX),
+			Rotation = math.deg(math.atan2(dy, dx)),
+			BackgroundColor3 = Kit.colors.text,
+			BackgroundTransparency = MARK_LEADER_FADE,
+			BorderSizePixel = 0,
+			Parent = markLeaders,
+		})
+	end
+
+	-- Everything the layout depends on, as one string (the same: nothing to do).
+	local function signature(bw: number, bh: number): string
+		local parts = { `{bw}x{bh}` }
+		for _, node in nodes do
+			local bits = { node.id, if node.arrow.Visible then "a" else "" }
+			if node.lensRow.Visible then
+				for _, part in node.parts do
+					if part.label.Visible then
+						table.insert(bits, part.label.Text)
+					end
+				end
+			end
+			if node.extras.Visible then
+				table.insert(bits, `{node.up.Text}:{#node.pips:GetChildren()}`)
+			end
+			if node.badge.Visible then
+				table.insert(bits, "t" .. node.badge.Text)
+			end
+			local tag = node.preview
+			if tag and tag.Visible then
+				table.insert(bits, "p" .. tag.Text)
+			end
+			if node.hit:FindFirstChild("PlanBadge") then
+				table.insert(bits, "b")
+			end
+			table.insert(parts, table.concat(bits, ","))
+		end
+		for _, entry in pinFrames do
+			table.insert(parts, `{entry.pin.state}:{entry.pin.tag}:{entry.frame.Size.X.Offset}`)
+		end
+		return table.concat(parts, "|")
+	end
+
+	local function layoutMarks()
+		local bw, bh = boxDims()
+		if bw <= 0 then
+			return
+		end
+		local now = signature(bw, bh)
+		if now == lastSignature then
+			-- Same marks: keep the spots; a repaint showed the left-out rows again.
+			for _, node in hiddenRows do
+				node.lensRow.Visible = false
+				node.extras.Visible = false
+			end
+			return
+		end
+		lastSignature = now
+		table.clear(hiddenRows)
+		for _, child in markLeaders:GetChildren() do
+			child:Destroy()
+		end
+		-- The codes (a callout state's: its chip), fixed.
+		table.clear(occupied)
+		table.clear(grid)
+		table.clear(stamp)
+		table.clear(codes)
+		for _, node in nodes do
+			local box: Box
+			if node.ladder then
+				local chip = node.shape.chip :: MapShape.Rect
+				box = {
+					x0 = chip.x * bw,
+					y0 = chip.y * bh,
+					x1 = (chip.x + chip.w) * bw,
+					y1 = (chip.y + chip.h) * bh,
+				}
+			else
+				local lh = labelPx(node)
+				local w = textW(node.id, math.min(lh, Kit.size.heading) * CODE_CHAR)
+					+ (if node.arrow.Visible then ARROW_PX else 0)
+				local x, y = node.lx * bw, node.ly * bh
+				box = { x0 = x - w / 2, y0 = y - lh / 2, x1 = x + w / 2, y1 = y + lh / 2 }
+			end
+			codes[node.id] = box
+			occupy(box)
+		end
+		local codeCount = #occupied
+		lastCodeCount = codeCount
+
+		-- Places a `w` x `h` mark around box `c`, whose anchor is (fx, fy) in box
+		-- fractions: returns the mark's center as px from that anchor, and
+		-- whether every spot covered a code (an `optional` mark is then left out).
+		local function placeAround(
+			c: Box,
+			fx: number,
+			fy: number,
+			w: number,
+			h: number,
+			dirs: { Dir },
+			reaches: { number }?,
+			optional: boolean?
+		): (number, number, boolean)
+			local x, y, far, covers = bestSpot(c, w, h, dirs, codeCount, reaches)
+			local ax, ay = fx * bw, fy * bh
+			if covers and optional then
+				return x - ax, y - ay, true
+			end
+			occupy({ x0 = x - w / 2, y0 = y - h / 2, x1 = x + w / 2, y1 = y + h / 2 })
+			if far then
+				leader(ax, ay, x, y)
+			end
+			return x - ax, y - ay, covers
+		end
+
+		-- One mark of `node`, around its code (a callout state: its chip).
+		local function place(
+			node: Node,
+			w: number,
+			h: number,
+			dirs: { Dir },
+			optional: boolean?
+		): (number, number, boolean)
+			return placeAround(codes[node.id], node.lx, node.ly, w, h, dirs, nil, optional)
+		end
+
+		-- The lens rows (biggest states first: they have the room).
+		local byRoom = table.clone(nodes)
+		table.sort(byRoom, function(a: Node, b: Node): boolean
+			if a.shape.room ~= b.shape.room then
+				return a.shape.room > b.shape.room
+			end
+			return a.id < b.id
+		end)
+		for _, node in byRoom do
+			if not node.ladder and (node.lensRow.Visible or node.extras.Visible) then
+				local lensW, extrasW = 0, 0
+				if node.lensRow.Visible then
+					for _, part in node.parts do
+						if part.label.Visible then
+							lensW += textW(part.label.Text, PART_CHAR) + 2 * PART_PAD + PART_GAP
+						end
+					end
+				end
+				if node.extras.Visible then
+					extrasW = (if node.up.Visible then textW(node.up.Text, PART_CHAR + 2) else 0)
+					for _, pip in node.pips:GetChildren() do
+						if pip:IsA("GuiObject") then
+							extrasW += pip.Size.X.Offset + PIP_GAP
+						end
+					end
+				end
+				local lensH = if node.lensRow.Visible then PART_H else 0
+				local extrasH = if node.extras.Visible then EXTRA_H else 0
+				local h = lensH + extrasH + (if lensH > 0 and extrasH > 0 then ROW_GAP else 0)
+				local w = math.max(lensW, extrasW, 1)
+				local dx, dy, covers = place(node, w, h, BELOW, true)
+				if covers then
+					-- No room near the code on this map: the state card has the numbers.
+					node.lensRow.Visible = false
+					node.extras.Visible = false
+					table.insert(hiddenRows, node)
+				end
+				local top = dy - h / 2
+				node.lensRow.Size = UDim2.fromOffset(w, PART_H)
+				node.extras.Size = UDim2.fromOffset(w, EXTRA_H)
+				node.lensRow.Position = onAnchorAt(node, dx, top + lensH / 2)
+				node.extras.Position =
+					onAnchorAt(node, dx, top + lensH + (if lensH > 0 then ROW_GAP else 0) + extrasH / 2)
+			end
+		end
+
+		-- Pins: yours last, so it is placed after (and drawn over) the rival's.
+		for _, entry in pinFrames do
+			local node = byId[entry.pin.state]
+			local frame = entry.frame
+			local size = frame.Size
+			local w, h = size.X.Offset, size.Y.Offset
+			-- Beside the code (a callout state's pin: beside its real place on the coast).
+			local fx, fy = node.lx, node.ly
+			local c = codes[node.id]
+			if node.ladder then
+				fx, fy = node.shape.lx, node.shape.ly
+				c = { x0 = fx * bw, y0 = fy * bh, x1 = fx * bw, y1 = fy * bh }
+			end
+			local dx, dy = placeAround(c, fx, fy, w, h, BESIDE, PIN_REACH)
+			-- The frame's AnchorPoint is the pointer under the face: move it there.
+			local anchor = frame.AnchorPoint
+			frame.Position = UDim2.new(fx, dx + (anchor.X - 0.5) * w, fy, dy + (anchor.Y - 0.5) * h)
+		end
+
+		-- Tags, plan badges and the plan preview.
+		for _, node in nodes do
+			if not node.ladder then
+				if node.badge.Visible then
+					local w = textW(node.badge.Text, TAG_CHAR) + 2 * TAG_PAD
+					local dx, dy = place(node, w, TAG_H, ABOVE)
+					node.badge.AnchorPoint = Vector2.new(0.5, 0.5)
+					node.badge.Position = UDim2.new(node.lx, dx, node.ly, dy)
+				end
+				local planBadge = node.hit:FindFirstChild("PlanBadge") :: GuiObject?
+				if planBadge then
+					local dx, dy = place(node, PLAN_BADGE_PX, PLAN_BADGE_PX, CORNER)
+					planBadge.Position = onAnchorAt(node, dx, dy)
+				end
+			end
+		end
+		for _, node in nodes do
+			local tag = node.preview
+			if tag and tag.Visible then
+				local w = textW(tag.Text, TAG_CHAR) + 2 * TAG_PAD
+				if node.ladder then
+					-- Left of the chip, past its tag.
+					local dx, dy = place(node, w, TAG_H, LEFT)
+					tag.AnchorPoint = Vector2.new(0.5, 0.5)
+					tag.Position = UDim2.new(node.lx, dx, node.ly, dy)
+				else
+					local dx, dy = place(node, w, TAG_H, BESIDE)
+					tag.AnchorPoint = Vector2.new(0.5, 0.5)
+					tag.Position = UDim2.new(node.lx, dx, node.ly, dy)
+				end
+			end
+		end
+	end
+
+	-- One layout per frame, after every update of that frame (a screen sets
+	-- the view, lens, marks, pins and preview one after another).
+	local layoutQueued = false
+	local function requestLayout()
+		if layoutQueued then
+			return
+		end
+		layoutQueued = true
+		task.defer(function()
+			layoutQueued = false
+			measured(layoutMarks)
+		end)
 	end
 
 	local function paintAll()
@@ -1122,6 +1465,7 @@ function ShapeMap.new(): MapInterface.Map
 			paintPreview(node)
 		end
 		paintPins()
+		requestLayout()
 	end
 
 	local map = {} :: any
@@ -1132,60 +1476,68 @@ function ShapeMap.new(): MapInterface.Map
 		(root :: any):GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 			if root.AbsoluteSize.X ~= lastWidth then
 				lastWidth = root.AbsoluteSize.X
-				paintAll()
+				measured(paintAll)
 			end
 		end)
 	end)
 
 	function map.setView(_self: any, view: View.View, colors: { Colors.RGB })
-		for _, s in view.states do
-			local fill: Colors.RGB
-			if s.poll then
-				fill = Colors.bandFill(s.poll.support, colors)
-			elseif s.leanTo then
-				local support = table.create(#colors, 0)
-				support[s.leanTo] = s.lean
-				fill = Colors.bandFill(support, colors)
-			else
-				fill = Colors.neutral
+		measured(function()
+			for _, s in view.states do
+				local fill: Colors.RGB
+				if s.poll then
+					fill = Colors.bandFill(s.poll.support, colors)
+				elseif s.leanTo then
+					local support = table.create(#colors, 0)
+					support[s.leanTo] = s.lean
+					fill = Colors.bandFill(support, colors)
+				else
+					fill = Colors.neutral
+				end
+				fills[s.id] = Kit.color(fill)
+				local node = byId[s.id]
+				if node then
+					paint(node)
+					paintPreview(node)
+				end
 			end
-			fills[s.id] = Kit.color(fill)
-			local node = byId[s.id]
-			if node then
-				paint(node)
-				paintPreview(node)
-			end
-		end
+		end)
 	end
 
 	function map.setMarks(_self: any, newMarks: { [string]: MapInterface.Mark })
-		marks = newMarks
-		for _, node in nodes do
-			paint(node)
-			paintPreview(node)
-		end
+		measured(function()
+			marks = newMarks
+			for _, node in nodes do
+				paint(node)
+				paintPreview(node)
+			end
+			requestLayout()
+		end)
 	end
 
 	function map.setLens(_self: any, newLens: { [string]: MapInterface.LensLine }, fade: boolean?)
-		lens = newLens
-		for _, node in nodes do
-			paint(node)
-			paintPreview(node)
-			if fade and node.lensRow.Visible then
-				for _, part in node.parts do
-					if part.label.Visible then
-						part.label.TextTransparency = 1
-						part.label.BackgroundTransparency = 1
-						Motion.tween(
-							part.label,
-							{ TextTransparency = 0, BackgroundTransparency = PART_BG },
-							LENS_FADE
-						)
+		measured(function()
+			lens = newLens
+			for _, node in nodes do
+				paint(node)
+				paintPreview(node)
+				if fade and node.lensRow.Visible then
+					for _, part in node.parts do
+						if part.label.Visible then
+							part.label.TextTransparency = 1
+							part.label.BackgroundTransparency = 1
+							Motion.tween(
+								part.label,
+								{ TextTransparency = 0, BackgroundTransparency = PART_BG },
+								LENS_FADE
+							)
+						end
 					end
 				end
 			end
-		end
-		paintPins()
+			paintPins()
+			requestLayout()
+		end)
 	end
 
 	function map.setRoute(_self: any, stops: { string }, flights: { boolean })
@@ -1198,7 +1550,7 @@ function ShapeMap.new(): MapInterface.Map
 			if shape then
 				if px and py then
 					local line = segment(routeLayer, px, py, shape.lx, shape.ly, ROUTE_PX, Kit.colors.accent)
-					line.BackgroundTransparency = if flights[k] then 0.55 else 0
+					line.BackgroundTransparency = if flights[k] then ROUTE_FLIGHT else ROUTE_FADE
 				end
 				px, py = shape.lx, shape.ly
 			end
@@ -1319,6 +1671,8 @@ function ShapeMap.new(): MapInterface.Map
 		glyph.Size = UDim2.fromScale(1, 1)
 		glyph.ZIndex = 8
 		glyph.Parent = badge
+		badge.Position = UDim2.fromScale(0.95, 0.05)
+		requestLayout()
 		Motion.pop(badge, 0.6)
 	end
 
@@ -1361,9 +1715,20 @@ function ShapeMap.new(): MapInterface.Map
 			tag = made
 		end
 		local ghost = tag :: TextLabel
-		placeTag(node, ghost)
 		ghost.Text = text
 		ghost.Visible = true
+		if node.ladder then
+			placeTag(node, ghost)
+		else
+			-- Over the code, where the last layout left room (it is not kept).
+			local bw, bh = boxDims()
+			local c = codes[node.id]
+			if c and bw > 0 then
+				local x, y = bestSpot(c, #text * TAG_CHAR + 2 * TAG_PAD, TAG_H, ABOVE, lastCodeCount)
+				ghost.AnchorPoint = Vector2.new(0.5, 0.5)
+				ghost.Position = UDim2.new(node.lx, x - node.lx * bw, node.ly, y - node.ly * bh)
+			end
+		end
 	end
 
 	function map.wipe(_self: any, id: string, color: Color3)
@@ -1380,8 +1745,11 @@ function ShapeMap.new(): MapInterface.Map
 	end
 
 	function map.setPins(_self: any, newPins: { MapInterface.Pin })
-		pins = newPins
-		paintPins()
+		measured(function()
+			pins = newPins
+			paintPins()
+			requestLayout()
+		end)
 	end
 
 	function map.setLegend(_self: any, items: { MapInterface.LegendItem }?)
@@ -1389,10 +1757,13 @@ function ShapeMap.new(): MapInterface.Map
 	end
 
 	function map.setPreview(_self: any, tags: { [string]: MapInterface.PreviewTag }?)
-		previews = tags or {}
-		for _, node in nodes do
-			paintPreview(node)
-		end
+		measured(function()
+			previews = tags or {}
+			for _, node in nodes do
+				paintPreview(node)
+			end
+			requestLayout()
+		end)
 	end
 
 	function map.destroy(_self: any)

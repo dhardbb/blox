@@ -515,6 +515,26 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- Both candidates in Ohio, a plan there: the pins and tags stay off the codes.
+		name = "10f-pins-same-state",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Plan")
+			for _, player in payload.view.players do
+				player.location = "OH"
+			end
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+			for _, name in { "OH", "Rally" } do
+				FakeRoblox.press(world, peer, name)
+				FakeRoblox.run(world, 0.3)
+			end
+		end,
+	},
+	{
 		-- The map key: what the four color steps mean, in both players' colors.
 		name = "10b-campaign-map-key",
 		moment = "Plan",

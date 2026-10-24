@@ -435,7 +435,7 @@ describe("Map lenses", function()
 		expect(label.Position.Y.Scale):toBe(y0)
 	end)
 
-	it("dims a drained state on the real map and stacks its value under the code (D-062)", function()
+	it("dims a drained state on the real map and shows its value beside the code (D-062)", function()
 		local world, peer = Rig.fixture("Plan")
 		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 		local NodeMap = FakeRoblox.require(world, peer, "src/client/Map/NodeMap.luau")
@@ -447,12 +447,21 @@ describe("Map lenses", function()
 		local node = m.root.Nodes:FindFirstChild("OH")
 		local shape = m.root.Shapes.ShapeOH
 		m:setLens({ OH = { parts = { { text = "$0.0" } }, dim = true } })
+		FakeRoblox.run(world, 0.05) -- the mark layout runs once a frame
 		check(shape.ImageTransparency > 0, "a drained state is not dimmed")
 		expect(node.Lens.Visible):toBe(true)
 		local label, row = node.Label, node.Lens
+		-- Beside or under the code, never on it (D-062's mark layout).
+		local lp, ls, rp, rs =
+			label.AbsolutePosition, label.AbsoluteSize, row.AbsolutePosition, row.AbsoluteSize
 		check(
-			row.AbsolutePosition.Y >= label.AbsolutePosition.Y + label.AbsoluteSize.Y - 1,
-			"the value is not under the code"
+			not (
+					rp.X + 1 < lp.X + ls.X
+					and lp.X + 1 < rp.X + rs.X
+					and rp.Y + 1 < lp.Y + ls.Y
+					and lp.Y + 1 < rp.Y + rs.Y
+				),
+			"the value covers the code"
 		)
 		m:setLens({ OH = { parts = { { text = "17" } } } })
 		expect(shape.ImageTransparency):toBe(0)

@@ -67,13 +67,13 @@ export type Pin = {
 }
 
 -- One item of the map's small legend row (D-062): a mark and a word or two.
--- "none": the text alone. `optional` items drop first when the row is too
--- narrow (a phone).
+-- "none": the text alone. When the row is too narrow (a phone), items with
+-- the highest `drop` go first, a whole level at a time (nil: always shown).
 export type LegendItem = {
 	mark: "up" | "pip" | "hollow" | "none",
 	color: Color3?,
 	text: string,
-	optional: boolean?,
+	drop: number?,
 }
 
 -- The plan preview's number on a state (D-063): a faint signed tag, orange

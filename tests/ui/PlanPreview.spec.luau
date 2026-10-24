@@ -112,7 +112,7 @@ describe("PlanPreview (D-063)", function()
 		expect(now):toBe(200)
 		expect(after):toBe(200 + StateData.byId.OH.ev)
 		local _, line = PlanPreview.build(C, v, draft)
-		expect(line):toBe(`Plan: 200 → {200 + StateData.byId.OH.ev} votes`)
+		expect(line):toBe(`Plan: 200 → {200 + StateData.byId.OH.ev} EV`)
 		-- An unpolled state never moves the count (the header counts polls only).
 		oh.poll = nil
 		local _, after2 = PlanPreview.votes(C, v, draft)

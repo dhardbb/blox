@@ -91,9 +91,9 @@ function PlanPreview.votes(config: Config, view: View, draft: PlanDraft.Draft): 
 	return now, after
 end
 
--- "Plan: 268 → 281 votes".
+-- "Plan: 268 → 281 EV" (short: it shares the map's legend row on a phone).
 function PlanPreview.votesText(now: number, after: number): string
-	return `Plan: {now} → {after} votes`
+	return `Plan: {now} → {after} EV`
 end
 
 PlanPreview.CAVEAT = "if nothing else changes"

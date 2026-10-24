@@ -464,19 +464,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			lensFade
 		)
 		-- Polls explains its extra marks in the legend row; the pins show in every lens (D-062).
-		local legend = Lens.mapLegend({ config = config, view = shown }, Lens.current()) or {}
+		local legend: { MapInterface.LegendItem } = Lens.mapLegend(
+			{ config = config, view = shown },
+			Lens.current()
+		) or {}
 		-- The plan preview (D-063): while you draft, what the plan would move.
 		local tags = {}
 		if live and shown == view and Model.planning(live) and not Model.isLocked(model, live) then
 			local line
 			tags, line = PlanPreview.build(config, view, model.draft)
 			if line then
-				table.insert(legend, 1, { mark = "none", text = line })
-				table.insert(
-					legend,
-					2,
-					{ mark = "none", text = PlanPreview.CAVEAT, color = Kit.colors.muted, optional = true }
-				)
+				-- The lens's own legend makes room for the plan line on a phone;
+				-- the caveat goes first (the Map key always says it).
+				for _, item in legend do
+					item.drop = 1
+				end
+				local planLine: MapInterface.LegendItem = { mark = "none", text = line }
+				local caveat: MapInterface.LegendItem =
+					{ mark = "none", text = PlanPreview.CAVEAT, color = Kit.colors.muted, drop = 2 }
+				table.insert(legend, 1, planLine)
+				table.insert(legend, 2, caveat)
 			end
 		end
 		map:setLegend(legend)

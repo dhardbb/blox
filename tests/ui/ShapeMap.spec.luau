@@ -38,9 +38,21 @@ local function mount(w: number, h: number): Mounted
 	return { world = world, peer = peer, Kit = Kit, Audit = Audit, stage = stage, map = map }
 end
 
+-- Do two GUI objects' boxes overlap (by more than a pixel)?
+local function overlaps(a: any, b: any): boolean
+	local p, q = a.AbsolutePosition, b.AbsolutePosition
+	local s, t = a.AbsoluteSize, b.AbsoluteSize
+	return p.X + 1 < q.X + t.X and q.X + 1 < p.X + s.X and p.Y + 1 < q.Y + t.Y and q.Y + 1 < p.Y + s.Y
+end
+
 -- Two colors equal to the 1/255 (the fake engine's Color3s are tables).
 local function same(a: Color3, b: Color3): boolean
 	return math.abs(a.R - b.R) < 0.003 and math.abs(a.G - b.G) < 0.003 and math.abs(a.B - b.B) < 0.003
+end
+
+-- Lets the map's once-a-frame mark layout run.
+local function settle(m: Mounted)
+	FakeRoblox.run(m.world, 0.05)
 end
 
 local function rgb(m: Mounted, r: number, g: number, b: number): Color3
@@ -192,6 +204,7 @@ describe("ShapeMap", function()
 			},
 			OH = { parts = { { text = "tie" } } },
 		})
+		settle(m)
 		local tx = button(m, "TX")
 		expect(tx.Lens.Visible):toBe(true)
 		expect(tx.Lens.Part1.Text):toBe("+5")
@@ -222,6 +235,7 @@ describe("ShapeMap", function()
 			{ state = "PA", name = "Rex Calloway", color = red, tag = "Rex" },
 			{ state = "OH", name = "Dana Okafor", color = blue, tag = "You", you = true },
 		})
+		settle(m)
 		local pins = m.map.root.Pins
 		local mine = pins:FindFirstChild("PinOH")
 		check(mine ~= nil, "no pin on Ohio")
@@ -234,11 +248,13 @@ describe("ShapeMap", function()
 			{ state = "OH", name = "Rex Calloway", color = red, tag = "Rex" },
 			{ state = "OH", name = "Dana Okafor", color = blue, tag = "You", you = true },
 		})
-		local xs = {}
-		for _, pin in pins:GetChildren() do
-			table.insert(xs, pin.Position.X.Scale)
+		settle(m)
+		local both = pins:GetChildren()
+		check(#both == 2 and not overlaps(both[1].Face, both[2].Face), "two pins in one state overlap")
+		-- Pins never sit on a state's code.
+		for _, pin in both do
+			check(not overlaps(pin.Face, button(m, "OH").Label), "a pin covers Ohio's code")
 		end
-		check(#xs == 2 and xs[1] ~= xs[2], "two pins in one state overlap")
 		m.map:setLegend({
 			{ mark = "up", text = "momentum" },
 			{ mark = "hollow", color = red, text = "ground game" },
@@ -261,18 +277,18 @@ describe("ShapeMap", function()
 			OH = { text = "-0.6", negative = true },
 			RI = { text = "+1.2" },
 		})
+		settle(m)
 		local layer = m.map.root.Preview
 		check(layer.ZIndex > m.map.root.Pins.ZIndex, "the preview is not on top")
 		local tx, oh, ri = layer.TX, layer.OH, layer.RI
 		expect(tx.Text):toBe("+4.1")
 		check(same(tx.TextColor3, m.Kit.colors.good), "a gain is not green")
 		check(same(oh.TextColor3, m.Kit.colors.loss), "a loss is not orange")
-		-- Under Texas's whole stack (code, lead, Polls row), so the marks stay readable.
-		local extras = button(m, "TX").Extras
-		check(
-			tx.AbsolutePosition.Y >= extras.AbsolutePosition.Y + extras.AbsoluteSize.Y - 1,
-			"the tag covers the Polls row"
-		)
+		-- Beside Texas's code and rows, never on them, so the Polls marks stay readable.
+		local tex = button(m, "TX")
+		check(not overlaps(tx, tex.Extras), "the tag covers the Polls row")
+		check(not overlaps(tx, tex.Lens), "the tag covers the lead")
+		check(not overlaps(tx, tex.Label), "the tag covers the code")
 		-- A callout's tag stands left of its chip.
 		check(
 			ri.AbsolutePosition.X + ri.AbsoluteSize.X <= button(m, "RI").Chip.AbsolutePosition.X + 1,
@@ -305,7 +321,7 @@ describe("ShapeMap", function()
 			})
 			m.map:setLegend({
 				{ mark = "none", text = "Plan: 268 → 281 votes" },
-				{ mark = "none", text = "if nothing else changes", optional = true },
+				{ mark = "none", text = "if nothing else changes", drop = 2 },
 				{ mark = "up", text = "momentum" },
 			})
 			m.map:setPreview({
@@ -317,6 +333,7 @@ describe("ShapeMap", function()
 			m.map:setRoute({ "OH", "PA", "NJ", "NY" }, { false, false, true, false })
 			m.map:select("RI")
 			m.map:badge("TX", "megaphone")
+			settle(m)
 			local problems = {}
 			for _, finding in m.Audit.check(m.stage) do
 				table.insert(problems, finding.message)

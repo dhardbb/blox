@@ -1,16 +1,18 @@
 --!strict
 -- Candidate pins on the map (D-062): where each candidate is right now
 -- (PlayerView.location, public for every player), so you can find yourself at a
--- glance. A pin is the candidate's face on a disc in their color with a point
--- under it, and a small flag over it in the same color: "You" on yours, the
--- rival's first name on theirs. Pins are edged in the stage navy so they stand
--- off any fill (nothing on the map is white: white means selected, D-058).
--- Both maps (ShapeMap, NodeMap's circles) draw pins with Pins.build.
+-- glance. A pin is compact: the candidate's face (a small disc in their color)
+-- with a tab beside it in the same color, "You" on yours and the rival's first
+-- name on theirs, and a tiny pointer under the face. The real map stands it
+-- beside the state's code with a thin leader (ShapeMap's mark layout), never on
+-- the code. Pins are edged in the stage navy so they stand off any fill
+-- (nothing on the map is white: white means selected, D-058).
 --
 --   Pins.of(config, view) -> { Pin }     yours last (drawn on top)
 --   Pins.face(name, color, px) -> Frame  the face: the ONE place that picks the
 --                                        portrait (Kit.monogram until there is art)
---   Pins.build(pin, px) -> Frame "Pin<state>"   AnchorPoint at the point's tip
+--   Pins.build(pin, px) -> Frame "Pin<state>"   `px` the face; AnchorPoint at the
+--                                        pointer's tip (bottom middle of the face)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -26,9 +28,11 @@ type Pin = MapInterface.Pin
 
 local Pins = {}
 
-Pins.FLAG_H = Kit.size.caption + 2 -- px, the flag's height
-local POINT = 0.42 -- the point's size, share of the face
-local FLAG_PAD = 4 -- px, the flag's side padding
+Pins.FLAG_H = Kit.size.caption + 2 -- px, the tab's height
+local POINT = 0.35 -- the pointer's size, share of the face
+local TAB_PAD = 3 -- px, the tab's side padding
+local TAB_GAP = 1 -- px between the face and the tab
+local TAB_CHAR = 8 -- px, an estimated character of the tab (AutomaticSize grows it if needed)
 local EDGE = 2 -- px, the white edge around the face
 
 local function candidateName(config: ConfigModule.Config, view: ViewModule.View, p: number): string
@@ -72,24 +76,25 @@ function Pins.face(name: string, color: Color3, px: number): Frame
 	return Kit.monogram(name, color, px)
 end
 
--- A pin `px` wide (the face), its AnchorPoint on the point's tip: place it at
--- the spot it marks. The flag sits over the face. Not a tap target: taps go
--- through to the state under it.
+-- A pin: the face `px` wide, the tab right of it, the pointer under the face.
+-- Not a tap target: taps go through to the state under it.
 function Pins.build(pin: Pin, px: number): Frame
-	local point = math.floor(px * POINT)
-	local height = Pins.FLAG_H + px + point // 2
+	local point = math.max(4, math.floor(px * POINT))
+	local tabW = #pin.tag * TAB_CHAR + 2 * TAB_PAD
+	local width = px + TAB_GAP + tabW
+	local height = px + point // 2
 	local root = Kit.dataColor(Kit.box({
 		Name = `Pin{pin.state}`,
-		AnchorPoint = Vector2.new(0.5, 1),
-		Size = UDim2.fromOffset(px, height),
+		AnchorPoint = Vector2.new(px / 2 / width, 1),
+		Size = UDim2.fromOffset(width, height),
 		ZIndex = 1,
 	})) :: Frame
 	root:SetAttribute("Overhang", true)
-	-- The point: a square turned 45°, half hidden under the face.
+	-- The pointer: a small square turned 45°, half under the face.
 	local tip = Kit.new("Frame", {
 		Name = "Point",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 1, -point // 2),
+		Position = UDim2.new(0, px / 2, 1, -point // 2),
 		Size = UDim2.fromOffset(point, point),
 		Rotation = 45,
 		BackgroundColor3 = pin.color,
@@ -102,8 +107,7 @@ function Pins.build(pin: Pin, px: number): Frame
 	tipEdge.Parent = tip
 	local face = Pins.face(pin.name, pin.color, px)
 	face.Name = "Face"
-	face.AnchorPoint = Vector2.new(0.5, 0)
-	face.Position = UDim2.new(0.5, 0, 0, Pins.FLAG_H)
+	face.Position = UDim2.fromOffset(0, 0)
 	face.ZIndex = 2
 	face.Parent = root
 	local edge = face:FindFirstChild("Edge") :: UIStroke?
@@ -111,13 +115,12 @@ function Pins.build(pin: Pin, px: number): Frame
 		edge.Color = Kit.colors.background -- the monogram's edge, in the stage navy
 		edge.Thickness = EDGE
 	end
-	-- The flag: "You" or the rival's first name, in the candidate's color.
+	-- The tab: "You" or the rival's first name, in the candidate's color.
 	local flag = Kit.text(pin.tag, {
 		Name = "Flag",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
-		-- A width estimate (AutomaticSize grows it if the font needs more).
-		Size = UDim2.fromOffset(#pin.tag * 9 + 2 * FLAG_PAD, Pins.FLAG_H),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromOffset(px + TAB_GAP, px / 2),
+		Size = UDim2.fromOffset(tabW, Pins.FLAG_H),
 		AutomaticSize = Enum.AutomaticSize.X,
 		TextSize = Kit.size.caption,
 		Font = Kit.font.bold,
@@ -132,8 +135,8 @@ function Pins.build(pin: Pin, px: number): Frame
 	flag:SetAttribute("Overhang", true)
 	Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = flag })
 	Kit.new("UIPadding", {
-		PaddingLeft = UDim.new(0, FLAG_PAD),
-		PaddingRight = UDim.new(0, FLAG_PAD),
+		PaddingLeft = UDim.new(0, TAB_PAD),
+		PaddingRight = UDim.new(0, TAB_PAD),
 		Parent = flag,
 	})
 	local flagEdge = Kit.stroke(Kit.colors.background, 1)
