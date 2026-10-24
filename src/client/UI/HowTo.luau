@@ -1,10 +1,10 @@
 --!strict
 -- "How to play" for brand-new players (docs/DESIGN.md D-059): the Lobby's
--- ghost button opens this sheet of five short pages, one idea each: the goal
--- (270 votes, over two sample candidates' portraits), a week (plan, both reveal, the map moves), the actions, debates
--- and events, election night. Each page is a title, a small picture built from
+-- ghost button opens this sheet of six short pages, one idea each: the goal
+-- (270 votes, over two sample candidates' portraits), a week (plan, both reveal, the map moves), the actions, the
+-- issues (their symbols, D-075), debates and events, election night. Each page is a title, a small picture built from
 -- Kit pieces and at most 30 words (Shared/UI/Words/Lobby.howTo). The pictures
--- for the goal, the actions and the debates are the in-match Help's own
+-- for the goal, the actions, the issues and the debates are the in-match Help's own
 -- (UI/Help.art), so both always show the same thing; the full rules stay in
 -- the in-match "?" sheet.
 --
@@ -171,6 +171,8 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 			weekArt(art)
 		elseif page.id == "actions" then
 			Help.art.actions(art)
+		elseif page.id == "issues" then
+			Help.art.issues(art)
 		elseif page.id == "events" then
 			Help.art.events(art)
 		else

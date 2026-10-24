@@ -139,15 +139,15 @@ describe("Lobby: the bot level (D-059)", function()
 end)
 
 describe("Lobby: How to play (D-059)", function()
-	it("opens five short pages and steps through them to Got it", function()
+	it("opens six short pages and steps through them to Got it", function()
 		local world, peer = Rig.fixture("Lobby", PHONE)
 		tap(world, peer, "Lobby", "HowToPlay")
 		check(need(peer, "Lobby", "HowToSheet").Visible == true, "the sheet did not open")
 		check(shownIn(peer, "Lobby", "HowToPage_goal"), "page 1 is not the goal")
 		check(not shownIn(peer, "Lobby", "HowToBack"), "Back shows on page 1")
-		expect(textOf(peer, "Lobby", "HowToCount")):toBe("1 of 5")
+		expect(textOf(peer, "Lobby", "HowToCount")):toBe("1 of 6")
 		expect(strictAudit(world, peer, "Lobby")):toBe(0)
-		for page, id in { "week", "actions", "events", "night" } do
+		for page, id in { "week", "actions", "issues", "events", "night" } do
 			tap(world, peer, "Lobby", "HowToNext")
 			check(shownIn(peer, "Lobby", `HowToPage_{id}`), `page {page + 1} is not {id}`)
 			expect(strictAudit(world, peer, "Lobby")):toBe(0)
@@ -335,7 +335,7 @@ end)
 describe("Lobby words (D-059)", function()
 	it("keeps every How to play page to a title and at most 30 words", function()
 		local pages = Words.howTo(Config.defaults)
-		check(#pages >= 3 and #pages <= 5, `{#pages} pages`)
+		check(#pages >= 3 and #pages <= 6, `{#pages} pages`) -- six since D-075 (the issues)
 		for _, page in pages do
 			local words = 0
 			for _ in string.gmatch(page.text, "%S+") do
