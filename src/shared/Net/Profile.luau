@@ -56,6 +56,16 @@ export type Profile = {
 	-- At most NAME_HIDDEN_MAX, oldest dropped. Optional: no version bump.
 	hiddenNames: { [string]: string }?,
 	hiddenOrder: { string }?, -- the setter ids in hiddenNames, oldest first
+	-- Ids of the last results applied (newest last, at most SETTLED_MAX), so a
+	-- result that reaches a profile twice (from another server's pending list,
+	-- DataService) counts once. Optional: no version bump.
+	settled: { string }?,
+	-- Opponent player id -> Unix times of rated games against them within
+	-- RATED_PAIR_WINDOW (D-075: at most RATED_PAIR_DAILY_MAX are rated). Optional.
+	ratedWith: { [string]: { number } }?,
+	-- Reports this player sent since `at` (D-076: NAME_REPORTS_PER_DAY per
+	-- NAME_REPORT_WINDOW, kept here so a rejoin does not reset it). Optional.
+	reportLog: { at: number, count: number }?,
 }
 
 -- What the lobby shows.
@@ -77,6 +87,14 @@ export type Result = {
 	opponentRating: number?, -- before the match; required when rated
 	evFor: number?,
 	evAgainst: number?,
+	opponent: string?, -- the opponent's player id: rated games count per pair (D-075)
+}
+
+-- A result waiting in a stored record for the server that holds the player's
+-- data (DataService): `id` is unique per match and player.
+export type Pending = {
+	id: string,
+	result: Result,
 }
 
 -- What applying a result did to the rating.
@@ -94,8 +112,12 @@ local Profile = {}
 -- "from the future" and stop saving that player's results.
 Profile.VERSION = 1
 Profile.RECENT_MAX = 10 -- matches kept in `recent`
+Profile.SETTLED_MAX = 30 -- result ids kept in `settled`
+Profile.PENDING_MAX = 20 -- results kept waiting in a stored record (DataService)
 local MAX_CANDIDATES = 64 -- most perCandidate entries kept (garbage defense)
 local MAX_ID = 32 -- longest candidate id kept
+local MAX_KEY = 64 -- longest result id or player id kept
+local RATED_WITH_MAX = 50 -- most opponents kept in `ratedWith` (the longest ago drops)
 
 function Profile.new(config: Config?): Profile
 	local c = config or ConfigModule.defaults
@@ -237,6 +259,106 @@ function Profile.migrate(raw: any, config: Config?): Profile
 			out.hiddenOrder = order
 		end
 	end
+	if type(raw.settled) == "table" then
+		local ids: { string } = {}
+		for k = 1, #raw.settled do
+			local id = raw.settled[k]
+			if type(id) == "string" and #id <= MAX_KEY then
+				table.insert(ids, id)
+			end
+		end
+		while #ids > Profile.SETTLED_MAX do
+			table.remove(ids, 1)
+		end
+		if #ids > 0 then
+			out.settled = ids
+		end
+	end
+	if type(raw.ratedWith) == "table" then
+		local pairsOut: { [string]: { number } } = {}
+		local kept = 0
+		for id, times in raw.ratedWith do
+			if
+				type(id) == "string"
+				and #id <= MAX_KEY
+				and type(times) == "table"
+				and kept < RATED_WITH_MAX
+			then
+				local list: { number } = {}
+				for k = 1, #times do
+					local at = finite(times[k])
+					if at then
+						table.insert(list, at)
+					end
+				end
+				while #list > c.RATED_PAIR_DAILY_MAX * 2 do
+					table.remove(list, 1)
+				end
+				if #list > 0 then
+					kept += 1
+					pairsOut[id] = list
+				end
+			end
+		end
+		if kept > 0 then
+			out.ratedWith = pairsOut
+		end
+	end
+	if type(raw.reportLog) == "table" then
+		local at, n = finite(raw.reportLog.at), count(raw.reportLog.count)
+		if at and n then
+			out.reportLog = { at = at, count = n }
+		end
+	end
+	return out
+end
+
+local RESULT_REASONS: { [string]: boolean } = { Election = true, Forfeit = true, Abandoned = true }
+
+local function optionalString(value: any): string?
+	return if type(value) == "string" and #value <= MAX_KEY then value else nil
+end
+
+-- A stored pending list, cleaned: entries that are not a well-formed result are
+-- dropped (garbage defense), at most PENDING_MAX kept (the newest).
+function Profile.cleanPending(raw: any): { Pending }
+	local out: { Pending } = {}
+	if type(raw) ~= "table" then
+		return out
+	end
+	for k = 1, #raw do
+		local entry = raw[k]
+		local result = if type(entry) == "table" then entry.result else nil
+		if
+			type(entry) == "table"
+			and type(entry.id) == "string"
+			and #entry.id <= MAX_KEY
+			and type(result) == "table"
+			and finite(result.at) ~= nil
+			and RESULT_REASONS[result.reason] == true
+			and type(result.rated) == "boolean"
+			and type(result.won) == "boolean"
+		then
+			table.insert(out, {
+				id = entry.id,
+				result = {
+					at = result.at,
+					reason = result.reason,
+					rated = result.rated,
+					won = result.won,
+					candidate = optionalString(result.candidate),
+					opponentCandidate = optionalString(result.opponentCandidate),
+					opponentRating = finite(result.opponentRating),
+					evFor = count(result.evFor),
+					evAgainst = count(result.evAgainst),
+					opponent = optionalString(result.opponent),
+				},
+			})
+		end
+	end
+	while #out > Profile.PENDING_MAX do
+		table.remove(out, 1)
+	end
 	return out
 end
 
@@ -255,7 +377,83 @@ local function copy(profile: Profile): Profile
 	end
 	out.recent = table.clone(profile.recent)
 	out.practice = table.clone(profile.practice)
+	if profile.settled then
+		out.settled = table.clone(profile.settled)
+	end
+	if profile.ratedWith then
+		local pairsOut: { [string]: { number } } = {}
+		for id, times in profile.ratedWith do
+			pairsOut[id] = table.clone(times)
+		end
+		out.ratedWith = pairsOut
+	end
+	if profile.reportLog then
+		out.reportLog = table.clone(profile.reportLog)
+	end
 	return out
+end
+
+-- Rated games this player played against `opponent` within RATED_PAIR_WINDOW of `now` (D-075).
+function Profile.ratedGamesWith(profile: Profile?, opponent: string, now: number, config: Config?): number
+	local c = config or ConfigModule.defaults
+	local none: { number } = {}
+	local times: { number } = if profile and profile.ratedWith
+		then profile.ratedWith[opponent] or none
+		else none
+	local n = 0
+	for _, at in times do
+		if now - at < c.RATED_PAIR_WINDOW then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Records a rated game against `opponent` at `at`, dropping times past the window.
+local function addRatedWith(out: Profile, opponent: string, at: number, c: Config)
+	local pairsOut: { [string]: { number } } = {}
+	local kept = 0
+	local before: { [string]: { number } } = out.ratedWith or {}
+	for id, times in before do
+		local list: { number } = {}
+		for _, t in times do
+			if at - t < c.RATED_PAIR_WINDOW then
+				table.insert(list, t)
+			end
+		end
+		if #list > 0 and id ~= opponent then
+			pairsOut[id] = list
+			kept += 1
+		end
+	end
+	local mine: { number } = {}
+	local earlier: { number } = before[opponent] or {}
+	for _, t in earlier do
+		if at - t < c.RATED_PAIR_WINDOW then
+			table.insert(mine, t)
+		end
+	end
+	table.insert(mine, at)
+	while #mine > c.RATED_PAIR_DAILY_MAX * 2 do
+		table.remove(mine, 1)
+	end
+	-- Too many opponents: the one played longest ago drops.
+	while kept >= RATED_WITH_MAX do
+		local oldestId, oldest = nil, math.huge
+		for id, times in pairsOut do
+			local last = times[#times]
+			if last < oldest then
+				oldestId, oldest = id, last
+			end
+		end
+		if oldestId == nil then
+			break
+		end
+		pairsOut[oldestId] = nil
+		kept -= 1
+	end
+	pairsOut[opponent] = mine
+	out.ratedWith = pairsOut
 end
 
 -- Applies one finished match. Only a rated match with a decided result (Election
@@ -309,7 +507,57 @@ function Profile.applyResult(profile: Profile, result: Result, config: Config?):
 	while #out.recent > Profile.RECENT_MAX do
 		table.remove(out.recent, 1)
 	end
+	if result.opponent then
+		addRatedWith(out, result.opponent, result.at, c)
+	end
 	return out, { before = profile.rating, after = after, rated = true }
+end
+
+-- Applies result `id` once: a result already in `settled` changes nothing (the
+-- third value is false). Otherwise as applyResult, and the id is remembered.
+function Profile.settle(
+	profile: Profile,
+	id: string,
+	result: Result,
+	config: Config?
+): (Profile, Change, boolean)
+	if profile.settled and table.find(profile.settled, id) then
+		return profile, { before = profile.rating, after = profile.rating, rated = false }, false
+	end
+	local out, change = Profile.applyResult(profile, result, config)
+	if out == profile then
+		out = copy(profile)
+	end
+	local settled = table.clone(profile.settled or {})
+	table.insert(settled, id)
+	while #settled > Profile.SETTLED_MAX do
+		table.remove(settled, 1)
+	end
+	out.settled = settled
+	return out, change, true
+end
+
+-- Whether this player may send another report at `now` (D-076).
+function Profile.canReport(profile: Profile?, now: number, config: Config?): boolean
+	local c = config or ConfigModule.defaults
+	local log = if profile then profile.reportLog else nil
+	if log == nil or now - log.at >= c.NAME_REPORT_WINDOW or now < log.at then
+		return true
+	end
+	return log.count < c.NAME_REPORTS_PER_DAY
+end
+
+-- The profile with one more report sent at `now` (a new window when the last one ran out).
+function Profile.withReport(profile: Profile, now: number, config: Config?): Profile
+	local c = config or ConfigModule.defaults
+	local out = copy(profile)
+	local log = profile.reportLog
+	if log == nil or now - log.at >= c.NAME_REPORT_WINDOW or now < log.at then
+		out.reportLog = { at = now, count = 1 }
+	else
+		out.reportLog = { at = log.at, count = log.count + 1 }
+	end
+	return out
 end
 
 -- The profile with `color` as the chosen color (nil = back to auto). A name that

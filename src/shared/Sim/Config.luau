@@ -211,12 +211,17 @@ local Config = {
 
 	-- Reporting and reviewing custom names (D-069).
 	NAME_REPORT_WAIT = 10, -- seconds one player waits between reports (rate limit)
-	NAME_REPORTS_PER_VISIT = 10, -- most reports one player sends per visit to a server
+	NAME_REPORTS_PER_DAY = 10, -- most reports one player sends in NAME_REPORT_WINDOW, kept in their profile (D-076)
+	NAME_REPORT_WINDOW = 86400, -- seconds the report count runs before it starts again (a day)
 	NAME_HIDDEN_MAX = 30, -- names a player reported and no longer sees, kept in their profile (oldest dropped)
 	NAME_REVIEW_MAX = 200, -- reported names waiting for review (the oldest drop off a full queue)
+	NAME_REVIEW_SHARDS = 8, -- DataStore keys the review queue is split over, so one key never limits reports (D-076)
 	NAME_REPORTERS_MAX = 20, -- distinct reporters kept per reported name
 	NAME_BLOCKLIST_MAX = 2000, -- names reviewers removed, kept as blocklist entries
 	NAME_BLOCKLIST_REFRESH = 300, -- seconds between reloads of the reviewed blocklist on each server
+	NAME_BLOCKLIST_RETRY = 20, -- seconds between tries while the reviewed blocklist has never loaded (names wait, D-076)
+	SET_NAME_COOLDOWN = 2, -- seconds between one player's SetName requests (each may call the text filter)
+	SET_COLOR_COOLDOWN = 1, -- seconds between one player's SetColor requests
 
 	-- Admins (D-069): free Color and Name Passes and the name review panel. The
 	-- experience owner (game.CreatorId, or for a group-owned game its members of
@@ -231,6 +236,8 @@ local Config = {
 	ELO_K = 32, -- rating K-factor
 	ELO_START = 1000, -- starting rating
 	ELO_FLOOR = 100, -- ratings never fall below this (D-028)
+	RATED_PAIR_DAILY_MAX = 3, -- rated games one pair of players may play in RATED_PAIR_WINDOW; more are unrated (D-075)
+	RATED_PAIR_WINDOW = 86400, -- seconds that cap looks back (a day)
 	MATCHES_PER_SERVER = 10, -- concurrent matches per server (20 players)
 }
 

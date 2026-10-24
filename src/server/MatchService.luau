@@ -38,7 +38,7 @@ local matchOf: { [string]: string } = {} -- player id -> match id
 local prePicks: { [string]: any } = {}
 local approvedNames: { [string]: string } = {} -- player id -> their saved custom name, filtered this visit (D-069)
 local shownTo: { [string]: { [string]: string } } = {} -- viewer id -> setter id -> the custom name they were shown
-local reports: { [string]: { last: number, count: number } } = {} -- reporter id -> rate-limit state, this visit
+local reports: { [string]: { last: number, count: number } } = {} -- reporter id -> rate-limit state, this visit (the daily count is in their profile)
 local ownerNames: { [number]: string } = {} -- user id -> username, for the review panel
 
 -- Reasons a report or a review request is turned down (D-069).
@@ -46,16 +46,33 @@ local ReportReason = table.freeze({
 	Self = "ReportSelf", -- your own name
 	NoName = "ReportNoName", -- you were not shown a custom name from that player
 	TooSoon = "ReportTooSoon", -- NAME_REPORT_WAIT has not passed since your last report
-	Limit = "ReportLimit", -- NAME_REPORTS_PER_VISIT reached
+	Limit = "ReportLimit", -- NAME_REPORTS_PER_DAY reached (saved in the profile, D-076)
 	NotAdmin = "NotAdmin", -- review requests are for admins only
 	ReviewFailed = "ReviewFailed", -- the review queue could not be read or written
+	ReviewChanged = "ReviewChanged", -- the queued name is no longer the one the admin saw (D-076)
 })
 local ratingsAtStart: { [string]: { [string]: number } } = {} -- match id -> player id -> rating; rated matches only
+local resultIds: { [string]: string } = {} -- match id -> an id for its result unique across servers (Profile.settle)
+local lastRequest: { [string]: { [string]: number } } = {} -- player id -> op -> server time of the last accepted one (cooldowns)
 local random = Random.new()
 local matchCount = 0
 
 local function now(): number
 	return workspace:GetServerTimeNow()
+end
+
+-- Per-player cooldown for ops that write saved data or call the text filter:
+-- true (and the time is noted) if `op` may run now, false while it cools down.
+local function cooled(id: string, op: string, seconds: number): boolean
+	local times = lastRequest[id] or {}
+	lastRequest[id] = times
+	local t = now()
+	local last = times[op]
+	if last ~= nil and t - last < seconds then
+		return false
+	end
+	times[op] = t
+	return true
 end
 
 local function idOf(player: Player): string
@@ -128,12 +145,15 @@ local function approveSavedName(id: string)
 	end
 	if name then
 		approvedNames[id] = name
-	elseif reason == CustomName.Reason.Filtered and NameService.isBlocked(profile.customName) then
-		-- A reviewer removed it (or a name like it) since: clear it, and say so.
+	elseif reason == CustomName.Reason.Filtered and NameService.isReviewedExact(profile.customName) then
+		-- A reviewer removed this very name since: clear it from their save, and say so.
 		DataService.update(id, function(saved: Profile.Profile): Profile.Profile
 			return Profile.withCustomName(saved, nil)
 		end)
 		Replication.send(id, { kind = "Notice", notice = "NameRemoved" })
+	elseif reason == CustomName.Reason.Filtered and NameService.isBlocked(profile.customName) then
+		-- It only contains a blocked name (D-076): not used, but left in their save.
+		Replication.send(id, { kind = "Notice", notice = "NameNotAllowed" })
 	end
 end
 
@@ -164,6 +184,9 @@ end
 -- Returns a reason code when it is turned down. May yield (a fresh pass check).
 local function setColor(player: Player, color: string?): string?
 	local id = idOf(player)
+	if not cooled(id, "SetColor", config.SET_COLOR_COOLDOWN) then
+		return "RateLimited"
+	end
 	if color ~= nil then
 		if not Profile.isColor(color) then
 			return "UnknownColor"
@@ -206,16 +229,29 @@ end
 -- abandoned match change nothing. A player whose profile is still loading gets
 -- the result when the load finishes.
 local function settle(session: Session.Session)
-	local starts = ratingsAtStart[session.id]
+	local starts: { [string]: number }? = ratingsAtStart[session.id]
 	ratingsAtStart[session.id] = nil
+	local resultId = resultIds[session.id] or session.id
+	resultIds[session.id] = nil
 	local result = session.result :: Session.Result
-	if result.reason == "Abandoned" or result.winner == 0 then
+	local winners = result.winners or (if result.winner ~= 0 then { result.winner } else {})
+	if result.reason == "Abandoned" or #winners == 0 then
 		return
 	end
 	local vsBot = false
 	for _, seat in session.seats do
 		if seat.kind == "Bot" then
 			vsBot = true
+		end
+	end
+	if result.unrated and starts then
+		-- A forfeit or a drop before week 1 counts for no one (D-075).
+		starts = nil
+		print(`[270] match {session.id} is unrated: it ended before week 1`)
+		for _, seat in session.seats do
+			if seat.kind == "Human" then
+				Replication.send(seat.id, { kind = "Notice", notice = "ForfeitUnrated" })
+			end
 		end
 	end
 	if starts == nil and not vsBot then
@@ -229,22 +265,22 @@ local function settle(session: Session.Session)
 		if seat.kind ~= "Human" then
 			continue
 		end
+		-- Rated and practice matches have two seats: the opponent is the other one.
 		local them = if me == 1 then 2 else 1
 		local input: Profile.Result = {
 			at = at,
 			reason = result.reason,
 			rated = starts ~= nil,
-			won = result.winner == me,
+			won = table.find(winners, me) ~= nil,
 			candidate = session.match.players[me].candidate,
 			opponentCandidate = session.match.players[them].candidate,
 			opponentRating = if starts then starts[session.seats[them].id] else nil,
 			evFor = if election then election.ev[me] else nil,
 			evAgainst = if election then election.ev[them] else nil,
+			opponent = if starts then session.seats[them].id else nil,
 		}
-		local change: Profile.Change? = nil
-		local function announce()
-			local applied = change
-			if applied and applied.rated then
+		local function announce(applied: Profile.Change)
+			if applied.rated then
 				Replication.send(seat.id, {
 					kind = "Rating",
 					rating = { matchId = session.id, before = applied.before, after = applied.after },
@@ -255,13 +291,10 @@ local function settle(session: Session.Session)
 				)
 			end
 		end
-		local how = DataService.update(seat.id, function(profile: Profile.Profile): Profile.Profile
-			local updated, applied = Profile.applyResult(profile, input, config)
-			change = applied
-			return updated
-		end, announce)
-		if how == "Skipped" and starts then
-			warn(`[270] match {session.id}: could not record the result for player {seat.id}`)
+		-- Saved at once; a player who left (even for another server) still gets it.
+		local how = DataService.applyResult(seat.id, resultId, input, announce)
+		if how == "Offline" and starts then
+			print(`[270] match {session.id}: result for player {seat.id} recorded in their saved data`)
 		end
 	end
 end
@@ -369,6 +402,10 @@ end
 -- fresh pass check).
 local function setName(player: Player, text: string?): string?
 	local id = idOf(player)
+	-- Before anything that calls Roblox (the chat check, the pass, the filter).
+	if not cooled(id, "SetName", config.SET_NAME_COOLDOWN) then
+		return "RateLimited"
+	end
 	if not PassService.offered("Name", id) then
 		return CustomName.Reason.NoNamePass
 	end
@@ -381,12 +418,17 @@ local function setName(player: Player, text: string?): string?
 	end
 	local name: string? = nil
 	if text ~= nil then
-		NameReview.ensureLoaded()
-		local checked, reason = NameService.check(player, text)
-		if checked == nil then
-			return reason
+		local normalized = CustomName.normalize(text, config)
+		if normalized ~= nil and normalized == approvedNames[id] then
+			name = normalized -- already filtered this visit: no second filter call
+		else
+			NameReview.ensureLoaded()
+			local checked, reason = NameService.check(player, text)
+			if checked == nil then
+				return reason
+			end
+			name = checked
 		end
-		name = checked
 	end
 	if playerOf(id) ~= player then
 		return nil -- they left while the filter ran
@@ -438,12 +480,33 @@ local function clearRemovedName(id: string)
 	print(`[270] player {id}: custom name removed after review`)
 end
 
--- The reviewed blocklist grew (here or on another server): clear every name in
--- this server that now matches it.
-local function onBlocklist(_added: { string })
+-- Stops using player `id`'s custom name this visit without touching their
+-- saved data (D-076: it only contains a name a reviewer removed). Yields.
+local function hideBlockedName(id: string)
+	approvedNames[id] = nil
+	local session = sessions[matchOf[id] or ""]
+	if session then
+		local seat = Session.seatOf(session, id) :: number
+		guard(session, function()
+			Session.clearName(session, seat)
+		end)
+		flush(session)
+	else
+		sendLobby(id)
+	end
+	Replication.send(id, { kind = "Notice", notice = "NameNotAllowed" })
+	print(`[270] player {id}: custom name not used after a review (kept in their save)`)
+end
+
+-- The reviewed blocklist grew (here or on another server): stop every name in
+-- this server that now matches it. Only the exact removed name is also taken
+-- out of its owner's saved data (D-076).
+local function onBlocklist(added: { string })
 	for id, name in approvedNames do
-		if NameService.isBlocked(name) then
+		if CustomName.reviewedExact(name, added) then
 			task.spawn(clearRemovedName, id)
+		elseif NameService.isBlocked(name) then
+			task.spawn(hideBlockedName, id)
 		end
 	end
 end
@@ -463,7 +526,11 @@ local function reportName(player: Player, setterId: string): string?
 		return ReportReason.NoName
 	end
 	local state = reports[id] or { last = -math.huge, count = 0 }
-	if state.count >= config.NAME_REPORTS_PER_VISIT then
+	-- The daily count lives in the profile, so leaving and rejoining does not
+	-- reset it; without a loaded profile this visit's count stands in.
+	local unix = os.time()
+	local profile = DataService.profile(id)
+	if not Profile.canReport(profile, unix, config) or state.count >= config.NAME_REPORTS_PER_DAY then
 		return ReportReason.Limit
 	end
 	local t = now()
@@ -485,7 +552,7 @@ local function reportName(player: Player, setterId: string): string?
 		end
 	end
 	DataService.update(id, function(saved: Profile.Profile): Profile.Profile
-		return Profile.withHiddenName(saved, setterId, name, config)
+		return Profile.withReport(Profile.withHiddenName(saved, setterId, name, config), unix, config)
 	end)
 	Replication.send(id, { kind = "Notice", notice = "NameReported" })
 	task.spawn(function()
@@ -539,21 +606,29 @@ local function review(player: Player, request: Remotes.Request): string?
 		return ReportReason.NotAdmin
 	end
 	local target = tonumber(request.userId or "")
-	if request.op == "ReviewKeep" and target then
-		if not NameReview.keep(target) then
-			return ReportReason.ReviewFailed
+	local name = request.name
+	local failure: NameReview.Failure? = nil
+	if request.op == "ReviewKeep" and target and name then
+		failure = NameReview.keep(target, name)
+		if failure == nil then
+			print(`[270] admin {id} kept the name of {target}`)
 		end
-		print(`[270] admin {id} kept the name of {target}`)
-	elseif request.op == "ReviewRemove" and target then
-		local removed = NameReview.remove(target)
-		if removed == nil then
-			return ReportReason.ReviewFailed
+	elseif request.op == "ReviewRemove" and target and name then
+		local _entry: string?, why: NameReview.Failure? = NameReview.remove(target, name)
+		failure = why
+		if failure == nil then
+			print(`[270] admin {id} removed the name of {target}`)
 		end
-		print(`[270] admin {id} removed the name of {target}`)
 	end
+	-- The list again either way, so a changed entry shows as it is now.
 	sendReview(id)
 	if matchOf[id] == nil then
 		sendLobby(id)
+	end
+	if failure == "Changed" then
+		return ReportReason.ReviewChanged
+	elseif failure == "Failed" then
+		return ReportReason.ReviewFailed
 	end
 	return nil
 end
@@ -604,6 +679,10 @@ local function startMatch(outcome: Lobby.Outcome)
 		return
 	end
 	sessions[matchId] = session
+	-- An id for the result unique across servers, so it is applied once (Profile.settle).
+	local job = if game.JobId == "" then "studio" else game.JobId
+	resultIds[matchId] = `{job}/{matchId}/{seed}`
+	local pairCapped = false
 	if outcome.kind == "Match" then
 		-- Rated only if every player's saved rating is loaded and writable now.
 		local ratings: { [string]: number } = {}
@@ -613,8 +692,20 @@ local function startMatch(outcome: Lobby.Outcome)
 				ratings[id] = rating
 			end
 		end
-		if #outcome.players == 2 and ratings[outcome.players[1]] and ratings[outcome.players[2]] then
-			ratingsAtStart[matchId] = ratings
+		local a, b = outcome.players[1], outcome.players[2]
+		if #outcome.players == 2 and ratings[a] and ratings[b] then
+			-- At most RATED_PAIR_DAILY_MAX rated games a day for one pair (D-075).
+			local t = os.time()
+			local played = math.max(
+				Profile.ratedGamesWith(DataService.profile(a), b, t, config),
+				Profile.ratedGamesWith(DataService.profile(b), a, t, config)
+			)
+			if played >= config.RATED_PAIR_DAILY_MAX then
+				print(`[270] match {matchId} is unrated: this pair played {played} rated games in a day`)
+				pairCapped = true
+			else
+				ratingsAtStart[matchId] = ratings
+			end
 		else
 			print(`[270] match {matchId} is unrated: a player's saved data is not available`)
 		end
@@ -627,6 +718,11 @@ local function startMatch(outcome: Lobby.Outcome)
 	local against = if outcome.kind == "Practice" then `, bot {Bot.difficulty(outcome.difficulty)}` else ""
 	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
 	flush(session)
+	if pairCapped then
+		for _, id in outcome.players do
+			Replication.send(id, { kind = "Notice", notice = "MatchUnrated" })
+		end
+	end
 	task.spawn(shareNames, session)
 end
 
@@ -776,6 +872,15 @@ function MatchService.start()
 			return if profile and profile.games > 0 then profile.rating else nil
 		end,
 	})
+	-- Results another server left for a player here were merged into their profile.
+	DataService.onResult(function(id: string, change: Profile.Change)
+		if change.rated then
+			LeaderboardService.record(id, change.after)
+		end
+		if matchOf[id] == nil then
+			sendLobby(id)
+		end
+	end)
 	DataService.onLoaded(function(id: string)
 		if matchOf[id] == nil then
 			sendLobby(id)
@@ -862,6 +967,7 @@ function MatchService.start()
 		approvedNames[id] = nil
 		shownTo[id] = nil
 		reports[id] = nil
+		lastRequest[id] = nil
 		NameEligibility.forget(player)
 		Admins.forget(player)
 		NameService.forget(player)

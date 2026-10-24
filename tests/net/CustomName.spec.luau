@@ -329,3 +329,97 @@ describe("NameBlocklist (server-only, D-069)", function()
 		end
 	end)
 end)
+
+describe("Custom names: the reviewed blocklist matches whole words (D-076)", function()
+	it(
+		"a removed name blocks itself and names with it as whole words, never names that contain it",
+		function()
+			local entry = CustomName.reviewEntry("Captain Zed")
+			expect(entry):toBe("=captain zed")
+			local list = { entry, CustomName.reviewEntry("Ann") }
+			for _, name in
+				{ "Captain Zed", "CAPTAIN  ZED", "CaptainZed", "Captain Zed Jr", "Ann", "Ann Marie" }
+			do
+				check(CustomName.blockedReviewed(name, list, C), `{name} is not blocked`)
+			end
+			for _, name in { "Captain Zeb", "Hannah", "Joanna", "Annabel", "Captain Zedd" } do
+				check(not CustomName.blockedReviewed(name, list, C), `{name} is blocked`)
+			end
+		end
+	)
+
+	it("an older entry without = matches the exact folded name only", function()
+		local list = { "captainzed" }
+		check(CustomName.blockedReviewed("Captain Zed", list, C), "the exact name is not blocked")
+		check(not CustomName.blockedReviewed("Captain Zeb", list, C), "one edit away is blocked")
+		check(not CustomName.blockedReviewed("The Captain Zed", list, C), "a longer name is blocked")
+	end)
+
+	it("tells the exact removed name from one that only contains it", function()
+		local list = { CustomName.reviewEntry("Ann") }
+		expect(CustomName.reviewedExact("ANN", list)):toBe(true)
+		expect(CustomName.reviewedExact("Ann Marie", list)):toBe(false)
+		expect(CustomName.reviewedExact("Captain Zed", { "captainzed" })):toBe(true)
+	end)
+end)
+
+describe("Profile: results applied once, rated pairs, the report count", function()
+	it("settles a result once by its id", function()
+		local profile = Profile.new(C)
+		local result: Profile.Result =
+			{ at = 100, reason = "Forfeit", rated = true, won = false, opponentRating = 1000, opponent = "2" }
+		local once, change, applied = Profile.settle(profile, "job/m1/7", result, C)
+		expect(applied):toBe(true)
+		expect(change.after):toBe(984)
+		local twice, _, again = Profile.settle(once, "job/m1/7", result, C)
+		expect(again):toBe(false)
+		expect(twice.rating):toBe(984)
+		expect(twice.losses):toBe(1)
+	end)
+
+	it("counts rated games per opponent inside the window", function()
+		local profile = Profile.new(C)
+		for k = 1, 3 do
+			local result: Profile.Result = {
+				at = 1000 * k,
+				reason = "Election",
+				rated = true,
+				won = true,
+				opponentRating = 1000,
+				opponent = "2",
+			}
+			profile = Profile.settle(profile, `m{k}`, result, C)
+		end
+		expect(Profile.ratedGamesWith(profile, "2", 3500, C)):toBe(3)
+		expect(Profile.ratedGamesWith(profile, "3", 3500, C)):toBe(0)
+		expect(Profile.ratedGamesWith(profile, "2", 1000 + C.RATED_PAIR_WINDOW + 1, C)):toBe(2)
+		local copy = Profile.migrate(profile, C)
+		expect(Profile.ratedGamesWith(copy, "2", 3500, C)):toBe(3)
+	end)
+
+	it("keeps the report count across visits and starts a new window after it", function()
+		local profile = Profile.new(C)
+		for _ = 1, C.NAME_REPORTS_PER_DAY do
+			check(Profile.canReport(profile, 50, C), "turned down too early")
+			profile = Profile.withReport(profile, 50, C)
+		end
+		expect(Profile.canReport(profile, 60, C)):toBe(false)
+		expect(Profile.canReport(Profile.migrate(profile, C), 60, C)):toBe(false)
+		expect(Profile.canReport(profile, 50 + C.NAME_REPORT_WINDOW, C)):toBe(true)
+	end)
+
+	it("cleans a stored pending list", function()
+		local list = Profile.cleanPending({
+			{
+				id = "a",
+				result = { at = 1, reason = "Forfeit", rated = true, won = false, opponentRating = 1000 },
+			},
+			{ id = "b", result = { at = "soon", reason = "Forfeit", rated = true, won = false } },
+			"junk",
+			{ id = 5, result = {} },
+		})
+		expect(#list):toBe(1)
+		expect(list[1].id):toBe("a")
+		expect(#Profile.cleanPending("junk")):toBe(0)
+	end)
+end)
