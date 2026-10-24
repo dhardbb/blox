@@ -729,6 +729,9 @@ local EVENTS = {
 	InputBegan = true,
 	InputEnded = true,
 	MouseLeave = true,
+	MouseEnter = true,
+	SelectionGained = true,
+	SelectionLost = true,
 	Ended = true,
 }
 
