@@ -21,6 +21,7 @@ local Fixtures = require(Shared.UI.Fixtures)
 
 local _DebugPanel = require(script.Parent.DebugPanel) -- builds the hidden debug panel
 local Audio = require(script.Parent.UI.Audio)
+local FoundPrompt = require(script.Parent.UI.FoundPrompt)
 local Kit = require(script.Parent.UI.Kit)
 local Help = require(script.Parent.UI.Help)
 local LeaveMatch = require(script.Parent.UI.LeaveMatch)
@@ -236,6 +237,15 @@ if type(fixture) == "string" then
 	fakeNet.forfeit = function()
 		print("[270] DEBUG_UI forfeit")
 	end
+	fakeNet.answer = function(accept: boolean)
+		print("[270] DEBUG_UI answer", accept)
+	end
+	fakeNet.rematch = function()
+		print("[270] DEBUG_UI rematch")
+	end
+	fakeNet.invite = function(code: string)
+		print("[270] DEBUG_UI invite", code)
+	end
 	ctx.net = fakeNet
 	if fixture == "Lobby" then
 		Store.setLobby(Fixtures.lobby("Idle"))
@@ -254,6 +264,10 @@ if type(fixture) == "string" then
 else
 	Net.start()
 end
+
+-- "Opponent found! Leave this bot game?" (D-080): over any screen while a
+-- bot game is played in the queue; the same layer as Leave.
+FoundPrompt.mount(background, ctx)
 
 -- Load the sound cues in the background (never waits).
 Audio.preload()

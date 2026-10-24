@@ -6,6 +6,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Leaderboard = require(ReplicatedStorage.Shared.Net.Leaderboard)
+local Rematch = require(ReplicatedStorage.Shared.Net.Rematch)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
@@ -28,6 +29,7 @@ export type State = {
 	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: Remotes.ReviewBoard?, -- admins: the reported names, as last sent (D-069)
+	rematch: Rematch.Status?, -- where a rematch of the last match stands (D-080)
 }
 
 local Store = {}
@@ -45,6 +47,7 @@ local state: State = {
 	leaderboard = nil,
 	leaving = nil,
 	review = nil,
+	rematch = nil,
 }
 local listeners: { (State) -> () } = {}
 
@@ -127,6 +130,11 @@ end
 
 function Store.setReview(board: Remotes.ReviewBoard)
 	state.review = board
+	changed()
+end
+
+function Store.setRematch(status: Rematch.Status)
+	state.rematch = status
 	changed()
 end
 

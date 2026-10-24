@@ -54,7 +54,7 @@ describe("Results tabs", function()
 		Rig.tap(world, peer, "Results", "Tab_Summary")
 		check(Rig.shown(Rig.need(peer, "Results", "Banner"), "Results"), "back to Summary failed")
 		check(
-			Rig.need(peer, "Results", "PlayAgain"):GetAttribute("PrimaryAction") == true,
+			Rig.need(peer, "Results", "Rematch"):GetAttribute("PrimaryAction") == true,
 			"a tab took the primary"
 		)
 		Rig.noErrors(world)

@@ -28,6 +28,7 @@ export type State = {
 	leaderboard: any?, -- Net/Leaderboard.Board, the global leaderboard (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: any?, -- Remotes.ReviewBoard: admins' reported names (D-069)
+	rematch: any?, -- Rematch.Status: where a rematch of the last match stands (D-080)
 }
 
 export type Net = {
@@ -42,6 +43,9 @@ export type Net = {
 	bank: () -> (),
 	skip: () -> (),
 	forfeit: (() -> ())?, -- leave the current match and lose it (D-059)
+	answer: ((accept: boolean) -> ())?, -- answer "Opponent found! Leave this bot game?" (D-080)
+	rematch: (() -> ())?, -- Results: play the same opponent again (D-080)
+	invite: ((code: string) -> ())?, -- Roblox's invite prompt carrying a private code (D-080); yields
 	reasonText: (reason: string?) -> string,
 }
 

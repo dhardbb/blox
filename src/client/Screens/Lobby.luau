@@ -30,6 +30,11 @@
 -- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, CornerSettings
 -- (SoundToggle, MotionToggle, SettingsTip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet.
+--
+-- Matchmaking (D-080, UI/LobbyMatch): the Online count under the record, a
+-- bot game while waiting in the queue (WaitBot), "Invite a friend" in the
+-- friend sheet and on the code screen (Invite, InviteHost), and the match on
+-- its way (state "Found": the Starting section with FoundHint, FoundCancel).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -38,6 +43,9 @@ local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local BotLevel = require(script.Parent.Parent.UI.BotLevel)
 local ColorPick = require(script.Parent.Parent.UI.ColorPick)
 local HowTo = require(script.Parent.Parent.UI.HowTo)
+local LobbyMatch = require(script.Parent.Parent.UI.LobbyMatch)
+local MatchWords = require(ReplicatedStorage.Shared.UI.Words.Matchmaking)
+local Online = require(ReplicatedStorage.Shared.Net.Online)
 local NameReview = require(script.Parent.Parent.UI.NameReview)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
@@ -107,6 +115,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
 	})
+	local onlineOrder = nextOrder() -- the Online line (UI/LobbyMatch, D-080)
 	local fullBanner = Kit.text("Server full. Try again in a minute.", {
 		Name = "ServerFull",
 		LayoutOrder = nextOrder(),
@@ -143,7 +152,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Mounted last (below) so it draws over the column; built first so the
 	-- buttons can open it.
-	local friend = Sheet.new(parent, { title = "Play a friend", name = "FriendSheet", height = 0.42 })
+	local friend = Sheet.new(parent, { title = "Play a friend", name = "FriendSheet", height = 0.56 })
 
 	-- A local problem (a malformed code) shows in the global toast like a rejection.
 	local function complain(text: string)
@@ -320,13 +329,24 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	Kit.button("Cancel", function()
 		ctx.net.send("Leave")
-	end, { variant = "danger", Name = "Cancel", LayoutOrder = 5, Parent = waiting })
+	end, { variant = "danger", Name = "Cancel", LayoutOrder = 6, Parent = waiting })
 
-	Kit.heading("Match found. Starting…", {
+	local startingText = Kit.heading("Match found. Starting…", {
 		Name = "StartingText",
 		AutomaticSize = Enum.AutomaticSize.Y,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = starting,
+	})
+	local matchParts = LobbyMatch.new(ctx, {
+		content = content,
+		onlineOrder = onlineOrder,
+		waiting = waiting,
+		waitingOrder = 5,
+		startingText = startingText,
+		sheetBody = friend.body,
+		closeSheet = function()
+			friend:close()
+		end,
 	})
 
 	local cardShadow: ImageLabel? = nil -- the card's shadow while it stands beside the column
@@ -374,7 +394,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		idle.Visible = status == "Idle"
 		waiting.Visible = status == "Queued" or status == "Hosting"
-		starting.Visible = status == "InMatch"
+		starting.Visible = status == "InMatch" or status == "Found"
 		colorPick.update(lobby)
 		review.update(lobby, state.review)
 		board.update(state.leaderboard)
@@ -392,9 +412,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			waitingTitle.TextSize = Kit.size.heading
 			waitingTitle.Font = Kit.font.bold
 			waitingTitle.TextColor3 = Kit.colors.text
-			waitingHint.Text = if count > 1
-				then `{count} players waiting`
-				else "You'll start as soon as someone joins."
+			local online = if lobby and type(lobby.online) == "number" then Online.text(lobby.online) else nil
+			waitingHint.Text = MatchWords.queueHint(online, count)
 			waitingNow.Visible = false
 			codeWell.Visible = false
 		elseif status == "Hosting" then
@@ -409,6 +428,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			waitingNow.Text = Words.HOSTING_WAIT
 			waitingNow.Visible = true
 		end
+		matchParts.update(state)
 	end
 
 	-- Arrive top to bottom: the hero pops, then each line fades in.
@@ -432,8 +452,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	return {
 		update = update,
-		tick = function(_now: number)
+		tick = function(now: number)
 			relayout()
+			matchParts.tick(now)
 		end,
 		destroy = function() end,
 	}
