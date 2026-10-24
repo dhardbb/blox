@@ -13,6 +13,7 @@ local FakeRoblox = require("@testlib/FakeRoblox")
 local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
 local State = require("@sim/State")
+local Swing = require("@ui/Swing")
 local Test = require("@testlib/Test")
 local Words = require("@ui/Words/Reveal")
 
@@ -161,14 +162,20 @@ describe("Explained: the help overlay", function()
 	end
 
 	for _, size in SIZES do
-		it(`keeps the Campaign and Decision moments strict with the help button ({size.name})`, function()
-			for _, moment in { "Plan", "Stance", "ChoiceWeek", "Resolve", "Focus", "Debate" } do
-				local world, peer = Rig.fixture(moment, size.screen)
-				local screen = if moment == "Stance" or moment == "Focus" then "Decision" else "Campaign"
-				local problems = strict(world, peer, screen)
-				check(#problems == 0, `{moment}: ` .. table.concat(problems, "; "))
+		it(
+			`keeps the Campaign, Decision and Debate moments strict with the help button ({size.name})`,
+			function()
+				for _, moment in { "Plan", "Stance", "ChoiceWeek", "Resolve", "DebateRound", "Clash" } do
+					local world, peer = Rig.fixture(moment, size.screen)
+					local screen = if moment == "Stance"
+						then "Decision"
+						elseif moment == "DebateRound" or moment == "Clash" then "Debate"
+						else "Campaign"
+					local problems = strict(world, peer, screen)
+					check(#problems == 0, `{moment}: ` .. table.concat(problems, "; "))
+				end
 			end
-		end)
+		)
 	end
 end)
 
@@ -193,22 +200,16 @@ describe("Explained: events and debates", function()
 		Rig.noErrors(world)
 	end)
 
-	it("splits each debate topic into focus, platform, stat and roll", function()
-		local world, peer = Rig.fixture("Debate", nil)
-		FakeRoblox.run(world, 8)
+	it("explains each debate move's strength in parts behind Why? (D-062)", function()
+		local world, peer = Rig.fixture("DebateRound", nil)
 		local view = Rig.payloadOf(world, peer).view
-		local result = view.debates[#view.debates]
-		for t = 1, #result.topics do
-			expect(textOf(peer, `DebateParts{t}`)):toBe(Explain.debateLine(C, view, result, t))
+		tap(world, peer, "Debate", "WhyToggle")
+		local board = Swing.debateBoard(C, view) :: Swing.DebateBoard
+		for _, row in board.rows do
+			local label = Rig.need(peer, "Debate", `Why{row.move}`)
+			check(Rig.shown(label, "Debate"), `Why{row.move} is hidden`)
+			check(Rig.contains(label.Text, `{row.move} {row.strength} =`), label.Text)
 		end
-		Rig.noErrors(world)
-	end)
-
-	it("shows what a focus on each topic gives: the fixed score and the roll", function()
-		local world, peer = Rig.fixture("Focus", nil)
-		local text = Rig.textOf(peer, "Decision", "FocusOdds1")
-		check(Rig.contains(text, "Focus here:"), text)
-		check(Rig.contains(text, `roll 0 to {C.DEBATE_ROLL_MAX}`), text)
 		Rig.noErrors(world)
 	end)
 end)

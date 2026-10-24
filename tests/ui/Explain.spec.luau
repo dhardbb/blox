@@ -334,45 +334,31 @@ describe("Explain labels", function()
 end)
 
 describe("Explain: debates, Choice events, election night", function()
-	it("gives exact debate odds for an edge", function()
-		local win, tie, lose = Explain.debateOdds(C, 0)
-		local faces = C.DEBATE_ROLL_MAX + 1
-		near(tie, faces / (faces * faces), "even tie")
-		near(win, lose, "even is fair")
-		near(win + tie + lose, 1, "odds add up")
-		local win2 = Explain.debateOdds(C, 2)
-		check(win2 > win, "an edge helps")
-	end)
-
-	it("splits a debate score into focus, platform, stat and roll (D-044)", function()
+	it("splits a debate round's score into the move's strength and the counter (D-062)", function()
 		local view = ohio()
 		local me, them = view.you, if view.you == 1 then 2 else 1
-		local prep = { {}, {} } :: { { number } }
-		local scores = { {}, {} } :: { { number } }
-		prep[me], prep[them] = { C.DEBATE_FOCUS, 0, 0 }, { 0, C.DEBATE_FOCUS, 0 }
-		-- Jobs is on your platform and your focus: focus + 2 platform + 1 stat + roll 3.
-		scores[me] = { C.DEBATE_FOCUS + C.DEBATE_PLATFORM_BONUS + C.DEBATE_STAT + 3, 0, 0 }
-		scores[them] = { C.DEBATE_STAT + 5 - C.DEBATE_ROLL_MAX + 1, 0, 0 }
+		local picks, canned, zingers, strengths, scores = {}, {}, {}, {}, {}
+		picks[me], picks[them] = "Defend", "Attack"
+		canned[me], canned[them] = false, false
+		zingers[me], zingers[them] = true, false
+		strengths[me], strengths[them] = 6, 5
+		scores[me], scores[them] = 6 + C.DEBATE_COUNTER[1], 5
 		local result = {
 			week = 4,
 			topics = { "Jobs", "Safety", "Farms" },
-			focus = { 1, 2 },
-			prep = prep,
-			scores = scores,
-			winners = {},
-			national = {},
+			scores = {},
+			rounds = {
+				{ picks = picks, canned = canned, zingers = zingers, strengths = strengths, scores = scores },
+			},
 		}
 		local mine = Explain.debateParts(C, view, result :: any, me, 1)
-		expect(mine.roll):toBe(3)
-		expect(mine.prep):toBe(C.DEBATE_FOCUS)
-		expect(mine.platform):toBe(C.DEBATE_PLATFORM_BONUS)
-		local theirs = Explain.debateParts(C, view, result :: any, them, 1)
-		expect(theirs.prep):toBe(0)
-		expect(theirs.platform):toBe(0)
+		expect(mine.move):toBe("Defend")
+		expect(mine.strength):toBe(6)
+		expect(mine.counter):toBe(C.DEBATE_COUNTER[1])
+		expect(mine.zinger):toBe(true)
 		local line = Explain.debateLine(C, view, result :: any, 1)
-		has(line, `you {C.DEBATE_FOCUS} focus + {C.DEBATE_PLATFORM_BONUS} platform`)
-		has(line, "roll 3")
-		has(line, `them {C.DEBATE_STAT} stat + roll`)
+		has(line, `you Defend 6 + {C.DEBATE_COUNTER[1]} counter = {6 + C.DEBATE_COUNTER[1]} (Zinger staked)`)
+		has(line, "them Attack 5")
 	end)
 
 	it("shows every stance of a Choice event and the states it moves (D-039, D-043)", function()
@@ -430,21 +416,21 @@ describe("Explain.help", function()
 		end
 		local text = table.concat(all, "\n")
 		has(text, Numbers.cost(C.FLIGHT_COST))
-		has(text, `0 to {C.DEBATE_ROLL_MAX}`)
-		has(text, Numbers.signed(C.DEBATE_TOPIC_WIN))
+		has(text, `the counter adds +{C.DEBATE_COUNTER[1]} in round 1`)
+		has(text, Numbers.signed(C.DEBATE_ROUND_WIN))
 		has(text, Numbers.signed(C.STANCE_POINTS))
 		has(text, `{Numbers.signed(C.GOTV_PER_UNIT)}`)
 	end)
 
 	it("follows a changed Config", function()
-		local changed = Config.with(C, { FLIGHT_COST = 7, DEBATE_ROLL_MAX = 9, STANCE_POINTS = 0.7 })
+		local changed = Config.with(C, { FLIGHT_COST = 7, DEBATE_REPEAT = 9, STANCE_POINTS = 0.7 })
 		local text = {}
 		for _, section in Explain.help(changed, nil) do
 			table.insert(text, table.concat(section.lines, "\n"))
 		end
 		local all = table.concat(text, "\n")
 		has(all, "$7.0")
-		has(all, "0 to 9")
+		has(all, "last round: -9")
 		has(all, "+0.7")
 	end)
 

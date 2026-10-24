@@ -17,8 +17,9 @@
 -- trailing state its bonus, each within EVENT_CAP per state. In a Decision phase
 -- (D-044) a Choice event's stance is the one whose public per-state effects
 -- (Events.stanceEffects) are worth the most expected EV on this bot's map
--- (Bot.choose, D-039); the debate focus goes on the topic whose states cover
--- the most EV this bot needs (Bot.focus, D-040, D-044). A
+-- (Bot.choose, D-039). In a debate round (D-062) it plays the move whose worst
+-- outcome is best on its map, and stakes its Zinger where a likely win lands
+-- on the states worth the most (Bot.debate). A
 -- candidate who previews next week's event (View.nextEvent) ends the route in a
 -- coming Regional's region.
 --
@@ -33,16 +34,17 @@
 -- Difficulty (practice mode, D-057): Medium is the Balanced style, unchanged.
 -- Easy misjudges: every plan it weighs each state's worth by a random factor
 -- (BOT_EASY_NOISE), drafts on a noisier read, and slips into a random debate
--- focus or stance half the time (BOT_EASY_SLIP). Hard and Extreme see exactly
+-- move or stance half the time (BOT_EASY_SLIP). Hard and Extreme see exactly
 -- what Medium sees, the View, and use it better: they predict the opponent's
 -- plan by running the standard bot from the opponent's side of the public board
 -- (their cash guessed from its money bracket) and count it against this week's
 -- margins (BOT_HARD_FORESIGHT); they value a state by how much it moves the
--- chance of reaching 270, not expected EV alone (BOT_HARD_WIN_CHANCE); and they
--- focus on the debate topic that moves the odds most against the opponent's
--- likely focus (Debate.odds, BOT_FOCUS_READ). Extreme is Hard with the win-chance weight
+-- chance of reaching 270, not expected EV alone (BOT_HARD_WIN_CHANCE); and in a
+-- debate round they best-reply to the move the standard bot would play from the
+-- opponent's side (BOT_DEBATE_READ). Extreme is Hard with the win-chance weight
 -- pushed three times as far: it defends the close states it leads harder when
--- ahead and reaches further for the ones it trails when behind.
+-- ahead and reaches further for the ones it trails when behind; in debates it
+-- also reads the opponent's own past moves (BOT_EXTREME_HISTORY).
 
 local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
@@ -71,8 +73,11 @@ export type Style =
 	| "NeverPoll" -- never buys internal polls
 	| "Sandbag" -- stops investing in a state once it estimates a lead over +4
 	| "RandomStance" -- the standard bot, but takes a random stance on Choice events (the skill check for D-039)
-	| "RandomFocus" -- the standard bot, but focuses on a random debate topic (the skill check for D-044)
-	| "NoFocus" -- the standard bot, but never sends a debate focus (the timeout default: what the focus is worth, D-044)
+	| "RandomMove" -- the standard bot, but random debate moves and a random Zinger round (the skill check for D-062)
+	| "NoAnswer" -- the standard bot, but never answers a debate round (the canned answer: what a timeout costs, D-062)
+	| "AlwaysDefend" -- the standard bot, but always Defends in a debate (no move may dominate, D-062)
+	| "AlwaysAttack" -- the standard bot, but always Attacks in a debate
+	| "AlwaysPivot" -- the standard bot, but always Pivots in a debate
 	| "TopIssues" -- the standard bot, but runs on the three highest-EV issues (the niche check for D-047)
 	| "NicheIssues" -- the standard bot, but runs on the three lowest-EV issues (the niche check for D-047)
 	| "Easy" -- practice difficulty Easy (D-057)
@@ -948,137 +953,329 @@ function Bot.choose(
 	return best
 end
 
--- Expected EV of winning topic t for `view.you`: the topic's states (where the
--- win lands DEBATE_TOPIC_WIN) plus the flat national part everywhere; and what a
--- gaffe there would cost.
-function Bot.topicValue(
+-- ---------------------------------------------------------------- debates
+
+-- Debate rounds (D-062). Each cell of the round's 3x3 table (my move, their
+-- move) is valued first by the result (+1 a win, 0 a split, -1 a loss: reading
+-- the board is the skill) and then, at most DEBATE_WORTH_SHARE of a result, by
+-- what its map effects are worth on this bot's estimates: a point of support
+-- in a state is worth EV x closeness (marginValue), a gain buys margin through
+-- the normal split, gains of theirs and backfires of mine count against it.
+-- Pure on the View.
+local DEBATE_WORTH_SHARE = 0.5 -- the map's share of a cell's value, next to the result's 1 (a bot heuristic, not a rule)
+
+-- Expected EV one support point (as a gain) is worth in `issue`'s states, and
+-- as a loss.
+local function issueWorth(
 	config: Config,
 	issueMap: IssueMap.IssueMap,
 	estimates: { Estimate },
-	topic: Types.Issue
+	issue: Types.Issue
 ): (number, number)
-	local win, gaffe = 0, 0
+	local gain, loss = 0, 0
 	for i, record in StateData.list do
-		local e = estimates[i]
-		local worth = marginValue(e, record.ev)
-		win += worth * marginFromGain(config, e, config.DEBATE_TOPIC_NATIONAL)
-		if table.find(issueMap[i], topic) then
-			win += worth * marginFromGain(config, e, config.DEBATE_TOPIC_WIN)
-			gaffe += worth * config.DEBATE_GAFFE
+		if table.find(issueMap[i], issue) then
+			local e = estimates[i]
+			local worth = marginValue(e, record.ev)
+			gain += worth * marginFromGain(config, e, 1)
+			loss += worth
 		end
 	end
-	return win, gaffe
+	return gain, loss
 end
 
--- The debate focus (D-044): the topic whose states cover the most EV this bot
--- needs, i.e. the most expected EV a topic win is worth on its map
--- (Bot.topicValue); ties go to the first topic. Random and RandomFocus pick
--- uniformly.
-function Bot.focus(
+type Cells = { { number } } -- [my move][their move], MOVES order
+
+-- The value of every cell for player `me` against `them` on `board`, with my
+-- win counted `mult` times (a staked Zinger).
+local function debateCells(
 	config: Config,
-	view: View,
-	rng: Rng.Rng,
-	estimates: { Estimate }?,
-	style: Style?
-): Types.Issue?
-	local topics = view.nextDebate and view.nextDebate.topics
-	if topics == nil or #topics == 0 then
-		return nil
+	issueMap: IssueMap.IssueMap,
+	estimates: { Estimate },
+	board: Debate.Board,
+	me: number,
+	them: number,
+	mult: number
+): Cells
+	local cells: Cells = {}
+	local worth: { [string]: { number } } = {}
+	local function w(issue: Types.Issue): { number }
+		local cached = worth[issue]
+		if cached == nil then
+			local gain, loss = issueWorth(config, issueMap, estimates, issue)
+			cached = { gain, loss }
+			worth[issue] = cached
+		end
+		return cached
 	end
-	if
-		style == "Random"
-		or style == "RandomFocus"
-		or (style == "Easy" and Rng.nextFloat(rng) < config.BOT_EASY_SLIP)
-	then
-		return topics[Rng.nextInt(rng, 1, #topics)]
+	local worths: { { number } } = {}
+	local results: { { number } } = {}
+	local biggest = 0
+	for a = 1, #Debate.MOVES do
+		local mine: Types.DebateMove = Debate.MOVES[a]
+		worths[a], results[a] = {}, {}
+		local myLanding = w(Debate.landing(board, me, mine))
+		for b = 1, #Debate.MOVES do
+			local theirs: Types.DebateMove = Debate.MOVES[b]
+			local theirLanding = w(Debate.landing(board, them, theirs))
+			local m = Debate.versus(config, board, me, mine, them, theirs)
+			local value
+			if m > 0 then
+				value = config.DEBATE_ROUND_WIN * mult * myLanding[1]
+				if Debate.BEATS[mine] == theirs then
+					value += config.DEBATE_BACKFIRE * theirLanding[2]
+				end
+			elseif m < 0 then
+				value = -config.DEBATE_ROUND_WIN * theirLanding[1]
+				if Debate.BEATS[theirs] == mine then
+					value -= config.DEBATE_BACKFIRE * myLanding[2]
+				end
+			else
+				value = config.DEBATE_ROUND_SPLIT * (myLanding[1] - theirLanding[1])
+			end
+			worths[a][b] = value
+			results[a][b] = if m > 0 then 1 elseif m < 0 then -1 else 0
+			biggest = math.max(biggest, math.abs(value))
+		end
 	end
-	local es = estimates or buildEstimates(config, view)
-	if style == "Hard" or style == "Extreme" then
-		return Bot.readFocus(config, view, es, topics)
+	for a = 1, #Debate.MOVES do
+		cells[a] = {}
+		for b = 1, #Debate.MOVES do
+			local share = if biggest > 0 then worths[a][b] / biggest else 0
+			cells[a][b] = results[a][b] + DEBATE_WORTH_SHARE * share
+		end
 	end
-	local best: Types.Issue, bestValue = topics[1], -math.huge
-	for k = 1, #topics do
-		local topic: Types.Issue = topics[k]
-		local value = Bot.topicValue(config, view.issueMap, es, topic)
-		if value > bestValue then
-			best, bestValue = topic, value
+	return cells
+end
+
+-- The move with the best worst cell, then the best average (ties in MOVES order).
+local function maximin(cells: Cells): number
+	local best, bestWorst, bestSum = 1, -math.huge, -math.huge
+	for a = 1, #cells do
+		local worst, sum = math.huge, 0
+		for _, v in cells[a] do
+			worst = math.min(worst, v)
+			sum += v
+		end
+		if worst > bestWorst + 1e-9 or (math.abs(worst - bestWorst) <= 1e-9 and sum > bestSum + 1e-9) then
+			best, bestWorst, bestSum = a, worst, sum
 		end
 	end
 	return best
 end
 
--- Hard and up (D-057): the focus that most improves the expected worth of the
--- whole debate, Σ worth(t) x (P(win t) - P(lose t)) over its topics, with each
--- topic's odds from both sides' fixed scores (Debate.odds). The opponent's focus
--- is unknown: BOT_FOCUS_READ of the weight goes on the topic the standard bot
--- would pick from their side, the rest is spread evenly. A topic the opponent
--- wins costs about what winning it is worth, so one worth serves both.
-function Bot.readFocus(
+-- The move with the best expected cell against `weights` over their moves.
+local function bestReply(cells: Cells, weights: { number }): number
+	local best, bestValue = 1, -math.huge
+	for a = 1, #cells do
+		local value = 0
+		for b, v in cells[a] do
+			value += weights[b] * v
+		end
+		if value > bestValue + 1e-9 then
+			best, bestValue = a, value
+		end
+	end
+	return best
+end
+
+-- The board of a later round of this debate, as far as public facts tell today
+-- (no history, today's polls and crowd). Used to judge where a Zinger pays most.
+local function laterBoard(config: Config, view: View, round: number): Debate.Board?
+	local live = view.debate
+	if live == nil or live.topics[round] == nil then
+		return nil
+	end
+	local platforms: { { Types.Issue } } = {}
+	local mults: { number } = {}
+	for p, player in view.players do
+		platforms[p] = player.platform or {}
+		mults[p] = profileOf(config, view, p).zingerMult
+	end
+	local polls = {}
+	for i, s in view.states do
+		polls[i] = s.poll
+	end
+	return Debate.boardFrom(config, {
+		week = live.week,
+		round = round,
+		topic = live.topics[round],
+		issueMap = view.issueMap,
+		platforms = platforms,
+		polls = polls,
+		crowd = live.crowd,
+		zingers = live.zingers,
+		zingerMults = mults,
+		last = {},
+	})
+end
+
+-- What staking the Zinger on `move` this round is worth: the chance it wins
+-- (against `weights` over their moves) times the extra map effect a win gets.
+local STAKE_FLOOR = 0.5 -- a stake's value counts at least this share of where it lands, whatever the chance (a bot heuristic)
+
+local function stakeValue(
 	config: Config,
 	view: View,
 	estimates: { Estimate },
-	topics: { Types.Issue }
-): Types.Issue
+	board: Debate.Board,
+	move: number,
+	weights: { number }
+): number
 	local me, them = view.you, opponentOf(view)
-	local mine, theirs = profileOf(config, view, me), profileOf(config, view, them)
-	local myPlatform: { Types.Issue } = view.players[me].platform or {}
-	local theirPlatform: { Types.Issue } = view.players[them].platform or {}
-	local worth = table.create(#topics, 0)
-	for t = 1, #topics do
-		local topic: Types.Issue = topics[t]
-		worth[t] = Bot.topicValue(config, view.issueMap, estimates, topic)
-	end
-	-- Where the standard bot on their side would focus: it reads the same public
-	-- polls, so the same closeness, and picks the topic worth the most.
-	local predicted, best = 1, -math.huge
-	for t in topics do
-		if worth[t] > best then
-			predicted, best = t, worth[t]
+	local chance = 0
+	local mine: Types.DebateMove = Debate.MOVES[move]
+	for b = 1, #Debate.MOVES do
+		local theirs: Types.DebateMove = Debate.MOVES[b]
+		if Debate.versus(config, board, me, mine, them, theirs) > 0 then
+			chance += weights[b]
 		end
 	end
-	local function fixed(
-		profile: Candidates.Profile,
-		platform: { Types.Issue },
-		topic: Types.Issue,
-		focus: boolean
-	)
-		return (if focus then profile.focusEdge else 0)
-			+ (if table.find(platform, topic) then config.DEBATE_PLATFORM_BONUS else 0)
-			+ profile.debateStat
-	end
-	local choice: Types.Issue, choiceValue = topics[1], -math.huge
-	for f in topics do
-		local value = 0
-		for g in topics do
-			local weight = (1 - config.BOT_FOCUS_READ) / #topics
-				+ (if g == predicted then config.BOT_FOCUS_READ else 0)
-			for t = 1, #topics do
-				local topic: Types.Issue = topics[t]
-				local edge = fixed(mine, myPlatform, topic, t == f)
-					- fixed(theirs, theirPlatform, topic, t == g)
-				local win, _, lose = Debate.odds(config, edge)
-				value += weight * worth[t] * (win - lose)
-			end
-		end
-		if value > choiceValue then
-			choice, choiceValue = topics[f], value
-		end
-	end
-	return choice
+	local gain = issueWorth(config, view.issueMap, estimates, Debate.landing(board, me, mine))
+	-- Where it lands counts most (the states this bot needs); the chance of a win tilts it.
+	return (STAKE_FLOOR + (1 - STAKE_FLOOR) * chance) * gain * (board.players[me].zingerMult - 1)
 end
 
--- A Decision phase (D-044): the debate focus right before the debate, or this
--- week's stance. Every style decides the same way except Random (both uniform),
--- RandomFocus (Bot.focus) and RandomStance (Bot.choose); NoFocus sends nothing
--- for the focus, so the server's default (no focus) applies.
-function Bot.decide(config: Config, view: View, rng: Rng.Rng, style: Style?): any
-	if view.decision == "Focus" and style == "NoFocus" then
+local EVEN = { 1 / 3, 1 / 3, 1 / 3 }
+
+-- Stake the Zinger now? Yes in the last round; otherwise when this round's
+-- stake is worth the most of this and every later round (later ones judged on
+-- today's facts against an even opponent). Rounds that tie (a Pivot often lands
+-- on the same issue every round) share the stake evenly, by this bot's own rng.
+local function stakeNow(
+	config: Config,
+	view: View,
+	estimates: { Estimate },
+	board: Debate.Board,
+	move: number,
+	weights: { number },
+	rng: Rng.Rng
+): boolean
+	local live = view.debate :: ViewModule.DebateView
+	local me = view.you
+	if (live.zingers[me] or 0) <= 0 then
+		return false
+	end
+	if live.round >= #live.topics then
+		return true
+	end
+	local now = stakeValue(config, view, estimates, board, move, weights)
+	local ties = 1
+	for r = live.round + 1, #live.topics do
+		local later = laterBoard(config, view, r)
+		if later then
+			local cells = debateCells(config, view.issueMap, estimates, later, me, opponentOf(view), 1)
+			local value = stakeValue(config, view, estimates, later, maximin(cells), EVEN)
+			if value > now + 1e-9 then
+				return false
+			elseif value >= now - 1e-9 then
+				ties += 1
+			end
+		end
+	end
+	return ties == 1 or Rng.nextFloat(rng) < 1 / ties
+end
+
+-- The standard bot's move from the opponent's side of the public board (Hard
+-- and up predict it, D-057).
+local function predictedMove(config: Config, view: View, board: Debate.Board): number
+	local theirView = opponentView(config, view)
+	local theirs = buildEstimates(config, theirView)
+	local cells = debateCells(config, view.issueMap, theirs, board, theirView.you, view.you, 1)
+	return maximin(cells)
+end
+
+-- Extreme: how often the opponent played each move in this match's finished
+-- debate rounds (public), or nil before it has played two.
+local function pastMoves(view: View): { number }?
+	local them = opponentOf(view)
+	local counts = { 0, 0, 0 }
+	local total = 0
+	local function add(rounds: { any })
+		for _, round in rounds do
+			local pick = round.picks[them]
+			local k = table.find(Debate.MOVES, pick)
+			if k and not round.canned[them] then
+				counts[k] += 1
+				total += 1
+			end
+		end
+	end
+	for _, result in view.debates do
+		if result.rounds then
+			add(result.rounds)
+		end
+	end
+	if view.debate then
+		add(view.debate.rounds)
+	end
+	if total < 2 then
 		return nil
 	end
-	local estimates = buildEstimates(config, view)
-	if view.decision == "Focus" then
-		return { focus = Bot.focus(config, view, rng, estimates, style) }
+	return { counts[1] / total, counts[2] / total, counts[3] / total }
+end
+
+-- A debate round's move (D-062): { move, zinger }, or nil for the canned answer.
+function Bot.debate(config: Config, view: View, rng: Rng.Rng, style: Style?): any
+	local live = view.debate
+	if live == nil then
+		return nil
 	end
+	if style == "NoAnswer" then
+		return nil
+	end
+	local me, them = view.you, opponentOf(view)
+	local board = live.board
+	local hasZinger = (live.zingers[me] or 0) > 0
+	local roundsLeft = #live.topics - live.round + 1
+	local function randomZinger(): boolean
+		return hasZinger and Rng.nextFloat(rng) < 1 / roundsLeft
+	end
+	if
+		style == "Random"
+		or style == "RandomMove"
+		or (style == "Easy" and Rng.nextFloat(rng) < config.BOT_EASY_SLIP)
+	then
+		return { move = Debate.MOVES[Rng.nextInt(rng, 1, #Debate.MOVES)], zinger = randomZinger() }
+	end
+	local estimates = buildEstimates(config, view)
+	local cells = debateCells(config, view.issueMap, estimates, board, me, them, 1)
+	local move: number
+	local weights = EVEN
+	if style == "AlwaysDefend" then
+		move = 1
+	elseif style == "AlwaysAttack" then
+		move = 2
+	elseif style == "AlwaysPivot" then
+		move = 3
+	elseif style == "Hard" or style == "Extreme" then
+		local predicted = predictedMove(config, view, board)
+		local read = config.BOT_DEBATE_READ
+		weights = {}
+		for b = 1, #Debate.MOVES do
+			weights[b] = (1 - read) / #Debate.MOVES + (if b == predicted then read else 0)
+		end
+		local past = if style == "Extreme" then pastMoves(view) else nil
+		if past then
+			local h = config.BOT_EXTREME_HISTORY
+			for b = 1, #Debate.MOVES do
+				weights[b] = (1 - h) * weights[b] + h * past[b]
+			end
+		end
+		move = bestReply(cells, weights)
+	else
+		move = maximin(cells)
+	end
+	local zinger = if style == "Easy"
+		then randomZinger()
+		else stakeNow(config, view, estimates, board, move, weights, rng)
+	return { move = Debate.MOVES[move], zinger = zinger }
+end
+
+-- A Decision phase (D-044): this week's stance. Every style decides the same
+-- way except Random and RandomStance (Bot.choose).
+function Bot.decide(config: Config, view: View, rng: Rng.Rng, style: Style?): any
+	local estimates = buildEstimates(config, view)
 	return { choice = Bot.choose(config, view, estimates, rng, style) }
 end
 
@@ -1122,6 +1319,8 @@ function Bot.act(config: Config, view: View, rng: Rng.Rng, candidate: string, st
 		return Bot.draft(config, view, rng, style)
 	elseif view.phase == "Decision" then
 		return Bot.decide(config, view, rng, style)
+	elseif view.phase == "Debate" then
+		return Bot.debate(config, view, rng, style)
 	elseif view.phase == "Plan" then
 		return Bot.plan(config, view, rng, style)
 	end

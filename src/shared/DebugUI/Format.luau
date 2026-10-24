@@ -69,7 +69,11 @@ function Format.status(payload: Session.StatePayload?, lobby: Remotes.LobbyStatu
 	if payload.reveal == "Draft" then
 		label = "Draft"
 	elseif view.phase == "Decision" then
-		label = `Week {view.week} Decision: {if view.decision == "Focus" then "debate focus" else "stance"}`
+		label = `Week {view.week} Decision: stance`
+	elseif view.phase == "Debate" and view.debate then
+		local live = view.debate
+		label =
+			`Week {view.week} Debate round {live.round} of {#live.topics}: {live.topics[live.round] or ""}`
 	elseif view.phase == "Plan" or view.phase == "Debate" then
 		label = `Week {view.week} {view.phase}`
 	elseif view.phase == "Draft" then
@@ -210,25 +214,37 @@ function Format.events(events: { State.Event }, you: number): { string }
 	return out
 end
 
--- One resolved debate: who won each topic, both focuses, and the national points.
+-- One finished debate round in a line: both moves, scores and the result.
+function Format.debateRound(round: State.DebateRound, you: number): string
+	local them = if you == 1 then 2 else 1
+	local function side(p: number): string
+		local move = if round.canned[p] then "no answer" else round.picks[p]
+		local zinger = if round.zingers[p] then "+Zinger" else ""
+		return `{move}{zinger} {round.scores[p]}`
+	end
+	local result = if round.winner == 0
+		then "split"
+		elseif round.winner == you then `you win by {round.margin}`
+		else `they win by {round.margin}`
+	if round.winner ~= 0 and round.mult > 1 then
+		result ..= ` (x{round.mult})`
+	end
+	return `R{round.round} {round.topic}: you {side(you)}, them {side(them)}: {result}`
+end
+
+-- One resolved debate: every round, and the crowd.
 function Format.debate(debate: State.DebateResult, you: number): string
 	local them = if you == 1 then 2 else 1
 	local parts = {}
-	for t, topic in debate.topics do
-		local w = debate.winners[t]
-		local focus: { string } = {}
-		if debate.focus[you] == t then
-			table.insert(focus, "your focus")
-		end
-		if debate.focus[them] == t then
-			table.insert(focus, "their focus")
-		end
-		local tag = if #focus > 0 then ` ({table.concat(focus, ", ")})` else ""
-		table.insert(parts, `{topic} {if w == you then "you" elseif w == 0 then "tie" else "them"}{tag}`)
+	for _, round in debate.rounds do
+		table.insert(parts, Format.debateRound(round, you))
 	end
-	return `Debate week {debate.week}: {table.concat(parts, ", ")}; national {Numbers.signed(
-		debate.national[you] or 0
-	)} you, {Numbers.signed(debate.national[them] or 0)} them`
+	local crowd = debate.crowd or {}
+	local ovation = if debate.ovation == you
+		then " (your standing ovation)"
+		elseif debate.ovation ~= nil and debate.ovation > 0 then " (their standing ovation)"
+		else ""
+	return `Debate week {debate.week}: {table.concat(parts, "; ")}; crowd you {crowd[you] or 0}, them {crowd[them] or 0}{ovation}`
 end
 
 -- Short tags for one state in the board list: "BG", "home P1", "SH P2", a
@@ -255,6 +271,69 @@ function Format.stateTags(s: View.StateView, you: number): { string }
 		table.insert(tags, `gotv {s.gotv}`)
 	end
 	return tags
+end
+
+-- The debate round now asking for moves (D-062), as lines: the facts, both
+-- sides' strengths, and what each of your moves does against each of theirs.
+function Format.debateBoard(view: View.View): { string }
+	local board = Swing.debateBoard(Config.defaults, view)
+	local live = view.debate
+	if board == nil or live == nil then
+		return {}
+	end
+	local out: { string } = {}
+	local facts: { string } = {}
+	if board.ownsTopic then
+		table.insert(facts, "your issue")
+	end
+	if board.theirTopic then
+		table.insert(facts, "their issue")
+	end
+	table.insert(
+		facts,
+		if board.ground > 0
+			then "you lead its states"
+			elseif board.ground < 0 then "you trail its states"
+			else "its states even"
+	)
+	table.insert(
+		out,
+		`Debate round {board.round} of {board.rounds}: {board.topic} ({table.concat(facts, ", ")}) · counter +{board.counter} · crowd you {board.crowd}, them {board.theirCrowd} · Zinger you {board.zingers}, them {board.theirZingers} (a win you stake counts x{board.zingerMult})`
+	)
+	table.insert(
+		out,
+		`  Their strengths: Defend {board.theirs[1]} · Attack {board.theirs[2]} · Pivot {board.theirs[3]}`
+	)
+	for _, row in board.rows do
+		local parts: { string } = {}
+		for _, part in row.parts do
+			local sign = if part.points >= 0 then "+" else ""
+			table.insert(parts, `{Swing.partName(part.kind)} {sign}{part.points}`)
+		end
+		local function cell(margin: number): string
+			return if margin > 0 then `+{margin}` elseif margin < 0 then tostring(margin) else "+0 (split)"
+		end
+		local cells = `vs D {cell(row.cells[1])} · vs A {cell(row.cells[2])} · vs P {cell(row.cells[3])}`
+		local where = if row.landing ~= board.topic then ` -> {row.landing}` else ""
+		table.insert(
+			out,
+			`  {string.lower(row.move)}{where} {row.strength} ({table.concat(parts, ", ")}; beats {row.beats}): {cells}{if row.safe
+				then " (cannot lose)"
+				else ""}`
+		)
+		table.insert(out, `    {row.winLine}`)
+	end
+	for _, round in live.rounds do
+		table.insert(out, "  " .. Format.debateRound(round, view.you))
+	end
+	local mine = live.yourMove
+	if mine then
+		table.insert(
+			out,
+			`  Your move: {mine.move}{if mine.zinger then " + Zinger" else ""} (secret until the clash)`
+		)
+	end
+	return out
 end
 
 -- The full board summary.
@@ -359,18 +438,9 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 			add("  " .. line)
 		end
 	end
-	-- The debate's Decision step: each topic's states, the ones you need, the odds (D-044).
-	if view.phase == "Decision" and view.decision == "Focus" and view.nextDebate then
-		add('Pick a debate focus: "focus TOPIC" (no focus in time: every topic you lose is a gaffe)')
-		for _, topic: Types.Issue in view.nextDebate.topics do
-			local focus = Swing.focus(Config.defaults, view, topic)
-			add(`  {focus.head}`)
-			add(`    {focus.needLine}`)
-			add(`    {focus.oddsLine}`)
-		end
-	end
-	if view.debateFocus then
-		add(`Your debate focus: {view.debateFocus}`)
+	-- A debate round: both sides' strengths, every result cell, crowd and Zingers (D-062).
+	for _, line in Format.debateBoard(view) do
+		add(line)
 	end
 	if view.stance then
 		add(`Your stance this week: {view.stance} (secret until the week resolves)`)
@@ -395,7 +465,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 			table.insert(other, Swing.flipPhrase(view, flip))
 		end
 		if #other > 0 then
-			add(`  And from the points every state got: {table.concat(other, ", ")}`)
+			add(`  Across the whole debate: {table.concat(other, ", ")}`)
 		end
 	end
 

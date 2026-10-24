@@ -8,9 +8,10 @@
 -- fundraiser yields, anyone's
 -- candidate or platform before the Select phase ends, the event deck beyond the
 -- current week (next week's event only for a candidate whose perk previews it,
--- D-035), or anyone's debate focus or Choice stance but your own before the debate
--- or the week resolves (they are taken in the Decision phase, D-044, and live in
--- the hidden player state until then). tests/sim/View.spec enforces it.
+-- D-035), anyone's Choice stance but your own before the week resolves (taken in
+-- the Decision phase, D-044), or anyone's debate move but your own before its
+-- round resolves (D-062); both live in the hidden player state until then.
+-- tests/sim/View.spec enforces it.
 --
 -- Custom candidate names (the Name Pass, D-063) are not match state: the server
 -- keeps them, already filtered, and passes `names` (player index -> name) only
@@ -83,10 +84,23 @@ export type EventView = {
 	stances: { StanceView }?, -- Choice: the three stances in Events.CHOICES order
 }
 
+-- The debate in progress (D-062), during its Debate phase. Everything here is
+-- public except `yourMove`, which is only ever your own.
+export type DebateView = {
+	week: number,
+	round: number, -- the round asking for moves now
+	topics: { Types.Issue },
+	crowd: { number }, -- by player
+	zingers: { number }, -- Zingers left, by player
+	rounds: { State.DebateRound }, -- finished rounds of this debate
+	board: Debate.Board, -- strengths, counters and pivot issues for this round
+	yourMove: State.DebateInput?, -- what you locked in this round
+}
+
 export type View = {
 	you: number,
 	phase: State.Phase,
-	decision: State.DecisionKind?, -- during a Decision phase: "Focus" or "Stance" (D-044)
+	decision: State.DecisionKind?, -- during a Decision phase: "Stance" (D-044)
 	week: number,
 	draftRound: number,
 	draftKind: Draft.Kind?, -- during the draft
@@ -102,6 +116,7 @@ export type View = {
 	projectedEV: { number },
 	draftLog: { State.DraftPick },
 	nextDebate: { week: number, topics: { Types.Issue } }?,
+	debate: DebateView?, -- the debate in progress (phase Debate, D-062)
 	debates: { State.DebateResult },
 	event: EventView?, -- this week's event, during its Decision, Debate and Plan phases
 	nextEvent: EventView?, -- next week's event, only for a candidate with eventPreview (D-035)
@@ -109,7 +124,6 @@ export type View = {
 	internalPolls: { State.InternalPoll }, -- yours, from last week's plan
 	scouted: { State.Scout }, -- yours: the latest ground game each of your internal polls saw, per state (D-049)
 	raised: number, -- what your fundraisers raised last week
-	debateFocus: Types.Issue?, -- your focus topic for this week's debate, from its Decision until the debate resolves
 	stance: Types.Choice?, -- your stance on this week's Choice event, from its Decision until the week resolves
 	election: State.ElectionResult?, -- from election night on
 }
@@ -227,6 +241,21 @@ function View.build(config: Config, match: MatchState, you: number, names: { [nu
 		end
 	end
 
+	local debate: DebateView? = nil
+	local live = match.debate
+	if live ~= nil and match.phase == "Debate" then
+		debate = {
+			week = live.week,
+			round = live.round,
+			topics = table.clone(live.topics),
+			crowd = table.clone(live.crowd),
+			zingers = table.clone(live.zingers),
+			rounds = copy(live.rounds),
+			board = Debate.board(config, match),
+			yourMove = copy(me.debateMove),
+		}
+	end
+
 	local drafting = match.phase == "Draft"
 	return {
 		you = you,
@@ -247,6 +276,7 @@ function View.build(config: Config, match: MatchState, you: number, names: { [nu
 		projectedEV = Polls.projectedEV(match),
 		draftLog = copy(match.draftLog),
 		nextDebate = nextDebate,
+		debate = debate,
 		debates = copy(match.debates),
 		event = event,
 		nextEvent = nextEvent,
@@ -254,7 +284,6 @@ function View.build(config: Config, match: MatchState, you: number, names: { [nu
 		internalPolls = copy(me.internalPolls),
 		scouted = copy(me.scouted),
 		raised = me.raised,
-		debateFocus = me.debateFocus,
 		stance = me.stance,
 		election = if match.phase == "Election" or match.phase == "Done" then copy(match.election) else nil,
 	}

@@ -1,7 +1,8 @@
 --!strict
--- The Decision phase (D-044): the debate focus and Choice stances on their own step
--- before the plan. Ordering inside a week, validation and reason codes, timeout
--- defaults, never-partial application, determinism, and no leaks.
+-- The Decision phase (D-044): Choice stances on their own step before the plan
+-- (the debate focus it used to hold is gone: debates are live rounds, D-062).
+-- Ordering inside a week, validation and reason codes, timeout defaults,
+-- never-partial application, determinism, and no leaks.
 
 local Test = require("@testlib/Test")
 local Fixtures = require("@testlib/Fixtures")
@@ -41,7 +42,7 @@ local function serialize(value: any): string
 end
 
 -- Plays a match with default inputs and returns the phase trail of one week:
--- "Decision:Focus", "Debate", "Decision:Stance", "Plan".
+-- "Debate" (once per round), "Decision:Stance", "Plan".
 local function weekTrail(match: State.MatchState, week: number): { string }
 	local trail = {}
 	local guard = 0
@@ -64,13 +65,6 @@ local function before4(event4: string?, event5: string?): State.MatchState
 	return match
 end
 
--- A match in week 4's Focus decision.
-local function focusDecision(): State.MatchState
-	local match = Match.advance(C, before4(nil, nil), {})
-	assert(match.phase == "Decision" and match.decision == "Focus", "week 4 opens with the focus")
-	return match
-end
-
 -- A match in week 5's Stance decision.
 local function stanceDecision(): State.MatchState
 	local match = before4(nil, "plant")
@@ -82,17 +76,18 @@ local function stanceDecision(): State.MatchState
 end
 
 describe("Decision: order inside a week", function()
-	it("a debate week picks the focus, then debates, then plans", function()
-		expect(weekTrail(before4("expo", nil), 4)):toEqual({ "Decision:Focus", "Debate", "Plan" })
+	it("a debate week plays its three rounds, then plans (no focus step, D-062)", function()
+		expect(weekTrail(before4("expo", nil), 4)):toEqual({ "Debate", "Debate", "Debate", "Plan" })
 	end)
 
 	it("a Choice week decides the stance, then plans", function()
 		expect(weekTrail(before4(nil, "plant"), 5)):toEqual({ "Decision:Stance", "Plan" })
 	end)
 
-	it("a debate week with a Choice event: focus, debate, then the stance, then the plan", function()
+	it("a debate week with a Choice event: the debate, then the stance, then the plan", function()
 		expect(weekTrail(before4("plant", nil), 4)):toEqual({
-			"Decision:Focus",
+			"Debate",
+			"Debate",
 			"Debate",
 			"Decision:Stance",
 			"Plan",
@@ -105,7 +100,7 @@ describe("Decision: order inside a week", function()
 		expect(Decision.opening(C, before4(nil, nil), 5)):toBe(nil)
 	end)
 
-	it("with the event deck off, only the debate focus is decided", function()
+	it("with the event deck off, nothing is decided", function()
 		local OFF = Config.with(C, { EVENTS_ENABLED = false })
 		local match = Match.new(OFF, 4, { "a", "b" })
 		local decisions = {}
@@ -115,36 +110,11 @@ describe("Decision: order inside a week", function()
 			end
 			match = Match.advance(OFF, match, {})
 		end
-		expect(decisions):toEqual({ "4:Focus", "9:Focus" })
+		expect(decisions):toEqual({})
 	end)
 end)
 
 describe("Decision.validate", function()
-	it("takes one of this debate's topics as the focus, and nothing else", function()
-		local match = focusDecision()
-		local topics = match.debateTopics[4]
-		for _, topic in topics do
-			local ok, reason, input = Decision.validate(C, match, 1, { focus = topic })
-			expect(reason):toBe(nil)
-			expect(ok):toBe(true)
-			expect((input :: Decision.Input).focus):toBe(topic)
-		end
-		local other = "Jobs"
-		for _, issue in { "Jobs", "Health", "Schools", "Farms" } do
-			if not table.find(topics, issue :: any) then
-				other = issue
-			end
-		end
-		for _, bad in { other, "Nothing", "", 1, true, { topics[1] }, { 2, 2, 2 } } do
-			expect(select(2, Decision.validate(C, match, 1, { focus = bad }))):toBe(R.BadFocus)
-		end
-		expect(select(2, Decision.validate(C, match, 1, {}))):toBe(R.BadFocus)
-		expect(select(2, Decision.validate(C, match, 1, { prep = { 2, 2, 2 } }))):toBe(R.BadFocus)
-		expect(select(2, Decision.validate(C, match, 1, { focus = topics[1], choice = "A" }))):toBe(
-			R.UnexpectedChoice
-		)
-	end)
-
 	it("takes one of the three stances, and nothing else", function()
 		local match = stanceDecision()
 		for _, id in Events.CHOICES do
@@ -172,15 +142,16 @@ describe("Decision.validate", function()
 		for _ = 1, 50 do
 			table.insert(junk, { choice = Rng.nextInt(rng, -5, 5), focus = Rng.nextFloat(rng) })
 		end
-		for _, kind in { "Focus", "Stance" } do
-			match.decision = kind :: State.DecisionKind
-			for _, raw in junk do
-				local ok, reason = Match.validate(C, match, 1, raw)
-				expect(ok):toBe(false)
-				expect(type(reason)):toBe("string")
-				expect(reason ~= "Internal"):toBe(true)
-			end
+		for _, raw in junk do
+			local ok, reason = Match.validate(C, match, 1, raw)
+			expect(ok):toBe(false)
+			expect(type(reason)):toBe("string")
+			expect(reason ~= "Internal"):toBe(true)
 		end
+		-- A debate move is not a stance.
+		expect(select(2, Decision.validate(C, match, 1, { choice = "A", move = "Defend" }))):toBe(
+			R.UnexpectedMove
+		)
 	end)
 
 	it("only in a Decision phase; the plan phase rejects decision payloads", function()
@@ -197,17 +168,8 @@ describe("Decision.validate", function()
 end)
 
 describe("Decision: defaults, application and secrecy", function()
-	it("nothing sent (the timer ran out): no focus, and the hedge", function()
-		local match = focusDecision()
-		expect(Decision.default(C, match, 1)):toEqual({})
-		match = Match.advance(C, match, {})
-		expect(match.phase):toBe("Debate")
-		expect(match.players[1].debateFocus):toBe(nil)
-		match = Match.advance(C, match, {})
-		expect(match.debates[1].focus):toEqual({ 0, 0 })
-		expect(match.debates[1].prep):toEqual({ { 0, 0, 0 }, { 0, 0, 0 } })
-
-		match = stanceDecision()
+	it("nothing sent (the timer ran out): the hedge", function()
+		local match = stanceDecision()
 		expect(Decision.default(C, match, 2)):toEqual({ choice = "C" })
 		match = Match.advance(C, match, {})
 		expect(match.phase):toBe("Plan")
@@ -218,12 +180,7 @@ describe("Decision: defaults, application and secrecy", function()
 	end)
 
 	it("an invalid decision is replaced by the default whole, never partially", function()
-		local start = focusDecision()
-		local topic = start.debateTopics[4][2]
-		local match = Match.advance(C, start, { { focus = topic, choice = "A" }, { focus = topic } })
-		expect(match.players[1].debateFocus):toBe(nil)
-		expect(match.players[2].debateFocus):toBe(topic)
-		match = Match.advance(C, stanceDecision(), { { choice = "Z" }, { choice = "B" } })
+		local match = Match.advance(C, stanceDecision(), { { choice = "Z" }, { choice = "B" } })
 		expect(match.players[1].stance):toBe("C")
 		expect(match.players[2].stance):toBe("B")
 	end)
@@ -247,18 +204,12 @@ describe("Decision: defaults, application and secrecy", function()
 	end)
 
 	it("the opponent's decision never reaches your view before it resolves", function()
-		local topics = focusDecision().debateTopics[4]
-		local function viewAfter(theirs: any, phase: "Focus" | "Stance"): string
-			local match = if phase == "Focus" then focusDecision() else stanceDecision()
-			local mine = if phase == "Focus" then { focus = topics[1] } else { choice = "C" }
-			match = Match.advance(C, match, { mine, theirs })
+		local function viewAfter(theirs: any): string
+			local match = Match.advance(C, stanceDecision(), { { choice = "C" }, theirs })
 			return serialize(View.build(C, match, 1))
 		end
-		local focusBase = viewAfter({ focus = topics[1] }, "Focus")
-		expect(viewAfter({ focus = topics[3] }, "Focus")):toBe(focusBase)
-		expect(viewAfter({}, "Focus")):toBe(focusBase)
-		local stanceBase = viewAfter({ choice = "C" }, "Stance")
-		expect(viewAfter({ choice = "A" }, "Stance")):toBe(stanceBase)
+		local stanceBase = viewAfter({ choice = "C" })
+		expect(viewAfter({ choice = "A" })):toBe(stanceBase)
 		-- Deep check: nothing about the opponent's stance anywhere in the view.
 		local match = Match.advance(C, stanceDecision(), { { choice = "C" }, { choice = "A" } })
 		local function scan(value: any)
@@ -273,10 +224,6 @@ describe("Decision: defaults, application and secrecy", function()
 	end)
 
 	it("the decision's view says what is asked, and shows the event and topics", function()
-		local focus = View.build(C, focusDecision(), 1)
-		expect(focus.phase):toBe("Decision")
-		expect(focus.decision):toBe("Focus")
-		expect(focus.nextDebate and focus.nextDebate.week):toBe(4)
 		local stance = View.build(C, stanceDecision(), 1)
 		expect(stance.decision):toBe("Stance")
 		expect(stance.event and stance.event.kind):toBe("Choice")
@@ -289,10 +236,9 @@ describe("Decision: defaults, application and secrecy", function()
 			while match.phase ~= "Done" do
 				local inputs = {}
 				if match.phase == "Decision" then
-					local topics = match.debateTopics[match.week]
-					inputs = if match.decision == "Focus"
-						then { { focus = topics[1] }, { focus = topics[3] } }
-						else { { choice = "A" }, { choice = "B" } }
+					inputs = { { choice = "A" }, { choice = "B" } }
+				elseif match.phase == "Debate" then
+					inputs = { { move = "Attack" }, { move = "Pivot", zinger = true } }
 				end
 				match = Match.advance(C, match, inputs)
 			end
@@ -300,6 +246,6 @@ describe("Decision: defaults, application and secrecy", function()
 		end
 		local a, b = run(), run()
 		expect(a):toEqual(b)
-		expect(a.debates[1].focus):toEqual({ 1, 3 })
+		expect(a.debates[1].rounds[1].picks):toEqual({ "Attack", "Pivot" })
 	end)
 end)

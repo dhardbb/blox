@@ -16,15 +16,17 @@
 --   Swing.margin(view, id) -> number?                  you minus best rival, public poll
 --   Swing.inPlay(view) -> { InPlay }                   states within CLOSE, biggest EV first
 --   Swing.needText(config, view) -> string             the "States you need" line
---   Swing.focus(config, view, topic) -> Focus          one debate topic for the focus screen (D-044)
+--   Swing.debateBoard(config, view) -> DebateBoard?    this debate round's moves as the debate screen shows them (D-062)
+--   Swing.partName(kind) -> string                     "your issue", "you trail the crowd"...
+--   Swing.debateRound(config, view, round) -> Topic     one finished round: what it swung, backfires, flips
 --   Swing.stance(config, view, id) -> Preview          one stance on the map, your side only
 --   Swing.stanceSummary(config, view, preview) -> string
 --   Swing.flipPhrase(view, flip) -> string             "PA flipped to you (+19 EV)"
 --   Swing.flips(pollFlips) -> { Flip }                 the same flips with each state's EV
---   Swing.debateTopic(config, view, result, t) -> Topic   (flips credited to the first topic that moved the state)
---   Swing.debateOther(view, result) -> { Flip }        flips no topic's states explain (the flat part)
+--   Swing.debateTopic(config, view, result, t) -> Topic   round t of a finished debate (Swing.debateRound)
+--   Swing.debateOther(view, result) -> { Flip }        flips of the whole debate that no single round shows
 --   Swing.net(moves, view) -> { [string]: number }     points toward you minus toward the rival, per state
---   Swing.debateNet(config, view, result, upto)        the same for debate topics 1..upto
+--   Swing.debateNet(config, view, result, upto)        the same for debate rounds 1..upto
 --   Swing.choiceLines(config, view, entry) -> { string }  a resolved Choice week, both sides
 --   Swing.lastChoice(view) -> EventResult?             last week's resolved Choice event
 --   Swing.decided(config, view) -> { string }          the Results screen's "What decided it"
@@ -68,36 +70,51 @@ export type Preview = {
 	flips: { Flip }, -- leader changes on today's polls from your stance alone
 }
 
--- One debate topic as the focus screen shows it (D-044): the states that care
--- about it, the ones you need, and what a focus does to your odds there.
-export type Focus = {
-	topic: Types.Issue,
-	states: { string }, -- the topic's states, biggest EV first
-	ev: number, -- their EV in all
-	need: { InPlay }, -- those within CLOSE in the public poll, biggest EV first
-	needEV: number,
-	mine: number, -- your fixed score with the focus here: focus + platform + stat
-	theirs: number, -- their fixed score without a focus here: platform + stat
-	edge: number, -- your focus edge (Hale's is bigger)
-	win: number, -- chance to win the topic with your focus here, if theirs is elsewhere
-	winBoth: number, -- ... if they focus here too
+-- One move on this debate round's board (D-062), as its button shows it.
+export type MoveRow = {
+	move: Types.DebateMove,
+	strength: number,
+	parts: { Debate.Part },
+	cells: { number }, -- your score minus theirs against their Defend, Attack, Pivot
+	beats: Types.DebateMove, -- the move it counters
+	safe: boolean, -- no cell below 0: it cannot lose this round
+	landing: Types.Issue, -- the issue whose states a win lands in
+	states: { string }, -- those states, biggest EV first
 	effects: { [string]: number }, -- what a win gives you, per state (the map preview)
 	flips: { Flip }, -- leader changes a win would make on today's polls
-	head: string, -- "Jobs (your platform) · 11 states, 142 EV"
-	needLine: string, -- "You need 4 of them (61 EV): trail OH by 2 · lead PA by 3."
-	oddsLine: string, -- "Focus here: 4 vs their 2, plus a roll 0 to 3 each. You win 81% (38% if ...)"
-	winLine: string, -- "A win: +1.0 in each; could flip PA (+19 EV)"
+	winLine: string, -- "A win: +1.0 in OH, PA, MI +5 more; could flip PA (+19 EV)"
 }
 
+-- This debate round for you (D-062): your three moves against your best rival's.
+export type DebateBoard = {
+	round: number,
+	rounds: number,
+	topic: Types.Issue,
+	counter: number,
+	rival: number,
+	rows: { MoveRow }, -- Defend, Attack, Pivot
+	theirs: { number }, -- the rival's strengths, same order
+	zingers: number, -- yours left
+	theirZingers: number,
+	zingerMult: number,
+	crowd: number, -- yours
+	theirCrowd: number,
+	ground: number, -- 1 = you lead the topic's states, -1 = you trail
+	ownsTopic: boolean,
+	theirTopic: boolean,
+	topicStates: { string }, -- biggest EV first
+}
+
+-- One finished debate round (D-062), for the clash, the verdict and the logs.
 export type Topic = {
 	topic: Types.Issue,
-	winner: number, -- 0 = tied
-	states: { string }, -- the topic's states, biggest EV first
-	points: number, -- what the winner gained in each
-	gaffes: { { player: number, points: number } },
-	flips: { Flip }, -- leader changes first explained by this topic
-	line: string, -- "Your Jobs win swung OH, MI, PA (+1.0 each) - PA flipped to you (+19 EV)"
-	gaffeLines: { string }, -- "Your gaffe on Safety: -0.6 in TX, AZ"
+	winner: number, -- 0 = a split
+	states: { string }, -- the winner's landing states (the topic's on a split), biggest EV first
+	points: number, -- what the winner gained in each (0 on a split)
+	gaffes: { { player: number, points: number } }, -- backfires: who lost what in their own landing states
+	flips: { Flip }, -- leader changes when the polls were republished after the round
+	line: string, -- "Your Defend won Jobs by 3: +2.0 in OH, MI, PA (Zinger x2) - PA flipped to you (+19 EV)"
+	gaffeLines: { string }, -- "Their Attack backfired: -0.5 in OH, MI"
 }
 
 -- ---------------------------------------------------------------- basics
@@ -231,126 +248,6 @@ function Swing.needText(config: Config, view: View): string
 	return `{head}: {table.concat(parts, " · ")}.{tail}`
 end
 
--- ---------------------------------------------------------------- debate focus
-
-function Swing.focus(config: Config, view: View, topic: Types.Issue): Focus
-	local me, rival = view.you, rivalOf(view)
-	local states = byEv(Debate.topicStates(view.issueMap, topic))
-	local set: { [string]: boolean } = {}
-	local ev = 0
-	for _, id in states do
-		set[id] = true
-		ev += evOf(id)
-	end
-	local need: { InPlay } = {}
-	local needEV = 0
-	for _, entry in Swing.inPlay(view) do
-		if set[entry.state] then
-			table.insert(need, entry)
-			needEV += entry.ev
-		end
-	end
-	local function bonus(p: number): number
-		local platform: { Types.Issue } = view.players[p].platform or {}
-		return if table.find(platform, topic) then config.DEBATE_PLATFORM_BONUS else 0
-	end
-	local mineProfile = Explain.profileOf(config, view, me)
-	local theirProfile = Explain.profileOf(config, view, rival)
-	local edge = mineProfile.focusEdge
-	local mine = edge + bonus(me) + mineProfile.debateStat
-	local theirs = bonus(rival) + theirProfile.debateStat
-	local win = Explain.debateOdds(config, mine - theirs)
-	local winBoth = Explain.debateOdds(config, mine - theirs - theirProfile.focusEdge)
-
-	local tags: { string } = {}
-	if bonus(me) > 0 then
-		table.insert(tags, "your platform")
-	end
-	if bonus(rival) > 0 then
-		table.insert(tags, "their platform")
-	end
-	local head = issueName(topic)
-		.. (if #tags > 0 then ` ({table.concat(tags, ", ")})` else "")
-		.. ` · {plural(#states, "state")}, {ev} EV`
-	local needLine: string
-	if #need == 0 then
-		needLine = `You need none of them right now (none within {Swing.CLOSE} points).`
-	else
-		local trail: { string } = {}
-		local lead: { string } = {}
-		local tied: { string } = {}
-		for _, entry in need do
-			local by = math.abs(entry.margin)
-			if entry.margin > 0 then
-				table.insert(lead, `{entry.state} by {by}`)
-			elseif entry.margin < 0 then
-				table.insert(trail, `{entry.state} by {by}`)
-			else
-				table.insert(tied, entry.state)
-			end
-		end
-		local parts: { string } = {}
-		if #trail > 0 then
-			table.insert(parts, `trail {list(trail)}`)
-		end
-		if #lead > 0 then
-			table.insert(parts, `lead {list(lead)}`)
-		end
-		if #tied > 0 then
-			table.insert(parts, `tied {list(tied)}`)
-		end
-		needLine = `You need {#need} of them ({needEV} EV): {table.concat(parts, " · ")}.`
-	end
-	local function pct(x: number): string
-		return `{math.floor(x * 100 + 0.5)}%`
-	end
-	local effects: { [string]: number } = {}
-	local moves: { SimState.StateMove } = {}
-	for _, id in states do
-		effects[id] = config.DEBATE_TOPIC_WIN
-		local row = table.create(#view.players, 0)
-		row[me] = config.DEBATE_TOPIC_WIN
-		table.insert(moves, { state = id, points = row })
-	end
-	local flips = Swing.flips(Polls.projectFlips({ states = view.states } :: any, moves))
-	local flipText: { string } = {}
-	for _, flip in flips do
-		if flip.to == me then
-			table.insert(flipText, `flip {flip.state} (+{flip.ev} EV)`)
-		elseif flip.to == 0 then
-			table.insert(flipText, `pull level in {flip.state}`)
-		end
-	end
-	local winLine = `A win: {Numbers.signed(config.DEBATE_TOPIC_WIN)} in each`
-		.. (
-			if #flipText > 0
-				then `; could {table.concat(flipText, ", ")}.`
-				else "; no poll leader would change."
-		)
-	local oddsLine =
-		`Focus here: {mine} vs their {theirs}, plus a roll 0 to {config.DEBATE_ROLL_MAX} each. You win {pct(
-			win
-		)} ({pct(winBoth)} if they focus here too).`
-	return {
-		topic = topic,
-		states = states,
-		ev = ev,
-		need = need,
-		needEV = needEV,
-		mine = mine,
-		theirs = theirs,
-		edge = edge,
-		win = win,
-		winBoth = winBoth,
-		effects = effects,
-		flips = flips,
-		head = head,
-		needLine = needLine,
-		oddsLine = oddsLine,
-		winLine = winLine,
-	}
-end
-
 -- ---------------------------------------------------------------- flips
 
 function Swing.flipPhrase(view: View, flip: Flip): string
@@ -376,6 +273,111 @@ function Swing.flips(flips: { SimState.PollFlip }?): { Flip }
 	return out
 end
 local withEv = Swing.flips
+
+-- ---------------------------------------------------------------- debate rounds
+
+local MOVE_ORDER: { Types.DebateMove } = { "Defend", "Attack", "Pivot" }
+
+local PART_NAMES: { [string]: string } = {
+	Base = "base",
+	OwnIssue = "your issue",
+	LeadStates = "you lead its states",
+	TheirIssue = "their issue",
+	TrailStates = "you trail its states",
+	TrailCrowd = "you trail the crowd",
+	OffIssue = "not your issue",
+	Repeat = "same as last round",
+}
+
+function Swing.partName(kind: string): string
+	return PART_NAMES[kind] or kind
+end
+
+-- A win of `points` in `states` for you, as map effects and the flips it would
+-- make on today's polls.
+local function winPreview(view: View, states: { string }, points: number): ({ [string]: number }, { Flip })
+	local effects: { [string]: number } = {}
+	local moves: { SimState.StateMove } = {}
+	for _, id in states do
+		effects[id] = points
+		local row = table.create(#view.players, 0)
+		row[view.you] = points
+		table.insert(moves, { state = id, points = row })
+	end
+	return effects, Swing.flips(Polls.projectFlips({ states = view.states } :: any, moves))
+end
+
+function Swing.debateBoard(config: Config, view: View): DebateBoard?
+	local live = view.debate
+	if live == nil then
+		return nil
+	end
+	local board = live.board
+	local me, rival = view.you, rivalOf(view)
+	local mine, theirs = board.players[me], board.players[rival]
+	if mine == nil or theirs == nil then
+		return nil
+	end
+	local rows: { MoveRow } = {}
+	local theirStrengths: { number } = {}
+	for k = 1, #MOVE_ORDER do
+		local move: Types.DebateMove = MOVE_ORDER[k]
+		local info = Debate.info(mine, move)
+		local cells: { number } = {}
+		local safe = true
+		for b = 1, #MOVE_ORDER do
+			local other: Types.DebateMove = MOVE_ORDER[b]
+			cells[b] = Debate.versus(config, board, me, move, rival, other)
+			if cells[b] < 0 then
+				safe = false
+			end
+		end
+		theirStrengths[k] = Debate.info(theirs, move).strength
+		local landing: Types.Issue = (Debate.landing(board, me, move) :: any) :: Types.Issue
+		local states = byEv(Debate.topicStates(view.issueMap, landing))
+		local effects, flips = winPreview(view, states, config.DEBATE_ROUND_WIN)
+		local flipText: { string } = {}
+		for _, flip in flips do
+			if flip.to == me then
+				table.insert(flipText, `flip {flip.state} (+{flip.ev} EV)`)
+			elseif flip.to == 0 then
+				table.insert(flipText, `pull level in {flip.state}`)
+			end
+		end
+		rows[k] = {
+			move = move,
+			strength = info.strength,
+			parts = info.parts,
+			cells = cells,
+			beats = Debate.BEATS[move],
+			safe = safe,
+			landing = landing,
+			states = states,
+			effects = effects,
+			flips = flips,
+			winLine = `A win: {Numbers.signed(config.DEBATE_ROUND_WIN)} in {list(states)}`
+				.. (if #flipText > 0 then `; could {table.concat(flipText, ", ")}` else ""),
+		}
+	end
+	return {
+		round = live.round,
+		rounds = #live.topics,
+		topic = board.topic,
+		counter = board.counter,
+		rival = rival,
+		rows = rows,
+		theirs = theirStrengths,
+		zingers = mine.zingers,
+		theirZingers = theirs.zingers,
+		zingerMult = mine.zingerMult,
+		crowd = live.crowd[me] or 0,
+		theirCrowd = live.crowd[rival] or 0,
+		ground = mine.ground,
+		ownsTopic = mine.ownsTopic,
+		theirTopic = theirs.ownsTopic,
+		topicStates = byEv(board.topicStates),
+	}
+end
 
 -- ---------------------------------------------------------------- stances
 
@@ -498,61 +500,32 @@ local function playerWord(view: View, p: number, you: string, them: string): str
 	return if p == view.you then you else them
 end
 
--- Flips credited to topics: each flipped state goes to the first topic (in
--- order) whose states include it. Returns the per-topic lists and the rest.
-local function creditFlips(
-	view: View,
-	result: SimState.DebateResult
-): ({ { SimState.PollFlip } }, { SimState.PollFlip })
-	local byTopic: { { SimState.PollFlip } } = {}
-	for t in result.topics do
-		byTopic[t] = {}
-	end
-	local rest: { SimState.PollFlip } = {}
-	local topicSets: { { [string]: boolean } } = {}
-	for t = 1, #result.topics do
-		local topic: Types.Issue = result.topics[t]
-		local set: { [string]: boolean } = {}
-		for _, id in Debate.topicStates(view.issueMap, topic) do
-			set[id] = true
-		end
-		topicSets[t] = set
-	end
-	for _, flip in result.flips do
-		local placed = false
-		for t = 1, #result.topics do
-			local winner = result.winners[t]
-			local gaffe = false
-			for p = 1, #result.gaffes do
-				if result.gaffes[p][t] then
-					gaffe = true
-				end
-			end
-			if not placed and topicSets[t][flip.state] and (winner ~= 0 or gaffe) then
-				table.insert(byTopic[t], flip)
-				placed = true
-			end
-		end
-		if not placed then
-			table.insert(rest, flip)
-		end
-	end
-	return byTopic, rest
+local function moveWord(move: string): string
+	return move
 end
 
-function Swing.debateTopic(config: Config, view: View, result: SimState.DebateResult, t: number): Topic
-	local topic: Types.Issue = result.topics[t]
-	local winner = result.winners[t] or 0
-	local states = byEv(Debate.topicStates(view.issueMap, topic))
-	local byTopic = creditFlips(view, result)
-	local flips = withEv(byTopic[t])
+function Swing.debateRound(config: Config, view: View, round: SimState.DebateRound): Topic
+	local topic: Types.Issue = round.topic
 	local name = issueName(topic)
+	local winner = round.winner
+	local flips = withEv(round.flips)
 	local line: string
+	local states: { string }
+	local points = 0
 	if winner == 0 then
-		line = `{name} was a tie: nobody gained in {list(states)}`
+		states = byEv(Debate.topicStates(view.issueMap, topic))
+		local split = config.DEBATE_ROUND_SPLIT
+		line = `{name} was a split: {Numbers.signed(split)} each in your own states`
 	else
+		local landing: Types.Issue = round.landing[winner] or topic
+		states = byEv(Debate.topicStates(view.issueMap, landing))
+		points = config.DEBATE_ROUND_WIN * (round.mult or 1)
 		local who = playerWord(view, winner, "Your", "Their")
-		line = `{who} {name} win swung {list(states)} ({Numbers.signed(config.DEBATE_TOPIC_WIN)} each)`
+		local move = moveWord(round.picks[winner])
+		local where = if landing ~= topic then ` (to {issueName(landing)})` else ""
+		local zinger = if (round.mult or 1) > 1 then ` (Zinger ×{round.mult})` else ""
+		line =
+			`{who} {move}{where} won {name} by {round.margin}: {Numbers.signed(points)} in {list(states)}{zinger}`
 	end
 	if #flips > 0 then
 		local phrases: { string } = {}
@@ -564,14 +537,15 @@ function Swing.debateTopic(config: Config, view: View, result: SimState.DebateRe
 	local gaffes: { { player: number, points: number } } = {}
 	local gaffeLines: { string } = {}
 	for p = 1, #view.players do
-		local row = result.gaffes[p]
-		if row and row[t] then
-			table.insert(gaffes, { player = p, points = -config.DEBATE_GAFFE })
+		if round.backfire[p] then
+			local landing: Types.Issue = round.landing[p] or topic
+			local lost = byEv(Debate.topicStates(view.issueMap, landing))
+			table.insert(gaffes, { player = p, points = -config.DEBATE_BACKFIRE })
 			table.insert(
 				gaffeLines,
-				`{playerWord(view, p, "Your", "Their")} gaffe on {name}: {Numbers.signed(-config.DEBATE_GAFFE)} in {list(
-					states
-				)}`
+				`{playerWord(view, p, "Your", "Their")} {moveWord(round.picks[p])} backfired: {Numbers.signed(
+					-config.DEBATE_BACKFIRE
+				)} in {list(lost)}`
 			)
 		end
 	end
@@ -579,7 +553,7 @@ function Swing.debateTopic(config: Config, view: View, result: SimState.DebateRe
 		topic = topic,
 		winner = winner,
 		states = states,
-		points = if winner == 0 then 0 else config.DEBATE_TOPIC_WIN,
+		points = points,
 		gaffes = gaffes,
 		flips = flips,
 		line = line,
@@ -587,8 +561,39 @@ function Swing.debateTopic(config: Config, view: View, result: SimState.DebateRe
 	}
 end
 
-function Swing.debateOther(view: View, result: SimState.DebateResult): { Flip }
-	local _, rest = creditFlips(view, result)
+function Swing.debateTopic(config: Config, view: View, result: SimState.DebateResult, t: number): Topic
+	local round = result.rounds and result.rounds[t]
+	if round then
+		return Swing.debateRound(config, view, round)
+	end
+	local topic: Types.Issue = result.topics[t]
+	return {
+		topic = topic,
+		winner = result.winners[t] or 0,
+		states = byEv(Debate.topicStates(view.issueMap, topic)),
+		points = 0,
+		gaffes = {},
+		flips = {},
+		line = `{issueName(topic)}: no record`,
+		gaffeLines = {},
+	}
+end
+
+-- Flips of the whole debate that no round's own flips show (a state that
+-- changed leader across rounds, e.g. flipped and stayed after a later round).
+function Swing.debateOther(_view: View, result: SimState.DebateResult): { Flip }
+	local seen: { [string]: boolean } = {}
+	for _, round in result.rounds do
+		for _, flip in round.flips do
+			seen[flip.state] = true
+		end
+	end
+	local rest: { SimState.PollFlip } = {}
+	for _, flip in result.flips do
+		if not seen[flip.state] then
+			table.insert(rest, flip)
+		end
+	end
 	return withEv(rest)
 end
 
@@ -613,30 +618,33 @@ function Swing.net(moves: { SimState.StateMove }?, view: View): { [string]: numb
 	return out
 end
 
--- The state-targeted points (topic wins and gaffes) of topics 1..upto, as
--- points toward you minus toward the rival (the flat part everywhere is left out).
+-- The points of debate rounds 1..upto, as points toward you minus toward the rival.
 function Swing.debateNet(
-	config: Config,
+	_config: Config,
 	view: View,
 	result: SimState.DebateResult,
 	upto: number
 ): { [string]: number }
-	local topics: { Types.Issue } = {}
-	local winners: { number } = {}
-	for t = 1, math.min(upto, #result.topics) do
-		topics[t] = result.topics[t]
-		winners[t] = result.winners[t] or 0
-	end
-	local gaffes: { { boolean } } = {}
-	for p = 1, #view.players do
-		local row: { boolean } = {}
-		for t = 1, #topics do
-			local given = result.gaffes[p]
-			row[t] = given ~= nil and given[t] == true
+	local sums: { [string]: { number } } = {}
+	local order: { string } = {}
+	for t = 1, math.min(upto, #(result.rounds or {})) do
+		for _, move in result.rounds[t].moves do
+			local row = sums[move.state]
+			if row == nil then
+				row = table.create(#view.players, 0)
+				sums[move.state] = row
+				table.insert(order, move.state)
+			end
+			for p, points in move.points do
+				row[p] += points
+			end
 		end
-		gaffes[p] = row
 	end
-	return Swing.net(Debate.moves(config, view.issueMap, #view.players, topics, winners, gaffes), view)
+	local moves: { SimState.StateMove } = {}
+	for _, id in order do
+		table.insert(moves, { state = id, points = sums[id] })
+	end
+	return Swing.net(moves, view)
 end
 
 -- ---------------------------------------------------------------- Choice results

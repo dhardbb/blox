@@ -1021,6 +1021,7 @@ WP-2 of the front-page pass (art direction §4), on the white accent (D-058). Cl
 **Layout.** On the plan screen the event is now a strip right under the header (the score, the time bar and the now line), full width, above the map and the side column, at every screen size: 52 px, never inside the scrolling column, so it is seen without scrolling on a 390x844 phone, a 1024x768 iPad and a desktop. One tap target: a gold plate (the leaderboard's gold: news) with the event's icon (Spotlight tv, Regional megaphone, Windfall coins, Choice vote), the title "Windfall · Small-dollar surge" (bold) and one line of what it does ("Fundraisers where you trail +20%", "Roads & Transit rallies and ads +30%", "Rallies in the South Atlantic +50%"; in a Choice week the stance taken, "Stance A: Side with the staff"), then an arrow. The line says the multiplier as a signed percent so it fits one line on a phone; the full sentence ("… raise 20% more this week") is in the details. A tap opens the "This week" sheet: the full effect, the story, what the map's * marks, the stance taken in full and, for Helen Strand, next week's event. With only next week's event known (week 1 for Strand) the strip says "Next week: <name>". Both texts are one line that ends in "…" on a phone narrower than 390 px rather than pushing the map down (a spec checks every card of the deck, this week's and next, at 390 px). The strip is hidden during the reveals (B1, as before) and pulses once when a new week's event arrives (decorative). On a phone the map keeps its size; the side column under it starts 60 px lower. The Decision screen is unchanged: in a Choice week the stance card is the screen itself and the header names the event.
 
 **Code.** `EventCard.strip(parent, sheetParent, model)` (new, in `Screens/CampaignParts/EventCard`); `Campaign` places it between the header and the body and moves the body down by its height; `EventCard.new` (the Collapsible card) is now used only by the Decision screen. Copy in `Shared/UI/Words/Campaign` (`eventTitle`, `eventLine`). Shots `09-campaign-plan` (Windfall), `09b-event-spotlight`, `09c-event-regional`, `09d-event-next-week`, `09e-event-sheet`, `15-campaign-choice-week` (Choice): 0 audit findings at all three sizes.
+
 ## The week's results as a running tally (client only)
 
 ### D-063 — Each move is followed by its effect; "New polls are in" lands on the real polls (no rule, payload or Config changes, Oct 24, 2026)
@@ -1071,6 +1072,7 @@ Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, a
 **Not changed (screens own them).** Election night's feed rows (`WINNER_TINT` 0.3 from `raised`), the Draft legend (0.6 from `neutral`) and the map's lip shade keep their own constants; they get richer through the new base colors. `Kit.EDGE_TINT` is unchanged.
 
 **Tests.** `Helpers.spec` checks every player's text reads at `TEXT_CONTRAST` on `surfaceTop` and is never darker than its fill, and that every player color is ≥ 35 CIE76 from every other and ≥ 40 from the loss orange; the stateFill and band cases follow the new curve and shares; `Kit.spec` pins the new Crimson, Teal and stage. 0 audit findings on every snapshot at all three sizes.
+
 ## Candidate portraits and custom names
 
 ### D-062 — Illustrated candidate portraits; neutral plates on Select (no rule changes, Oct 24, 2026)
@@ -1156,3 +1158,67 @@ Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, a
 **Tests.** `tests/ui/PlanPreview.spec` (empty plan; a repeat ad summed at its lower value; ground game counted, money and polls not; an attack's sign; a state taking the lead moves its votes, an unpolled one does not; on Campaign: tags while drafting, two rallies in one state summed, the votes line, every lens, gone at lock-in), `ShapeMap.spec` and `NodeMap.spec` (tags on top, colors, placement, the strict audit). Shots `10c-plan-preview-empty`, `10d-plan-preview` (two rallies in PA, one in OH) and `10e-plan-preview-polls` (the same on the Polls lens with ground game): 0 audit findings at all three sizes.
 
 **Map clutter pass (lead review, same day).** Around Ohio, Pennsylvania and West Virginia the pins, route, plan badges, preview tags and Polls marks piled onto the codes. Now: (1) a mark layout pass in `ShapeMap` places every mark around its own code, never on any code: each kind tries spots in its own order (lens rows under, pins and preview tags beside, tags above, plan badges at a corner), then the same spots 1.6x as far with a thin leader; codes never move; lens rows that find no code-free spot near their state are left out on that map size (the state card has the numbers). The layout runs once a frame (deferred) and only when a mark or the map's size changed. (2) Pins are compact: a 14 to 20 px face, a "You" or name tab beside it and a tiny pointer, placed beside the code (a little farther with a leader if needed); two pins, in one state or neighbors, never overlap. (3) The route is 2 px at half transparency (flights fainter), under every mark. (4) On Polls the preview tag sits beside the code and its lead, and takes another spot only when that one is taken. On a phone, while a plan exists, the legend row keeps the plan line and drops the Polls legend first (the Map key keeps it). The fake engine now applies `UIAspectRatioConstraint` (FitWithinMaxSize), so specs measure the map as Roblox draws it. Shot `10f-pins-same-state` (both candidates in Ohio).
+
+## Debates as live rounds
+
+### D-062 — Debates are three live rounds: Defend, Attack or Pivot, with visible counters and a stakes Zinger (approved reshape, Oct 24, 2026, branch `debates`)
+
+**Feedback.** The designers: debates "kinda feel like glorified stance questions rather than their own thing". They chose "Live rounds: short back-and-forth rounds: attack, defend or pivot to your platform, with visible counters. More drama, more reading the opponent", within their standing rules: skill-based and learnable (no blind rock-paper-scissors), tied to the states you need, visible on the map, deciding about 1 match in 5. The proposal and its paper model are in `docs/proposals/debates-live-rounds.md` (revision 2 after the lead's audit). This replaces the focus decision, the roll and the gaffe of D-040 and D-044.
+
+**Rules.** A debate week opens with its Debate phase: one round per topic (the topics are still drawn at match start and announced weeks ahead). Each round both players pick, at once and in secret, Defend, Attack or Pivot, and may stake their one Zinger. Strength is public arithmetic (`Debate.board`, the same function for the server, the View, the bots, the screen and the duel board):
+
+| Move | Base | Bonuses |
+|---|---|---|
+| Defend | 2 | +3 the topic is on your platform · +1 you lead the topic's states |
+| Attack | 2 | +2 it is on an opponent's platform · +1 you trail its states · +2 you trail the crowd |
+| Pivot | 4 | +1 it is not on your platform |
+
+The move you played last round is −2. "Lead the topic's states": the EV of the topic's states where you lead the public poll is more than every other player's. Defend beats Attack, Attack beats Pivot, Pivot beats Defend: the counter adds `DEBATE_COUNTER` = +2 in round 1, +3 in rounds 2 and 3. The higher score wins; equal is a split. No dice: the debate's seeded stream is retired.
+
+A win gives `DEBATE_ROUND_WIN` (0.8) support in each of the winner's landing states, ×`DEBATE_ZINGER_MULT` (2) if it staked its Zinger (Hale ×4). Defend and Attack land in the topic's states. Pivot lands in the player's pivot issue: the platform issue other than the topic whose states hold the most EV within `DEBATE_PIVOT_CLOSE` (5) public-poll points. A split gives each tied player `DEBATE_ROUND_SPLIT` (0.5) in its own landing states. A player who lost to a counter loses `DEBATE_BACKFIRE` (0.5) where its move aimed. Gains use the normal split and losses go to undecided, all from one start-of-round snapshot (D-001). The polls are republished after every round with the same error terms (`Polls.refresh`), so the map shows each round live. The winner gains crowd by its margin (at most 4), ×Zinger. A final crowd lead of `DEBATE_OVATION` (8) is a standing ovation: +2 momentum in every battleground. There is no flat national bonus (0.05 a crowd point was invisible under poll noise). A Zinger is spent whether the round is won or lost, and a second one is `ZingerSpent`.
+
+**Timeouts and disconnects.** No move in time is a canned answer: Defend at a flat `DEBATE_CANNED` (2). It never earns or suffers a counter and never backfires, and a round won against it gains at most 1 crowd. A disconnect during a debate spends at most one grace use (D-005); a second drop in the same debate gets canned answers at once.
+
+**N players and fairness.** "Their platform" means any opponent's. The counter is earned once if your move counters any non-canned opponent's. The unique top score wins and a tie at the top splits. "Trail the crowd" means below the top. `Debate.spec` checks the seat-swap mirror, three-player debates and determinism.
+
+**Payloads and View.** `{ move = "Defend" | "Attack" | "Pivot", zinger = true? }` is validated whole: `BadMove`, `BadShape`, `ZingerSpent`, `WrongPhase`. A plan carrying a move is `UnexpectedMove`. A client can never send the canned flag. `view.debate` (Debate phase only) carries the week, round, topics, crowd, Zingers left, finished rounds, the board, and `yourMove` (yours alone). The opponent's pending move is `PlayerState.debateMove` and `View.spec` forbids the key. `DebateResult` keeps its old fields for older readers: a "topic" is a round, `gaffes` are backfires, and `focus`/`prep`/`national` are always 0. It adds `rounds`, `crowd` and `ovation`. The Focus decision, `debateFocus`, `focusEdge`, `debateStat`, `DEBATE_STAT`, `DEBATE_MAX_STAT_GAP`, `DEBATE_FOCUS`, `DEBATE_PLATFORM_BONUS`, `DEBATE_ROLL_MAX`, `Debate.odds`, the topic-win, national, sweep and gaffe numbers, and `TIMER_DEBATE` are gone.
+
+**Flow and timers.** The flow is: intro (Show, `TIMER_DEBATE_INTRO` 3 s), then three times round (Input, `TIMER_DEBATE_ROUND` 15 s; it ends early once both lock in) and clash (Reveal, `TIMER_DEBATE_CLASH` 4 s), then verdict (Reveal, `TIMER_DEBATE_VERDICT` 5 s, skippable), then a stance if it is a Choice week, then the plan. All deadlines are absolute server times (`Session.setStage`). The worst case per debate is 65 s, against 30 s for the focus and reveal before. On the D-005 steps that is 1,050 s, the 17.5-minute line, which `Config.spec` pins. **True worst case with every stance and debate step run out: 1,050 + 8 × 20 = 1,210 s (20:10); it was 940 + 200 = 1,140 s (19:00).** Typical: a round locks in after about 7 s, so a debate takes about 41 s against about 18 s before, roughly +46 s a match.
+
+**Bots (all from their own View, D-057).**
+- Medium (the harness bot) values each cell of the round's 3×3 table by its result first (win +1, split 0, loss −1), plus at most half a point for what its map effects are worth. Map worth is EV × closeness of the landing states, the bot's usual weight. It plays the move with the best worst cell.
+- Medium stakes its Zinger where its landing states are worth most: it compares this round with every later topic judged on today's facts, shares ties evenly by its own rng, and stakes in round 3 otherwise.
+- Easy plays a random move half the time (`BOT_EASY_SLIP`) and stakes in a random round.
+- Hard best-replies to the move Medium would play from the opponent's side (`BOT_DEBATE_READ` 0.15). At 0.5 Hard read Medium so well that it won 86% of matches.
+- Extreme also blends in the opponent's own past moves this match (`BOT_EXTREME_HISTORY` 0.5).
+
+New harness styles: `RandomMove`, `NoAnswer`, `AlwaysDefend`, `AlwaysAttack`, `AlwaysPivot`; `RandomFocus` and `NoFocus` are gone.
+
+**Tuning (from the proposal).**
+- `DEBATE_PIVOT_BASE` 3 → 4. At 3, always Defending beat the standard bot 52.3% ± 2.5 (1,500 matches), so Defend was dominant. At 4 the three always-one-move bots measure 32–39%.
+- `DEBATE_ROUND_WIN` 1.0 → 0.8. At 1.0 debates decided 25.9% of winners (2,000 matches); at 0.8, 23.7%.
+- Hale's Zinger: ×3 measured 43.7%, ×4 49.2%, two Zingers at ×2 41.2%, two at ×3 48.9% (1,400 matches each, Hale against the field). ×4 is the simplest of the two that sit in the band.
+- The paper model for the final numbers: rounds pre-decided by public facts 22% (round 1 33%, rounds 2–3 17%). A move that cannot lose exists 45% of the time (round 1 69%).
+
+**Harness** (`lune run tests/harness/balance.luau 2000`; "before" is this branch's start, `front-page` v0.12.0, on the same seeds).
+
+| Check | After | Before | Target |
+|---|---|---|---|
+| Debates change the winner (recount) / EV swung | **23.7%** / 19.3 EV | 25.9% / 22.9 EV | 15–25% |
+| Medium's moves (D / A / P) | 25.5 / 31.9 / 42.6% | — (one focus) | each 20–50% |
+| AlwaysDefend / AlwaysAttack / AlwaysPivot vs Medium | 37.2 / 34.8 / 36.2% | — | each ≤ 45% |
+| RandomMove / NoAnswer vs Medium | 37.6 / 17.8% | RandomFocus 51.9 / NoFocus 26.6% | ≤ 42 / ≤ 35% |
+| Rounds a player had a can't-lose move / and did not lose | 44.2% / 100% | — | informational |
+| Rounds that split (bot vs bot) | 31.6% | — | ≤ 35% (two bots both take the safe move) |
+| Zinger staked in rounds 1 / 2 / 3; staked rounds won | 51 / 24 / 25%; 41% | — | — (the audit's +3 Zinger: 93% in round 1) |
+| Standing ovations per match | 0.14 | — | — |
+| Candidates | Okafor **58.8**, Calloway 53.0, Venkat 49.5, Hale 47.5, Alvarado **43.8**, Reyes 48.7, Strand 46.8, Begay 52.1 | Okafor 53.3, Calloway **57.4**, Venkat **55.1**, Hale 48.7, Alvarado **43.1**, Reyes 47.3, Strand 48.8, Begay 46.6 | 45–55% |
+| Comeback / 40+ EV / 100+ EV | 38.5 / 57.8 / 15.7% | 37.5 / 60.8 / 20.8% | ✓ |
+| Difficulty (400 matches): Easy / Hard / Extreme vs Medium, Extreme vs Hard | 18.8 / 67.5 / 76.5 / 58.8% | 17.0 / 64.3 / 78.3 / 60.3% | 15–25 / 60–70 / 75–85 / > 50 |
+
+*For the designers.*
+1. Okafor moved up (+5.5, about one and a half standard deviations at 480 games) and Alvarado is where she was. A candidate pass is the next step, as D-047 said.
+2. Bots split 32% of rounds because both take the safe move when there is one. People should split less. The playtest checklist asks.
+3. The splits pay +0.5 each, so a split still moves the map. If they feel flat, the lever is a crowd tie-breaker.
+4. The "Safe" tag shows only in a player's first debate of the session, with a coach tip.
+5. The old Reveal debate scoreboard (`CampaignParts/Reveal.luau`, its debate rows) is no longer reached: debates have their own screen. Its owner can remove it.

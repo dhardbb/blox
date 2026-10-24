@@ -8,10 +8,12 @@
 -- whatever Session.drain returns. Nothing here touches Roblox, so it is tested
 -- headlessly (tests/net/Session.spec.luau).
 --
--- Stages: "Input" (players submit for a Select, Draft, Decision or Plan phase;
--- a Decision has its own TIMER_DECISION and no reveal after it, D-044), "Show"
--- (map reveal, election night), "Reveal" (draft reveal, resolve animation,
--- debate sequence), "Over". Every stage change bumps `step`; clients stamp each
+-- Stages: "Input" (players submit for a Select, Draft, Decision, Debate round or
+-- Plan phase; a Decision has its own TIMER_DECISION and no reveal after it,
+-- D-044), "Show" (map reveal, the debate's intro, election night), "Reveal"
+-- (draft reveal, resolve animation, a debate round's clash and the debate's
+-- verdict, D-062), "Over". A debate week runs: intro (Show) -> three times
+-- [round (Input, TIMER_DEBATE_ROUND) -> clash (Reveal)] -> verdict (Reveal). Every stage change bumps `step`; clients stamp each
 -- request with the step they saw, and stale requests are rejected.
 
 local Bot = require("../Sim/Bot")
@@ -28,7 +30,7 @@ type Config = ConfigModule.Config
 
 export type SeatKind = "Human" | "Bot"
 export type Stage = "Input" | "Show" | "Reveal" | "Over"
-export type RevealKind = "Draft" | "Resolve" | "Debate"
+export type RevealKind = "Draft" | "Resolve" | "Debate" | "DebateIntro" | "Clash" | "Verdict" -- "Debate" is no longer sent (D-062)
 export type Reason = "Election" | "Forfeit" | "Abandoned"
 
 export type Seat = {
@@ -43,6 +45,7 @@ export type Seat = {
 	input: any?, -- normalized submission for the current Input stage
 	skip: boolean, -- wants to skip the current Reveal/Show
 	missed: number, -- consecutive Plan stages missed while disconnected
+	debateGraceWeek: number?, -- the debate week this seat already spent a grace use in (one per debate, D-062)
 	prePick: any?, -- lobby pre-pick, used if Select times out
 	botCandidate: string?,
 	botStyle: Bot.Style?,
@@ -125,6 +128,8 @@ export type Session = {
 	outbox: { Message },
 	pendingClaims: { [number]: string }, -- Select: candidate claims waiting for the next update (one batch, D-048)
 	pendingColorClaims: { [number]: string }, -- Select: color claims waiting for the next update (one batch, D-061)
+	introWeek: number?, -- the debate week whose intro has been shown (D-062)
+	verdictNext: boolean, -- the last round's clash is on: the debate's verdict follows it
 }
 
 -- Match options a private lobby may set (public queue and practice use none).
@@ -187,6 +192,8 @@ local function inputDuration(config: Config, phase: State.Phase): number
 		return config.TIMER_DRAFT_ROUND
 	elseif phase == "Decision" then
 		return config.TIMER_DECISION
+	elseif phase == "Debate" then
+		return config.TIMER_DEBATE_ROUND
 	end
 	return config.TIMER_PLAN
 end
@@ -379,7 +386,30 @@ end
 enterPhase = function(session: Session, now: number)
 	local config = session.config
 	local phase = session.match.phase
-	if phase == "Select" or phase == "Draft" or phase == "Decision" or phase == "Plan" then
+	if session.verdictNext then
+		-- The last round's clash is over: the debate's verdict (D-062).
+		session.verdictNext = false
+		setStage(session, "Reveal", now, config.TIMER_DEBATE_VERDICT)
+		session.reveal = "Verdict"
+		broadcast(session)
+		return
+	end
+	if phase == "Debate" and session.introWeek ~= session.match.week then
+		-- The debate stage before round 1 (D-062).
+		session.introWeek = session.match.week
+		session.events = {}
+		setStage(session, "Show", now, config.TIMER_DEBATE_INTRO)
+		session.reveal = "DebateIntro"
+		broadcast(session)
+		return
+	end
+	if
+		phase == "Select"
+		or phase == "Draft"
+		or phase == "Decision"
+		or phase == "Debate"
+		or phase == "Plan"
+	then
 		for _, seat in session.seats do
 			seat.locked = false
 			seat.input = nil
@@ -391,10 +421,6 @@ enterPhase = function(session: Session, now: number)
 	elseif phase == "MapReveal" then
 		session.events = {}
 		setStage(session, "Show", now, config.TIMER_MAP_REVEAL)
-	elseif phase == "Debate" then
-		advance(session, {})
-		setStage(session, "Reveal", now, config.TIMER_DEBATE)
-		session.reveal = "Debate"
 	elseif phase == "Election" then
 		session.events = {}
 		setStage(session, "Show", now, config.TIMER_ELECTION)
@@ -445,10 +471,13 @@ local function closeInput(session: Session, now: number)
 	local reveal = if phase == "Draft"
 		then config.DRAFT_REVEAL
 		elseif phase == "Plan" then Resolve.revealTime(config, session.events)
+		elseif phase == "Debate" then config.TIMER_DEBATE_CLASH
 		else 0
 	if reveal > 0 then
 		setStage(session, "Reveal", now, reveal)
-		session.reveal = if phase == "Draft" then "Draft" else "Resolve"
+		session.reveal = if phase == "Draft" then "Draft" elseif phase == "Debate" then "Clash" else "Resolve"
+		-- After the last round the match has left the Debate phase: the verdict follows.
+		session.verdictNext = phase == "Debate" and session.match.phase ~= "Debate"
 		broadcast(session)
 	else
 		enterPhase(session, now)
@@ -579,6 +608,7 @@ function Session.new(
 			input = nil,
 			skip = spec.kind == "Bot",
 			missed = 0,
+			debateGraceWeek = nil,
 			prePick = spec.prePick,
 			botCandidate = spec.candidate,
 			botStyle = spec.style or (if difficulty then Bot.styleFor(difficulty) else nil),
@@ -607,6 +637,8 @@ function Session.new(
 		outbox = {},
 		pendingClaims = {},
 		pendingColorClaims = {},
+		introWeek = nil,
+		verdictNext = false,
 	}
 	enterPhase(session, now)
 	-- An owner whose saved favorite lost the coin flip as Select opened (both
@@ -885,10 +917,12 @@ function Session.skip(session: Session, p: number, step: any, now: number): (boo
 		return false, stale
 	end
 	local config = session.config
-	-- Draft reveals and debates are short and not skippable.
+	-- Draft reveals, the debate's intro and its clashes are short and not
+	-- skippable; its verdict is (D-062).
 	local resolving = session.stage == "Reveal" and session.reveal == "Resolve"
+	local verdict = session.stage == "Reveal" and session.reveal == "Verdict"
 	local election = session.stage == "Show" and session.match.phase == "Election"
-	if not resolving and not election then
+	if not resolving and not verdict and not election then
 		return false, Session.Reason.NotSkippable
 	end
 	session.seats[p].skip = true
@@ -899,7 +933,7 @@ function Session.skip(session: Session, p: number, step: any, now: number): (boo
 		end
 	end
 	if all then
-		session.skippedTo = if election
+		session.skippedTo = if election or verdict
 			then now
 			else math.min(session.deadline, session.stageStart + config.TIMER_RESOLVE_SKIPPED)
 	end
@@ -918,9 +952,17 @@ function Session.disconnect(session: Session, p: number, now: number)
 		return
 	end
 	seat.connected = false
-	if seat.graceLeft > 0 then
+	-- A debate spends at most one grace use (D-062): a second drop in the same
+	-- debate gets canned answers straight away.
+	local debating = session.match.phase == "Debate"
+	local week = session.match.week
+	local spentThisDebate = debating and seat.debateGraceWeek == week
+	if seat.graceLeft > 0 and not spentThisDebate then
 		seat.graceLeft -= 1
 		seat.graceUntil = now + session.config.DISCONNECT_GRACE
+		if debating then
+			seat.debateGraceWeek = week
+		end
 	else
 		seat.graceUntil = now
 	end

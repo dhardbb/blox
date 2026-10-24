@@ -1,8 +1,9 @@
 --!strict
 -- The match state machine: Select -> MapReveal (strongholds assigned, D-045) -> Draft
 -- (home, then nominations) -> week n -> ... -> Election -> Done, where a week is
---   [Decision "Focus" -> Debate] -> [Decision "Stance"] -> Plan
--- (the focus only in debate weeks, the stance only in Choice weeks; D-044, Sim/Decision).
+--   [Debate round 1 -> 2 -> 3] -> [Decision "Stance"] -> Plan
+-- (the debate's live rounds only in debate weeks, D-062, Sim/Debate; the stance
+-- only in Choice weeks, D-044, Sim/Decision).
 --
 -- Pure: Match.new(config, seed, playerIds, colorPass?) builds a match; Match.advance(config,
 -- match, inputs) returns a new state plus events and never mutates its argument.
@@ -230,7 +231,7 @@ function Match.new(
 			lead = nil,
 			underdogTier = 0,
 			frontrunner = false,
-			debateFocus = nil,
+			debateMove = nil,
 			stance = nil,
 			internalPolls = {},
 			scouted = {},
@@ -285,6 +286,7 @@ function Match.new(
 		platformMults = IssueMap.platformMults(config, issueMap),
 		draftLog = {},
 		debateTopics = Debate.drawTopics(config, rng),
+		debate = nil,
 		debates = {},
 		eventDeck = Events.draw(config, rng),
 		eventLog = {},
@@ -313,6 +315,7 @@ function Match.wantsInput(match: MatchState): boolean
 	return match.phase == "Select"
 		or match.phase == "Draft"
 		or match.phase == "Decision"
+		or match.phase == "Debate"
 		or match.phase == "Plan"
 end
 
@@ -462,6 +465,8 @@ function Match.validate(config: Config, match: MatchState, p: number, input: any
 			return draftOk, draftReason, if choices then { choices = choices } else nil
 		elseif match.phase == "Decision" then
 			return Decision.validate(config, match, p, input)
+		elseif match.phase == "Debate" then
+			return Debate.validate(config, match, p, input)
 		elseif match.phase == "Plan" then
 			return Plan.validate(config, match, p, input)
 		end
@@ -490,6 +495,8 @@ function Match.default(config: Config, match: MatchState, p: number): any
 		return { choices = Draft.autofill(config, match, p, {}) }
 	elseif match.phase == "Decision" then
 		return Decision.default(config, match, p)
+	elseif match.phase == "Debate" then
+		return Debate.default()
 	elseif match.phase == "Plan" then
 		return Plan.empty()
 	end
@@ -557,6 +564,11 @@ local function enterWeek(config: Config, match: MatchState, week: number)
 		match.decision = nil
 		match.phase = "Election"
 		match.election = Election.count(config, match)
+	elseif match.debateTopics[week] ~= nil then
+		-- A debate week opens with the debate's live rounds (D-062).
+		match.decision = nil
+		match.phase = "Debate"
+		Debate.start(config, match)
 	else
 		decideOrPlan(match, Decision.opening(config, match, week))
 	end
@@ -606,26 +618,21 @@ function Match.advance(
 		end
 	elseif phase == "Decision" then
 		Decision.apply(config, match, collect(config, match, given))
-		if match.decision == "Focus" then
-			match.decision = nil
-			match.phase = "Debate"
-		else
-			decideOrPlan(match, nil)
-		end
+		decideOrPlan(match, nil)
 	elseif phase == "Plan" then
 		events = Resolve.week(config, match, collect(config, match, given))
 		enterWeek(config, match, match.week + 1)
 	elseif phase == "Debate" then
-		local result = Debate.resolve(config, match)
-		for t, winner in result.winners do
-			table.insert(
-				events,
-				{ kind = "DebateTopic", player = winner, issue = result.topics[t] :: string }
-			)
-		end
-		-- The polls were republished with the debate's shifts (D-040): say which
+		local round, finished = Debate.round(config, match, collect(config, match, given))
+		table.insert(events, {
+			kind = "DebateTopic",
+			player = round.winner,
+			issue = round.topic :: string,
+			amount = round.margin,
+		})
+		-- The polls were republished after the round (D-040, D-062): say which
 		-- states changed public leader, with their EV.
-		for _, flip in result.flips do
+		for _, flip in round.flips do
 			table.insert(events, {
 				kind = "PollFlip",
 				player = flip.to,
@@ -634,7 +641,9 @@ function Match.advance(
 				amount = StateData.byId[flip.state].ev,
 			})
 		end
-		decideOrPlan(match, Decision.afterDebate(match))
+		if finished ~= nil then
+			decideOrPlan(match, Decision.afterDebate(match))
+		end
 	elseif phase == "Election" then
 		match.phase = "Done"
 	else

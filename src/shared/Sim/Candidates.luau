@@ -34,8 +34,8 @@ export type Profile = {
 	frontrunnerEV: number?, -- when leading by this much projected EV, the frontrunner mults apply
 	frontrunnerRallyMult: number,
 	frontrunnerFundMult: number,
-	debateStat: number,
-	focusEdge: number, -- score added to the debate topic this candidate focuses on (D-044)
+	zingerMult: number, -- a debate round won with the Zinger staked moves the map and crowd this many times as much (D-062)
+	zingers: number, -- Zingers per debate (D-062)
 }
 
 type Entry = {
@@ -76,9 +76,9 @@ local ROSTER: { Entry } = {
 		id = "hale",
 		name = "Marcus Hale",
 		archetype = "The Debater",
-		perk = "Debate focus +3 instead of +2",
+		perk = "A debate win with his Zinger counts ×4, not ×2",
 		drawback = "Starts with no money",
-		overrides = { focusEdge = 3, startCash = 0 },
+		overrides = { zingerMult = 4, startCash = 0 },
 	},
 	{
 		id = "alvarado",
@@ -173,8 +173,8 @@ function Candidates.profile(config: Config, id: string): Profile
 		frontrunnerEV = nil,
 		frontrunnerRallyMult = 1,
 		frontrunnerFundMult = 1,
-		debateStat = config.DEBATE_STAT,
-		focusEdge = config.DEBATE_FOCUS,
+		zingerMult = config.DEBATE_ZINGER_MULT,
+		zingers = config.DEBATE_ZINGERS,
 	}
 	local writable = profile :: any
 	for key, value in entry.overrides do

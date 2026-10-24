@@ -26,16 +26,19 @@ export type Moment =
 	| "ChoiceWeek" -- the plan that follows a stance (the stance taken in one line)
 	| "Resolve" -- the resolve animation after week 3
 	| "ChoiceResolve" -- the resolve animation right after a Choice week (both stances revealed)
-	| "Focus" -- the Decision screen before the week 9 debate: pick a focus topic (D-044)
-	| "Debate" -- the debate sequence
+	| "DebateIntro" -- the week 4 debate's stage before round 1 (D-062)
+	| "DebateRound" -- round 2 of the week 9 debate: pick a move (D-062)
+	| "Clash" -- the clash after round 1 of the week 4 debate
+	| "Debate" -- the verdict after the week 4 debate's last round
 	| "Election" -- election night
-	| "Over" -- the result
+	| "Over" -- the result: a win for seat 1 (the first seed from `seed`, default END_SEED, on where it wins)
 	| "Landslide" -- the result after a landslide win: you took over 70% of the votes (D-062)
 	| "LandslideLoss" -- the result after the rival's landslide
 
 local Fixtures = {}
 
-local END_SEED = 26 -- the default seed of the Election and Over moments
+local END_SEED = 26 -- the default first seed of the Election and Over moments
+local END_TRIES = 40 -- seeds tried from there for a seat-1 win
 
 Fixtures.MOMENTS = table.freeze({
 	"Select",
@@ -49,7 +52,9 @@ Fixtures.MOMENTS = table.freeze({
 	"ChoiceWeek",
 	"Resolve",
 	"ChoiceResolve",
-	"Focus",
+	"DebateIntro",
+	"DebateRound",
+	"Clash",
 	"Debate",
 	"Election",
 	"Over",
@@ -81,13 +86,19 @@ local function reached(session: Session.Session, moment: Moment): boolean
 			and last ~= nil
 			and last.choices ~= nil
 			and last.week == session.match.week - 1
-	elseif moment == "Focus" then
-		return phase == "Decision"
-			and session.match.decision == "Focus"
-			and session.match.week == 9
+	elseif moment == "DebateIntro" then
+		return session.reveal == "DebateIntro"
+	elseif moment == "DebateRound" then
+		local live = session.match.debate
+		return phase == "Debate"
 			and stage == "Input"
+			and session.match.week == 9
+			and live ~= nil
+			and live.round == 2
+	elseif moment == "Clash" then
+		return session.reveal == "Clash" and session.match.week == 4
 	elseif moment == "Debate" then
-		return session.reveal == "Debate"
+		return session.reveal == "Verdict"
 	elseif moment == "Election" then
 		return phase == "Election" and stage == "Show"
 	end
@@ -227,14 +238,31 @@ function Fixtures.payload(
 		return landslide(config, over, if moment == "Landslide" then over.you else 3 - over.you)
 	end
 	if seed == nil and (moment == "Election" or moment == "Over") then
-		-- Half-price polls (D-063) turned seed 18 into a loss for seat 1. Seed 26
-		-- is again a close win on votes with fewer states (290 to 248, 23 states to 28).
+		-- Half-price polls (D-063) turned seed 18 into a loss for seat 1; END_SEED
+		-- is where the search for a seat-1 win starts.
 		first = END_SEED
 	end
 	if moment == "SelectColor" then
 		return selectColor(config, first)
 	elseif moment == "SelectName" or moment == "SelectNameBuy" then
 		return selectName(config, first, moment == "SelectName")
+	end
+	if moment == "Election" or moment == "Over" then
+		-- The result screen's fixture is a win for seat 1 (its specs check the
+		-- victory moment), and election night is the same match.
+		for k = 0, END_TRIES - 1 do
+			local over = play(config, "Over", first + k, candidate)
+			if over and over.result and over.result.winner == 1 then
+				if moment == "Over" then
+					return over
+				end
+				local night = play(config, "Election", first + k, candidate)
+				if night then
+					return night
+				end
+			end
+		end
+		error(`no seed from {first} on gives seat 1 the win`)
 	end
 	local tries = if moment == "Stance" or moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
 	for k = 0, tries - 1 do

@@ -47,14 +47,14 @@ Non-goals: tutorials, quizzes, glossary, the original game's primary season, rea
 
 ## Match flow
 
-A full match runs about 12 minutes typical and at most about 17½ minutes (budget in `DESIGN.md` D-005). Every timed step auto-locks when the timer ends; a player can lock early, and the step ends when both have locked.
+A full match runs about 12 to 13 minutes typical. With every timer run out it is at most 17½ minutes on the D-005 steps, and 20 min 10 s with every stance and debate step too (budget in `DESIGN.md` D-005, D-044, D-062). Every timed step auto-locks when the timer ends; a player can lock early, and the step ends when both have locked.
 
 1. **Lobby.** Public queue, private match code, or practice vs the bot. Two players matched → a match instance starts in the same server (no teleport). Candidate and platform can be pre-picked in the lobby; rematch remembers them (colors are drawn, D-047).
 2. **Character and platform select (38s, two steps, simultaneous, hidden until both lock; D-048).** Step 1: claim a candidate; two players never share one (first claim wins, a same-moment clash goes to a seeded coin flip). Step 2: pick 3 of the 8 issues, each shown with the EV it covers this match and its platform multiplier. Player colors (six options, none of them a party color pairing) are drawn from the seed (D-047). Reveal both.
 3. **Map reveal (5s).** The match's seeded state leans are shown, and with them each player's five strongholds: their strongest-leaning states (see Core mechanics → Draft; `DESIGN.md` D-045).
 4. **State draft (3 blind rounds, 20s each, 2s reveal after each).** Round 0: home state. Rounds 1–2: one battleground nomination each. Each round both players secretly submit a ranked top 2; picks are revealed together after every round. Full rules in Core mechanics.
 5. **Campaign, weeks 1–12.** Each week: *Plan* (50s, simultaneous, hidden: spend action points and money; the week card, meaning what the opponent did publicly, this week's event, and next debate's topics, sits in a side panel of the plan screen) → *Resolve* (8s animation: rallies, ads, fundraisers, momentum drift, new public polls; skips to 3s if both tap).
-6. **Debates in weeks 4 and 9.** Each player picks one focus topic on a Decision screen at the start of the debate week (its own `TIMER_DECISION` timer; no focus in time = none); the debate then resolves in a 10s sequence before that week's plan. A Choice week's stance is taken the same way, on its own screen before the plan (`DESIGN.md` D-044).
+6. **Debates in weeks 4 and 9: three live rounds** (`DESIGN.md` D-062). A 3 s intro, then for each of the debate's three topics a 15 s round (both pick Defend, Attack or Pivot in secret; it ends early once both lock in) and a 4 s clash, then a 5 s verdict (skippable). A Choice week's stance is taken on its own screen before the plan (`DESIGN.md` D-044).
 7. **Election night (45s, skippable if both skip).** Safe states called first, closest states last, EV counter ticking. 270 wins. Stats screen (flipped states, money raised, debate results, biggest swing), rating change, rematch and requeue buttons.
 
 **Time bank.** Each player has 30s of extra plan time per match, taken in explicit 15s taps, visible to the opponent.
@@ -157,13 +157,17 @@ This keeps the original game's "match the message to the state" skill without an
 
 ### Debates (weeks 4 and 9)
 
-Three topics are drawn from the eight issues (seeded) and announced in the week card before the debate. Right before the debate, on its own Decision screen, each player secretly picks one topic to **focus** on: +`DEBATE_FOCUS` (2; Hale 3) on that topic. The screen lists, per topic, the states where it is a top issue, their EV, and which of them you need (close in the public poll). This replaced the 6-point prep spread in D-044.
+Three topics are drawn from the eight issues (seeded) and announced weeks ahead. A debate is **three live rounds**, one per topic (`DESIGN.md` D-062, which replaced the focus and the dice roll of D-044). Each round both players pick, at once and in secret, **Defend**, **Attack** or **Pivot**, and may stake their one **Zinger** on it. Every strength is public arithmetic, shown on the move's button with its result against each of the opponent's moves:
 
 ```
-topicScore(P) = focus[P][topic] + (2 if topic in platform[P]) + debateStat[P] + seededRandom(0..3)
+Defend = 2 + 3 if the topic is on your platform + 1 if you lead the topic's states
+Attack = 2 + 2 if it is on an opponent's platform + 1 if you trail its states + 2 if you trail the crowd
+Pivot  = 4 + 1 if it is not on your platform
+         - 2 for the move you played last round
+score  = strength + counter (Defend beats Attack beats Pivot beats Defend: +2 in round 1, +3 after)
 ```
 
-Higher score wins the topic; an exact tie gives the topic to nobody. **Debates move states, not an average** (`DESIGN.md` D-040). Winning a topic adds `DEBATE_TOPIC_WIN` (1.0) support in every state where that topic is a top issue (fixed map data, the same every match) plus a flat `DEBATE_TOPIC_NATIONAL` (0.1) in every state. A player who took no focus at all (the timer ran out) gaffes on every topic they lose: `DEBATE_GAFFE` (0.6) lost in that topic's states. A 3–0 sweep adds a flat `DEBATE_SWEEP` (0.2) everywhere and +2 momentum in every battleground. Gains use the normal undecided/opponent split; losses go to undecided. Right after the debate the public polls are republished with the same error terms, so the map shows what the debate moved; the debate result carries every state's requested points (`moves`) and the states whose public-poll leader changed (`flips`), so the screen can say "your Jobs win swung OH, MI and PA; PA flipped to you (+19 EV)". Against the 0..3 roll an uncontested focus (+2) wins its topic 81% of the time and loses 6%; a 1-point edge wins 62%. No candidate's debate stat may exceed another's by more than 2. (Revision 1 had a 0..2 roll and national payoffs of 0.8 / 0.5 / −0.5; balance pass 1 cut them to 0.2 and widened the roll to 0..6, which made prep feel like noise; balance pass 2 set 0.3 per topic on a 0..3 roll; the issue-based pass replaced the national average with the state moves above: `DESIGN.md` D-019, D-033, D-040.)
+"Lead the topic's states": the EV of the topic's states where you lead the public poll is more than your opponent's. The higher score wins the round; equal is a split. No dice. A win adds `DEBATE_ROUND_WIN` (0.8) support in each of the winner's landing states (the topic's states for Defend and Attack; for Pivot, the states of the player's platform issue with the most EV in play), ×2 if the winner staked the Zinger (Hale ×4); a split gives `DEBATE_ROUND_SPLIT` (0.5) to each in their own landing states; losing to a counter costs `DEBATE_BACKFIRE` (0.5) where your move aimed. The winner gains crowd by the margin (at most 4, ×Zinger); a final crowd lead of 8 is a standing ovation, +2 momentum in every battleground. Gains use the normal undecided/opponent split; losses go to undecided; both players' effects apply from one snapshot. The public polls are republished after every round with the same error terms, so the map shows each round live. No answer in time is a canned answer: Defend at a flat 2, never countered and never countering. Every number is in `Sim/Config.luau`.
 
 ### Events (Phase 5)
 
@@ -188,13 +192,13 @@ The character select replaces the original's primary. Eight fictional candidates
 | Dana Okafor | The Fundraiser | Fundraisers yield +25% (applied after the pool cap; the bonus does not drain the pool; D-023, D-037) | None (D-023) |
 | Rex Calloway | The Barnstormer | 4 AP per week | Rallies +2.2 base instead of +3.0 ("more stops, smaller crowds"); media buys cost $4 |
 | Priya Venkat | The Ad Wizard | Media buys cost $2; saturation steps are 65% / 42% (D-037) | Income $2 instead of $4 (D-023, D-037) |
-| Marcus Hale | The Debater | Debate focus +3 instead of +2 (D-023, D-037, D-044) | Starts with no money |
+| Marcus Hale | The Debater | A debate win with his Zinger counts ×4, not ×2 (D-023, D-037, D-062) | Starts with no money |
 | June Alvarado | The Insider | Starts with $18 | Passive income $3 instead of $4 |
 | Tomas Reyes | The Insurgent | Underdog multipliers doubled; momentum gained +50% | Momentum keeps 25% per week instead of 50%; while leading by 40+ projected EV, rallies ×0.9 and fundraisers ×0.85 |
 | Helen Strand | The Pollster | Sees next week's event a week early (her View alone carries it, D-035); two free internal polls per week | Media buys −10% (D-037) |
 | Walt Begay | The Organizer | GOTV units cost $1 and cap at 6 per state | Rallies +2.4 base instead of +3.0 |
 
-All eight have debate stat 1 and a +2 debate focus unless the table says otherwise. These are revision-2 values from a paper review (`DESIGN.md` D-011), except where a later entry is cited; `Candidates.luau` with `DESIGN.md` D-022, D-023 and D-035 has the current numbers, and the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
+All eight stake one Zinger per debate at ×2 unless the table says otherwise (the debate stat is gone, D-062). These are revision-2 values from a paper review (`DESIGN.md` D-011), except where a later entry is cited; `Candidates.luau` with `DESIGN.md` D-022, D-023 and D-035 has the current numbers, and the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
 
 Presentation: each candidate is a Roblox avatar-style portrait built from a humanoid rig with a fixed outfit and color palette rendered to a ViewportFrame, so no uploaded images are required for MVP. Player color (six options: Crimson, Cobalt, Emerald, Amber, Violet, Teal) is drawn per match (D-047) so the two sides never read as real parties.
 
@@ -209,7 +213,7 @@ The design has five anti-snowball levers and one rubber band; keep all of them t
 5. **Closing argument.** Rallies and media in weeks 10–12 get ×1.15. Late game must matter at least as much as early game.
 6. **Underdog rubber band (the only one).** Trailing by 40+ projected EV: fundraisers ×1.15, rallies ×1.10. Trailing by 100+: ×1.25 and ×1.20. Measured from public polls, so it is visible to both, but smoothed: the gap is an exponential average with weight 0.5 on the newest week, and a tier switches on at its threshold and only switches off once the smoothed gap falls 20 EV below it. One noisy poll cannot toggle it. There is no underdog cash bonus.
 
-Variance budget. The only sources of randomness, all drawn from the per-match seed: draft priority (who is A), state leans, public poll noise, debate rolls (0–3 per topic), the event deck order, and election-day noise. Nothing else rolls dice. The same seed plus the same inputs must replay the same match exactly; this is also how replays, spectating, and regression tests work.
+Variance budget. The only sources of randomness, all drawn from the per-match seed: draft priority (who is A), state leans, public poll noise, the event deck order, and election-day noise (debates have no dice since D-062). Nothing else rolls dice. The same seed plus the same inputs must replay the same match exactly; this is also how replays, spectating, and regression tests work.
 
 Required balance harness (`tests/harness/balance.luau`, run with Lune): play N bot-vs-bot matches (N = 2,000 should finish in under two minutes) and report per candidate win rate, the full 8×8 candidate matchup matrix, win rate by draft priority (A vs B), mean and median final EV margin, comeback rate (winner was trailing in true EV at week 8), average money unspent at the end, and distribution of game-deciding margins. Red flags that block a release: any candidate outside 45–55%, any matchup outside 40–60%, priority win rate outside 47–53%, comeback rate below 20% or above 40%, or more than 65% of matches decided by 40+ EV, a median margin over 60 EV, or more than 25% decided by 100+ EV (revised from "15% by 40+ EV", `DESIGN.md` D-024).
 
@@ -348,8 +352,12 @@ Every value here goes in `Config.luau` with a one-line comment. They are first g
 | MOMENTUM\_DECAY / MOMENTUM\_CAP / DRIFT\_RATE / DRIFT\_CAP | 0.5 / 6 / 0.6 / 3 |  |
 | POLL\_SIGMA / POLL\_RHO / ELECTION\_SIGMA | 3 / 0.7 / 2 | Poll error is AR(1) |
 | ISSUE\_MULT | 1.5 / 1.2 / 1.0 / 0.8 | Platform+state / state only / platform only / neither |
-| DEBATE\_FOCUS | 2 | Score on the one topic a player focuses on (D-044) |
-| DEBATE\_TOPIC\_WIN / DEBATE\_TOPIC\_NATIONAL / DEBATE\_SWEEP / DEBATE\_GAFFE | 1.0 / 0.1 / 0.2 / 0.6 | Support points: in the topic's states / in every state / flat for a sweep / lost in the topic's states (D-040) |
+| DEBATE\_DEFEND / ATTACK / PIVOT\_BASE | 2 / 2 / 4 | Debate move strengths before bonuses (D-062) |
+| DEBATE\_OWN / THEIR / OFF\_ISSUE, DEBATE\_GROUND, DEBATE\_CROWD\_TRAIL | 3 / 2 / 1, 1, 2 | Strength bonuses (D-062) |
+| DEBATE\_COUNTER / DEBATE\_REPEAT | 2, 3, 3 / 2 | Counter bonus by round; last round's move again (D-062) |
+| DEBATE\_ROUND\_WIN / SPLIT / BACKFIRE | 0.8 / 0.5 / 0.5 | Support points in a round's landing states (D-062) |
+| DEBATE\_ZINGERS / DEBATE\_ZINGER\_MULT | 1 / 2 | A staked round you win counts ×2 (Hale ×4) |
+| DEBATE\_OVATION / DEBATE\_OVATION\_MOMENTUM | 8 / 2 | Crowd lead for a standing ovation; its battleground momentum |
 | STANCE\_POINTS / STANCE\_HEDGE / STANCE\_SPILL / STANCE\_PLATFORM\_MULT | 1.5 / 0.5 / 0.5 / 1.5 | Choice stances: liked or disliked state / hedge or indifferent state / other states per liked or disliked issue / heard harder on your platform (D-039, D-041) |
 | CLOSING\_MULT / CLOSING\_FROM\_WEEK | 1.15 / 10 |  |
 | UNDERDOG\_EV\_1 / UNDERDOG\_EV\_2 | 40 / 100 | Thresholds in projected EV |
@@ -362,9 +370,10 @@ Every value here goes in `Config.luau` with a one-line comment. They are first g
 | STRONGHOLD\_COUNT | 5 | Assigned at the map reveal: each player's strongest-leaning states (D-045) |
 | DRAFT\_PRIORITY | A B B | Clash priority per round |
 | TIMER\_PLAN / TIME\_BANK / TIME\_BANK\_CHUNK | 50 / 30 / 15 | Seconds; bank is per player per match |
-| TIMER\_DECISION | 20 | Debate focus or a Choice stance, its own screen before the plan (D-044); no time bank |
+| TIMER\_DECISION | 20 | A Choice stance, its own screen before the plan (D-044); no time bank |
 | TIMER\_RESOLVE / TIMER\_RESOLVE\_SKIPPED | 8 / 3 | Both players tap to skip |
-| TIMER\_DEBATE / TIMER\_ELECTION | 10 / 45 | Election skippable if both skip |
+| TIMER\_DEBATE\_INTRO / ROUND / CLASH / VERDICT | 3 / 15 / 4 / 5 | Debate stages (D-062); the verdict is skippable |
+| TIMER\_ELECTION | 45 | Election skippable if both skip |
 | DISCONNECT\_GRACE / GRACE\_USES / FORFEIT\_MISSED\_WEEKS | 30 / 2 / 2 |  |
 | ELO\_K / ELO\_START | 32 / 1000 |  |
 | MATCHES\_PER\_SERVER | 10 | Player cap 20 |

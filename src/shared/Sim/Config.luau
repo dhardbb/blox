@@ -9,7 +9,7 @@
 local Config = {
 	-- Match shape
 	WEEKS = 12, -- campaign weeks
-	DEBATE_WEEKS = { 4, 9 }, -- debates resolve at the start of these weeks
+	DEBATE_WEEKS = { 4, 9 }, -- a debate opens these weeks, before the plan
 	EV_TO_WIN = 270, -- electoral votes needed
 	LANDSLIDE_EV_SHARE = 0.70, -- a win with strictly more than this share of all EV is a landslide (538: 377+; D-062)
 	PLATFORM_SIZE = 3, -- issues each player picks out of eight
@@ -106,18 +106,31 @@ local Config = {
 	POLL_RHO = 0.7, -- share of last week's poll error that carries over (D-002)
 	ELECTION_SIGMA = 2, -- election-day noise on each state's margin
 
-	-- Debates (D-010, D-011)
-	DEBATE_TOPICS = 3, -- topics per debate
-	DEBATE_FOCUS = 2, -- score added to the one topic a candidate focuses on (D-044: replaces the 6-point prep spread)
-	DEBATE_PLATFORM_BONUS = 2, -- score bonus when the topic is in your platform
-	DEBATE_ROLL_MAX = 3, -- seeded roll 0..this added to each topic score (2 -> 6 in D-019, 6 -> 3 in D-033: a 2-point prep edge wins 81%, a 1-point edge 62%)
-	DEBATE_STAT = 1, -- default debate stat
-	DEBATE_MAX_STAT_GAP = 2, -- no candidate's stat may exceed another's by more
-	DEBATE_TOPIC_WIN = 1.0, -- support points per topic won, in every state where the topic is a top issue (D-040: debates move states, not a national average; 1.2 sat on the 25% decide line)
-	DEBATE_TOPIC_NATIONAL = 0.1, -- flat support points in every state per topic won (the small national part, D-040)
-	DEBATE_SWEEP = 0.2, -- flat national points in every state for a 3-0 sweep (D-040)
-	DEBATE_SWEEP_MOMENTUM = 2, -- momentum in every battleground for a sweep
-	DEBATE_GAFFE = 0.6, -- support points lost in every state where the topic is a top issue, for each topic lost with no focus taken at all (D-040, D-044)
+	-- Debates: three live rounds, one per topic (D-062). Each player picks Defend,
+	-- Attack or Pivot; a move's strength is public arithmetic (Debate.board), the
+	-- move that counters the other's gets DEBATE_COUNTER, the higher score wins.
+	DEBATE_TOPICS = 3, -- topics per debate, one round each
+	DEBATE_DEFEND_BASE = 2, -- Defend's strength before bonuses
+	DEBATE_ATTACK_BASE = 2, -- Attack's strength before bonuses
+	DEBATE_PIVOT_BASE = 4, -- Pivot's strength before bonuses (3 in the proposal: then always Defending beat the standard bot, 52%)
+	DEBATE_OWN_ISSUE = 3, -- Defend: the topic is on your platform (4 in the first proposal pre-decided too many rounds)
+	DEBATE_THEIR_ISSUE = 2, -- Attack: the topic is on an opponent's platform (their record to attack)
+	DEBATE_OFF_ISSUE = 1, -- Pivot: the topic is not on your platform (somewhere better to go)
+	DEBATE_GROUND = 1, -- Defend if you lead the topic's states (by EV led in the public poll), Attack if you trail them
+	DEBATE_CROWD_TRAIL = 2, -- Attack: you trail the crowd meter (swing for the fences)
+	DEBATE_COUNTER = { 2, 3, 3 }, -- by round: added to the move that counters the other's (Defend > Attack > Pivot > Defend); grows so later rounds are not a formality
+	DEBATE_REPEAT = 2, -- taken off the move you played last round in this debate (the crowd saw it coming)
+	DEBATE_ZINGERS = 1, -- Zingers per debate: stake one on a round
+	DEBATE_ZINGER_MULT = 2, -- a staked round you win moves the map and the crowd this many times as much (Hale's profile has 4)
+	DEBATE_CANNED = 2, -- a timed-out answer: Defend at this flat strength, never countered and never countering
+	DEBATE_CANNED_CROWD = 1, -- most crowd a round won against a canned answer gains
+	DEBATE_ROUND_WIN = 0.8, -- support points for the round's winner in each of its landing states (the topic's, or its pivot issue's); 1.0 had debates decide 26% of matches (target 15-25%)
+	DEBATE_ROUND_SPLIT = 0.5, -- support points each tied player gets in its own landing states on an equal score
+	DEBATE_BACKFIRE = 0.5, -- support points a player who lost to a counter loses in its own landing states
+	DEBATE_CROWD_ROUND_MAX = 4, -- most crowd a won round gains before the Zinger (the round's margin, capped)
+	DEBATE_OVATION = 8, -- a final crowd lead of at least this is a standing ovation
+	DEBATE_OVATION_MOMENTUM = 2, -- momentum a standing ovation adds in every battleground (the old sweep's)
+	DEBATE_PIVOT_CLOSE = 5, -- a Pivot lands on the platform issue whose states within this many poll points either way hold the most EV
 
 	-- Anti-snowball (D-006)
 	CLOSING_MULT = 1.15, -- rallies and media in the closing weeks
@@ -167,7 +180,10 @@ local Config = {
 	TIMER_RESOLVE_PER_STEP = 0.55, -- resolve animation: seconds per reveal step, so each move is seen to land (D-063)
 	TIMER_RESOLVE_MAX = 14, -- resolve animation, the longest (D-063)
 	TIMER_RESOLVE_SKIPPED = 3, -- resolve when both players tap skip
-	TIMER_DEBATE = 10, -- debate sequence
+	TIMER_DEBATE_INTRO = 3, -- the debate stage before round 1 (D-062)
+	TIMER_DEBATE_ROUND = 15, -- one debate round: pick a move (D-062; both locked in ends it)
+	TIMER_DEBATE_CLASH = 4, -- the clash after each debate round
+	TIMER_DEBATE_VERDICT = 5, -- the debate's verdict after round 3 (skippable)
 	TIMER_ELECTION = 45, -- election night
 	TRANSITION_ALLOWANCE = 10, -- total screen-transition time budgeted per match
 	DISCONNECT_GRACE = 30, -- wait before auto-submitting a disconnected player's plan
@@ -178,13 +194,14 @@ local Config = {
 	-- Practice bot difficulty (D-057). Medium is the standard (balance harness) bot
 	-- and reads none of these. Every level decides from its own View only.
 	BOT_EASY_NOISE = 0.45, -- Easy: spread (log scale) of a random weight on each state's worth, redrawn every plan
-	BOT_EASY_SLIP = 0.5, -- Easy: chance a debate focus or a Choice stance is picked at random
+	BOT_EASY_SLIP = 0.5, -- Easy: chance a debate move or a Choice stance is picked at random
 	BOT_HARD_WIN_CHANCE = 1, -- Hard: how far state worth follows the chance of reaching 270 rather than expected EV (0 = Medium's worth)
 	BOT_HARD_FORESIGHT = 1, -- Hard: share of the opponent's predicted plan counted against this week's margins
 	BOT_EXTREME_WIN_CHANCE = 3, -- Extreme: the same, pushed further (defends harder when ahead, reaches further when behind)
 	BOT_EXTREME_FORESIGHT = 1, -- Extreme: share of the opponent's predicted plan counted against this week's margins
 	BOT_FORESIGHT_CASH = { 2, 7, 13 }, -- Hard and up: the opponent's cash guessed from its Low / Medium / High money bracket
-	BOT_FOCUS_READ = 0.5, -- Hard and up: weight on the opponent focusing where the standard bot would (rest spread evenly)
+	BOT_DEBATE_READ = 0.15, -- Hard and up: weight on the opponent playing the debate move the standard bot would (rest spread evenly); 0.5 read Medium so well that Hard won 86%
+	BOT_EXTREME_HISTORY = 0.5, -- Extreme: share of that prediction taken from the opponent's own past debate moves this match
 
 	-- Custom candidate names (the Name Pass, D-063). Not rules: who may name a
 	-- candidate, and how long a name may be.

@@ -596,7 +596,18 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "07-decision-stance", moment = "Stance", screen = "Decision" },
-	{ name = "08-decision-focus", moment = "Focus", screen = "Decision" },
+	{ name = "08-debate-intro", moment = "DebateIntro", screen = "Debate" },
+	{ name = "08a-debate-round", moment = "DebateRound", screen = "Debate" },
+	{
+		-- A move picked and the Zinger staked: the map previews where a win lands.
+		name = "08b-debate-picked",
+		moment = "DebateRound",
+		screen = "Debate",
+		steps = function(world, peer)
+			tapIf(world, peer, "Debate", "MovePivot")
+			tapIf(world, peer, "Debate", "Zinger")
+		end,
+	},
 	{ name = "09-campaign-plan", moment = "Plan", screen = "Campaign" },
 	-- D-065: the event strip under the score for every kind of week (the Plan
 	-- fixture is a Windfall week, 15 a Choice week), next week's event alone,
@@ -776,15 +787,8 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "18-choice-resolve", moment = "ChoiceResolve", screen = "Campaign" },
-	{ name = "19-debate", moment = "Debate", screen = "Campaign" },
-	{
-		name = "20-debate-late",
-		moment = "Debate",
-		screen = "Campaign",
-		steps = function(world, _peer)
-			FakeRoblox.run(world, 6)
-		end,
-	},
+	{ name = "19-debate-clash", moment = "Clash", screen = "Debate" },
+	{ name = "20-debate-verdict", moment = "Debate", screen = "Debate" },
 	{ name = "21-election-start", moment = "Election", screen = "Election" },
 	{
 		name = "22-election-late",

@@ -27,6 +27,7 @@ local FORBIDDEN = {
 	"pool",
 	"debateShift",
 	"stanceShift",
+	"debateMove",
 	"rng",
 	"seed",
 	"s0",
@@ -109,10 +110,13 @@ local function busyMatch(): State.MatchState
 		assert(ok, `busy plan {p} rejected: {reason}`)
 	end
 	match = Match.advance(C, match, { plan, plan2 })
-	-- Week 4 opens with the debate focus, on its own (D-044).
-	assert(match.phase == "Decision" and match.decision == "Focus", "week 4 opens with a Focus decision")
-	local focus = { focus = match.debateTopics[4][2] }
-	return (Match.advance(C, match, { focus, focus }))
+	-- Week 4 opens with the debate's live rounds (D-062); both have a move locked
+	-- in for round 2 after an open round 1.
+	assert(match.phase == "Debate", "week 4 opens with the debate")
+	match = Match.advance(C, match, { { move = "Defend" }, { move = "Attack" } })
+	match.players[1].debateMove = { move = "Pivot", zinger = true, canned = false }
+	match.players[2].debateMove = { move = "Attack", zinger = false, canned = false }
+	return match
 end
 
 describe("View: no leaks", function()
@@ -156,9 +160,7 @@ describe("View: no leaks", function()
 			{ { state = "CA", support = { 1, 2 }, undecided = 3, momentum = { 0, 0 }, gotv = { 4, 0 } } }
 		opponent.scouted = { { state = "OH", week = 2, gotv = { 4, 4 } } }
 		opponent.raised = 1234
-		opponent.debateFocus = if opponent.debateFocus == secret.debateTopics[4][1]
-			then secret.debateTopics[4][3]
-			else secret.debateTopics[4][1]
+		opponent.debateMove = { move = "Pivot", zinger = true, canned = false }
 		opponent.stance = "B"
 		opponent.lead = (opponent.lead or 0) + 0.001 -- same tier, different smoothed value
 		secret.seed = 31337
@@ -271,7 +273,7 @@ describe("View: no leaks", function()
 		expect(#view.internalPolls):toBe(1)
 		expect(view.internalPolls[1].state):toBe("OH")
 		expect(view.players[1].cash):toBe(match.players[1].cash)
-		expect(view.debateFocus):toBe(match.debateTopics[4][2])
+		expect((view.debate :: View.DebateView).yourMove):toEqual(match.players[1].debateMove)
 		local oh = view.states[State.indexOf.OH]
 		expect(oh.gotv):toBe(1)
 		expect(View.build(C, match, 2).states[State.indexOf.OH].gotv):toBe(1) -- their own unit, not mine
@@ -339,22 +341,22 @@ describe("View: no leaks", function()
 		expect(View.build(C, match, 2).priorityA):toBe(match.priorityA)
 	end)
 
-	it(
-		"the debate focus is revealed only after the debate; the debate's moves and flips come with it",
-		function()
-			local match = busyMatch()
-			expect(#View.build(C, match, 1).debates):toBe(0)
-			match = Match.advance(C, match, {})
-			local view = View.build(C, match, 1)
-			checkView(view)
-			expect(view.debates[1].focus):toEqual({ 2, 2 })
-			expect(view.debates[1].prep[2]):toEqual({ 0, C.DEBATE_FOCUS, 0 })
-			expect(view.debateFocus):toBe(nil)
-			expect(view.debates[1].moves):toEqual(match.debates[1].moves)
-			expect(view.debates[1].flips):toEqual(match.debates[1].flips)
-			expect(view.debates[1].gaffes):toEqual(match.debates[1].gaffes)
-		end
-	)
+	it("a debate move is revealed only after its round; the debate's moves and flips come with it", function()
+		local match = busyMatch()
+		expect(#View.build(C, match, 1).debates):toBe(0)
+		match = Match.advance(C, match, { match.players[1].debateMove, match.players[2].debateMove })
+		local live = View.build(C, match, 1).debate :: View.DebateView
+		expect(live.rounds[2].picks):toEqual({ "Pivot", "Attack" })
+		expect(live.yourMove):toBe(nil)
+		match = Match.advance(C, match, {})
+		local view = View.build(C, match, 1)
+		checkView(view)
+		expect(view.debate):toBe(nil)
+		expect(#view.debates[1].rounds):toBe(3)
+		expect(view.debates[1].moves):toEqual(match.debates[1].moves)
+		expect(view.debates[1].flips):toEqual(match.debates[1].flips)
+		expect(view.debates[1].gaffes):toEqual(match.debates[1].gaffes)
+	end)
 
 	it("announces the next debate's topics", function()
 		local match = Fixtures.campaign({ seed = 5 })

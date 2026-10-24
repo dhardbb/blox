@@ -7,7 +7,6 @@
 
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
-local Fixtures = require("@ui/Fixtures")
 local Issues = require("@sim/Issues")
 local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
@@ -18,7 +17,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local C = Config.defaults
 local WIDE = { x = 1280, y = 720 }
 local SIZES = { { name = "16:9", screen = WIDE }, { name = "phone", screen = Rig.PHONE } }
-local MOMENTS = { "Plan", "ChoiceWeek", "Resolve", "Debate" }
+local MOMENTS = { "Plan", "ChoiceWeek", "Resolve" } -- debates have their own screen (D-062)
 
 local check = Rig.check
 local need = function(peer: FakeRoblox.Peer, name: string): any
@@ -138,23 +137,6 @@ describe("Campaign parts: the pinned action bar", function()
 		empty.seats[empty.you].bank = 0
 		Rig.push(world, peer, empty)
 		check(not shown(need(peer, "BankButton")), "Bank shows with an empty bank")
-		Rig.noErrors(world)
-	end)
-end)
-
-describe("Campaign parts: the debate reveal (B1)", function()
-	it("hides the event card and has nothing to press", function()
-		local world, peer = Rig.fixture("Debate", nil)
-		local view = Fixtures.payload(C, "Debate").view
-		check(view.event ~= nil, "the Debate fixture carries no event, so B1 is not exercised")
-		check(not shown(need(peer, "EventCard")), "the event card shows during the debate")
-		for t = 1, C.DEBATE_TOPICS do
-			need(peer, `DebateTopic{t}`)
-		end
-		check(FakeRoblox.find(peer, "LockIn") == nil, "Lock in exists during the debate")
-		check(not shown(need(peer, "SkipButton")), "a primary button shows during the debate")
-		check(FakeRoblox.find(peer, "Campaign"):GetAttribute("PrimaryOptional") == true, "no PrimaryOptional")
-		check(Rig.contains(textOf(peer, "BarStatus"), "Debate · topic"), textOf(peer, "BarStatus"))
 		Rig.noErrors(world)
 	end)
 end)

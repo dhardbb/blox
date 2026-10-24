@@ -38,8 +38,6 @@ describe("Match", function()
 				weeks += 1
 			elseif string.sub(step, 1, 7) == "Debate:" then
 				table.insert(debates, step)
-				-- Prep is decided right before the debate it feeds (D-044).
-				expect(trail[k - 1]):toBe(`Decision:{string.match(step, "^Debate:(%d+)")}:2:Focus`)
 			elseif string.match(step, ":Stance$") then
 				stances += 1
 				local week = string.match(step, "^Decision:(%d+)")
@@ -47,10 +45,18 @@ describe("Match", function()
 			end
 		end
 		expect(weeks):toBe(C.WEEKS)
-		expect(debates):toEqual({ "Debate:4:2", "Debate:9:2" })
+		-- Three live rounds per debate (D-062), each its own step.
+		expect(debates):toEqual({
+			"Debate:4:2",
+			"Debate:4:2",
+			"Debate:4:2",
+			"Debate:9:2",
+			"Debate:9:2",
+			"Debate:9:2",
+		})
 		expect(stances > 0):toBe(true)
 		expect(trail[#trail]):toBe("Election:13:2")
-		expect(#trail):toBe(2 + 3 + 12 + 2 * 2 + stances + 1)
+		expect(#trail):toBe(2 + 3 + 12 + 2 * C.DEBATE_TOPICS + stances + 1)
 	end)
 
 	it("is deterministic: same seed and inputs give the same match", function()

@@ -34,8 +34,11 @@ local REASONS: { [string]: string } = {
 	DuplicatePoll = "You already poll that state this week.",
 	PivotUsed = "You can only pivot once per match.",
 	BadPivot = "That pivot isn't allowed.",
-	BadFocus = "Pick one of this debate's topics to focus on.",
-	UnexpectedFocus = "The debate focus is picked on its own screen, not in the plan.",
+	BadFocus = "Debates have no focus any more: pick a move each round.",
+	UnexpectedFocus = "Debates have no focus any more: pick a move each round.",
+	BadMove = "Pick Defend, Attack or Pivot.",
+	ZingerSpent = "Your Zinger is already spent this debate.",
+	UnexpectedMove = "Debate moves are picked in the debate, not in the plan.",
 	BadChoice = "That isn't a valid answer to this week's event.",
 	UnexpectedChoice = "The stance is picked on its own screen, not in the plan.",
 	-- Session (Session.Reason)

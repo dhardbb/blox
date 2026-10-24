@@ -905,6 +905,7 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Helen Strand still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
 2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.
 3. **Send back:** whether you polled more than before, and any price on screen that still says $1 or $3 for a poll.
+
 ## The week's results, move by move (unreleased, D-063)
 
 Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tally"`, `lune run tests/ui/snap.luau -- resolve` (shots `16b-resolve-step1`, `16c-resolve-mid`, `16d-resolve-settle`, `17-resolve-end`; 0 audit findings at all three sizes).
@@ -918,6 +919,7 @@ Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tall
 6. **No errors** from `Reveal`, `RevealSteps`, `TopBar` or `Campaign` in the Output window.
 
 **Send back:** a phone and an iPad screenshot mid-reveal, whether each move's effect was easy to follow, whether "New polls are in" read as the polls updating (not as moves being undone), whether each move was on screen long enough to see it land, and any Output errors.
+
 ## Richer colors (unreleased, D-064)
 
 Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- select`, `-- election`, `-- results`); 0 audit findings. In Studio, play one match vs a bot on the iPad and look at:
@@ -925,6 +927,7 @@ Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- s
 1. **Campaign map.** States nobody leads are dark slate circles; leaning states are a deep red or blue (not pink or grey-blue); safe states are bright red or blue. The ring around each state is a soft slate, not near-white. Open **Key**: its swatches match the map. *Send back:* a screenshot of week 3 and whether a narrow lead is easy to spot.
 2. **Names in color** (header, state card, election night): Rex's name is a vivid red, Dana's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
 3. **Color Pass colors** (if you have the pass): all six swatches look rich, and Amber still reads as gold, not orange. *Send back:* a screenshot of Select with the swatches.
+
 ## Candidate portraits (unreleased, D-062)
 
 Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `-- debate`, `-- reveal`, `-- election`, `-- results`, `-- howto`); the snapshots always draw the PNGs; 0 audit findings at all three sizes.
@@ -972,3 +975,16 @@ Studio may not answer the chat-permission check, and its text filter is limited.
 6. Output: lines with `name filter failed`, `name eligibility check failed`, `name review`, `rejected SetName`, `rejected ReportName`, `rejected Review`.
 
 **Send back:** screenshots of the Select name line, the sheet, a refusal, B's view after reporting, and the review panel; and the Output lines from step 6.
+
+## Debates as live rounds (unreleased, D-062)
+
+Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- debate --size phone` (also `ipad`, `desktop`; 0 audit findings), `lune run tests/harness/balance.luau` (the "Debate" lines). Duel: `defend`, `attack`, `pivot`, add `zinger`.
+
+1. **Play vs Bot (Medium), on the iPad and a phone.** In week 4 the Debate screen opens: both faces with the crowd meter between them, "WEEK 4 DEBATE · 3 ROUNDS" and the three topics, each tagged with whose issue it is. **Expect:** after 3 s, round 1.
+2. **A round.** The moderator asks a question; the pills say whose issue it is, who leads its states and the counter. There are three big buttons: "Defend 6" with "D +4 · A +3 · P −1" on the right, and so on (your score minus theirs against their Defend, Attack and Pivot). Pivot says which issue's states it would land on. In your first debate, a move that can't lose has a green "Safe" tag and a tip explains it. Tap a move: the map lights where a win would land. Hold a move to preview it without picking. **Why?** shows each strength in parts.
+3. **Lock in** stays greyed ("Pick a move") until you tap one. Tap **Stake Zinger**, then Lock in. **Expect:** "Pivot + Zinger · kept secret"; Rex shows "locked in ✓" when he is done. Let one round run out without picking: you get a weak Defend.
+4. **The clash** (4 s): both moves, the scores, "Your Defend beats Attack: +3", a stamp (YOU WIN BY 3 / REX WINS BY 3 / SPLIT), the line naming the states it swung and any FLIP on the map. The crowd meter slides. *Send back:* a screenshot of one clash.
+5. **The verdict:** who won the crowd, a line per round, the map showing the whole debate's moves; **Skip** works. Then the stance (in a Choice week) or the plan.
+6. **Week 9:** the same; the Zinger is back. Results' "What decided it" still lists the states debates flipped.
+
+**Send back:** did you know why you won or lost each round? Did you ever pick a move because of what the bot did last round? Did the map move where you expected? Did it feel like its own event, or still like a quiz? How long did each debate take?

@@ -1,12 +1,13 @@
 --!strict
--- Skill check for Choice stances (D-039, D-041) and the debate focus (D-044):
+-- Skill check for Choice stances (D-039, D-041) and debate moves (D-062):
 -- the standard bot against the same bot deciding at random, seats alternating,
 -- two different candidates per match. Prints the random style's win rate with
 -- its 95% band.
 --
 --   lune run tests/harness/skill.luau            -- 2,000 matches, RandomStance
 --   lune run tests/harness/skill.luau 4000 STANCE_POINTS=2   -- more matches, a Config variant
---   lune run tests/harness/skill.luau RandomFocus DEBATE_FOCUS=3   -- the focus check
+--   lune run tests/harness/skill.luau RandomMove DEBATE_ROUND_WIN=1.2   -- the debate check
+--   (also NoAnswer, AlwaysDefend, AlwaysAttack, AlwaysPivot)
 
 local process = require("@lune/process")
 
@@ -24,7 +25,14 @@ for _, arg in process.args do
 		changes[key] = tonumber(value) or value
 	elseif tonumber(arg) then
 		N = tonumber(arg) :: number
-	elseif arg == "RandomStance" or arg == "RandomFocus" or arg == "NoFocus" then
+	elseif
+		arg == "RandomStance"
+		or arg == "RandomMove"
+		or arg == "NoAnswer"
+		or arg == "AlwaysDefend"
+		or arg == "AlwaysAttack"
+		or arg == "AlwaysPivot"
+	then
 		style = arg
 	end
 end

@@ -13,9 +13,10 @@ local Types = require("../Types")
 
 export type Phase = "Select" | "MapReveal" | "Draft" | "Decision" | "Plan" | "Debate" | "Election" | "Done"
 
--- What a Decision phase asks for (D-044): the debate topic to focus on, right
--- before the debate, or a stance on this week's Choice event, right before the plan.
-export type DecisionKind = "Focus" | "Stance"
+-- What a Decision phase asks for (D-044): a stance on this week's Choice event,
+-- right before the plan. (The debate focus it also asked for is gone: debates are
+-- live rounds now, D-062.)
+export type DecisionKind = "Stance"
 
 -- A public poll as shown to everyone: whole-number shares that sum to 100.
 export type Poll = {
@@ -102,7 +103,7 @@ export type PlayerState = {
 	lead: number?, -- smoothed projected-EV lead over the best opponent (negative = trailing)
 	underdogTier: number, -- 0, 1 or 2
 	frontrunner: boolean, -- the candidate's frontrunner drawback is active
-	debateFocus: Types.Issue?, -- topic focused on for this week's debate, set in its Decision phase (hidden until the debate resolves; nil = no focus)
+	debateMove: DebateInput?, -- this debate round's move (hidden until the round resolves, D-062)
 	stance: Types.Choice?, -- stance on this week's Choice event, set in its Decision phase (hidden until the week resolves)
 	internalPolls: { InternalPoll }, -- results from last week's plan (private)
 	scouted: { Scout }, -- latest ground game each own internal poll saw, one per state, StateData order (private)
@@ -117,17 +118,66 @@ export type DraftPick = {
 	kind: "Home" | "Nominate",
 }
 
+-- One player's answer in a debate round (D-062). `canned` marks the timeout
+-- default, which only the server sets.
+export type DebateInput = {
+	move: Types.DebateMove,
+	zinger: boolean,
+	canned: boolean,
+}
+
+-- One finished debate round (D-062): public from its clash on. Every list is by
+-- player index.
+export type DebateRound = {
+	round: number, -- 1-based
+	topic: Types.Issue,
+	picks: { Types.DebateMove }, -- each player's move (a canned answer is "Defend")
+	canned: { boolean }, -- the player timed out (canned answer)
+	zingers: { boolean }, -- the player staked its Zinger on this round
+	strengths: { number }, -- each move's strength (Debate.board), before the counter
+	countered: { boolean }, -- the player's move was countered by another player's
+	safe: { boolean }, -- the player had a move that could not lose this round (public arithmetic, before Zingers)
+	scores: { number }, -- strength plus the counter bonus
+	winner: number, -- 0 = a split (equal top scores)
+	margin: number, -- winner's score minus the runner-up's (0 on a split)
+	split: { boolean }, -- shared the top score (a split)
+	backfire: { boolean }, -- lost to a counter: lost DEBATE_BACKFIRE in its landing states
+	mult: number, -- the winner's Zinger multiplier (1 without one)
+	landing: { Types.Issue }, -- the issue whose states each player's move lands in (the topic, or the pivot issue)
+	crowd: { number }, -- crowd each player gained this round
+	moves: { StateMove }, -- the support points the round asked for, per state and player
+	flips: { PollFlip }, -- public-poll leader changes when the polls were republished after the round
+}
+
+-- The debate in progress (D-062), during its week's Debate phase. Public except
+-- each player's pending move, which lives in PlayerState.debateMove.
+export type LiveDebate = {
+	week: number,
+	round: number, -- the round now asking for moves, 1-based
+	topics: { Types.Issue },
+	crowd: { number }, -- by player
+	zingers: { number }, -- Zingers left, by player
+	last: { [number]: Types.DebateMove }, -- by player: the move played last round (repeat penalty)
+	rounds: { DebateRound },
+	leaders: { number }, -- public-poll leader per state (StateData order) when the debate opened, for the whole debate's flips
+}
+
+-- A finished debate. Fields up to `flips` keep the shape older readers use: a
+-- topic is a round (round t asked about topics[t]).
 export type DebateResult = {
 	week: number,
 	topics: { Types.Issue },
-	focus: { number }, -- by player: the topic index focused on, 0 = no focus (revealed after the debate)
-	prep: { { number } }, -- [player][topic]: score the focus added (the focus edge on one topic, 0 elsewhere)
-	scores: { { number } }, -- [player][topic]
-	winners: { number }, -- by topic; 0 = tie
-	gaffes: { { boolean } }, -- [player][topic]: lost it with no focus taken at all
-	national: { number }, -- flat points each player gained in every state (topic wins and a sweep)
-	moves: { StateMove }, -- the state-targeted points (topic wins and gaffes), in StateData order
-	flips: { PollFlip }, -- states whose public-poll leader changed when the polls were republished after the debate
+	focus: { number }, -- by player: always 0 since live rounds (D-062; kept for older readers)
+	prep: { { number } }, -- [player][topic]: always 0 since live rounds (kept for older readers)
+	scores: { { number } }, -- [player][round]: the round's score
+	winners: { number }, -- by round; 0 = a split
+	gaffes: { { boolean } }, -- [player][round]: lost to a counter (a backfire)
+	national: { number }, -- by player: always 0 since live rounds (no flat national part, D-062)
+	moves: { StateMove }, -- every round's support points summed, per state and player, in StateData order
+	flips: { PollFlip }, -- states whose public-poll leader differs from before the debate
+	rounds: { DebateRound }, -- the three rounds in full
+	crowd: { number }, -- final crowd by player
+	ovation: number, -- the player who won a standing ovation, 0 = none
 }
 
 -- A resolved weekly event (D-027, D-039). Public from the end of its week.
@@ -172,6 +222,7 @@ export type MatchState = {
 	platformMults: { [string]: number }, -- rally/ad multiplier on a platform issue where it is a top issue, by issue (public, D-047)
 	draftLog: { DraftPick },
 	debateTopics: { [number]: { Types.Issue } }, -- by debate week
+	debate: LiveDebate?, -- the debate in progress (phase Debate)
 	debates: { DebateResult },
 	eventDeck: { [number]: string }, -- week -> event id (hidden: only the current week's is shown)
 	eventLog: { EventResult }, -- resolved events, oldest first

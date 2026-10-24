@@ -136,118 +136,86 @@ describe("Debates", function()
 		expect(Match.new(C, 77, { "a", "b" }).debateTopics):toEqual(match.debateTopics)
 	end)
 
-	it(
-		"scores, winners, sweeps and gaffes follow the formula; wins move the topic's states (D-040, D-044)",
-		function()
-			for seed = 1, 30 do
-				local match = Fixtures.advanceTo(Fixtures.campaign({ seed = seed }), "Debate", 4)
-				local topicList = match.debateTopics[4]
-				match.players[1].debateFocus = topicList[1]
-				-- Every other seed, seat 2 took no focus: every topic it loses is a gaffe.
-				match.players[2].debateFocus = if seed % 2 == 0 then topicList[3] else nil
-				local snapshot = State.clone(match)
-				local result = Debate.resolve(C, match)
-				local topics = result.topics
-				local national = { 0, 0 }
-				local wins = { 0, 0 }
-				local gaffes = { { false, false, false }, { false, false, false } }
-				expect(result.focus):toEqual({ 1, if seed % 2 == 0 then 3 else 0 })
-				for t, topic in topics do
-					for p = 1, 2 do
-						local player = match.players[p]
-						local edge = if result.focus[p] == t then player.profile.focusEdge else 0
-						expect(result.prep[p][t]):toBe(edge)
-						local floor = result.prep[p][t]
-							+ (if table.find(player.platform, topic) then C.DEBATE_PLATFORM_BONUS else 0)
-							+ player.profile.debateStat
-						local roll = result.scores[p][t] - floor
-						expect(roll >= 0 and roll <= C.DEBATE_ROLL_MAX and roll == math.floor(roll)):toBe(
-							true
-						)
-					end
-					local a, b = result.scores[1][t], result.scores[2][t]
-					local winner = if a > b then 1 elseif b > a then 2 else 0
-					expect(result.winners[t]):toBe(winner)
-					if winner > 0 then
-						wins[winner] += 1
-						national[winner] += C.DEBATE_TOPIC_NATIONAL
-						local loser = 3 - winner
-						if result.focus[loser] == 0 then
-							gaffes[loser][t] = true
-						end
-					end
+	it("a round's points land in its landing states and apply from one snapshot (D-001, D-062)", function()
+		local pairs =
+			{ { "Defend", "Attack" }, { "Pivot", "Defend" }, { "Attack", "Pivot" }, { "Pivot", "Pivot" } }
+		for seed = 1, 30 do
+			local match = Fixtures.advanceTo(Fixtures.campaign({ seed = seed }), "Debate", 4)
+			local pair = pairs[seed % #pairs + 1]
+			local inputs: { State.DebateInput } = {
+				{ move = pair[1] :: any, zinger = seed % 3 == 0, canned = false },
+				{ move = pair[2] :: any, zinger = false, canned = false },
+			}
+			local snapshot = State.clone(match)
+			local roundBoard = Debate.board(C, match)
+			local clash = Debate.clash(C, roundBoard, inputs)
+			local round = Debate.round(C, match, inputs)
+			expect(round.winner):toBe(clash.winner)
+			expect(round.scores):toEqual(clash.scores)
+			-- Every state with a landing issue gets exactly the round's points.
+			local wants = { 0, 0 }
+			for p = 1, 2 do
+				if p == round.winner then
+					wants[p] = C.DEBATE_ROUND_WIN * round.mult
+				elseif round.split[p] then
+					wants[p] = C.DEBATE_ROUND_SPLIT
+				elseif round.backfire[p] then
+					wants[p] = -C.DEBATE_BACKFIRE
 				end
-				for p = 1, 2 do
-					if wins[p] == #topics then
-						national[p] += C.DEBATE_SWEEP
-					end
-					expect(result.national[p]):toBeCloseTo(national[p], 1e-9)
-				end
-				expect(result.gaffes):toEqual(gaffes)
-				-- The targeted moves: DEBATE_TOPIC_WIN to the winner and -DEBATE_GAFFE to a
-				-- gaffer in every state where the topic is a top issue, nothing elsewhere.
-				local moves: { State.StateMove } = {}
-				for _, record in StateData.list do
-					local points = { 0, 0 }
-					for t, topic in topics do
-						if table.find(record.flavor, topic) then
-							if result.winners[t] > 0 then
-								points[result.winners[t]] += C.DEBATE_TOPIC_WIN
-							end
-							for p = 1, 2 do
-								if gaffes[p][t] then
-									points[p] -= C.DEBATE_GAFFE
-								end
-							end
-						end
-					end
-					if points[1] ~= 0 or points[2] ~= 0 then
-						table.insert(moves, { state = record.id, points = points })
-					end
-				end
-				expect(result.moves):toEqual(moves)
-				expect(Debate.moves(C, FLAVOR, 2, topics, result.winners, gaffes)):toEqual(moves)
-				-- Support moved by the flat part plus the targeted part, from one snapshot.
-				local byState = {}
-				for _, move in moves do
-					byState[move.state] = move
-				end
-				for i, s in snapshot.states do
-					local delta = Support.zero(s)
-					local du = 0
-					for p = 1, 2 do
-						local x = national[p] + (if byState[s.id] then byState[s.id].points[p] else 0)
-						if x > 0 then
-							du += Support.addGain(C, s, p, x, delta)
-						elseif x < 0 then
-							du += Support.addLoss(p, -x, delta)
-						end
-					end
-					Support.apply(s, delta, du)
-					for p = 1, 2 do
-						expect(match.states[i].support[p]):toBeCloseTo(s.support[p], 1e-9)
-					end
-					expect(match.states[i].undecided):toBeCloseTo(s.undecided, 1e-9)
-				end
-				expect(match.players[1].debateFocus):toBe(nil)
-				Fixtures.checkSupport(match)
 			end
+			local moves: { State.StateMove } = {}
+			for _, record in StateData.list do
+				local points = { 0, 0 }
+				for p = 1, 2 do
+					if wants[p] ~= 0 and table.find(record.flavor, round.landing[p]) then
+						points[p] = wants[p]
+					end
+				end
+				if points[1] ~= 0 or points[2] ~= 0 then
+					table.insert(moves, { state = record.id, points = points })
+				end
+			end
+			expect(round.moves):toEqual(moves)
+			local byState = {}
+			for _, move in moves do
+				byState[move.state] = move
+			end
+			for i, s in snapshot.states do
+				local delta = Support.zero(s)
+				local du = 0
+				local move = byState[s.id]
+				for p = 1, 2 do
+					local x = if move then move.points[p] else 0
+					if x > 0 then
+						du += Support.addGain(C, s, p, x, delta)
+					elseif x < 0 then
+						du += Support.addLoss(p, -x, delta)
+					end
+				end
+				Support.apply(s, delta, du)
+				for p = 1, 2 do
+					expect(match.states[i].support[p]):toBeCloseTo(s.support[p], 1e-9)
+				end
+			end
+			expect(match.players[1].debateMove):toBe(nil)
+			Fixtures.checkSupport(match)
 		end
-	)
+	end)
 
 	it(
-		"republishes the public polls with the same error terms and lists the states that changed leader",
+		"republishes the public polls with the same error terms after every round and lists the leader changes",
 		function()
 			for seed = 1, 20 do
 				local match = Fixtures.advanceTo(Fixtures.campaign({ seed = seed }), "Debate", 4)
-				match.players[1].debateFocus = match.debateTopics[4][1]
-				match.players[2].debateFocus = match.debateTopics[4][3]
 				local before = {}
 				for i, s in match.states do
 					before[i] =
 						{ poll = s.poll, error = table.clone(s.pollError), undecided = s.pollErrorUndecided }
 				end
-				local result = Debate.resolve(C, match)
+				local round = Debate.round(C, match, {
+					{ move = "Defend", zinger = true, canned = false },
+					{ move = "Pivot", zinger = false, canned = false },
+				})
 				local flips = {}
 				for i, s in match.states do
 					expect(s.pollError):toEqual(before[i].error)
@@ -258,11 +226,12 @@ describe("Debates", function()
 						table.insert(flips, { state = s.id, from = from, to = to })
 					end
 				end
-				expect(result.flips):toEqual(flips)
-				-- The view carries the moved polls, the moves and the flips, nothing hidden.
+				expect(round.flips):toEqual(flips)
+				-- The view carries the moved polls and the finished round, nothing hidden.
 				local view = View.build(C, match, 2)
-				expect(view.debates[1].moves):toEqual(result.moves)
-				expect(view.debates[1].flips):toEqual(flips)
+				local debate = view.debate :: View.DebateView
+				expect(debate.rounds[1].moves):toEqual(round.moves)
+				expect(debate.rounds[1].flips):toEqual(flips)
 				for i, s in view.states do
 					expect(s.poll):toEqual(match.states[i].poll)
 				end
@@ -270,7 +239,7 @@ describe("Debates", function()
 		end
 	)
 
-	it("topic states are fixed data and the odds follow the roll", function()
+	it("topic states are fixed data on the fixed map", function()
 		for _, topic in Issues.list do
 			local states = Debate.topicStates(FLAVOR, topic)
 			expect(#states >= 8):toBe(true)
@@ -278,65 +247,24 @@ describe("Debates", function()
 				expect(table.find(StateData.byId[id].flavor, topic) ~= nil):toBe(true)
 			end
 		end
-		local win, tie, lose = Debate.odds(C, 0)
-		expect(win):toBeCloseTo(lose, 1e-9)
-		expect(win + tie + lose):toBeCloseTo(1, 1e-9)
-		local win2, _, lose2 = Debate.odds(C, 2)
-		expect(win2 >= 0.75 and lose2 <= 0.12):toBe(true)
-		expect((Debate.odds(C, 4))):toBe(1)
-	end)
-
-	it("a focus usually wins its topic, but not always (D-044)", function()
-		-- Same platforms and stats, so only the focus and the roll differ. Seat 1
-		-- focuses on topic 1, seat 2 on topic 3; topic 2 is level.
-		local same = { { "Jobs", "Health", "Schools" }, { "Jobs", "Health", "Schools" } }
-		local won, lost, theirs = 0, 0, 0
-		local n = 150
-		for seed = 1, n do
-			local match =
-				Fixtures.advanceTo(Fixtures.campaign({ seed = seed, platforms = same }), "Debate", 4)
-			match.players[1].debateFocus = match.debateTopics[4][1]
-			match.players[2].debateFocus = match.debateTopics[4][3]
-			local result = Debate.resolve(C, match)
-			if result.winners[1] == 1 then
-				won += 1
-			elseif result.winners[1] == 2 then
-				lost += 1
-			end
-			if result.winners[3] == 2 then
-				theirs += 1
-			end
-		end
-		expect(won / n >= 0.6):toBe(true)
-		expect(won / n < 0.95):toBe(true)
-		expect(lost / n <= 0.2):toBe(true)
-		expect(theirs / n >= 0.6):toBe(true)
-	end)
-
-	it("no focus by default: nothing added, and every topic lost is a gaffe", function()
-		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 3 }), "Debate", 4)
-		expect(match.players[1].debateFocus):toBe(nil)
-		local result = Debate.resolve(C, match)
-		expect(result.focus):toEqual({ 0, 0 })
-		expect(result.prep[2]):toEqual({ 0, 0, 0 })
-		for t, winner in result.winners do
-			for p = 1, 2 do
-				expect(result.gaffes[p][t]):toBe(winner ~= 0 and winner ~= p)
-			end
-		end
 	end)
 
 	it("records the support each debate moved, per state and player", function()
 		for seed = 1, 10 do
 			local match = Fixtures.advanceTo(Fixtures.campaign({ seed = seed }), "Debate", 4)
-			match.players[1].debateFocus = match.debateTopics[4][1]
-			match.players[2].debateFocus = match.debateTopics[4][3]
 			local before = {}
 			for i, s in match.states do
 				before[i] = table.clone(s.support)
 				expect(s.debateShift):toEqual({ 0, 0 })
 			end
-			local result = Debate.resolve(C, match)
+			local moves = 0
+			for _ = 1, C.DEBATE_TOPICS do
+				local round = Debate.round(C, match, {
+					{ move = "Attack", zinger = false, canned = false },
+					{ move = "Defend", zinger = false, canned = false },
+				})
+				moves += #round.moves
+			end
 			local moved = false
 			for i, s in match.states do
 				for p = 1, 2 do
@@ -346,7 +274,7 @@ describe("Debates", function()
 					end
 				end
 			end
-			expect(moved):toBe(result.national[1] ~= 0 or result.national[2] ~= 0 or #result.moves > 0)
+			expect(moved):toBe(moves > 0)
 		end
 	end)
 

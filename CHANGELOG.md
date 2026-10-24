@@ -10,6 +10,7 @@ The game is now called **Landslide** ("Race to 270"), a landslide win gets its o
 - **Landslide stamp (D-062):** win with more than 70% of the votes (377 of 538 or more) and Results stamps a big **LANDSLIDE** in your color under "You won", with extra confetti, a second hit and a light sweeping across it. Your opponent sees "REX WON BY A / LANDSLIDE" in Rex's color under "You lost". New `Config.LANDSLIDE_EV_SHARE` (0.70); the rules of winning do not change.
 - **The week's event is at the top (D-065):** on the plan screen it is a strip right under the score, above the map, on every screen size: a gold icon, the event's name and one line of what it does ("Fundraisers where you trail +20%"; in a Choice week, your stance). Tap it for the full story and effect. It no longer sits in the side column.
 - **Polls cost half (D-063):** a state poll is $0.5 (was $1), a region poll $1.5 (was $3). Every price on screen follows. In the bot-vs-bot harness the bots buy about as many polls and put the saved money into ads and ground game; win rates moved within noise.
+
 ## Unreleased
 
 ### The week's results tally up move by move (D-063)
@@ -21,6 +22,7 @@ Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING
 - The per-move numbers are estimates from the polls both players saw (the server never reveals true support); one line behind "Why?" says so.
 - The header no longer jumps to the week's result when the reveal opens. Skip still ends it early.
 - **Busy weeks get a longer reveal** so each move is seen to land: 4.5 s + 0.55 s per step, between 8 and 14 s (9.4 s on average, about +16 s a match). New Config: `TIMER_RESOLVE_BASE`, `TIMER_RESOLVE_PER_STEP`, `TIMER_RESOLVE_MAX`.
+
 ## Unreleased
 
 ### A deeper, richer palette (D-064)
@@ -31,6 +33,7 @@ Client colors only: no rule, sim, server, payload or Config changes. Studio chec
 - **Player colors are deeper and more saturated** (Crimson 212, 28, 66; Cobalt 34, 98, 228; Emerald, Amber, Violet and Teal likewise). Red stays clear of the loss orange, Violet moved farther from Cobalt.
 - **Player names in color are vivid, not pink.** Readable text keeps the color's own hue (brightened just enough), instead of fading it toward white.
 - **Gains are a clear green, not mint**, and the navy stage, cards and buttons are a richer navy at the same brightness. Every contrast floor still holds.
+
 ## Unreleased
 
 ### Candidate portraits (D-062)
@@ -54,6 +57,7 @@ Server, payload, Select, Help, Results and the Lobby. New Config values (name li
 - **Owner review:** admins get "Review names (N)" in the Lobby: Keep, or Remove (the name is cleared, its owner told, and it and names like it are blocked on every server).
 - **Admins** (the owner and originalyellowboss) get the color picker and custom names free, even before the passes exist.
 - Wire: requests `SetName`, `ReportName`, `ReviewList`, `ReviewKeep`, `ReviewRemove`; message `Review`; DataStores `NameReports_v1`, `NameBlocklist_v1`; MessagingService topic `NameBlocklist`.
+
 ## Unreleased
 
 ### Plan preview on the map (D-063)
@@ -73,6 +77,20 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - **Polls tab:** under each lead, ▲ in a player's color shows who has momentum there (▲▲: a lot), filled dots are your ground-game units, hollow dots the opponent's as your internal polls last saw them. A legend under the map says so, and the Map key explains it. The other tabs are unchanged.
 - **Candidate pins:** your candidate stands on the state you are in, with your initials and a "You" flag; the opponent's pin has their first name. On every tab, on the plan and stance screens.
 - The map's images and their data are made by `scripts/mapgen/make.py` from public-domain Census boundaries (us-atlas, ISC).
+
+## Unreleased: debates are live rounds (D-062)
+
+Debates were "glorified stance questions". Now each debate is its own event: a stage, three quick rounds, a clash after each. Sim, server, payloads, bots, the debug and duel harnesses, and a new Debate screen. Studio checklist: `docs/TESTING.md`, "Debates as live rounds".
+
+- **Three rounds, one per topic.** In each round both players pick **Defend**, **Attack** or **Pivot** in 15 s, in secret. Defend beats Attack, Attack beats Pivot, Pivot beats Defend.
+- **Strengths are public.** They come from your platform and theirs, who leads the topic's states, the crowd, and your last move. Every button shows its strength and how it does against each of their moves ("D +4 · A +3 · P −1"). There is no dice roll.
+- **Results land on the map live.** A win is +0.8 in the topic's states (Pivot: in your own issue's states); a split gives +0.5 each; losing to a counter costs −0.5. The polls update after every round.
+- **One Zinger per debate:** stake it on a round, and a win counts ×2 (Marcus Hale ×4). A crowd meter fills as rounds are won; a lead of 8 is a standing ovation (+2 momentum in every battleground).
+- **No move in time** is a weak Defend (2) that can't be countered. The debate focus screen is gone. A Choice week's stance still comes after the debate, on its own screen.
+- **Bots** read the same board: Medium plays the move whose worst outcome is best; Hard and Extreme also read you (Extreme remembers what you played).
+- **Debug and duel:** `defend`, `attack`, `pivot`, each optionally followed by `zinger`. The board prints every result cell.
+- **Timing:** a debate takes about 40 s when both pick quickly (it was about 18 s). With every timer run out it takes 65 s, and a whole match takes 20 min 10 s at most.
+- Wire: `{ move, zinger }`; new reasons `BadMove`, `ZingerSpent`, `UnexpectedMove`; `view.debate`; reveals `DebateIntro`, `Clash`, `Verdict`.
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 

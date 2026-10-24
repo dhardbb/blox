@@ -238,17 +238,21 @@ describe("Words: election night and Results", function()
 	it("never says the winner carried fewer states 'to' more", function()
 		local view = Fixtures.payload(C, "Over").view
 		-- From the loser's side the ground-game reason is hidden, so the state
-		-- count makes the top three; Dana won on votes with fewer states.
+		-- count can make the top three.
 		view.you = 2
 		local reasons = Words.keyReasons(C, view, 1, { "Dana", "Rex" })
 		for _, text in reasons do
 			local a, b = string.match(text, "carried (%d+) states to (%d+)")
 			check(a == nil or tonumber(a) >= tonumber(b), `"{text}" reads backwards`)
 		end
-		check(
-			table.find(reasons, "Dana won the bigger states (23 to 28)") ~= nil,
-			table.concat(reasons, " | ")
-		)
+		-- "the bigger states" only ever when the winner carried fewer of them.
+		local election = view.election
+		local won, lost = election.statesWon[1], election.statesWon[2]
+		for _, text in reasons do
+			if string.find(text, "bigger states", 1, true) then
+				check(won < lost, `"{text}" but Dana carried {won} states to {lost}`)
+			end
+		end
 	end)
 end)
 

@@ -1,21 +1,16 @@
 --!strict
 -- The Decision screen (D-044, src/client/Screens/Decision.luau) on the fake
--- engine: the debate focus and a Choice stance each get their own screen with
--- its own countdown, a pinned Lock in and nothing else (no state card, plan list
--- or week card); one tap picks, Lock in sends exactly { focus } or { choice };
--- the map previews the pick; strict UI audit at 16:9 and on a phone.
+-- engine: a Choice stance gets its own screen with its own countdown, a pinned
+-- Lock in and nothing else (no state card, plan list or week card); one tap
+-- picks, Lock in sends exactly { choice }; the map previews the pick; strict UI
+-- audit at 16:9 and on a phone. (The debate focus is gone: D-062.)
 
-local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
-local Numbers = require("@ui/Numbers")
 local Rig = require("./Rig")
-local Swing = require("@ui/Swing")
 local Test = require("@testlib/Test")
-local Words = require("@ui/Words/Campaign")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
-local C = Config.defaults
 local SIZES = {
 	{ name = "16:9", screen = { x = 1280, y = 720 } },
 	{ name = "phone", screen = Rig.PHONE },
@@ -46,15 +41,8 @@ local function strict(world: FakeRoblox.World, peer: FakeRoblox.Peer): { string 
 	return out
 end
 
--- The number in a state's map tag, without the " FLIP" a flip adds.
-local function badgeOf(peer: FakeRoblox.Peer, id: string): string?
-	local tag = need(peer, "NodeMap"):FindFirstChild("Tags"):FindFirstChild(id)
-	check(tag ~= nil, `no tag on map node {id}`)
-	return if tag.Visible then (string.gsub(tag.Text, " FLIP$", "")) else nil
-end
-
 describe("Decision screen: on its own", function()
-	for _, moment in { "Focus", "Stance" } do
+	for _, moment in { "Stance" } do
 		for _, size in SIZES do
 			it(`shows only the {moment} decision, its countdown and Lock in ({size.name})`, function()
 				local world, peer = Rig.fixture(moment, size.screen)
@@ -73,18 +61,11 @@ describe("Decision screen: on its own", function()
 					`Lock in ends at {lock.AbsolutePosition.Y + 56} on a {size.screen.y} px screen`
 				)
 				local stage = textOf(peer, "StageLabel")
-				expect(stage):toBe(if moment == "Focus" then "Debate focus" else "Take a stance")
-				check(
-					shown(need(peer, if moment == "Focus" then "FocusPanel" else "ChoiceRow")),
-					"no choices"
-				)
-				expect(textOf(peer, "NowText")):toBe(
-					if moment == "Focus" then "Pick one debate topic" else "Pick a side: A, B or C"
-				)
+				expect(stage):toBe("Take a stance")
+				check(shown(need(peer, "ChoiceRow")), "no choices")
+				expect(textOf(peer, "NowText")):toBe("Pick a side: A, B or C")
 				-- Every option is on the first screen, above the pinned bar (UI-STYLE §4.4).
-				local names = if moment == "Focus"
-					then { "FocusTopic1", "FocusTopic2", "FocusTopic3" }
-					else { "ChoiceA", "ChoiceB", "ChoiceC" }
+				local names = { "ChoiceA", "ChoiceB", "ChoiceC" }
 				local barTop = need(peer, "ActionBar").AbsolutePosition.Y
 				for _, name in names do
 					local option = need(peer, name)
@@ -98,68 +79,6 @@ describe("Decision screen: on its own", function()
 			end)
 		end
 	end
-end)
-
-describe("Decision screen: the debate focus", function()
-	it("shows each topic's states, EV and the ones you need, as Swing.focus says", function()
-		local world, peer = Rig.fixture("Focus", nil)
-		local view = Rig.payloadOf(world, peer).view
-		local topics = view.nextDebate.topics
-		expect(#topics):toBe(C.DEBATE_TOPICS)
-		for t, topic in topics do
-			local info = Swing.focus(C, view, topic)
-			local button = need(peer, `FocusTopic{t}`)
-			expect(button.Text):toBe(Words.focusHead(C, view, info))
-			expect(textOf(peer, `FocusChance{t}`)):toBe(Words.focusOdds(info))
-			check(button.AbsoluteSize.Y >= 44 - 0.5, `FocusTopic{t} is {button.AbsoluteSize.Y}px tall`)
-			expect(textOf(peer, `FocusNeed{t}`)):toBe(info.needLine)
-			expect(textOf(peer, `FocusOdds{t}`)):toBe(info.oddsLine)
-			expect(textOf(peer, `FocusWin{t}`)):toBe(info.winLine)
-		end
-		Rig.noErrors(world)
-	end)
-
-	it("needs one tap on a topic, then Lock in sends exactly that focus", function()
-		local world, peer = Rig.fixture("Focus", nil)
-		local topics = Rig.payloadOf(world, peer).view.nextDebate.topics
-		-- Nothing picked: Lock in says what is missing (the default is no focus).
-		check(need(peer, "LockIn").Active == false, "Lock in is enabled with no topic picked")
-		expect(textOf(peer, "LockIn")):toBe("Pick a topic")
-		tap(world, peer, "FocusTopic2")
-		check(need(peer, "FocusTopic2"):GetAttribute("Selected") == true, "the tapped topic is not selected")
-		check(need(peer, "FocusTopic1"):GetAttribute("Selected") ~= true, "another topic is selected")
-		check(need(peer, "LockIn").Active ~= false, "Lock in is still disabled")
-		tap(world, peer, "LockIn")
-		expect(Rig.count(peer, "[270] DEBUG_UI submit")):toBe(1)
-		expect(Rig.count(peer, `[270] DEBUG_UI submit focus={topics[2]}`)):toBe(1)
-		for t = 1, C.DEBATE_TOPICS do
-			check(need(peer, `FocusTopic{t}`).Active == false, `FocusTopic{t} is still enabled after locking`)
-		end
-		expect(textOf(peer, "BarStatus")):toBe("Locked in · waiting for opponent")
-		Rig.noErrors(world)
-	end)
-
-	it("previews the picked topic's states on the map", function()
-		local world, peer = Rig.fixture("Focus", nil)
-		local view = Rig.payloadOf(world, peer).view
-		local topic = view.nextDebate.topics[1]
-		tap(world, peer, "FocusTopic1")
-		local info = Swing.focus(C, view, topic)
-		-- Every state of the topic glows; only the biggest few carry a badge (UI-STYLE §4.6).
-		local badges = 0
-		for _, id in info.states do
-			local hit = need(peer, "NodeMap").Nodes:FindFirstChild(id)
-			check(hit:FindFirstChild("Halo").Visible == true, `{id} does not glow`)
-			local badge = badgeOf(peer, id)
-			if badge ~= nil then
-				badges += 1
-				expect(badge):toBe(Numbers.signed(C.DEBATE_TOPIC_WIN))
-			end
-		end
-		check(badges > 0 and badges <= 5 + #info.flips, `{badges} badges on the map`)
-		check(Rig.contains(textOf(peer, "GainText"), "win"), textOf(peer, "GainText"))
-		Rig.noErrors(world)
-	end)
 end)
 
 describe("Decision screen: a Choice stance", function()
@@ -187,53 +106,60 @@ describe("Decision screen: a Choice stance", function()
 end)
 
 describe("Decision screen: a live practice match", function()
-	it("plays the focus before each debate and the stance in Choice weeks, then the plan", function()
-		local world, peer = Rig.practice(5)
-		Rig.toPlanInput(world, peer)
-		local seen: { [string]: boolean } = {}
-		local driven: { [number]: boolean } = {}
-		local finished = FakeRoblox.runUntil(world, function()
-			local p = Rig.payloadOf(world, peer)
-			if p == nil then
-				return false
-			end
-			if p.stage == "Over" or (p.view.phase == "Plan" and p.view.week >= 10) then
-				return true
-			end
-			if p.stage == "Input" and not driven[p.step] then
-				driven[p.step] = true
-				if p.view.phase == "Decision" then
-					seen[p.view.decision] = true
-					if Rig.findIn(peer, "Decision", "LockIn") == nil then
-						error(`the {p.view.decision} decision did not mount the Decision screen`)
-					end
-					if p.view.decision == "Focus" then
-						Rig.tap(world, peer, "Decision", "FocusTopic1", 0.05)
-					end
-					Rig.tap(world, peer, "Decision", "LockIn", 0.05)
-				elseif p.view.phase == "Plan" then
-					Rig.tap(world, peer, "Campaign", "LockIn", 0.05)
+	it(
+		"plays each debate round on the Debate screen and the stance in Choice weeks, then the plan",
+		function()
+			local world, peer = Rig.practice(5)
+			Rig.toPlanInput(world, peer)
+			local seen: { [string]: boolean } = {}
+			local driven: { [number]: boolean } = {}
+			local finished = FakeRoblox.runUntil(world, function()
+				local p = Rig.payloadOf(world, peer)
+				if p == nil then
+					return false
 				end
-			end
-			return false
-		end, Rig.MATCH_LIMIT)
-		check(finished, "the match never reached week 10")
-		check(seen.Focus == true, "no debate focus came up")
-		check(seen.Stance == true, "no stance came up")
-		local debates = Rig.payloadOf(world, peer).view.debates
-		check(#debates >= 2, "fewer than two debates")
-		expect(debates[1].focus[Rig.payloadOf(world, peer).you]):toBe(1)
-		Rig.noErrors(world)
-	end)
+				if p.stage == "Over" or (p.view.phase == "Plan" and p.view.week >= 10) then
+					return true
+				end
+				if p.stage == "Input" and not driven[p.step] then
+					driven[p.step] = true
+					if p.view.phase == "Decision" then
+						seen[p.view.decision] = true
+						if Rig.findIn(peer, "Decision", "LockIn") == nil then
+							error(`the {p.view.decision} decision did not mount the Decision screen`)
+						end
+						Rig.tap(world, peer, "Decision", "LockIn", 0.05)
+					elseif p.view.phase == "Debate" then
+						seen.Debate = true
+						if Rig.findIn(peer, "Debate", "LockIn") == nil then
+							error("a debate round did not mount the Debate screen")
+						end
+						Rig.tap(world, peer, "Debate", "MoveAttack", 0.05)
+						Rig.tap(world, peer, "Debate", "LockIn", 0.05)
+					elseif p.view.phase == "Plan" then
+						Rig.tap(world, peer, "Campaign", "LockIn", 0.05)
+					end
+				end
+				return false
+			end, Rig.MATCH_LIMIT)
+			check(finished, "the match never reached week 10")
+			check(seen.Debate == true, "no debate round came up")
+			check(seen.Stance == true, "no stance came up")
+			local debates = Rig.payloadOf(world, peer).view.debates
+			check(#debates >= 2, "fewer than two debates")
+			expect(debates[1].rounds[1].picks[Rig.payloadOf(world, peer).you]):toBe("Attack")
+			Rig.noErrors(world)
+		end
+	)
 end)
 
 describe("Decision motion", function()
 	it("pops a new decision's options in, and not under Reduce Motion", function()
-		for _, moment in { "Stance", "Focus" } do
+		for _, moment in { "Stance" } do
 			local world, peer = Rig.fixture(moment, nil)
 			local options = {}
 			for _, inst in Rig.need(peer, "Screens", "Decision"):GetDescendants() do
-				if string.match(inst.Name, "^Choice[ABC]$") or string.match(inst.Name, "^FocusTopic") then
+				if string.match(inst.Name, "^Choice[ABC]$") then
 					if inst.Visible ~= false and inst:IsA("GuiButton") then
 						table.insert(options, inst)
 					end

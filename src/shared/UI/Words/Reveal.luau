@@ -562,7 +562,7 @@ local function reasonsFor(config: Config, view: View, winner: number, names: { s
 		table.insert(reasons, {
 			text = text,
 			weight = 10 * (topics - theirTopics) + math.max(0, flipEV),
-			tip = "pick a debate focus that fits your issues",
+			tip = "in debates, pick the move that can't lose",
 		})
 	end
 
@@ -786,7 +786,7 @@ function Words.help(config: Config): { Tab }
 			text = `Most weeks have an event. Some boost an issue or a region. Others make you take a side, A, B or C, in secret; states that care react. Debates come in weeks {table.concat(
 				debateWeeks,
 				" and "
-			)}: prepare one topic first. Win a topic and every state that cares about it swings your way.`,
+			)}: three live rounds. Pick Defend, Attack or Pivot; each shows how it does. Win a round and its states swing your way.`,
 			sections = { "events", "debates" },
 		},
 		{

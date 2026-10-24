@@ -25,17 +25,20 @@ local SIZES = {
 	{ name = "844x390", screen = { x = 844, y = 390 } },
 	{ name = "390x844", screen = Rig.PHONE },
 }
-local DEBATE_DONE = 8 -- s, every debate topic is shown by then
 local RESOLVE_DONE = 30 -- s, the resolve reveal has listed every event by then
 
 local check = Rig.check
 
 -- The screen the helpers look in: the stance is taken on the Decision screen
--- (D-044), everything else here is on Campaign. `open` sets it.
+-- (D-044), a debate on the Debate screen (D-062), everything else here is on
+-- Campaign. `open` sets it.
 local SCREEN = "Campaign"
 
 local function open(moment: string, screen: { x: number, y: number }?): (FakeRoblox.World, FakeRoblox.Peer)
-	SCREEN = if moment == "Stance" or moment == "Focus" then "Decision" else "Campaign"
+	SCREEN = if moment == "Stance"
+		then "Decision"
+		elseif moment == "DebateRound" or moment == "Clash" or moment == "Debate" then "Debate"
+		else "Campaign"
 	return Rig.fixture(moment, screen)
 end
 
@@ -234,75 +237,61 @@ describe("Stances: the Choice week", function()
 	end)
 end)
 
-describe("Stances: the debate reveal", function()
-	it("names the states each topic swung, and every flip", function()
-		local world, peer = open("Debate", nil)
-		FakeRoblox.run(world, DEBATE_DONE)
+describe("Stances: the debate on the map (D-062)", function()
+	it("the clash badges what the round moved, and every flip says FLIP", function()
+		local world, peer = open("Clash", nil)
 		local view = viewOf(world, peer)
-		local result = view.debates[#view.debates]
-		local flips = 0
-		local allFlips: { Swing.Flip } = {}
-		for t = 1, #result.topics do
-			local entry = Swing.debateTopic(C, view, result, t)
-			-- On the scoreboard, one short line; the full list is behind "Why?".
-			local label = need(peer, `DebateSwing{t}`)
-			check(shown(label), `DebateSwing{t} is hidden`)
-			check(Rig.contains(label.Text, if entry.winner == 0 then "Tie" else "+"), label.Text)
-			expect(need(peer, `DebateDetail{t}`).Text):toBe(entry.line)
-			if #entry.flips > 0 then
-				flips += 1
-				for k, flip in entry.flips do
-					table.insert(allFlips, flip)
-					-- The line names the first two flips, then "+N more flips".
-					check(
-						k > 2 or Rig.contains(label.Text, flip.state),
-						`{flip.state} missing from "{label.Text}"`
-					)
-					local tag = nodePart(peer, flip.state, "Badge").Text
-					check(string.find(tag, "FLIP", 1, true) ~= nil, `{flip.state} shows "{tag}", not FLIP`)
-				end
-			end
+		local rounds = if view.debate then view.debate.rounds else view.debates[#view.debates].rounds
+		local round = rounds[#rounds]
+		local entry = Swing.debateRound(C, view, round)
+		expect(textOf(peer, "ClashLine")):toBe(entry.line)
+		for _, flip in entry.flips do
+			local tag = nodePart(peer, flip.state, "Badge").Text
+			check(string.find(tag, "FLIP", 1, true) ~= nil, `{flip.state} shows "{tag}", not FLIP`)
 		end
-		check(flips > 0, "the fixture debate flips no state (pick another seed)")
-		-- The map badges the flips and the biggest moves only, never every state.
-		for _, flip in Swing.debateOther(view, result) do
-			table.insert(allFlips, flip)
+		local moved: { [string]: boolean } = {}
+		for _, move in round.moves do
+			moved[move.state] = true
 		end
-		local net = Swing.debateNet(C, view, result, #result.topics)
-		local marks = Words.topMarks(net, allFlips)
-		local flipped: { [string]: boolean } = {}
-		for _, flip in allFlips do
-			flipped[flip.state] = true
+		for _, flip in round.flips do
+			moved[flip.state] = true
 		end
-		local count = 0
+		local badges = 0
 		for _, s in view.states do
-			local want = marks[s.id]
-			-- A flip shows FLIP alone (its points are on the panel).
-			expect(badgeOf(peer, s.id)):toBe(
-				if flipped[s.id] then "FLIP" elseif want then Numbers.signed(want) else nil
-			)
-			if want then
-				count += 1
+			if badgeOf(peer, s.id) ~= nil then
+				badges += 1
+				check(moved[s.id] == true, `{s.id} has a badge but the round did not touch it`)
 			end
 		end
-		check(count <= #allFlips + Words.MAP_MARKS, `{count} badges on the map`)
-		check(Rig.contains(textOf(peer, "DebateHeadline"), "topic"), textOf(peer, "DebateHeadline"))
+		check(badges <= 5 + #entry.flips, `{badges} badges on the map`)
 		Rig.noErrors(world)
 	end)
 
-	it("calls out a gaffe in the topic's states", function()
-		local world, peer = open("Debate", nil)
+	it("calls out a backfire in the states the move aimed at", function()
+		local world, peer = open("Clash", nil)
 		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
 		local view = payload.view
-		local result = view.debates[#view.debates]
-		result.gaffes[view.you][2] = true
+		local rounds = if view.debate then view.debate.rounds else view.debates[#view.debates].rounds
+		local round = rounds[#rounds]
+		round.backfire[view.you] = true
 		payload.step += 1
 		Rig.push(world, peer, payload)
-		FakeRoblox.run(world, DEBATE_DONE)
-		local entry = Swing.debateTopic(C, view, result, 2)
-		local label = need(peer, "DebateGaffe2")
+		FakeRoblox.run(world, 0.5)
+		local entry = Swing.debateRound(C, view, round)
+		local label = need(peer, "ClashExtra1")
 		expect(label.Text):toBe(entry.gaffeLines[1])
-		check(shown(label), "the gaffe line is hidden")
+		check(shown(label), "the backfire line is hidden")
+		Rig.noErrors(world)
+	end)
+
+	it("the verdict badges the whole debate's moves and flips", function()
+		local world, peer = open("Debate", nil)
+		local view = viewOf(world, peer)
+		local result = view.debates[#view.debates]
+		for _, flip in Swing.flips(result.flips) do
+			local tag = nodePart(peer, flip.state, "Badge").Text
+			check(string.find(tag, "FLIP", 1, true) ~= nil, `{flip.state} shows "{tag}", not FLIP`)
+		end
 		Rig.noErrors(world)
 	end)
 end)
@@ -357,25 +346,24 @@ end)
 describe("Stances: strict UI audit", function()
 	for _, size in SIZES do
 		it(
-			`keeps the stance and focus screens, the Choice week, both reveals and Results strict ({size.name})`,
+			`keeps the stance and debate screens, the Choice week, the reveals and Results strict ({size.name})`,
 			function()
 				local world, peer = open("Stance", size.screen)
 				tap(world, peer, "ChoiceA")
 				local problems = strict(world, peer, "Decision")
 				check(#problems == 0, "Stance: " .. table.concat(problems, "; "))
 
-				world, peer = open("Focus", size.screen)
-				tap(world, peer, "FocusTopic2")
-				problems = strict(world, peer, "Decision")
-				check(#problems == 0, "Focus: " .. table.concat(problems, "; "))
+				world, peer = open("DebateRound", size.screen)
+				tap(world, peer, "MoveAttack")
+				problems = strict(world, peer, "Debate")
+				check(#problems == 0, "DebateRound: " .. table.concat(problems, "; "))
 
 				world, peer = open("ChoiceWeek", size.screen)
 				problems = strict(world, peer, "Campaign")
 				check(#problems == 0, "ChoiceWeek: " .. table.concat(problems, "; "))
 
 				world, peer = open("Debate", size.screen)
-				FakeRoblox.run(world, DEBATE_DONE)
-				problems = strict(world, peer, "Campaign")
+				problems = strict(world, peer, "Debate")
 				check(#problems == 0, "Debate: " .. table.concat(problems, "; "))
 
 				world, peer = open("ChoiceResolve", size.screen)

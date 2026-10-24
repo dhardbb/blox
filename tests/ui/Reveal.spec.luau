@@ -1,8 +1,9 @@
 --!strict
 -- The weekly reveal's three beats (polish WP-2, docs/UI-STYLE.md §2.7, D-053):
 -- "Both plans are in" with who goes first, then the actions land one beat at a
--- time with the trailing player's first, then the new polls. The debate's rows
--- come in with their sound. Each case checks end states and the cues played,
+-- time with the trailing player's first, then the new polls, the header's
+-- score tallying up step by step. Debates have their own screen (D-072,
+-- tests/ui/Debate.spec). Each case checks end states and the cues played,
 -- never timings of a tween.
 
 local Config = require("@sim/Config")
@@ -186,25 +187,6 @@ describe("Reveal: a running tally (D-063)", function()
 		expect(mine):toBe(view.projectedEV[view.you])
 		expect(theirs):toBe(view.projectedEV[3 - view.you])
 		check(Rig.textOf(peer, "Campaign", "RevealSummary") ~= "", "the skipped reveal never finished")
-		Rig.noErrors(world)
-	end)
-end)
-
-describe("Reveal: debate rows", function()
-	it("plays debateWin for each topic you win and select for the rest", function()
-		local world, peer = Rig.fixture("Debate", nil)
-		FakeRoblox.run(world, 8)
-		local view = Rig.payloadOf(world, peer).view
-		local result = view.debates[#view.debates]
-		local wins = 0
-		for t = 1, #result.topics do
-			if result.winners[t] == view.you then
-				wins += 1
-			end
-			check(shown(peer, `DebateRow{t}`), `row {t} never came in`)
-		end
-		expect(count(Rig.sounds(peer), "debateWin")):toBe(wins)
-		check(shown(peer, "DebateHeadline"), "no headline")
 		Rig.noErrors(world)
 	end)
 end)
