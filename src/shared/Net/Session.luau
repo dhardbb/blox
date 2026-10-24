@@ -267,8 +267,12 @@ end
 
 -- The admin rule (D-080): `allowed` when every human seat is an admin (and
 -- there is at least one), `on` when it is allowed and one of them has
--- "Timers off" on. Bots never count either way.
+-- "Timers off" on. Bots never count either way. A Daily Race (D-082) keeps
+-- its timers for everyone: its board compares runs against the same clock.
 function Session.adminRule(session: Session): (boolean, boolean)
+	if session.daily ~= nil then
+		return false, false
+	end
 	local humans, any = 0, false
 	for _, seat in session.seats do
 		if seat.kind == "Human" then

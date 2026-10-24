@@ -118,6 +118,24 @@ describe("Session: who gets the admin rule (D-080)", function()
 		expect(session.stage):toBe("Input")
 	end)
 
+	it("a Daily Race keeps its timers for an admin with Timers off (D-082)", function()
+		local session = new(
+			{ human("1", true, true), bot("Hard") },
+			{ daily = { day = 20000, counted = true } }
+		)
+		local allowed, on = Session.adminRule(session)
+		expect(allowed):toBe(false)
+		expect(on):toBe(false)
+		near(session.deadline, C.TIMER_SELECT)
+		local payload = Session.payload(session, 1)
+		expect(payload.adminNoTimer):toBe(nil)
+		expect((payload.adminTimers :: any).allowed):toBe(false)
+		expect(#notices(session, 1)):toBe(0)
+		local ok = Session.setTimersOff(session, 1, true, 1)
+		expect(ok):toBe(true) -- saved, but the rule does not change
+		near(session.deadline, C.TIMER_SELECT)
+	end)
+
 	it("an admin with the toggle off plays with timers", function()
 		local session = new({ human("1", true, false), bot("Hard") })
 		near(session.deadline, C.TIMER_SELECT)

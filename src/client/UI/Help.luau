@@ -303,6 +303,9 @@ Help.ADMIN_TIMERS = "Timers off (admin)" -- the admin chip's label (D-080)
 -- or why it does nothing here.
 function Help.adminNote(on: boolean, allowed: boolean, payload: any): string
 	if not allowed then
+		if payload and payload.daily then
+			return "Not in the Daily Race: every run has the same clock."
+		end
 		return "Only in games where every player is an admin."
 	end
 	local humans = 0
