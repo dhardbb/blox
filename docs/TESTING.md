@@ -728,6 +728,20 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
 
+## Plan preview (unreleased, D-063)
+
+Agents: `lune run tests "D-063"`, `lune run tests "Plan preview"`, `lune run tests/ui/snap.luau -- plan-preview` (shots `10c`, `10d`, `10e`; 0 audit findings at all three sizes).
+
+1. **Start a week's plan (phone and iPad).** No numbers on the map yet, nothing under it about the plan.
+2. **Add an Ad in a state.** **Expect:** a faint green "+2.2"-style number appears on that state (under its code), and under the map "Plan: 310 → 310 votes" (or higher) with "if nothing else changes" beside it on the iPad.
+3. **Add a second action in the same state** (a Rally there). **Expect:** the state's number grows to the sum; it is the same number the state card showed for each action, added.
+4. **Add an action somewhere you trail by a little** (look for a close state). **Expect:** the votes after the arrow go up by that state's votes when the plan would put you ahead.
+5. **Remove an action** from the plan list. **Expect:** its number shrinks or disappears at once, and the votes line updates.
+6. **Switch tabs** (Votes, Issues, Polls, Money). **Expect:** the numbers stay and stay readable; on Polls they sit under the ▲ and dots, not on them.
+7. **Attack ad** in a state where backlash is due (the card says so). **Expect:** if it costs you more than it takes from them, the number is orange with a minus sign.
+8. **Lock in.** **Expect:** the numbers and the plan line disappear.
+9. **No errors** from `Campaign`, `ShapeMap`, `PlanPreview` or `Legend`. *Send back:* a phone and an iPad screenshot of step 3, and whether the numbers are easy to read without hiding the map.
+
 ## Real US map (unreleased, D-062)
 
 Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests Lens`, `lune run tests/ui/snap.luau -- lens` (and `-- draft`, `-- decision`, `-- election`); 0 audit findings at all three sizes.

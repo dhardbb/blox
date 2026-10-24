@@ -4,6 +4,13 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### Plan preview on the map (D-063)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Plan preview".
+
+- **While you plan a week, the map shows what your plan would do:** a faint number on every state an action moves ("+4.1" green, "-0.6" orange), added up when several actions hit the same state, and under the map "Plan: 268 → 281 votes, if nothing else changes".
+- It updates as you add or remove actions, shows in every map tab, and disappears when you lock in. It is your own estimate: the opponent's plan is unknown.
+
 ### The real US map (D-062)
 
 Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Real US map". The three map images are uploaded and their ids are in `Assets.luau` (if one is ever emptied, the game falls back to the circle map).
