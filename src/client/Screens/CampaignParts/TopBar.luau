@@ -384,7 +384,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			-- without a deadline (the tutorial, D-075) says so instead.
 			local deadline = p.deadline
 			if deadline == nil then
-				header:setNoTimer()
+				header:setNoTimer(Header.noTimerText(p))
 			else
 				header:setTimer(
 					deadline - now,

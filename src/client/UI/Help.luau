@@ -27,6 +27,10 @@
 --   HelpSettingsLabel and the row Settings with SoundChip and MotionChip),
 --   HelpLeave (D-059: "Leave match" at the end, only in a live match and only
 --   when App gave ctx.leave; it closes Help and opens the confirmation).
+--   HelpAdmin (D-080, admins only: the payload's adminTimers): above the tabs,
+--   the chip HelpAdminTimers ("Timers off (admin)", outlined while on; a tap
+--   sends SetTimersOff) and the line HelpAdminNote (what it does here, or
+--   "Only in games where every player is an admin.").
 --   Help.art.<tab>(frame, config) draws a tab's picture (the Lobby's How to
 --   play reuses them).
 
@@ -293,6 +297,28 @@ Help.art = table.freeze({
 
 -- ---------------------------------------------------------------- mount
 
+Help.ADMIN_TIMERS = "Timers off (admin)" -- the admin chip's label (D-080)
+
+-- The line under the admin chip (D-080): what "Timers off" does in this match,
+-- or why it does nothing here.
+function Help.adminNote(on: boolean, allowed: boolean, payload: any): string
+	if not allowed then
+		return "Only in games where every player is an admin."
+	end
+	local humans = 0
+	for _, seat in (if payload then payload.seats else nil) or {} do
+		if seat.kind == "Human" then
+			humans += 1
+		end
+	end
+	if on then
+		local rated = if humans >= 2 then " This match is unrated." else ""
+		return `On: no choice timers in this match, for every player.{rated}`
+	end
+	local rated = if humans >= 2 then " That makes this match unrated." else ""
+	return `Off: tap to drop the choice timers for every player.{rated}`
+end
+
 function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 	local root = Kit.new("Frame", {
 		Name = "HelpOverlay",
@@ -372,6 +398,48 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 	local chips: { [string]: TextButton } = {}
 	local pages: { [string]: Frame } = {}
 	local showTab: (tab: string) -> ()
+
+	-- Admins only (D-080): "Timers off" for this match, above the tabs.
+	local adminBox = Kit.stack({
+		Name = "HelpAdmin",
+		LayoutOrder = 0,
+		Visible = false,
+		Parent = sheet.body,
+	}, "Vertical", Kit.space.xs)
+	-- Room for the chip's outline (drawn outside it) under the body's clip edge.
+	Kit.new("UIPadding", { PaddingTop = UDim.new(0, TAB_INSET), Parent = adminBox })
+	local adminOn = false
+	local adminSeen: any = nil -- the payload the row last painted from
+	local paintAdmin: (on: boolean) -> ()
+	local adminChip = Kit.chip(Help.ADMIN_TIMERS, function()
+		local on = not adminOn
+		paintAdmin(on)
+		ctx.net.send("SetTimersOff", { on = on })
+	end, {
+		Name = "HelpAdminTimers",
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Parent = adminBox,
+	})
+	local adminNote = Kit.caption("", { Name = "HelpAdminNote", LayoutOrder = 2, Parent = adminBox })
+	paintAdmin = function(on: boolean)
+		adminOn = on
+		adminChip:SetAttribute("On", on)
+		Kit.setSelected(adminChip, on)
+		local payload = ctx.store.get().payload
+		local admin = if payload then payload.adminTimers else nil
+		adminNote.Text = Help.adminNote(on, admin ~= nil and admin.allowed == true, payload)
+	end
+	-- Follows the payload (only when a new one arrived, so a tap's repaint stays).
+	local function refreshAdmin()
+		local payload = ctx.store.get().payload
+		local admin = if payload and payload.stage ~= "Over" then payload.adminTimers else nil
+		adminBox.Visible = admin ~= nil
+		if admin ~= nil and payload ~= adminSeen then
+			adminSeen = payload
+			paintAdmin(admin.on == true)
+		end
+	end
 
 	for k, tab in tabs do
 		chips[tab.id] = Kit.chip(tab.label, function()
@@ -555,6 +623,7 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 	end
 
 	local function countdown()
+		refreshAdmin()
 		local payload = ctx.store.get().payload
 		if payload == nil or payload.deadline == nil then
 			timer.Visible = false

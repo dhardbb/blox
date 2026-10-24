@@ -23,11 +23,17 @@
 -- on the toggle, and for Settings.TIP_SECONDS after a tap, so a touch player
 -- reads what they just changed.
 --
---   local corner = Settings.corner({ Name?, Parent? })
+--   local corner = Settings.corner({ Name?, Parent?, onTimers? })
 --   corner  Frame "CornerSettings" (transparent, anchored top-right at (1, 0)
 --           of the parent, 44 px tall, wide enough for the tooltip): Toggles
 --           (SoundToggle and MotionToggle, attributes On and Label, at the
 --           right) and the TextLabel "SettingsTip" (hidden until wanted)
+--
+-- Admins (D-080): a third toggle, TimersToggle (the clock, struck through and
+-- lit while on), left of the pair, shown only after Settings.setTimers(corner,
+-- off) with a boolean (nil hides it: everyone who is not an admin). A tap
+-- repaints it at once and calls props.onTimers(off); the server's answer comes
+-- back through setTimers. Labels "Timers off (admin)" / "Timers on (admin)".
 
 local Audio = require(script.Parent.Audio)
 local Kit = require(script.Parent.Kit)
@@ -38,7 +44,7 @@ local Settings = {}
 local ICON = 24 -- px, a chip's icon plate (Kit.iconPlate)
 local TOGGLE_ICON = 22 -- px, a corner toggle's icon
 local TIP_H = 28 -- px, the corner tooltip's height
-local TIP_W = 150 -- px, the corner tooltip's width ("Reduce motion off")
+local TIP_W = 160 -- px, the corner tooltip's width ("Timers off (admin)")
 Settings.TIP_SECONDS = 1.5 -- how long the corner tooltip stays after a tap
 
 -- What each corner toggle says it does (its Label attribute and its tooltip).
@@ -49,6 +55,13 @@ end
 function Settings.motionLabel(reduced: boolean): string
 	return if reduced then "Reduce motion on" else "Reduce motion off"
 end
+
+function Settings.timersLabel(off: boolean): string
+	return if off then "Timers off (admin)" else "Timers on (admin)"
+end
+
+-- Each corner's admin setter (Settings.setTimers); weak, so a destroyed corner goes.
+local timerSetters: { [Frame]: (off: boolean?) -> () } = setmetatable({}, { __mode = "k" }) :: any
 
 type Paint = (on: boolean, text: string, icon: string) -> ()
 
@@ -153,7 +166,16 @@ local function toggle(name: string, order: number, onActivate: () -> ()): TextBu
 	})
 end
 
-local function paintToggle(button: TextButton, on: boolean, icon: string, label: string, strike: boolean)
+-- `strike` strikes a glyph through (an icon with no "off" form); `always`
+-- strikes an uploaded image too (the admin's clock, D-080, has none).
+local function paintToggle(
+	button: TextButton,
+	on: boolean,
+	icon: string,
+	label: string,
+	strike: boolean,
+	always: boolean?
+)
 	for _, child in button:GetChildren() do
 		if child.Name == "Icon" or child.Name == "Slash" then
 			child:Destroy()
@@ -164,7 +186,7 @@ local function paintToggle(button: TextButton, on: boolean, icon: string, label:
 	glyph.AnchorPoint = Vector2.new(0.5, 0.5)
 	glyph.Position = UDim2.fromScale(0.5, 0.5)
 	glyph.Parent = button
-	if strike and glyph:IsA("TextLabel") then
+	if strike and (always == true or glyph:IsA("TextLabel")) then
 		-- The glyph has no "off" form: strike it through (as Header's sound button).
 		Kit.new("Frame", {
 			Name = "Slash",
@@ -185,6 +207,7 @@ end
 function Settings.corner(props: { [string]: any }?): Frame
 	local p: { [string]: any } = props or {}
 	local pairWidth = 2 * Kit.MIN_TOUCH + Kit.space.sm
+	local timersOff: boolean? = nil -- the admin toggle (D-080); nil: not shown
 	local root = Kit.box({
 		Name = p.Name or "CornerSettings",
 		AnchorPoint = Vector2.new(1, 0),
@@ -259,7 +282,21 @@ function Settings.corner(props: { [string]: any }?): Frame
 	end)
 	sound.Parent = pair
 	motion.Parent = pair
-	for _, button in { sound, motion } do
+	-- Admins only (D-080): turn the choice timers off in their own matches.
+	local timers: TextButton
+	timers = toggle("TimersToggle", 0, function()
+		local off = not (timersOff == true)
+		timersOff = off
+		render()
+		showTip(timers, true)
+		local onTimers = p.onTimers
+		if onTimers then
+			onTimers(off)
+		end
+	end)
+	timers.Visible = false
+	timers.Parent = pair
+	for _, button in { sound, motion, timers } do
 		local function enter()
 			hovered = button
 			showTip(button, false)
@@ -281,6 +318,16 @@ function Settings.corner(props: { [string]: any }?): Frame
 		paintToggle(sound, on, if on then "volume-2" else "volume-x", Settings.soundLabel(on), not on)
 		local reduced = Motion.reduced()
 		paintToggle(motion, reduced, "sparkles", Settings.motionLabel(reduced), false)
+		-- The admin toggle widens the row by one button while it shows.
+		local off = timersOff
+		timers.Visible = off ~= nil
+		if off ~= nil then
+			paintToggle(timers, off, "clock", Settings.timersLabel(off), off, true)
+		end
+		local width = pairWidth + (if off ~= nil then Kit.MIN_TOUCH + Kit.space.sm else 0)
+		pair.Size = UDim2.new(0, width, 1, 0)
+		root.Size = UDim2.fromOffset(TIP_W + Kit.space.sm + width, Kit.MIN_TOUCH)
+		tip.Position = UDim2.new(1, -(width + Kit.space.sm), 0.5, 0)
 		local shown = hovered
 		if tip.Visible and shown then
 			tip.Text = tostring(shown:GetAttribute("Label") or "")
@@ -303,11 +350,24 @@ function Settings.corner(props: { [string]: any }?): Frame
 	end
 	table.insert(connections, Audio.changed:Connect(follow))
 	table.insert(connections, Motion.changed:Connect(follow))
+	timerSetters[root] = function(off: boolean?)
+		timersOff = off
+		render()
+	end
 
 	if p.Parent then
 		root.Parent = p.Parent
 	end
 	return root
+end
+
+-- Shows a corner's admin toggle with `off` (the saved "Timers off", D-080), or
+-- hides it (nil: not an admin).
+function Settings.setTimers(corner: Frame, off: boolean?)
+	local set = timerSetters[corner]
+	if set then
+		set(off)
+	end
 end
 
 return Settings

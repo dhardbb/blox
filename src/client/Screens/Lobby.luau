@@ -28,7 +28,7 @@
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, CornerSettings
--- (SoundToggle, MotionToggle, SettingsTip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
+-- (SoundToggle, MotionToggle, SettingsTip; TimersToggle for admins, D-080), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -197,8 +197,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 6, Parent = idle })
 	-- Admins only (D-069): the reported names to review.
 	local review = NameReview.new(parent, ctx, { LayoutOrder = 7, Parent = idle })
-	-- Sound and Reduce motion: the top-right corner (D-075), on every Lobby state.
-	local settings = Settings.corner({ Parent = parent })
+	-- Sound and Reduce motion: the top-right corner (D-075), on every Lobby state;
+	-- for admins also "Timers off" (D-080), saved by the server.
+	local settings = Settings.corner({
+		Parent = parent,
+		onTimers = function(off: boolean)
+			ctx.net.send("SetTimersOff", { on = off })
+		end,
+	})
 	local board = Leaderboard.new(parent, ctx)
 
 	-- The sheet: make a code, or enter one.
@@ -329,10 +335,44 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = starting,
 	})
 
+	-- The eyebrow under the corner settings (a phone with a tall column, e.g.
+	-- an admin's three toggles, D-080): it steps aside, and stays aside at
+	-- this screen size so the column does not jump back and forth.
+	local eyebrowClear = true
+	local eyebrowSize: Vector2? = nil
+	local function underCorner(): boolean
+		local toggles = settings:FindFirstChild("Toggles") :: GuiObject?
+		-- Not laid out yet (everything still at 0): no verdict.
+		if
+			toggles == nil
+			or not eyebrow.Visible
+			or toggles.AbsolutePosition.X <= 0
+			or eyebrow.AbsoluteSize.X <= 0
+		then
+			return false
+		end
+		local text = tostring(eyebrow.Text)
+		local bounds = (eyebrow :: any).TextBounds
+		local textW = if bounds ~= nil and bounds.X > 0
+			then bounds.X
+			else (utf8.len(text) or #text) * eyebrow.TextSize * 0.62
+		local at, box = eyebrow.AbsolutePosition, eyebrow.AbsoluteSize
+		local right = at.X + box.X / 2 + textW / 2
+		local top, bottom = toggles.AbsolutePosition.Y, toggles.AbsolutePosition.Y + toggles.AbsoluteSize.Y
+		return right > toggles.AbsolutePosition.X and at.Y < bottom and at.Y + box.Y > top
+	end
+
 	local cardShadow: ImageLabel? = nil -- the card's shadow while it stands beside the column
 	local function relayout()
 		local size = parent.AbsoluteSize
-		eyebrow.Visible = size.Y >= SHORT_SCREEN
+		if size ~= eyebrowSize then
+			eyebrowSize = size
+			eyebrowClear = true
+		end
+		if eyebrowClear and underCorner() then
+			eyebrowClear = false
+		end
+		eyebrow.Visible = size.Y >= SHORT_SCREEN and eyebrowClear
 		-- The leaderboard: beside the column when there is room, else at its end.
 		local card = board.card
 		if size.X >= SIDE_MIN_W then
@@ -377,6 +417,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		starting.Visible = status == "InMatch"
 		colorPick.update(lobby)
 		review.update(lobby, state.review)
+		Settings.setTimers(settings, if lobby and lobby.admin then lobby.admin.timersOff == true else nil)
 		board.update(state.leaderboard)
 		if status ~= "Idle" then
 			friend:close()

@@ -89,6 +89,9 @@ local REASONS: { [string]: string } = {
 	NotAdmin = "Only the game's owners can review names.",
 	ReviewFailed = "The review list couldn't be saved. Try again in a minute.",
 	ReviewChanged = "That name changed since the list loaded. Check it again.",
+	-- Admin "Timers off" (D-080)
+	AdminOnly = "Only the game's admins can turn timers off.",
+	TimersNotSaved = "Your saved data didn't load, so the timer setting can't be saved.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -108,6 +111,10 @@ local NOTICES: { [string]: string } = {
 	NameNotAllowed = "Your custom name isn't allowed anymore, so your candidate uses their own. You can pick a new one.",
 	MatchUnrated = `This match is unrated: you two already played {Config.defaults.RATED_PAIR_DAILY_MAX} rated matches today.`,
 	ForfeitUnrated = "The match ended before week 1, so it doesn't count for anyone's rating.",
+	AdminTimersOff = "Timers off (admin): every choice waits until it's locked in.",
+	AdminTimersOffUnrated = "Timers off (admin): every choice waits until it's locked in. This match is unrated.",
+	AdminTimersOn = "Timers back on (admin): choices are timed again, starting full.",
+	AdminUnrated = "Timers were off (admin), so this match doesn't count for anyone's rating.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,

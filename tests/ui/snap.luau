@@ -107,6 +107,21 @@ local function pollsGround(world: World, peer: Peer)
 end
 
 -- Rallies in PA twice and in OH once (presses, so a repeated button is found).
+-- Steps that turn the fixture into an admin's match (D-080): `allowed` (every
+-- human an admin): the timers are off; else the opponent is not an admin and
+-- the timers run.
+local function adminTimers(allowed: boolean): (World, Peer) -> ()
+	return function(world: World, peer: Peer)
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		payload.adminTimers = { on = true, allowed = allowed }
+		if allowed then
+			payload.deadline = nil
+			payload.adminNoTimer = true
+		end
+		Rig.push(world, peer, payload)
+	end
+end
+
 local function planPreview(world: World, peer: Peer)
 	for _, name in { "PA", "Rally", "Rally", "OH", "Rally" } do
 		if FakeRoblox.find(peer, name) then
@@ -477,6 +492,22 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Lobby", "MotionToggle")
 		end,
 	},
+	-- D-080: an admin's corner: Timers off, just tapped on (its tooltip showing).
+	{
+		name = "01i-lobby-admin-timers",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			local lobby = Fixtures.lobby("Idle", { colorPass = "owned", color = "Teal" })
+			lobby.review = { count = 2 }
+			lobby.admin = { timersOff = false }
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			tapIf(world, peer, "Lobby", "TimersToggle")
+		end,
+	},
 	{
 		name = "02j-howto-6-night",
 		moment = "Lobby",
@@ -636,6 +667,33 @@ local SHOTS: { Shot } = {
 	-- Easy bot (the plan timer doubled).
 	{ name = "09t-campaign-plan-tutorial", moment = "PlanTutorial", screen = "Campaign" },
 	{ name = "09u-campaign-plan-easy", moment = "PlanEasy", screen = "Campaign" },
+	-- D-080: an admin's match with the timers off ("No timer (admin)"), its
+	-- "?" sheet, the same sheet in a match with a non-admin, and Select.
+	{
+		name = "09v-campaign-plan-admin-timers",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = adminTimers(true),
+	},
+	{
+		name = "24b-help-admin-timers",
+		moment = "Plan",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			adminTimers(true)(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+		end,
+	},
+	{
+		name = "24c-help-admin-mixed",
+		moment = "Plan",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			adminTimers(false)(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+		end,
+	},
+	{ name = "03h-select-admin-timers", moment = "Select", screen = "Select", steps = adminTimers(true) },
 	-- D-065: the event strip under the score for every kind of week (the Plan
 	-- fixture is a Windfall week, 15 a Choice week), next week's event alone,
 	-- and the details sheet a tap opens.
