@@ -15,12 +15,16 @@ Client and assets only: no rule, sim, server or Config changes. Studio checklist
 
 ### The Name Pass: a custom name for your candidate (D-063)
 
-Server, payload and the Select screen; two new Config values (`NAME_MAX_LENGTH` 16, `NAME_MIN_AGE` 16; no rule changes). Studio checklist: `docs/TESTING.md`, "The Name Pass". Needed from the humans: the pass and its id; and see the age note below.
+Server, payload, Select, Help, Results and the Lobby. New Config values (name limits, reports, review, admins; no rule changes). Studio checklist: `docs/TESTING.md`, "The Name Pass". Needed from the humans: the pass and its id.
 
-- **A Game Pass to give your candidate a name of your own** (up to 16 characters), entered on Select and remembered for your next matches. The candidate keeps its portrait and perk.
-- **Only for accounts Roblox has verified as 16 or older, and only shown to them:** everyone else sees the candidate's own name. Roblox gives games no way to read a verified age today, so for now nobody is eligible and the option stays hidden; the check is one function to switch on when Roblox offers it.
-- Every name goes through Roblox's text filter; anything it hides, or a filter that cannot be reached, is turned down ("That name isn't allowed. Try another name."). A server-only blocklist (empty for now) catches names the filter misses.
-- Bots never get custom names. Wire: new request `SetName { name? }`; reasons `NoNamePass`, `NameNotEligible`, `NameBadText`, `NameEmpty`, `NameTooLong`, `NameFiltered`, `NameFilterFailed`, `NameNotSaved`.
+- **A Game Pass to give your candidate a name of your own** (up to 16 characters), entered on Select and remembered for your next matches. The candidate keeps its portrait and perk. Bots never get custom names.
+- **Only for players Roblox lets chat, and only shown to them** (the stand-in for 16+: Roblox gives games no age). A viewer sees a name only if Roblox would let the two of them chat.
+- **Filtered like chat:** Roblox's filter when you set it, and again for each viewer at their own level; anything hidden, or a filter that can't be reached, shows the candidate's own name. Letters, spaces, - ' and . only (no digits, emoji, links or handles), at least 2 letters, no letter three times in a row.
+- **A server-only blocklist** of real politicians, parties and slogans, Roblox staff words, social-app and Robux bait, and the game's own words, matched through look-alike spellings. A note says names must follow Roblox's Community Standards.
+- **Report name:** in the in-match "?" sheet and on Results. The reporter stops seeing that name at once and in later matches; the report waits for the owners. The sheet also points to Roblox's own Report for serious cases (games can't open it).
+- **Owner review:** admins get "Review names (N)" in the Lobby: Keep, or Remove (the name is cleared, its owner told, and it and names like it are blocked on every server).
+- **Admins** (the owner and originalyellowboss) get the color picker and custom names free, even before the passes exist.
+- Wire: requests `SetName`, `ReportName`, `ReviewList`, `ReviewKeep`, `ReviewRemove`; message `Review`; DataStores `NameReports_v1`, `NameBlocklist_v1`; MessagingService topic `NameBlocklist`.
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 

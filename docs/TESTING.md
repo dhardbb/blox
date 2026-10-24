@@ -869,24 +869,31 @@ Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `--
 
 ## The Name Pass (unreleased, D-063)
 
-A custom name for your candidate, only for accounts Roblox has verified as 16 or older. **Today nobody can see this in a live game:** Roblox gives scripts no way to read a verified age, so `server/NameEligibility` treats everyone as not eligible (fail closed) and the option stays hidden even after the pass exists. The agents test the rest with a faked age (`tests/ui/NamePass.spec`; shots `03d`–`03f`).
+A custom candidate name for players Roblox lets chat (the stand-in for 16+), filtered like chat, with reports and an owner review. Agents: `lune run tests "Name Pass"`, `lune run tests "reported names"`, shots `03d`–`03g`, `01g`, `02k`.
 
 ### Setting up the Name Pass (once, for the humans)
 
-1. [Creator Dashboard](https://create.roblox.com/dashboard/creations) → the experience of place **133510178057620** → **Monetization → Passes → Create pass.** Name: **Name Your Candidate**. Description, for example: "Give your candidate a name of your own (up to 16 characters). Only for age-checked players 16+; others see the candidate's own name." Square icon (up to 512x512). **Create pass.**
-2. Put it **on sale** and set a price in Robux. **Save.**
-3. On **Passes**: hover the pass, **⋯ → Copy Asset ID**. Send that number to Claude (or put it in `src/shared/Net/Products.luau`: `Products.NAME_PASS_ID = <the number>`).
-4. Decide with Claude how eligibility should work, since a verified age cannot be read: for example, rating the game "Content May Vary" (only age-checked 16+ players can join at all) would let every player count as eligible.
+1. [Creator Dashboard](https://create.roblox.com/dashboard/creations) → the experience of place **133510178057620** → **Monetization → Passes → Create pass.** Name: **Name Your Candidate**. Description, for example: "Give your candidate a name of your own (up to 16 characters). Names must follow Roblox's Community Standards." Square icon (up to 512x512). **Create pass.**
+2. Put it **on sale** and set a price. **Save.**
+3. **⋯ → Copy Asset ID**, send it to Claude (or put it in `src/shared/Net/Products.luau`: `Products.NAME_PASS_ID = <the number>`).
+4. **Admins:** the owner (5618560436) and originalyellowboss (479739965) are in `Config.ADMIN_USER_IDS` in `src/shared/Sim/Config.luau`. To add another admin, add their user id there with a comment naming them. Admins get the color picker and custom names free, and the **Review names** button.
+5. **Communication settings:** names need Roblox's chat permission, so chat must be on for the experience (Experience Settings → Communication).
 
-### In Studio (only after eligibility is switched on)
+### In Studio
 
-Studio purchases are test purchases; DataStores need **Game Settings → Security → Enable Studio Access to API Services** to remember the name.
+Studio may not answer the chat-permission check, and its text filter is limited. To try the screens, set `NameEligibility.STUDIO_OVERRIDE = true` in `src/server/NameEligibility.luau` (it only works in Studio; never commit it as true). Purchases are test purchases.
 
-1. **Play vs Bot.** **Expect:** on Select, under "Your color", a line "Name: your candidate's own" with **Get the Name Pass**. Tap it: Roblox's purchase prompt for "Name Your Candidate". **Buy.** **Expect:** the button becomes **Rename**.
-2. Tap **Dana Okafor**, then **Rename**. **Expect:** a sheet "Name your candidate" with a box (placeholder "Dana Okafor"), the hint "Up to 16 characters…", **Use the candidate's name** and **Save name**. Typing stops at 16 characters.
-3. Type `  Captain   Zed ` and **Save name**. **Expect:** the sheet closes and the line reads "Name: Captain Zed". Lock in and play a week: the header and the reveal say "Captain Zed"; your portrait is still Dana's.
-4. Try a rude word, then `Zed #1`, then only spaces. **Expect:** the sheet stays open and says why ("That name isn't allowed. Try another name.", "That name has a character…", "Type a name first."); your name does not change.
-5. **Two players** (published game): one eligible owner named, one not eligible. **Expect:** the owner sees their custom name; the other player sees "Dana Okafor" everywhere.
-6. Output: any line with `name filter failed`, `Name Pass check` or `rejected SetName`.
+1. As an admin, **Play vs Bot**. **Expect:** under "Your color", a line "Name: Dana Okafor · Rename" (admins have the pass). Without being an admin: **Get the Name Pass** and, under it, "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
+2. **Rename**: the sheet shows the box (stops at 16 characters), the hint, the same rules note, **Use the candidate's name** and **Save name**. Type `  Captain   Zed ` and save. **Expect:** the line reads "Name: Captain Zed"; the header and reveals say "Captain Zed" (still Dana's portrait).
+3. Try `Zed 2024`, `zed.com`, `Zeee`, `A`, `Discord Zed`, `Donald Trump`. **Expect:** each is turned down with a short reason; the name does not change.
 
-**Send back:** screenshots of steps 1–4 (iPad and phone), what the other player saw in step 5, and the Output lines from step 6.
+### In a live server (two accounts; the filter only fully works live)
+
+1. With a name set on account A, **Find match** with account B (both allowed to chat). **Expect:** B sees A's custom name. With B's chat turned off (Roblox settings), B sees "Dana Okafor".
+2. Try a few names on A that Roblox's chat would hide (a rude word, a phone-number-like name spelled out in words). **Expect:** "That name isn't allowed. Try another."
+3. **Report:** on B, tap **?** → **Report "Captain Zed"** → **Report**. **Expect:** B sees "Dana Okafor" from then on (also in the next match against A); a thank-you message. A still sees their own name. The sheet mentions Roblox's own Report.
+4. **Review (owner or partner):** in the Lobby, **Review names (1)**. **Expect:** "Captain Zed · by <A's username> · 1 report · <date>". Tap **Keep**: the row goes, A keeps the name. Report it again from B, then **Remove**. **Expect:** A's candidate goes back to its own name with "Your custom name was removed after a review. You can pick a new one."; A can no longer use "Captain Zed", "Capta1n Zed" or "Captain Zeb", but can pick another name. On another server, A's saved name is cleared when A next joins.
+5. **Admins' free color:** as the owner or partner, with no Color Pass bought, the Lobby shows **Color** with every swatch open.
+6. Output: lines with `name filter failed`, `name eligibility check failed`, `name review`, `rejected SetName`, `rejected ReportName`, `rejected Review`.
+
+**Send back:** screenshots of the Select name line, the sheet, a refusal, B's view after reporting, and the review panel; and the Output lines from step 6.
