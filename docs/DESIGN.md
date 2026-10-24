@@ -981,3 +981,37 @@ WP-2 of the front-page pass (art direction §4), on the white accent (D-058). Cl
 **Client.** Select shows a row of six swatches under the color line when `view.canPickColor` (both steps; hidden for everyone else, who keep the line alone): each a 44 px round chip with a 36 px monogram (your candidate's initials, or your name before a pick) in that color over the color's name. Your color wears the white selection outline; the color your opponent claimed is dimmed, shows their initials and reads "Taken", and does nothing; a tap on any other sends `ClaimColor` (`Net.claimColor`) and the outline moves at once, settling on the server's answer. No buy link on Select: ownership is checked when the match starts, so a purchase mid-Select could not unlock this match's picker (the Lobby's sheet sells the pass). The `ColorTaken` notice reads "Rex took Crimson first. Pick another color." (the opponent's first name once they hold a candidate, and the color last asked for or the saved favorite; `Words.colorTaken`); the rejection text is "Your opponent has that color. Pick another." The Lobby sheet's tie line now says "Same color as your opponent? Whoever claims it first gets it." Debug: `color Teal`. Phone 390x844 still fits step 1 without scrolling; shots `03b-select-color`, `03c-select-color-change` and `04b-select-color-issues` (fixture moment `SelectColor`: you hold Violet, Rex claimed Teal) report 0 audit findings at all three sizes. Also fixed: four client type errors luau-lsp reported (two `FindFirstChild` chains, a tone cast, and `Leaderboard.Board`, which the WP-2 merge had dropped); no behavior change.
 
 **Tests.** `Match.spec` (first come, taken colors, the same-step coin flip over 1,000 seeds, favorites and a shared favorite, non-owners, changing color, the end-of-Select deal, more than two players, determinism, no other seeded stream moved), `Session.spec` (the request, notices, a shared favorite, a timeout), `Lobby.spec` (the schema), `ColorPass.spec` (an owner claims through the real server, by request and by tapping a swatch; a non-owner is refused), `Select.spec` (the picker hidden for non-owners; outline, Taken, a tap claims, step 2, audit at three sizes; the notice wording), `DebugUI.spec` (`color`).
+
+### D-064 — A deeper, richer palette (no rule changes, Oct 24, 2026)
+
+**Ask.** The designers: "for the campaign colors make them less pastel and light", then "the color scheme in general". Kept: the navy-and-white system, what each color means (red and blue are the default players; orange `loss` is anything against you; white is press here / selected; Amber stays gold, clear of the orange) and every contrast floor. Everything goes through `Shared/UI/Colors` (names and functions unchanged), so the map and screens being rebuilt in parallel pick it up.
+
+**Why it looked pastel.** The map blended from a light grey (`neutral` 118, 124, 142) toward the leader's color in straight RGB, and a lean took only 45 % of the color: a Crimson lean came out 158, 92, 111 (42 % saturation), a dusty pink; a Cobalt lean a grey-blue. Every node also wore a near-white `undecided` ring (190, 196, 210) that washed out the fill inside it. Player text was a fixed quarter of the way to white (Crimson text 215, 100, 117, a salmon pink).
+
+**New values (old → new).**
+
+| Token | Old | New | Why |
+|---|---|---|---|
+| Crimson | 206, 52, 72 | 212, 28, 66 | deeper cherry, hue 348 (a little cooler, farther from the orange) |
+| Cobalt | 52, 104, 214 | 34, 98, 228 | saturated royal blue |
+| Emerald | 36, 168, 108 | 0, 170, 96 | full saturation; still takes dark text (luma 0.504) |
+| Amber | 240, 186, 36 | 246, 190, 8 | richer gold, hue 46 (was 44), so no closer to the orange |
+| Violet | 146, 84, 214 | 152, 56, 228 | deeper purple, hue 273: farther from Cobalt |
+| Teal | 24, 168, 178 | 0, 164, 186 | full saturation |
+| `neutral` (toss-up) | 118, 124, 142 | 70, 78, 104 | a dark slate: blends from it are deep, not grey pastels; toss-ups recede and leads pop |
+| `undecided` (node ring, silver medal) | 190, 196, 210 | 164, 174, 204 | a slate ring that frames a fill without whitening it |
+| `BANDS` lean / likely | 0.45 / 0.75 | 0.6 / 0.82 | a lean reads as its color (Crimson lean 155, 48, 81, 69 % saturation); strength shows as depth: lean darkest, safe brightest. Steps between bands stay as wide as before (CIEDE2000 27 / 7 / 6 for Crimson, was 23 / 9 / 6) |
+| `stateFill` | linear to `FULL_MARGIN` | `(margin / 12) ^ FILL_CURVE` (0.6) | a 3-point lead is 44 % of the way, 6 points 66 % (was 25 % / 50 %); no screen calls it today, kept in step with the bands |
+| `good` / `goodEdge` | 92, 200, 128 / 64, 136, 94 | 80, 212, 96 / 50, 140, 66 | a clear green, not mint; 8.6:1 on surface; 13 CIEDE2000 from Emerald (was 9.8) |
+| navy stage | background 13, 17, 30 · field 18, 23, 38 · surface 24, 30, 48 · surfaceTop 31, 38, 60 · raised 38, 46, 70 · raisedTop 46, 55, 82 · raisedHover 54, 64, 94 · raisedLip 9, 12, 22 · line 70, 80, 112 · glow 44, 62, 120 | 11, 16, 34 · 16, 23, 44 · 22, 30, 55 · 29, 38, 68 · 36, 47, 80 · 44, 56, 93 · 52, 65, 106 · 8, 12, 26 · 68, 81, 124 · 40, 60, 136 | same lightness per step (L* within 1), about a third more blue chroma: navy, not blue-grey |
+| `muted` | 158, 168, 194 | 156, 168, 204 | same contrast (7.0:1 on surface, 5.6:1 on raised), a little bluer |
+
+Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, and every name.
+
+**Readable player text (`Colors.textOn`).** Was a fixed 25 % toward `text`. Now: the color itself when it already reads at 4.5:1 on a card's lit top (`surfaceTop`; `Colors.TEXT_CONTRAST`); else the same color brightened (channels scaled up in 5 % steps, so hue and saturation stay); and only if full brightness is not enough, tinted toward `text` in 5 % steps until it reads. Crimson text is 252, 76, 113 (5.0:1 on surface, was 215, 100, 117 at 4.7:1), Cobalt 89, 143, 254, Violet 188, 108, 254; Emerald, Teal and Amber text is the color itself (4.9 to 8.7:1 on `surfaceTop`). New helper `Colors.contrast(a, b)` (WCAG ratio).
+
+**Measured.** CIE76 (D-056's measure) / CIEDE2000 (D-051, D-055's): closest pair of player colors Cobalt–Violet 39 / 19 (was 30 / 18); Crimson–Cobalt 107 / 42 (was 96 / 41); closest to the loss orange Amber 45 / 27 (was 42 / 26) and Crimson 46 / 30 (was 45 / 28). Under simulated deuteranopia Crimson and Cobalt are 56 CIEDE2000 apart (was 52). White text on Crimson, Cobalt and Violet fills 4.7 to 4.8:1 (was 4.2 to 4.6); dark text on Emerald, Teal, Amber 6.2 to 11:1. The accent stays lighter than every color (closest Amber 1.58:1, floor 1.5). `onAccent` 17.5:1, `onLoss` 7.3:1, `loss` on surface 6.3:1, the primary's lip 3.9:1 on surface and 4.4:1 on the stage.
+
+**Not changed (screens own them).** Election night's feed rows (`WINNER_TINT` 0.3 from `raised`), the Draft legend (0.6 from `neutral`) and the map's lip shade keep their own constants; they get richer through the new base colors. `Kit.EDGE_TINT` is unchanged.
+
+**Tests.** `Helpers.spec` checks every player's text reads at `TEXT_CONTRAST` on `surfaceTop` and is never darker than its fill, and that every player color is ≥ 35 CIE76 from every other and ≥ 40 from the loss orange; the stateFill and band cases follow the new curve and shares; `Kit.spec` pins the new Crimson, Teal and stage. 0 audit findings on every snapshot at all three sizes.

@@ -849,3 +849,11 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 7. **State card.** The six actions each start with their icon on a small dark circle; the poll is a small race bar with a tick in the middle. The event card shows "THIS WEEK" over "Windfall · …". The **Key** chip (magnifier) beside the lens chips opens "How to read the map".
 8. **Help (?).** The five tabs sit in one dark track (two rows on a phone), the open one raised with a white outline. "How to win" shows the race bar; "Actions" shows each icon on a round plate. At the end, under a thin line, **Leave match** is orange-outlined. **How to play** (Lobby): the step numbers are round, the election-night winners are tags filled blue / red.
 9. **No errors** from `Lobby`, `Leaderboard`, `Select`, `Draft`, `TopBar`, `StateCard`, `EventCard`, `Focus` or `Help` in the Output window. *Send back:* the Output log.
+
+## Richer colors (unreleased, D-064)
+
+Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- select`, `-- election`, `-- results`); 0 audit findings. In Studio, play one match vs a bot on the iPad and look at:
+
+1. **Campaign map.** States nobody leads are dark slate circles; leaning states are a deep red or blue (not pink or grey-blue); safe states are bright red or blue. The ring around each state is a soft slate, not near-white. Open **Key**: its swatches match the map. *Send back:* a screenshot of week 3 and whether a narrow lead is easy to spot.
+2. **Names in color** (header, state card, election night): Rex's name is a vivid red, Dana's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
+3. **Color Pass colors** (if you have the pass): all six swatches look rich, and Amber still reads as gold, not orange. *Send back:* a screenshot of Select with the swatches.

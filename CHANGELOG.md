@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### A deeper, richer palette (D-064)
+
+Client colors only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Richer colors".
+
+- **The campaign map is no longer pastel.** Toss-ups are a dark slate instead of light grey, and a lead shows as a deep version of the leader's color right away (a lean is 60 % of the color, was 45 %); safe states are the full, bright color. The light ring around every state is now a slate one, so it no longer washes the fill out.
+- **Player colors are deeper and more saturated** (Crimson 212, 28, 66; Cobalt 34, 98, 228; Emerald, Amber, Violet and Teal likewise). Red stays clear of the loss orange, Violet moved farther from Cobalt.
+- **Player names in color are vivid, not pink.** Readable text keeps the color's own hue (brightened just enough), instead of fading it toward white.
+- **Gains are a clear green, not mint**, and the navy stage, cards and buttons are a richer navy at the same brightness. Every contrast floor still holds.
+
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 
 A new look (navy stage, white accent, orange losses, chunky buttons, a lit map, stamps for the big moments), a global leaderboard, Easy to Extreme bots, Leave match, How to play, and Color Pass colors claimed first come, first served. Needed from the humans: the Color Pass id (see 0.11.0).
