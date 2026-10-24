@@ -99,7 +99,7 @@ function NameReview.new(screen: Instance, ctx: any, props: { [string]: any }?): 
 				Parent = row,
 			})
 			Kit.button(Words.REVIEW_KEEP, function()
-				ctx.net.send("ReviewKeep", { userId = entry.userId })
+				ctx.net.send("ReviewKeep", { userId = entry.userId, name = entry.name })
 			end, {
 				variant = "secondary",
 				Name = "ReviewKeep",
@@ -109,7 +109,7 @@ function NameReview.new(screen: Instance, ctx: any, props: { [string]: any }?): 
 				Parent = row,
 			})
 			Kit.button(Words.REVIEW_REMOVE, function()
-				ctx.net.send("ReviewRemove", { userId = entry.userId })
+				ctx.net.send("ReviewRemove", { userId = entry.userId, name = entry.name })
 			end, {
 				variant = "danger",
 				Name = "ReviewRemove",

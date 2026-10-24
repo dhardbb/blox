@@ -31,6 +31,17 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - **A held debate move no longer sticks:** the map preview of a held move ends when the finger slides off and lifts, when a touch is cancelled, or when the mouse leaves the button.
 - **Results cleans up after itself:** the LANDSLIDE shine, the glow's breathing and the Map tab's map stop when the screen closes (no animations left running in the lobby).
 - **No error on a payload without your seat** after Lock in on the debate, plan and decision screens.
+- **Server and saved-data fixes** (Studio checklist: `docs/TESTING.md`, "Server and saved-data fixes (unreleased)"):
+  - **A loss follows a player to another server.** Leaving a rated match and joining another server used to skip the loss: the result was dropped or overwritten. A result for a player whose data another server holds now waits in their saved record, and that server adds it (once) on its next save, within about a minute; the leaderboard follows.
+  - **Saved data:** a server refreshes each player's lock every minute, merges instead of overwriting, writes changes in a batch every 15 s and skips profiles that did not change. A match result is still saved at once.
+  - **Win trading (D-077):** a forfeit or a drop before week 1 makes the match unrated for both players, and one pair of players gets at most 3 rated games a day; the next is unrated. Both are announced.
+  - **Spam:** SetColor (1 s) and SetName (2 s) have cooldowns, and re-saving the name already in use skips the text filter.
+  - **Name review (D-078):** a removed name blocks itself as whole words only ("Ann" no longer blocks "Hannah"); only the exact removed name is cleared from saved data. Keep and Remove act only on the name the admin saw. A failed blocklist save changes nothing, and a reload never brings a removed name back. Until the blocklist has loaded, no new name is accepted.
+  - **Reports:** the daily report limit is saved (rejoining no longer resets it), and the review queue is split over eight keys.
+  - **Debates:** a drop during the reveal before a debate no longer uses up that debate's one grace period.
+  - **Rejoins:** the server now sends your locked-in debate move and Zinger after a rejoin mid-round (`view.debate.yourMove`; the Debate screen does not show it yet); custom names no longer vanish for the rest of the match after a rejoin or a slow chat check.
+  - **Reveal timer:** the week's reveal no longer runs longer when the opponent bought internal polls.
+  - **More than two players:** forfeits, the bot's opponent and the plan preview no longer assume two players (two-player play is unchanged).
 
 ## 0.13.0: Landslide (Oct 24, 2026)
 

@@ -432,3 +432,19 @@ describe("Bot", function()
 		expect(seen.Defend and seen.Attack and seen.Pivot):toBe(true)
 	end)
 end)
+
+describe("Bot: its opponent with more than two players", function()
+	it("is the rival with the most projected votes; with two players, the other one", function()
+		local two = View.build(C, Match.new(C, 3, { "a", "b" }), 2)
+		expect(Bot.opponentOf(two)):toBe(1)
+		local view = View.build(C, Match.new(C, 3, { "a", "b", "c" }), 1)
+		view.projectedEV = { 100, 50, 300 }
+		expect(Bot.opponentOf(view)):toBe(3)
+		view.you = 3
+		expect(Bot.opponentOf(view)):toBe(1)
+		-- A tie goes to the lower seat, so the choice never depends on table order.
+		view.you = 2
+		view.projectedEV = { 120, 50, 120 }
+		expect(Bot.opponentOf(view)):toBe(1)
+	end)
+end)

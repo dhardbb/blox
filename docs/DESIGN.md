@@ -1287,3 +1287,30 @@ New harness styles: `RandomMove`, `NoAnswer`, `AlwaysDefend`, `AlwaysAttack`, `A
 - Sentences (feeds, reveal lines, verdict lines) keep the full names: there were no codes there.
 
 **Audit.** New rule `iconFloor`: an issue symbol under `Kit.MIN_ICON` either way; `tokenColor` also checks a symbol's tint. The fallback code is ordinary text under the text rules. The headless engine now applies a text object's UIPadding to its children (as Roblox does) so a lead symbol is judged where it really sits; other padding is still ignored. The specs and snapshots preview the symbols as if uploaded (`IssueIcons.preview`, like `NodeMap.preview`); `IssueIcons.spec` also audits the fallback. The snapshot renderer draws the local PNGs tinted (an SVG mask).
+
+## Review fixes: server, saved data, names
+
+### D-077 — Leaving before week 1 is unrated; one pair plays at most 3 rated games a day (rule change, Oct 24, 2026, branch `bugfix-server`)
+
+**Why.** The security review found that a rated private-code match plus an instant Forfeit lets a player trade wins with a second account: host, the alt joins and forfeits in Select, repeat. Private matches stay rated (D-059's intent), so the fix limits what a throwaway match can earn.
+
+**Rules.**
+- A match that ends in a forfeit by a player who forfeited, or dropped and never came back, **before week 1 begins** (Select, the map reveal, the draft) is unrated for both players (`Session.Result.unrated`). Nobody's rating, totals or record move; both players get the notice "The match ended before week 1, so it doesn't count for anyone's rating." A player who drops early but comes back and plays on leaves the match rated. Practice is unchanged.
+- At most `RATED_PAIR_DAILY_MAX` (3) rated games between the same two players in `RATED_PAIR_WINDOW` (24 h). A fourth match still plays, unrated, and both players are told as it starts ("This match is unrated: you two already played 3 rated matches today."). Each profile keeps the times of its recent rated games per opponent (`Profile.ratedWith`), so the count follows the players across servers.
+
+**Config.** New `RATED_PAIR_DAILY_MAX` 3, `RATED_PAIR_WINDOW` 86400. Also new, server limits rather than rules: `SET_COLOR_COOLDOWN` 1 s and `SET_NAME_COOLDOWN` 2 s (a client spamming SetColor or SetName could burn the server's DataStore write budget and its text-filter calls). Saved data is now written in a batch every 15 s, unchanged profiles not at all; a match result is still saved at once.
+
+**For the designers.** A real rematch streak with a friend stops counting after three games a day; say if that is too few.
+
+### D-078 — A removed custom name blocks whole words only; review queue split; reports counted per day (rule change, Oct 24, 2026, branch `bugfix-server`)
+
+**Why.** The reviewed blocklist used the static list's loose match (contains, one edit away), so removing a short name hit innocent ones ("Ann" blocked "Hannah", "Joanna") and the server then deleted those names from their owners' saved data.
+
+**Rules.**
+- A name a reviewer removes is stored as its folded words (`CustomName.reviewEntry`: "Captain Zed" → `=captain zed`) and matches **whole words only**: "Captain Zed", "CAPTAIN  ZED", "CaptainZed" and "Captain Zed Jr" are blocked; "Captain Zeb", "Hannah" and "Annabel" are not. Entries saved by 0.13.0 (no "=") match the exact name. The static list (`server/NameBlocklist`) keeps its own rules.
+- Only a saved name that **is** the removed name is cleared from its owner's saved data. A saved name that only contains it is not used (the candidate's own name shows, with a notice) but stays saved.
+- Keep and Remove carry the name the admin saw and act only if it is still the queued one ("That name changed since the list loaded").
+- Remove writes the blocklist first and takes the report off the queue only after that write worked, so a failed write changes nothing. A reload merges the stored list with what the server already has.
+- Until a server has read the reviewed blocklist once, no new name passes (fail closed); it retries every `NAME_BLOCKLIST_RETRY` seconds.
+
+**Config.** `NAME_REPORTS_PER_VISIT` 10 becomes `NAME_REPORTS_PER_DAY` 10 per `NAME_REPORT_WINDOW` (24 h), kept in the profile so rejoining no longer resets it. New `NAME_REVIEW_SHARDS` 8: the queue is split over eight DataStore keys by setter (each key takes at most 4 MB of writes a minute), and 0.13.0's single key is still read. New `NAME_BLOCKLIST_RETRY` 20 s.

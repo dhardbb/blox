@@ -53,6 +53,7 @@ export type Seat = {
 	skip: boolean, -- wants to skip the current Reveal/Show
 	missed: number, -- consecutive Plan stages missed while disconnected
 	debateGraceWeek: number?, -- the debate week this seat already spent a grace use in (one per debate, D-072)
+	leftEarly: boolean, -- disconnected before week 1 began and not back since (D-077)
 	prePick: any?, -- lobby pre-pick, used if Select times out
 	botCandidate: string?,
 	botStyle: Bot.Style?,
@@ -82,8 +83,14 @@ export type Naming = {
 }
 
 export type Result = {
-	winner: number, -- seat index, 0 if nobody (abandoned)
+	winner: number, -- seat index, 0 if nobody (abandoned) or if several seats share the win
 	reason: Reason,
+	-- A forfeit with more than two players: every seat that stayed, in seat order.
+	-- Absent when one seat won (always, with two players).
+	winners: { number }?,
+	-- The match counts for no one's rating (D-077): a player forfeited or left
+	-- before week 1 began. Absent otherwise.
+	unrated: boolean?,
 }
 
 export type SeatInfo = {
@@ -264,7 +271,14 @@ function Session.payload(session: Session, p: number): StatePayload
 		end
 		names = found
 	end
-	local view = View.build(session.config, session.match, p, names)
+	-- Your own debate move, once locked in this round (the match keeps it only as
+	-- the session's input until the round resolves), so a rejoin shows it.
+	local yourMove = if session.stage == "Input"
+			and session.match.phase == "Debate"
+			and seat.locked
+		then seat.input
+		else nil
+	local view = View.build(session.config, session.match, p, names, yourMove)
 	-- Week 12's resolve reveal already runs in phase Election, and a forfeit after
 	-- it leaves a computed result nobody saw: the result is sent only from election
 	-- night on (the Show stage, then the end of a match decided by it).
@@ -334,6 +348,43 @@ end
 local function finish(session: Session, now: number, result: Result)
 	session.result = result
 	setStage(session, "Over", now, 0)
+end
+
+-- Before week 1 begins: Select, the map reveal and the draft (D-077).
+local function beforeWeekOne(session: Session): boolean
+	local phase = session.match.phase
+	return phase == "Select" or phase == "MapReveal" or phase == "Draft"
+end
+
+-- Ends the match as a forfeit by `losers` (seat indices). Every other seat wins:
+-- with two players that is the one other seat, as `winner`; with more, all who
+-- stayed share it (`winners`, and `winner` 0). Nobody left: abandoned. A loser who
+-- forfeited or left before week 1 began makes it unrated for everyone (D-077).
+local function forfeitBy(session: Session, now: number, losers: { [number]: boolean }, early: boolean)
+	local stayed: { number } = {}
+	for p in session.seats do
+		if not losers[p] then
+			table.insert(stayed, p)
+		end
+	end
+	if #stayed == 0 then
+		finish(session, now, { winner = 0, reason = "Abandoned" })
+		return
+	end
+	local unrated = early
+	for p in losers do
+		if session.seats[p].leftEarly then
+			unrated = true
+		end
+	end
+	local result: Result = { winner = if #stayed == 1 then stayed[1] else 0, reason = "Forfeit" }
+	if #stayed > 1 then
+		result.winners = stayed
+	end
+	if unrated then
+		result.unrated = true
+	end
+	finish(session, now, result)
 end
 
 local enterPhase: (session: Session, now: number) -> ()
@@ -495,13 +546,19 @@ local function closeInput(session: Session, now: number)
 	advance(session, inputs)
 
 	if phase == "Plan" then
+		-- Every seat that has now missed too many weeks forfeits, all at once.
+		local losers: { [number]: boolean } = {}
+		local any = false
 		for p, seat in session.seats do
 			if seat.missed >= config.FORFEIT_MISSED_WEEKS then
-				local winner = if p == 1 then 2 else 1
-				finish(session, now, { winner = winner, reason = "Forfeit" })
-				broadcast(session)
-				return
+				losers[p] = true
+				any = true
 			end
+		end
+		if any then
+			forfeitBy(session, now, losers, false)
+			broadcast(session)
+			return
 		end
 	end
 
@@ -646,6 +703,7 @@ function Session.new(
 			skip = spec.kind == "Bot",
 			missed = 0,
 			debateGraceWeek = nil,
+			leftEarly = false,
 			prePick = spec.prePick,
 			botCandidate = spec.candidate,
 			botStyle = spec.style or (if difficulty then Bot.styleFor(difficulty) else nil),
@@ -893,15 +951,28 @@ function Session.showName(session: Session, viewer: number, setter: number, name
 end
 
 -- The server learned that a seat owns the Name Pass (bought during the match)
--- or that it may use it at all (eligible: then it may also see names; nil =
--- not eligible); sends that seat a fresh State.
+-- or whether it may use it at all (nil: not set up, or not eligible); sends
+-- that seat a fresh State. Who may see names is Session.setSeesNames: a pass
+-- that is not set up, or an answer that is not in yet, never hides them.
 function Session.setNamePass(session: Session, p: number, pass: NamePass?)
 	local seat = session.seats[p]
 	if seat == nil or seat.kind ~= "Human" or session.stage == "Over" then
 		return
 	end
 	seat.namePass = if pass then table.clone(pass) else nil
-	seat.seesNames = pass ~= nil
+	if seat.connected then
+		table.insert(session.outbox, { seat = p, kind = "State", state = Session.payload(session, p) })
+	end
+end
+
+-- The server's eligibility check for a seat came back (D-069): whether this
+-- player may see custom names. Sends that seat a fresh State when it changes.
+function Session.setSeesNames(session: Session, p: number, sees: boolean)
+	local seat = session.seats[p]
+	if seat == nil or seat.kind ~= "Human" or session.stage == "Over" or seat.seesNames == sees then
+		return
+	end
+	seat.seesNames = sees
 	if seat.connected then
 		table.insert(session.outbox, { seat = p, kind = "State", state = Session.payload(session, p) })
 	end
@@ -1007,10 +1078,16 @@ function Session.disconnect(session: Session, p: number, now: number)
 		return
 	end
 	seat.connected = false
+	if beforeWeekOne(session) then
+		seat.leftEarly = true
+	end
 	-- A debate spends at most one grace use (D-072): a second drop in the same
-	-- debate gets canned answers straight away.
-	local debating = session.match.phase == "Debate"
+	-- debate gets canned answers straight away. The debate starts with its intro:
+	-- a drop during the week's reveal before it (already phase Debate) is not one.
 	local week = session.match.week
+	local debating = session.match.phase == "Debate"
+		and session.introWeek == week
+		and session.reveal ~= "Resolve"
 	local spentThisDebate = debating and seat.debateGraceWeek == week
 	if seat.graceLeft > 0 and not spentThisDebate then
 		seat.graceLeft -= 1
@@ -1031,6 +1108,7 @@ function Session.reconnect(session: Session, p: number, now: number)
 	local seat = session.seats[p]
 	seat.connected = true
 	seat.graceUntil = nil
+	seat.leftEarly = false
 	if session.stage == "Input" and not seat.locked and session.deadline ~= Session.NO_DEADLINE then
 		-- Grace can hold a stage open past this seat's deadline. Give the returning
 		-- player a fair window to act instead of closing it with their default.
@@ -1044,15 +1122,15 @@ function Session.reconnect(session: Session, p: number, now: number)
 end
 
 -- A player chose to leave (D-059): the match ends at once as a forfeit, won by
--- the other seat, the same result as missing FORFEIT_MISSED_WEEKS weeks. The
--- others are told why. Returns (false, "Over") once the match has ended, so a
--- repeated request changes nothing.
+-- the other seat (with more than two, by everyone else), the same result as
+-- missing FORFEIT_MISSED_WEEKS weeks. Before week 1 begins it is unrated
+-- (D-077). The others are told why. Returns (false, "Over") once the match has
+-- ended, so a repeated request changes nothing.
 function Session.forfeit(session: Session, p: number, now: number): (boolean, string?)
 	if session.stage == "Over" then
 		return false, Session.Reason.Over
 	end
-	local winner = if p == 1 then 2 else 1
-	finish(session, now, { winner = winner, reason = "Forfeit" })
+	forfeitBy(session, now, { [p] = true }, beforeWeekOne(session))
 	notify(session, p, Session.OPPONENT_FORFEITED)
 	broadcast(session)
 	return true, nil

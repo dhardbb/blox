@@ -444,6 +444,17 @@ describe("Resolve: reveal pacing (D-066)", function()
 		)
 	end)
 
+	it("never counts a private event, so the time cannot tell who bought internal polls", function()
+		local plain = { ev("Rally", 1), ev("Fundraise", 2), ev("Polls") }
+		local polled = { ev("Rally", 1), ev("Fundraise", 2), ev("InternalPolls", 1, true), ev("Polls") }
+		expect(Resolve.revealSteps(polled)):toBe(Resolve.revealSteps(plain))
+		-- A player whose only event is private gets no step of their own.
+		expect(Resolve.revealSteps({ ev("InternalPolls", 2, true), ev("Polls") })):toBe(1)
+		expect(Resolve.revealTime(C, { ev("InternalPolls", 2, true), ev("Polls") })):toBe(
+			Resolve.revealTime(C, { ev("Polls") })
+		)
+	end)
+
 	it("gives both seats the same time whoever did what", function()
 		local a = { ev("Rally", 1), ev("Rally", 1), ev("Fundraise", 2), ev("Polls") }
 		local b = { ev("Rally", 2), ev("Rally", 2), ev("Fundraise", 1), ev("Polls") }

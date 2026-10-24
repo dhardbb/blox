@@ -35,23 +35,41 @@ local NameService = {}
 -- The static server-only list (server/NameBlocklist). Replaceable by specs.
 NameService.BLOCKLIST = NameBlocklist :: { string }
 
--- Folded names reviewers removed (server/NameReview keeps it current).
+-- Names reviewers removed (server/NameReview keeps it current), and whether it
+-- has loaded at least once: until then no new name passes (fail closed).
 local reviewed: { string } = {}
+local reviewedReady = false
 
 -- user id -> the name they last passed and its TextFilterResult (this visit only)
 local results: { [number]: { name: string, result: any } } = {}
 -- "setter:viewer:name" -> what that viewer sees (false = the candidate's own)
 local shown: { [string]: string | false } = {}
 
--- Sets the reviewed list (folded entries from NameBlocklist_v1).
+-- Sets the reviewed list (entries from NameBlocklist_v1, CustomName.reviewEntry)
+-- and marks it loaded.
 function NameService.setReviewed(list: { string })
 	reviewed = table.clone(list)
+	reviewedReady = true
 end
 
--- True if `name` (already normalized) matches the static or the reviewed list.
+-- True once the reviewed list has loaded (NameReview).
+function NameService.reviewedLoaded(): boolean
+	return reviewedReady
+end
+
+-- True if `name` (already normalized) matches the static list (its own rules:
+-- contains, near misses, "=" whole words) or the reviewed list (whole words
+-- only, D-078).
 function NameService.isBlocked(name: string): boolean
 	return CustomName.blocked(name, NameService.BLOCKLIST, Config.defaults)
-		or CustomName.blocked(name, reviewed, Config.defaults)
+		or CustomName.blockedReviewed(name, reviewed, Config.defaults)
+end
+
+-- True if `name` is exactly a name a reviewer removed (D-078): only then is it
+-- taken out of a player's saved data; a name that merely contains it is just
+-- not used.
+function NameService.isReviewedExact(name: string): boolean
+	return CustomName.reviewedExact(name, reviewed)
 end
 
 -- Roblox's filter on `name` from `player`: (result, broadcast text) or nil
@@ -80,6 +98,9 @@ function NameService.check(player: Player, text: any): (string?, string?)
 	local name, reason = CustomName.normalize(text, Config.defaults)
 	if name == nil then
 		return nil, reason
+	end
+	if not reviewedReady then
+		return nil, CustomName.Reason.FilterFailed -- the reviewed list has not loaded yet
 	end
 	if NameService.isBlocked(name) then
 		return nil, CustomName.Reason.Filtered

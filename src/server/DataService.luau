@@ -1,14 +1,21 @@
 --!strict
 -- Saved player data: one Net/Profile per player in a DataStore, session-locked
--- so two servers never write the same player at once. It loads on join, saves
--- when a match ends and when the player leaves, and flushes on server shutdown.
+-- so two servers never write the same player at once. It loads on join, saves a
+-- match result at once, batches every other change into a save every
+-- SAVE_INTERVAL (an unchanged profile is not saved), refreshes the lock at least
+-- every LOCK_REFRESH, saves when the player leaves, and flushes on shutdown.
 -- Nothing here runs inside a turn: callers get answers from memory, and every
 -- DataStore request happens on its own thread, retried with exponential backoff.
 --
 -- Record format (key "Player_<UserId>" in the DataStore "PlayerData_v1"):
---   { lock = { jobId = string, at = unix seconds }?, data = <Profile> }
+--   { lock = { jobId = string, at = unix seconds }?, data = <Profile>,
+--     pending = { Profile.Pending }? }
 -- `lock` is set while a server has the player loaded and cleared when it lets go.
 -- A lock older than LOCK_TTL is a crashed server's and is taken over.
+-- `pending`: match results another server could not apply because a server
+-- holds the lock (the player left a match for another server). Whoever holds
+-- the lock merges them into the profile on its next load or save, once each
+-- (Profile.settle, by result id), so a result is never lost or overwritten.
 --
 -- DataStores don't work in an unpublished Studio place. The first request that
 -- fails that way switches the whole service to an in-memory store, with one
@@ -30,6 +37,8 @@ local LOCK_WAIT = 1.5 -- seconds
 local ERROR_ATTEMPTS = 5 -- tries per request after errors, waiting RETRY_WAIT * 2^n between them
 local RETRY_WAIT = 1 -- seconds
 local SHUTDOWN_WAIT = 25 -- seconds to wait for saves in BindToClose (Roblox allows 30)
+local SAVE_INTERVAL = 15 -- seconds between batched saves of changed profiles
+local LOCK_REFRESH = 60 -- seconds: a lock this old is refreshed by a save (well inside LOCK_TTL)
 
 -- The two calls this service uses; DataStore has both. Tests and the memory
 -- fallback supply their own.
@@ -54,12 +63,14 @@ type Entry = {
 	saving: boolean, -- a save loop is running
 	dirty: boolean, -- changed since the last save started
 	release: boolean, -- the next save also clears the lock
-	queued: { Queued }, -- results that arrived before the load finished, applied in order once it does
+	lastWrite: number, -- os.time() of the last write of this record (the lock's age)
+	queued: { Queued }, -- changes that arrived before the load finished, applied in order once it does
 }
 
 type Queued = {
 	transform: (Profile.Profile) -> Profile.Profile,
 	applied: (() -> ())?,
+	pending: Profile.Pending?, -- a match result: if this server cannot save it, it goes to the record's pending list
 }
 
 local store: Store? = nil
@@ -74,6 +85,7 @@ local entries: { [string]: Entry } = {}
 local pending: { [string]: { cancelled: boolean } } = {}
 local inflight = 0 -- save and offline-update threads running
 local listeners: { (id: string) -> () } = {}
+local resultListeners: { (id: string, change: Profile.Change) -> () } = {}
 
 -- ---------------------------------------------------------------- helpers
 
@@ -86,6 +98,26 @@ local function deepCopy(value: any): any
 		out[key] = deepCopy(child)
 	end
 	return out
+end
+
+local function same(a: any, b: any): boolean
+	if a == b then
+		return true
+	end
+	if type(a) ~= "table" or type(b) ~= "table" then
+		return false
+	end
+	for key, value in a do
+		if not same(value, b[key]) then
+			return false
+		end
+	end
+	for key in b do
+		if a[key] == nil then
+			return false
+		end
+	end
+	return true
 end
 
 local function newMemoryStore(): Store
@@ -209,19 +241,48 @@ local function recordData(old: any): any
 	return nil
 end
 
+local function recordPending(old: any): { Profile.Pending }
+	return Profile.cleanPending(if type(old) == "table" then old.pending else nil)
+end
+
+-- Merges a record's pending results into `profile`, once each. Returns the new
+-- profile and the results that changed it.
+local function mergePending(
+	profile: Profile.Profile,
+	list: { Profile.Pending }
+): (Profile.Profile, { Profile.Pending })
+	local merged: { Profile.Pending } = {}
+	for _, item in list do
+		local nextProfile, _, applied = Profile.settle(profile, item.id, item.result)
+		if applied then
+			profile = nextProfile
+			table.insert(merged, item)
+		end
+	end
+	return profile, merged
+end
+
+local function announce(id: string, change: Profile.Change)
+	for _, listener in resultListeners do
+		task.spawn(listener, id, change)
+	end
+end
+
 -- ---------------------------------------------------------------- loading
 
 -- Takes the lock and reads the profile. A held lock is retried with backoff,
 -- then the profile is read without it and left read-only.
-local function acquire(entry: Entry)
+local function acquire(entry: Entry): { Profile.Pending }
 	local blockedBy: any = nil
 	local newer = false
 	local loaded: Profile.Profile? = nil
+	local merged: { Profile.Pending } = {}
+	local lockedAt = 0
 	for round = 1, LOCK_ATTEMPTS do
 		local ok, err = attempt("load", entry.name, ERROR_ATTEMPTS, function(s: Store)
 			s:UpdateAsync(entry.key, function(old: any): any
 				-- UpdateAsync may call this more than once: start clean every time.
-				blockedBy, newer, loaded = nil, false, nil
+				blockedBy, newer, loaded, merged = nil, false, nil, {}
 				local at = os.time()
 				if lockedElsewhere(old, at) then
 					blockedBy = old.lock.jobId
@@ -231,19 +292,23 @@ local function acquire(entry: Entry)
 					newer = true
 					return nil
 				end
-				local profile = Profile.migrate(recordData(old))
+				-- Results that waited for whoever holds this player's data come in now.
+				local profile, list = mergePending(Profile.migrate(recordData(old)), recordPending(old))
+				merged = list
 				loaded = profile
+				lockedAt = at
 				return { lock = { jobId = jobId, at = at }, data = profile }
 			end)
 		end)
 		if not ok then
 			warn(`[270] could not load data for {entry.name}, playing without saved stats: {err}`)
-			return
+			return {}
 		end
 		if loaded then
 			entry.profile = loaded
 			entry.writable = true
-			return
+			entry.lastWrite = lockedAt
+			return merged
 		end
 		if newer or round == LOCK_ATTEMPTS then
 			break
@@ -258,7 +323,7 @@ local function acquire(entry: Entry)
 	end)
 	if not ok then
 		warn(`[270] could not read data for {entry.name}, playing without saved stats: {err}`)
-		return
+		return {}
 	end
 	entry.profile = Profile.migrate(raw ~= nil and recordData(raw) or nil)
 	entry.writable = false
@@ -272,6 +337,7 @@ local function acquire(entry: Entry)
 				.. "loaded read-only, nothing will be saved"
 		)
 	end
+	return {}
 end
 
 -- ---------------------------------------------------------------- saving
@@ -282,15 +348,21 @@ local function write(entry: Entry, release: boolean)
 		return
 	end
 	local lost = false
+	local merged: { Profile.Pending } = {}
+	local wroteAt = 0
 	local ok, err = attempt("save", entry.name, ERROR_ATTEMPTS, function(s: Store)
 		s:UpdateAsync(entry.key, function(old: any): any
-			lost = false
+			lost, merged = false, {}
 			local at = os.time()
 			if lockedElsewhere(old, at) then
 				lost = true
 				return nil
 			end
-			return { lock = if release then nil else { jobId = jobId, at = at }, data = snapshot }
+			-- Merge, never overwrite: results another server left for this player.
+			local data, list = mergePending(snapshot :: Profile.Profile, recordPending(old))
+			merged = list
+			wroteAt = at
+			return { lock = if release then nil else { jobId = jobId, at = at }, data = data }
 		end)
 	end)
 	if not ok then
@@ -298,6 +370,19 @@ local function write(entry: Entry, release: boolean)
 	elseif lost then
 		entry.writable = false
 		warn(`[270] another server took {entry.name}'s data; this server will not save it again`)
+	else
+		entry.lastWrite = wroteAt
+		-- The saved data has them: so does the profile in memory, and the player hears.
+		for _, item in merged do
+			local profile = entry.profile
+			if profile then
+				local nextProfile, change, applied = Profile.settle(profile, item.id, item.result)
+				if applied then
+					entry.profile = nextProfile
+					announce(entry.id, change)
+				end
+			end
+		end
 	end
 end
 
@@ -332,8 +417,9 @@ local function finalize(entry: Entry)
 	end
 end
 
--- Applies `transform` to a stored record of a player who is no longer here
--- (their match ended after they left). Yields; runs on its own thread.
+-- Applies `transform` to a stored record of a player who is no longer here (a
+-- change that is not a match result). Results already waiting in the record
+-- are merged first, so none is dropped. Yields; runs on its own thread.
 local function updateOffline(
 	id: string,
 	key: string,
@@ -352,18 +438,19 @@ local function updateOffline(
 					return nil
 				end
 				local lock = if type(old) == "table" then old.lock else nil
-				return { lock = lock, data = transform(Profile.migrate(recordData(old))) }
+				local profile = mergePending(Profile.migrate(recordData(old)), recordPending(old))
+				return { lock = lock, data = transform(profile) }
 			end)
 		end)
 		if not ok then
-			warn(`[270] could not record a result for {name}: {err}`)
+			warn(`[270] could not save a change for {name}: {err}`)
 			break
 		end
 		if not blocked then
 			break
 		end
 		if round == LOCK_ATTEMPTS then
-			warn(`[270] could not record a result for {name} ({id}): their data is in use by another server`)
+			warn(`[270] could not save a change for {name} ({id}): their data is in use by another server`)
 			break
 		end
 		task.wait(LOCK_WAIT * 2 ^ (round - 1))
@@ -371,15 +458,60 @@ local function updateOffline(
 	inflight -= 1
 end
 
+-- Records match result `item` for a player whose data this server does not
+-- hold (they left, or it is read-only here). If another server holds the lock
+-- (or the data is from a newer version), the result joins the record's pending
+-- list for that server to merge; otherwise it is applied to the stored profile
+-- now, with any results already waiting. Never blocked by a lock. Yields; runs
+-- on its own thread.
+local function recordOffline(id: string, key: string, name: string, item: Profile.Pending)
+	inflight += 1
+	local waiting = false
+	local ok, err = attempt("result", name, ERROR_ATTEMPTS, function(s: Store)
+		s:UpdateAsync(key, function(old: any): any
+			local at = os.time()
+			local list = recordPending(old)
+			waiting = lockedElsewhere(old, at) or Profile.isFromFuture(recordData(old))
+			if waiting then
+				local known = false
+				for _, other in list do
+					if other.id == item.id then
+						known = true
+					end
+				end
+				if not known then
+					table.insert(list, item)
+				end
+				while #list > Profile.PENDING_MAX do
+					table.remove(list, 1)
+				end
+				return { lock = old.lock, data = recordData(old), pending = list }
+			end
+			local profile = mergePending(Profile.migrate(recordData(old)), list)
+			profile = Profile.settle(profile, item.id, item.result)
+			local lock = if type(old) == "table" then old.lock else nil
+			return { lock = lock, data = profile }
+		end)
+	end)
+	if not ok then
+		warn(`[270] could not record a result for {name} ({id}): {err}`)
+	elseif waiting then
+		print(`[270] result {item.id} for {id} waits for the server that holds their data`)
+	end
+	inflight -= 1
+end
+
 -- ---------------------------------------------------------------- public API
 
--- Applies the results that arrived while the profile was loading, in order.
--- A profile that can't be saved (read-only, or never loaded) drops them with a warning.
+-- Applies the changes that arrived while the profile was loading, in order.
+-- A profile that can't be saved (read-only, or never loaded) sends a match
+-- result to the stored record's pending list and drops anything else with a warning.
 local function applyQueued(entry: Entry)
 	local queued = entry.queued
 	entry.queued = {}
 	for _, item in queued do
 		local profile = entry.profile
+		local pendingItem = item.pending
 		if profile and entry.writable then
 			entry.profile = item.transform(profile)
 			entry.dirty = true
@@ -387,8 +519,10 @@ local function applyQueued(entry: Entry)
 			if applied then
 				applied()
 			end
+		elseif pendingItem then
+			task.spawn(recordOffline, entry.id, entry.key, entry.name, pendingItem)
 		else
-			warn(`[270] could not record a result for {entry.name}: their data is not writable`)
+			warn(`[270] could not save a change for {entry.name}: their data is not writable`)
 		end
 	end
 end
@@ -418,10 +552,11 @@ function DataService.load(id: string, name: string)
 		saving = false,
 		dirty = false,
 		release = false,
+		lastWrite = 0,
 		queued = {},
 	}
 	entries[id] = entry
-	acquire(entry)
+	local merged = acquire(entry)
 	entry.loaded = true
 	applyQueued(entry)
 	if entry.leaving then
@@ -437,6 +572,9 @@ function DataService.load(id: string, name: string)
 			`[270] loaded {name}: rating {profile.rating} ({profile.wins}-{profile.losses})`
 				.. if entry.writable then "" else ", read-only"
 		)
+	end
+	if #merged > 0 then
+		print(`[270] {name}: {#merged} result(s) from another server merged on load`)
 	end
 	for _, listener in listeners do
 		listener(id)
@@ -490,8 +628,65 @@ function DataService.rating(id: string): number?
 	return nil
 end
 
--- Applies `transform` to a player's profile and saves it in the background.
---   "Live": the player is here; the change is in memory now, the save is under way.
+-- Calls `listener(id, change)` when results another server left for a player
+-- here are merged into their profile (on load or on a save).
+function DataService.onResult(listener: (id: string, change: Profile.Change) -> ())
+	table.insert(resultListeners, listener)
+end
+
+-- Applies match result `resultId` (unique per match and player) to a player's
+-- profile, once, and saves it at once:
+--   "Live": the player is here; in memory now, the save is under way.
+--   "Queued": their profile is still loading; applied when it finishes.
+--   "Offline": the player has left, or their data is read-only here; the
+--     stored record gets it (now, or as a pending result for the server that
+--     holds it).
+-- `applied(change)` is called once the change is in memory here ("Live" at
+-- once, "Queued" after the load); never for "Offline".
+function DataService.applyResult(
+	id: string,
+	resultId: string,
+	result: Profile.Result,
+	applied: ((Profile.Change) -> ())?
+): string
+	local item: Profile.Pending = { id = resultId, result = result }
+	local entry = entries[id]
+	if entry and not entry.loaded then
+		local change: Profile.Change? = nil
+		table.insert(entry.queued, {
+			transform = function(profile: Profile.Profile): Profile.Profile
+				local nextProfile, made = Profile.settle(profile, resultId, result)
+				change = made
+				return nextProfile
+			end,
+			applied = function()
+				if applied and change then
+					applied(change)
+				end
+			end,
+			pending = item,
+		})
+		return "Queued"
+	end
+	local profile = if entry then entry.profile else nil
+	if entry == nil or not entry.writable or profile == nil then
+		task.spawn(recordOffline, id, KEY_PREFIX .. id, if entry then entry.name else id, item)
+		return "Offline"
+	end
+	local nextProfile, change, did = Profile.settle(profile, resultId, result)
+	if did then
+		entry.profile = nextProfile
+		task.spawn(persist, entry)
+	end
+	if applied then
+		applied(change)
+	end
+	return "Live"
+end
+
+-- Applies `transform` to a player's profile; the batched save writes it.
+--   "Live": the player is here; the change is in memory now (a change that
+--     leaves the profile as it was is not saved).
 --   "Queued": their profile is still loading; the change is applied, in order,
 --     the moment the load finishes (and dropped with a warning if it can't be saved).
 --   "Offline": the player has left; their stored record is updated on its own thread.
@@ -517,8 +712,14 @@ function DataService.update(
 	if not entry.writable or profile == nil then
 		return "Skipped"
 	end
-	entry.profile = transform(profile)
-	task.spawn(persist, entry)
+	local changed = transform(profile)
+	if not same(changed, profile) then
+		entry.profile = changed
+		entry.dirty = true
+		if entry.leaving then
+			task.spawn(persist, entry) -- their last save is under way: make sure it has this
+		end
+	end
 	if applied then
 		applied()
 	end
@@ -569,6 +770,25 @@ function DataService.start(options: Options?)
 	end)
 	game:BindToClose(function()
 		DataService.flushAll(SHUTDOWN_WAIT)
+	end)
+	-- Batched saves: a changed profile, or a lock due a refresh (which also
+	-- merges results another server left meanwhile).
+	task.spawn(function()
+		while true do
+			task.wait(SAVE_INTERVAL)
+			local at = os.time()
+			for _, entry in entries do
+				if
+					entry.loaded
+					and entry.writable
+					and not entry.leaving
+					and not entry.saving
+					and (entry.dirty or at - entry.lastWrite >= LOCK_REFRESH)
+				then
+					task.spawn(persist, entry)
+				end
+			end
+		end
 	end)
 end
 

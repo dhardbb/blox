@@ -139,6 +139,14 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			return false, "BadShape", nil
 		end
 		request.userId = raw.userId
+		-- A review names the name the admin saw: the server acts only if it is
+		-- still the one queued (D-078).
+		if op ~= "ReportName" then
+			if type(raw.name) ~= "string" then
+				return false, "BadShape", nil
+			end
+			request.name = raw.name
+		end
 	elseif op == "Forfeit" then
 		-- The match being left: a stale request can never end a newer match.
 		if type(raw.matchId) ~= "string" then

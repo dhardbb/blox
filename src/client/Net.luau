@@ -88,6 +88,7 @@ local REASONS: { [string]: string } = {
 	ReportLimit = "You've sent a lot of reports. Thanks! Try again later.",
 	NotAdmin = "Only the game's owners can review names.",
 	ReviewFailed = "The review list couldn't be saved. Try again in a minute.",
+	ReviewChanged = "That name changed since the list loaded. Check it again.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -104,6 +105,9 @@ local NOTICES: { [string]: string } = {
 	NameReported = "Thanks for the report. You'll see the candidate's own name instead.",
 	NameRemoved = "Your custom name was removed after a review. You can pick a new one.",
 	Tutorial = "Tutorial: no timer on any choice, so take your time.",
+	NameNotAllowed = "Your custom name isn't allowed anymore, so your candidate uses their own. You can pick a new one.",
+	MatchUnrated = `This match is unrated: you two already played {Config.defaults.RATED_PAIR_DAILY_MAX} rated matches today.`,
+	ForfeitUnrated = "The match ended before week 1, so it doesn't count for anyone's rating.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,

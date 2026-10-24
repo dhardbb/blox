@@ -157,9 +157,19 @@ local function cdf(x: number): number
 	return 0.5 * (1 + sign * (1 - poly * math.exp(-z * z)))
 end
 
+-- The rival this bot plays against: the other player with the most projected
+-- votes (public), the lower seat on a tie. With two players, the other one.
 local function opponentOf(view: View): number
-	return if view.you == 1 then 2 else 1
+	local best, most = 0, -math.huge
+	for p in view.players do
+		local ev = view.projectedEV[p] or 0
+		if p ~= view.you and ev > most then
+			best, most = p, ev
+		end
+	end
+	return best
 end
+Bot.opponentOf = opponentOf
 
 local function profileOf(config: Config, view: View, p: number): Candidates.Profile
 	return Candidates.profile(config, view.players[p].candidate or Candidates.ids[1])
@@ -752,7 +762,11 @@ local function planOn(config: Config, view: View, style: Style?, estimates: { Es
 			e.margin += config.GOTV_PER_UNIT
 		else
 			local attack = best.kind == "Attack"
-			table.insert(actions, { kind = best.kind, state = id, issue = best.issue })
+			-- An attack names its target: with more than two players it must (Plan).
+			table.insert(
+				actions,
+				{ kind = best.kind, state = id, issue = best.issue, target = if attack then them else nil }
+			)
 			cash -= profile.mediaCost
 			local factor = profile.mediaSaturation ^ e.bought
 			e.bought += 1
