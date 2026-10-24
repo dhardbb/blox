@@ -21,18 +21,24 @@
 -- box of its tint; a decoration image (attribute Asset, UI/Assets) as a
 -- stand-in: "shadow" four stacked rounded rects (a fake blur: qlmanage drops
 -- SVG filters) under the object named by its Follow attribute, "glow" a radial
--- gradient in ImageColor3, "dots" a dot pattern; any other image as a labeled
+-- gradient in ImageColor3, "dots" a dot pattern; a Kit.portrait face
+-- (attribute Portrait = candidate id) as assets/portraits/<id>.png, clipped to
+-- its UICorner, whether or not the game has its asset id yet (the portrait's
+-- stand-in initials, attribute PortraitFallback, are not drawn); any other image as a labeled
 -- dashed box. Text widths are estimated (Builder Sans, Gotham and Fredoka One
 -- are drawn as Helvetica), so line breaks are close to Studio, not exact.
 --
 -- Not drawn: UIGradient Offset, Scale and Type, TileMode; a UIGradient's effect
--- on its parent's UIStroke; Rotation's effect on clipping; images' real pixels.
+-- on its parent's UIStroke; Rotation's effect on clipping; images' real pixels
+-- (except the portraits).
 --
 -- Snapshot.svg(peer, options?) -> string
 --   options.topInset  px the Roblox top bar takes from ScreenGuis that respect
 --                     the core UI inset (default 58; drawn as a dim strip)
 --   options.square    pad the picture to a square, content centered (qlmanage
 --                     only renders square thumbnails; snap.luau crops it back)
+
+local fs = require("@lune/fs")
 
 local Icons = require("../../src/client/UI/Icons")
 
@@ -582,7 +588,7 @@ local function cornersOf(inst: any, w: number, h: number): { number }?
 	return { one(p.TopLeftRadius), one(p.TopRightRadius), one(p.BottomRightRadius), one(p.BottomLeftRadius) }
 end
 
-type Out = { lines: { string }, clips: number, ids: number }
+type Out = { lines: { string }, clips: number, ids: number, portraits: { [string]: boolean } }
 
 local function emit(out: Out, s: string)
 	table.insert(out.lines, s)
@@ -923,6 +929,89 @@ local function drawAsset(
 	end
 end
 
+-- Base64 of a binary string (for data: URIs).
+local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local function base64(data: string): string
+	local out = table.create(math.ceil(#data / 3))
+	for i = 1, #data, 3 do
+		local a, b, c = string.byte(data, i, i + 2)
+		local n = a * 65536 + (b or 0) * 256 + (c or 0)
+		local k1, k2 = bit32.extract(n, 18, 6) + 1, bit32.extract(n, 12, 6) + 1
+		local k3, k4 = bit32.extract(n, 6, 6) + 1, bit32.extract(n, 0, 6) + 1
+		table.insert(
+			out,
+			string.sub(B64, k1, k1)
+				.. string.sub(B64, k2, k2)
+				.. (if b then string.sub(B64, k3, k3) else "=")
+				.. (if c then string.sub(B64, k4, k4) else "=")
+		)
+	end
+	return table.concat(out)
+end
+
+local PORTRAIT_SIDE = 512 -- px, assets/portraits/<id>.png
+local portraitData: { [string]: string | false } = {}
+
+-- The data: URI of a candidate's portrait PNG, or nil when there is none.
+local function portraitUri(id: string): string?
+	local cached = portraitData[id]
+	if cached == nil then
+		local ok, bytes = pcall(fs.readFile, `assets/portraits/{id}.png`)
+		cached = if ok and type(bytes) == "string" then "data:image/png;base64," .. base64(bytes) else false
+		portraitData[id] = cached
+	end
+	return if cached then cached else nil
+end
+
+-- A Kit.portrait face (attribute Portrait): the local PNG, defined once per
+-- picture and clipped to the image's rounded shape.
+local function drawPortrait(out: Out, node: Node, ax: number, ay: number, id: string)
+	local p = props(node.inst)
+	local alpha = 1 - (p.ImageTransparency or 0)
+	local uri = portraitUri(id)
+	if uri == nil or alpha <= 0.01 then
+		return
+	end
+	local defId = `portrait_{id}`
+	if not out.portraits[id] then
+		out.portraits[id] = true
+		emit(
+			out,
+			string.format(
+				'<defs><image id="%s" width="%d" height="%d" xlink:href="%s"/></defs>',
+				defId,
+				PORTRAIT_SIDE,
+				PORTRAIT_SIDE,
+				uri
+			)
+		)
+	end
+	local w, h = node.w, node.h
+	local side = math.min(w, h)
+	local x, y = ax + (w - side) / 2, ay + (h - side) / 2
+	local clip = nextId(out, "pc")
+	emit(
+		out,
+		string.format(
+			'<clipPath id="%s">%s/></clipPath>',
+			clip,
+			shapeAt(x, y, side, side, radiusOf(node.inst, side, side), nil)
+		)
+	)
+	emit(
+		out,
+		string.format(
+			'<g clip-path="url(#%s)" opacity="%s"><use xlink:href="#%s" transform="translate(%s %s) scale(%s)"/></g>',
+			clip,
+			num(alpha),
+			defId,
+			num(x),
+			num(y),
+			string.format("%.4f", side / PORTRAIT_SIDE)
+		)
+	)
+end
+
 local function drawNode(out: Out, node: Node, ox: number, oy: number, siblings: { [string]: Node }?)
 	local inst = node.inst
 	local p = props(inst)
@@ -986,6 +1075,11 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number, siblings: 
 	local assetName = attrs(inst).Asset
 	if (c == "ImageLabel" or c == "ImageButton") and type(assetName) == "string" then
 		drawAsset(out, node, ax, ay, siblings or {}, ox, oy)
+	end
+	local portrait = attrs(inst).Portrait
+	if c == "ImageLabel" and type(portrait) == "string" and portrait ~= "" then
+		drawPortrait(out, node, ax, ay, portrait)
+		assetName = "portrait" -- not a plain image
 	end
 	local attributes = rawget(inst, "_attributes")
 	local iconName = if attributes then attributes.Icon else nil
@@ -1073,7 +1167,9 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number, siblings: 
 			emit(out, shapeAt(x, y, bw, bh, if r > 0 then r + t / 2 else 0, grown) .. paint)
 		end
 	end
-	if TEXT[c] then
+	-- A portrait's initials stand in for an image the game has not uploaded;
+	-- the snapshots always draw the image, so they skip them.
+	if TEXT[c] and attrs(inst).PortraitFallback ~= true then
 		drawText(out, node, ax, ay)
 	end
 	local clips = c == "ScrollingFrame" or p.ClipsDescendants == true
@@ -1151,12 +1247,12 @@ function Snapshot.svg(peer: any, options: Options?): string
 	local square = options ~= nil and options.square == true
 	local S = math.max(W, H)
 	local dx, dy = if square then (S - W) / 2 else 0, if square then (S - H) / 2 else 0
-	local out: Out = { lines = {}, clips = 0, ids = 0 }
+	local out: Out = { lines = {}, clips = 0, ids = 0, portraits = {} }
 	local cw, chh = if square then S else W, if square then S else H
 	emit(
 		out,
 		string.format(
-			'<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">',
+			'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="%d" height="%d" viewBox="0 0 %d %d">',
 			cw,
 			chh,
 			cw,

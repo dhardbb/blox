@@ -20,7 +20,7 @@
 -- moves). The title then says who flipped how many (Words.flipHeadline). A
 -- Choice week's stances are a line in each group; their numbers are behind "Why?".
 -- The panel's head is an eyebrow ("WEEK 3 RESULTS", "WEEK 4 DEBATE") over the
--- title ("You vs Rex"); each group head has the player's 24 px monogram.
+-- title ("You vs Rex"); each group head has the player's 32 px portrait (D-062).
 -- Debate: a scoreboard, one row per topic revealed every DEBATE_BEAT seconds
 -- (the row fades in, its verdict pill pops, a win plays "debateWin")
 -- (topic, "you – them" score in Fredoka, a filled verdict pill) with one short
@@ -46,7 +46,7 @@
 -- WhyButton, RevealWhy (details), RevealChoice; DebateRows, DebateHead,
 -- DebateRow<t>, DebateTopic<t>, DebateScore<t>, DebateVerdict<t>,
 -- DebateSwing<t>, DebateGaffe<t>, DebateHeadlineBox (its Stamp's label is
--- DebateHeadline), DebateOther, DebateParts<t>,
+-- DebateHeadline), DebateOther, DebateParts<t>, DebateFaces (YouFace, ThemFace),
 -- DebateDetail<t>, DebateCallouts.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -79,7 +79,8 @@ local REVEAL_BEAT = 0.25 -- fastest pace: one tick of the router
 local REVEAL_SLOW = 0.8 -- slowest pace, when there are few events
 local GROUP_LINES = 6 -- lines per side before "+N more"
 local DEBATE_BEAT = 2 -- seconds per debate topic
-local PORTRAIT = 24 -- px, a player's monogram in a group head
+local PORTRAIT = 32 -- px, a player's portrait in a group head
+local FACE_OFF = 44 -- px, each candidate's portrait over the debate scoreboard (D-062)
 local MARK_W = 20 -- px, the ▲/▼ column of a "What changed" row
 local ROW_H = 28 -- px, one scoreboard row
 local SCORE_W = 84 -- px, the scoreboard's score column
@@ -111,7 +112,7 @@ local function grows(props: { [string]: any }): { [string]: any }
 	return props
 end
 
--- A group head: the player's monogram (filled in by `portrait`) and "Your week".
+-- A group head: the player's portrait (filled in by `portrait`) and "Your week".
 local function groupHead(parent: Instance, name: string): (Frame, TextLabel)
 	local row = Kit.box({
 		Name = name,
@@ -136,10 +137,11 @@ local function groupHead(parent: Instance, name: string): (Frame, TextLabel)
 	return slot, label
 end
 
--- Puts `name`'s monogram in `color` into a group head's slot (once per name and color).
-local function portrait(slot: Frame, name: string, color: Color3)
+-- Puts candidate `id`'s portrait ringed in `color` into a group head's slot
+-- (once per candidate, name and color).
+local function portrait(slot: Frame, id: string?, name: string, color: Color3, px: number?)
 	local rgb = Kit.rgb(color)
-	local key = `{name}|{rgb.r},{rgb.g},{rgb.b}`
+	local key = `{id}|{name}|{rgb.r},{rgb.g},{rgb.b}`
 	if slot:GetAttribute("For") == key then
 		return
 	end
@@ -147,7 +149,7 @@ local function portrait(slot: Frame, name: string, color: Color3)
 	for _, child in slot:GetChildren() do
 		child:Destroy()
 	end
-	Kit.monogram(name, color, PORTRAIT).Parent = slot
+	Kit.portrait(id, name, px or PORTRAIT, { ring = color }).Parent = slot
 end
 
 function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: Hooks): Reveal
@@ -273,6 +275,35 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	}
 	local debateBox =
 		Kit.stack({ Name = "DebateRows", LayoutOrder = 3, Parent = root }, "Vertical", Kit.space.sm)
+	-- The face-off: your candidate at the left, theirs at the right, "vs" between.
+	local faceOff = Kit.box({
+		Name = "DebateFaces",
+		LayoutOrder = -1,
+		Size = UDim2.new(1, 0, 0, FACE_OFF),
+		Parent = debateBox,
+	})
+	local youFace = Kit.box({
+		Name = "YouFace",
+		Size = UDim2.fromOffset(FACE_OFF, FACE_OFF),
+		Parent = faceOff,
+	})
+	local themFace = Kit.box({
+		Name = "ThemFace",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromOffset(FACE_OFF, FACE_OFF),
+		Parent = faceOff,
+	})
+	Kit.caption("vs", {
+		Name = "Versus",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -2 * (FACE_OFF + Kit.space.sm), 1, 0),
+		AutomaticSize = Enum.AutomaticSize.None,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		Parent = faceOff,
+	})
 	local headRow = Kit.box({
 		Name = "DebateHead",
 		LayoutOrder = 0,
@@ -609,8 +640,18 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		youHead.Text = "Your week"
 		themHead.Text = `{themName(view)}'s week`
 		local them = Model.opponentOf(view)
-		portrait(youDot, Model.candidateName(config, view, view.you), Kit.playerColor(view, view.you))
-		portrait(themDot, Model.candidateName(config, view, them), Kit.playerColor(view, them))
+		portrait(
+			youDot,
+			view.players[view.you].candidate,
+			Model.candidateName(config, view, view.you),
+			Kit.playerColor(view, view.you)
+		)
+		portrait(
+			themDot,
+			view.players[them].candidate,
+			Model.candidateName(config, view, them),
+			Kit.playerColor(view, them)
+		)
 		changed.Visible = false
 		summary.Text = ""
 		choiceText.Text = ""
@@ -753,6 +794,21 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		eyebrow.Text = string.upper(`Week {view.week} debate`)
 		title.Text = `You vs {themName(view)}`
 		scoreHead.Text = `You – {themName(view)}`
+		local them = Model.opponentOf(view)
+		portrait(
+			youFace,
+			view.players[view.you].candidate,
+			Model.candidateName(config, view, view.you),
+			Kit.playerColor(view, view.you),
+			FACE_OFF
+		)
+		portrait(
+			themFace,
+			view.players[them].candidate,
+			Model.candidateName(config, view, them),
+			Kit.playerColor(view, them),
+			FACE_OFF
+		)
 		for _, entry in topicRows do
 			entry.row.Visible = false
 		end

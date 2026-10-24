@@ -424,13 +424,33 @@ describe("Select style v2: details one tap away", function()
 		Rig.noErrors(world)
 	end)
 
-	it("gives every candidate card a monogram, the taken one in the opponent's color", function()
-		local _world, peer = Rig.fixture("Select", nil)
-		local mine = Rig.need(peer, "Select", "Candidate_okafor"):FindFirstChild("Monogram", true)
-		local taken = Rig.need(peer, "Select", "Candidate_calloway"):FindFirstChild("Monogram", true)
-		check(mine ~= nil and taken ~= nil, "a card has no monogram")
-		expect(tostring(mine:FindFirstChild("Initials").Text)):toBe("DO")
-		check(mine.BackgroundColor3 ~= taken.BackgroundColor3, "the taken card wears your color")
+	it("gives every card its candidate's portrait on a neutral plate, rings only on picks (D-062)", function()
+		local world, peer = Rig.fixture("Select", nil)
+		local function face(id: string): any
+			local found = Rig.need(peer, "Select", `Candidate_{id}`):FindFirstChild("Portrait", true)
+			check(found ~= nil, `{id}'s card has no portrait`)
+			return found
+		end
+		local free, taken = face("okafor"), face("hale")
+		expect(free:GetAttribute("Portrait")):toBe("okafor")
+		expect(free:FindFirstChild("Face"):GetAttribute("Portrait")):toBe("okafor")
+		expect(tostring(free:FindFirstChild("Initials").Text)):toBe("DO")
+		-- Every free card wears the same plate and no ring: the faces tell them apart.
+		check(free.BackgroundColor3 == taken.BackgroundColor3, "free plates differ")
+		expect(free:GetAttribute("Ring")):toBe(false)
+		expect(taken:GetAttribute("Ring")):toBe(false)
+		-- The opponent's candidate: ringed in their color and dimmed.
+		local theirs = face("calloway")
+		expect(theirs:GetAttribute("Ring")):toBe(true)
+		check(theirs.BackgroundTransparency > 0, "the taken portrait is not dimmed")
+		-- Your pick: ringed in your color.
+		Rig.tap(world, peer, "Select", "Candidate_okafor")
+		local picked = face("okafor")
+		expect(picked:GetAttribute("Ring")):toBe(true)
+		local ring = picked:FindFirstChild("Ring")
+		check(ring.Color ~= theirs:FindFirstChild("Ring").Color, "your ring wears the opponent's color")
+		expect(face("hale"):GetAttribute("Ring")):toBe(false)
+		Rig.noErrors(world)
 	end)
 
 	it("dims the taken card behind a Taken pill and hides its lines", function()

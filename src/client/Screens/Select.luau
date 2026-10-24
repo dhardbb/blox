@@ -23,7 +23,9 @@
 -- Layout (docs/UI-STYLE.md §4.2): the standard Header with the "what to do now"
 -- line and the timer, a scroll area (a coach tip, the cards or chips, then the
 -- color line with one ghost button for details), and the pinned ActionBar. Each
--- card shows a short strength and weakness (Shared/UI/Words/Setup); the exact
+-- card shows the candidate's portrait (Kit.portrait, D-062) on a neutral plate,
+-- ringed in a player color only once it is picked (yours) or taken (theirs,
+-- dimmed), and a short strength and weakness (Shared/UI/Words/Setup); the exact
 -- numbers are in a sheet ("About Dana"), and "How issues work" explains votes
 -- and boost.
 --
@@ -31,7 +33,7 @@
 -- when it opens (Motion.stagger), and a card pops as it is picked; the outline
 -- and the "select" cue come from Kit. Nothing waits on an animation.
 --
--- Stable names: Candidate_<id> (with Name, Archetype, Perk, Drawback, Taken),
+-- Stable names: Candidate_<id> (with Portrait, Name, Archetype, Perk, Drawback, Taken),
 -- Issue_<issue> (with IssueName, IssueLine), Candidates, Issues, ColorRow,
 -- ColorDot, ColorLine, ColorPicker (ColorSwatch_<Color>, each with ColorName),
 -- Details, CandidateSheet, IssuesHelp, IssuesSheet, LockIn,
@@ -63,10 +65,10 @@ local Types = require(script.Parent.Types)
 local Screen = {}
 
 local MAX_WIDTH = 1000 -- px
-local CARD_H = 128 -- px, a candidate card: the monogram beside name and kind, then strength and weakness
-local CARD_H_PORTRAIT = 100 -- px, the same on a phone (tighter padding, a smaller monogram)
-local MONO = 48 -- px, a candidate's monogram (Kit.monogram) on a wide screen
-local MONO_PORTRAIT = 36 -- px, on a phone
+local CARD_H = 136 -- px, a candidate card: the portrait beside name and kind, then strength and weakness
+local CARD_H_PORTRAIT = 102 -- px, the same on a phone (tighter padding, a smaller portrait)
+local FACE = 56 -- px, a candidate's portrait (Kit.portrait) on a wide screen
+local FACE_PORTRAIT = 40 -- px, on a phone
 local ISSUE_H = 68 -- px, an issue chip: the name over "154 votes · +41% boost"
 local ISSUE_H_PORTRAIT = 86 -- px, on a phone the votes and the boost take a line each
 local DOT = 24 -- px, the color line's monogram (your candidate's initials in your color)
@@ -279,18 +281,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			AutomaticSize = Enum.AutomaticSize.None, -- the grid sizes it
 			Parent = candidateGrid,
 		})
-		-- The top row: the candidate's monogram (painted in renderMonograms)
+		-- The top row: the candidate's portrait (painted in renderPortraits)
 		-- beside the name over the kind.
 		local top = Kit.box({
 			Name = "Top",
 			LayoutOrder = 1,
-			Size = UDim2.new(1, 0, 0, MONO),
+			Size = UDim2.new(1, 0, 0, FACE),
 			Parent = card,
 		})
 		local who = Kit.box({
 			Name = "Who",
-			Position = UDim2.fromOffset(MONO + Kit.space.sm, 0),
-			Size = UDim2.new(1, -(MONO + Kit.space.sm), 1, 0),
+			Position = UDim2.fromOffset(FACE + Kit.space.sm, 0),
+			Size = UDim2.new(1, -(FACE + Kit.space.sm), 1, 0),
 			Parent = top,
 		})
 		local whoList = Kit.list("Vertical", 0)
@@ -568,12 +570,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		swatches[color] = { cell = cell, button = button, slot = slot, name = name }
 	end
 
-	-- Each card's monogram: in your color (the face you'd play), the taken
-	-- one in your opponent's; grey until colors are dealt.
-	local function renderMonograms()
+	-- Each card's portrait (D-062) on a neutral plate, so the eight faces tell
+	-- the candidates apart. A ring in a player color marks whose it is: yours
+	-- (picked or claimed) in your color, the taken one in your opponent's
+	-- (dimmed); free candidates have none.
+	local function renderPortraits()
 		local current = payload
-		local mine = Kit.colors.neutral
-		local theirs = Kit.colors.neutral
+		local mine: Color3? = nil
+		local theirs: Color3? = nil
 		if current then
 			mine = Kit.playerColor(current.view, current.you)
 			local other = Data.opponent(current)
@@ -581,16 +585,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				theirs = Kit.playerColor(current.view, other)
 			end
 		end
-		local px = if lastPortrait then MONO_PORTRAIT else MONO
+		local px = if lastPortrait then FACE_PORTRAIT else FACE
 		for id, p in parts do
-			local profile = Candidates.profile(ctx.config, id)
-			paintMonogram(
-				p.top,
-				"Monogram",
-				profile.name,
-				if holder(id) == "theirs" then theirs else mine,
-				px
-			)
+			local face = p.top:FindFirstChild("Portrait") :: Frame?
+			if face == nil or face.Size.X.Offset ~= px then
+				if face then
+					face:Destroy()
+				end
+				face = Kit.portrait(id, Candidates.profile(ctx.config, id).name, px)
+				local built = face :: Frame
+				built.Parent = p.top
+			end
+			local who = holder(id)
+			local ring = if who == "theirs"
+				then theirs
+				elseif who == "mine" or id == candidate then mine
+				else nil
+			Kit.paintPortrait(face :: Frame, {
+				ring = ring or (if who ~= nil or id == candidate then Kit.colors.neutral else nil),
+				fade = if who == "theirs" then TAKEN_FADE else 0,
+			})
 			p.top.Size = UDim2.new(1, 0, 0, px)
 			p.who.Position = UDim2.fromOffset(px + Kit.space.sm, 0)
 			p.who.Size = UDim2.new(1, -(px + Kit.space.sm), 1, 0)
@@ -864,7 +878,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			p.archetype.TextTransparency = if taken then TAKEN_FADE else 0
 		end
 		renderColor()
-		renderMonograms()
+		renderPortraits()
 		local full = #platform >= platformSize
 		for issue, chip in chips do
 			local picked = table.find(platform, issue) ~= nil

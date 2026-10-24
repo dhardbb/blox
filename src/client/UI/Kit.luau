@@ -142,6 +142,10 @@
 --     attribute Overhang. Animate it with Motion.stamp
 --   Kit.monogram(name, color, px) -> Frame "Monogram"   a candidate's initials in
 --     a lit circle of `color` (dataColor); the label is "Initials"
+--   Kit.portrait(id, name, px, opts?) -> Frame "Portrait"   a candidate's illustrated
+--     bust on a round neutral plate (D-062); opts { ring = player color?, fade? };
+--     the initials of `name` while the asset id is 0. Kit.paintPortrait(root, opts)
+--     repaints the ring and fade; Kit.portraitImage(id) -> "rbxassetid://…" or ""
 --   Kit.raceBar(parent, opts) -> RaceBar   the two-sided vote bar with the 270 tick
 --   Kit.wordmark(px?) -> Frame "Wordmark"   the "270" lockup: glow, lip, outline
 --   Kit.iconPlate(name, px?) -> Frame "IconPlate"   an icon in a field circle
@@ -1221,6 +1225,12 @@ local MONOGRAM_TEXT = 0.42 -- a monogram's initials, x its size
 local MONOGRAM_SHADE = 0.78 -- the bottom of a monogram's gradient
 local MONOGRAM_SHEEN = 0.45 -- the top share of a monogram the sheen covers
 local MONOGRAM_SHEEN_TRANSPARENCY = 0.82
+local PORTRAIT_PLATE_TOP = Color3.fromRGB(104, 118, 156) -- a portrait's neutral plate, top of its gradient
+local PORTRAIT_PLATE = Color3.fromRGB(66, 76, 108) -- ... and its bottom
+local PORTRAIT_EDGE = Color3.fromRGB(32, 38, 60) -- the plate's edge when it has no ring
+local PORTRAIT_RING = 0.06 -- a player-color ring's thickness, x the portrait's size (2 px at least)
+local PORTRAIT_RING_MIN = 2 -- px
+local PORTRAIT_EDGE_W = 1.5 -- px, the plain edge
 local RACE_OVERHANG = 4 -- px the 270 tick reaches above and below the bar
 local RACE_TICK_W = 3 -- px
 local RACE_SHADE = 0.82 -- the bottom of a race bar segment's gradient
@@ -1524,6 +1534,20 @@ function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Fram
 	return root
 end
 
+-- The initials of `name`: the first letters of its first two words, upper case.
+local function initialsOf(name: string): string
+	local initials = ""
+	local count = 0
+	for word in string.gmatch(name, "%S+") do
+		initials ..= string.upper(string.match(word, utf8.charpattern) or "")
+		count += 1
+		if count == 2 then
+			break
+		end
+	end
+	return initials
+end
+
 -- A candidate's portrait until there is art: the initials of `name` (first
 -- letters of the first two words) in Fredoka on a lit circle of `color`, `px`
 -- wide: a top-light gradient, a 2 px darker edge and a sheen over the top.
@@ -1575,14 +1599,7 @@ function Kit.monogram(name: string, color: Color3, px: number): Frame
 		Transparency = NumberSequence.new(MONOGRAM_SHEEN_TRANSPARENCY, 1),
 		Parent = sheen,
 	})
-	local initials = ""
-	for word in string.gmatch(name, "%S+") do
-		initials ..= string.upper(string.sub(word, 1, 1))
-		if #initials >= 2 then
-			break
-		end
-	end
-	local label = Kit.text(initials, {
+	local label = Kit.text(initialsOf(name), {
 		Name = "Initials",
 		Size = UDim2.fromScale(1, 1),
 		Font = Kit.font.display,
@@ -1595,6 +1612,106 @@ function Kit.monogram(name: string, color: Color3, px: number): Frame
 		Parent = root,
 	})
 	label:SetAttribute("Monogram", true)
+	return root
+end
+
+export type PortraitOptions = {
+	ring: Color3?, -- a ring in this (player) color; nil = the plate's plain edge
+	fade: number?, -- 0..1: dims the plate and the face (a taken candidate)
+}
+
+-- The asset id of a candidate's portrait, or "" while it is not uploaded.
+function Kit.portraitImage(id: string?): string
+	local number = if id then Assets.portraits[id] else nil
+	if type(number) == "number" and number > 0 then
+		return `rbxassetid://{number}`
+	end
+	return ""
+end
+
+-- Repaints a Kit.portrait: its ring (nil = the plain edge) and its fade.
+function Kit.paintPortrait(root: Frame, opts: PortraitOptions?)
+	local o: PortraitOptions = opts or {}
+	local px = math.min(root.Size.X.Offset, root.Size.Y.Offset)
+	local fade = o.fade or 0
+	local ring = root:FindFirstChild("Ring") :: UIStroke?
+	if ring then
+		local color = o.ring
+		ring.Color = color or PORTRAIT_EDGE
+		ring.Thickness = if color
+			then math.max(PORTRAIT_RING_MIN, math.floor(px * PORTRAIT_RING))
+			else PORTRAIT_EDGE_W
+		ring.Transparency = fade
+	end
+	root:SetAttribute("Ring", o.ring ~= nil)
+	root.BackgroundTransparency = fade
+	local face = root:FindFirstChild("Face") :: ImageLabel?
+	if face then
+		face.ImageTransparency = fade
+	end
+	local initials = root:FindFirstChild("Initials") :: TextLabel?
+	if initials then
+		initials.TextTransparency = fade
+	end
+end
+
+-- A candidate's face (D-062): the bust from assets/portraits (UI/Assets
+-- .portraits) on a round neutral plate, `px` wide, the image clipped to the
+-- circle. opts.ring draws a ring in a player color (yours, a pick, a taken
+-- one); without it the plate has a plain dark edge, so free candidates look
+-- alike only in their frame. While the candidate's asset id is 0 the face is
+-- empty and the initials of `name` show on the plate instead (a monogram);
+-- `id` nil is a "?" plate (nobody picked yet). The root is Frame "Portrait"
+-- (dataColor; attribute Portrait = the id), with "Face" (ImageLabel, attribute
+-- Portrait: the snapshot renderer draws the local PNG), "Initials" (attribute
+-- PortraitFallback) and the UIStroke "Ring". Repaint with Kit.paintPortrait.
+function Kit.portrait(id: string?, name: string, px: number, opts: PortraitOptions?): Frame
+	local root = Kit.dataColor(Kit.new("Frame", {
+		Name = "Portrait",
+		Size = UDim2.fromOffset(px, px),
+		BorderSizePixel = 0,
+	})) :: Frame
+	Kit.depth(root, PORTRAIT_PLATE_TOP, PORTRAIT_PLATE)
+	root:SetAttribute("Portrait", id or "")
+	Kit.round().Parent = root
+	Kit.new("UIStroke", {
+		Name = "Ring",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = PORTRAIT_EDGE,
+		Thickness = PORTRAIT_EDGE_W,
+		Parent = root,
+	})
+	local image = Kit.portraitImage(id)
+	local initials = Kit.text(if id then initialsOf(name) else "?", {
+		Name = "Initials",
+		Size = UDim2.fromScale(1, 1),
+		Font = Kit.font.display,
+		TextSize = math.max(Kit.MIN_TEXT, math.floor(px * MONOGRAM_TEXT)),
+		TextScaled = true,
+		TextWrapped = false,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = Kit.colors.text,
+		Visible = image == "",
+		ZIndex = 1,
+		Parent = root,
+	})
+	initials:SetAttribute("Monogram", true)
+	initials:SetAttribute("PortraitFallback", true)
+	if id then
+		local face = Kit.new("ImageLabel", {
+			Name = "Face",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Image = image,
+			ScaleType = Enum.ScaleType.Fit,
+			ZIndex = 2,
+			Parent = root,
+		})
+		face:SetAttribute("Portrait", id)
+		Kit.round().Parent = face
+	end
+	Kit.paintPortrait(root, opts)
 	return root
 end
 

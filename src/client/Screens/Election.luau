@@ -17,7 +17,7 @@
 -- The front-page look (docs/DESIGN.md D-056, WP-3): the strip is a lit card
 -- with Kit.raceBar (14 px, the tick named Marker270) and Fredoka totals; a
 -- call flashes its state white and lands a "CALLED" stamp in the winner's color
--- on the spotlight (whose stroke and monogram turn that color, eyebrow "JUST
+-- on the spotlight (whose stroke and portrait ring turn that color, eyebrow "JUST
 -- CALLED"; the suspense says "TOO CLOSE TO CALL" in orange); crossing 270
 -- flashes the tick with a glow and, CROSS_STAMP later, stamps "270!" over it;
 -- the tipping state keeps a white ring and an accent glow (its call has no
@@ -90,7 +90,7 @@ local BAR_H = 14 -- px, the EV bar (Kit.raceBar: 22 px with the tick's overhang)
 local EV_W = 60 -- px, the EV number
 local GOAL_W = 76 -- px, "270 to win" between the two sides
 local SPOT_H = 92 -- px, the spotlight card: an eyebrow, the state, the call
-local SPOT_PORTRAIT = 44 -- px, the winner's monogram in the spotlight
+local SPOT_PORTRAIT = 44 -- px, the winner's portrait in the spotlight
 local BANNER_EYEBROW_H = 16 -- px, "ELECTION NIGHT" over the banner's line
 local LINE_BAR_W = 4 -- px, a feed row's left bar in the winner's color
 local CALL_POP = 0.94 -- the spotlight's scale as a call lands (it springs to 1)
@@ -269,6 +269,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local youIndex = 1
 	local themIndex = 2
 	local names: { string } = {}
+	local faces: { string } = {} -- each player's candidate id (their portrait)
 	local shortNames: { string } = {} -- first names, for the calls
 	local map: MapInterface.Map = NodeMap.new()
 	local drawn = false -- render() has run at least once
@@ -378,7 +379,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- The spotlight: the call that just happened, or the suspense before a close one.
 	-- Elevation 4 (UI-STYLE §2): lit raised plate, a 2 px stroke in the moment's
-	-- color, a shadow. The winner's monogram on the left, the words on the right.
+	-- color, a shadow. The winner's portrait on the left, the words on the right.
 	local spotlight = Kit.depth(
 		Kit.panel({
 			Name = "Spotlight",
@@ -430,7 +431,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = spotWords,
 	})
 	local calledStamp: Frame? = nil -- "CALLED" over the spotlight's top-right corner
-	local portraitFor = "" -- whose monogram the spotlight shows
+	local portraitFor = "" -- whose portrait the spotlight shows
 
 	local feedTop = SPOT_H + GAP
 	local feed = Kit.new("ScrollingFrame", {
@@ -528,6 +529,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		for p, player in view.players do
 			colors[p] = Colors.of(player.color)
 			names[p] = nameOf(p)
+			faces[p] = player.candidate or ""
 			shortNames[p] = firstName(names[p])
 		end
 		local short = ctx.portrait()
@@ -677,7 +679,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		spotLabel:SetAttribute("Warn", if warn then true else nil)
 	end
 
-	-- The spotlight's portrait: player `p`'s monogram, or a "?" while counting.
+	-- The spotlight's portrait: player `p`'s candidate ringed in their color
+	-- (Kit.portrait), or a "?" plate while counting.
 	local function setPortrait(p: number?)
 		local key = if p then tostring(p) else "?"
 		if key == portraitFor then
@@ -687,10 +690,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		for _, child in spotPortrait:GetChildren() do
 			child:Destroy()
 		end
-		local monogram = if p
-			then Kit.monogram(names[p] or "?", Kit.color(colors[p]), SPOT_PORTRAIT)
-			else Kit.monogram("?", Kit.colors.raisedHover, SPOT_PORTRAIT)
-		monogram.Parent = spotPortrait
+		local face = if p
+			then Kit.portrait(faces[p], names[p] or "?", SPOT_PORTRAIT, { ring = Kit.color(colors[p]) })
+			else Kit.portrait(nil, "?", SPOT_PORTRAIT)
+		face.Parent = spotPortrait
 	end
 
 	-- "CALLED" in the winner's color over the spotlight's top-right corner

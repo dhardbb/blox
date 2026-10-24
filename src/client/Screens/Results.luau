@@ -12,10 +12,10 @@
 --   RatingSlot    the rating change, once the server sends it (rated matches)
 --   EVBar         Kit.raceBar, 14 px: you from the left, them from the right,
 --                 the 270 tick (Marker270) with its caption (data colors)
---   Versus        two player cards: a 64 px monogram over the name, You /
+--   Versus        two player cards: a 64 px portrait (D-062) over the name, You /
 --                 Opponent, "280 votes" in Fredoka, "20 states", debate topics
 --                 won; the winner's card is edged in their color. Player colors
---                 stay on the monogram, the edge and the bar, never on big
+--                 stay on the portrait ring, the edge and the bar, never on big
 --                 numbers next to the primary button (D-047, D-051).
 --   WhyHead       "Why you won" / "Why Rex won" and three bullets Reason_<k>
 --                 (Shared/UI/Words/Reveal.keyReasons); after a loss, one more
@@ -55,7 +55,7 @@ local CLOSEST_STATES = 5
 local TOTAL_EV = 538
 local WIN_EV = 270
 local EV_BAR_H = 14 -- px, the race bar's thickness
-local PORTRAIT = 64 -- px, a player's monogram on their card
+local PORTRAIT = 64 -- px, a player's portrait on their card
 local STAMP_SLACK = 36 -- px over the banner stamp's height in its row: room for its tilt
 local BANNER_GLOW = 0.6 -- the glow behind the banner, in the winner's color (transparency)
 local BANNER_GLOW_W = 1.1 -- the glow's width, a share of the column
@@ -181,7 +181,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Kit.bevel(card, color, 2, 1)
 		end
 		local name = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
-		local portrait = Kit.monogram(name, color, PORTRAIT)
+		local portrait =
+			Kit.portrait(if entry then entry.candidate else nil, name, PORTRAIT, { ring = color })
 		portrait.LayoutOrder = 1
 		portrait.Parent = card
 		Kit.text(name, {
