@@ -2,6 +2,15 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased: the tutorial, slower bot matches, corner settings (D-075)
+
+Studio checklist: `docs/TESTING.md`, "The tutorial, bot timers and corner settings". Nothing needed from the humans.
+
+- **Your first bot match is a tutorial with no timers (D-075).** Every choice (pick your candidate, the draft, stances, debate rounds, every week's plan) waits until you lock in; the clock's place reads "No timer" and there is no "+15 s". Reveals and election night still play by themselves (Skip still works). Coach tips show as before. It counts as done when that match ends (a win, a loss or Leave match) and is saved with your profile; players who have played before never get it unasked.
+- **Replay it any time** from **How to play**: "Play the tutorial" under the pages starts it again against the Easy bot, with every coach tip back.
+- **More time against easier bots (D-075).** Every choice timer is ×2 against the Easy bot and ×1.5 against Medium (a 100 s / 75 s plan instead of 50 s); Hard and Extreme, and matches against people, are unchanged. New `Config.BOT_TIME_MULT_EASY` (2) and `BOT_TIME_MULT_MEDIUM` (1.5).
+- **Sound and Reduce motion are in the Lobby's top-right corner** as two small icon toggles (outlined while on, with a short label on hover and after a tap). The in-match settings are where they were.
+
 ## 0.13.0: Landslide (Oct 24, 2026)
 
 The game is now **Landslide** ("Race to 270"). This release puts a real US map under the campaign, turns debates into three live rounds on their own screen, gives every candidate an illustrated portrait, lets eligible players name their candidate (the Name Pass), plays the week's results move by move, deepens the colors, and adds Map and Graph tabs to the end screen. Polls cost half. Studio checklists: `docs/TESTING.md`, "0.13.0: Landslide".
