@@ -292,7 +292,7 @@ function Words.key(id: string): { string }
 		"A ring: a home state or a stronghold, in its owner's color.",
 	}
 	if id == "Issues" then
-		table.insert(lines, "The code is the state's top issue. Filled: it is one of yours.")
+		table.insert(lines, "The mark is the state's top issue, below. Filled: it is one of yours.")
 	elseif id == "Polls" then
 		table.insert(lines, "The number is the leader's lead in points; ~ means no poll yet.")
 		table.insert(lines, "▲ momentum in its color; ● your ground game, ○ theirs as last polled.")

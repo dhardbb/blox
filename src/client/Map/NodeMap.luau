@@ -105,6 +105,7 @@ local BLOOM_STRONG = 0.1 -- bloom transparency for a state whose poll leader cha
 local PART_H = Kit.size.caption + 2 -- px, a lens plate's height (snug, so code and value fit a 30 px circle)
 local PART_PAD = 3 -- px, a lens pill's side padding
 local PART_GAP = 2 -- px, between two lens pills
+local PART_ICON = PART_H -- px, an issue symbol on a lens plate (D-075)
 local LABEL_Y = 0.5 -- the label's center, share of the tap target
 local LABEL_UP = 0.21 -- with a lens value: the label's center above the middle, share of the circle
 local VALUE_DOWN = 0.21 -- ... the value's center below the middle, share of the circle
@@ -292,11 +293,19 @@ local function paintLens(
 		local color = spec.color or Kit.colors.text
 		part.Visible = true
 		local star = string.sub(spec.text, 1, #Kit.STAR) == Kit.STAR
-		part.Text = if star and not starRoom then string.sub(spec.text, #Kit.STAR + 1) else spec.text
 		-- Filled: a solid plate in the color with readable text and its edge
 		-- (an issue of yours, a poll lead). Outlined: the dark plate with a
 		-- Kit.MARK_STROKE white edge (the battleground mark, D-058).
-		part.TextColor3 = if spec.filled then onFill(color) else color
+		local ink = if spec.filled then onFill(color) else color
+		-- An issue's symbol in place of its code once the game can draw it (D-075).
+		local icon = Kit.setIssueIcon(part, spec.icon, PART_ICON, ink)
+		part.Text = if icon
+			then ""
+			elseif star and not starRoom then string.sub(spec.text, #Kit.STAR + 1)
+			else spec.text
+		part.AutomaticSize = if icon then Enum.AutomaticSize.None else Enum.AutomaticSize.X
+		part.Size = UDim2.fromOffset(if icon then PART_ICON + 2 * PART_PAD else 0, PART_H)
+		part.TextColor3 = ink
 		part.BackgroundColor3 = if spec.filled then color else Kit.colors.field
 		edge.Color = if spec.filled
 			then edgeOf(color)
@@ -734,6 +743,11 @@ function NodeMap.circles(): MapInterface.Map
 							{ TextTransparency = 0, BackgroundTransparency = PART_BG },
 							LENS_FADE
 						)
+						local icon = part:FindFirstChild("IssueIcon") :: ImageLabel?
+						if icon then
+							icon.ImageTransparency = 1
+							Motion.tween(icon, { ImageTransparency = 0 }, LENS_FADE)
+						end
 					end
 				end
 			end

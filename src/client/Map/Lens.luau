@@ -9,8 +9,10 @@
 --   EV      "Votes": the state's electoral votes on a dark plate; on a
 --           battleground "★13", outlined in white (good news, never orange,
 --           and never a white fill, which means "selected": D-056)
---   Issues  the state's top issue as a short code: the first one on your
---           platform (filled in your color), else its first top issue
+--   Issues  the state's top issue as its symbol (D-075; the short code while
+--           the image is missing): the first one on your platform (filled in
+--           your color), else its first top issue. The legend row names the
+--           symbols on the map (yours first) and the Map key lists all eight
 --   Polls   the public-poll lead ("+3") on a plate filled in the leader's
 --           color, "tie", or the lean before the first poll ("~+2", the
 --           leader's readable text color: a lean, not a poll). Under it, a
@@ -37,11 +39,13 @@ local Shared = ReplicatedStorage.Shared
 local ConfigModule = require(Shared.Sim.Config)
 local Explain = require(Shared.UI.Explain)
 local IssueMap = require(Shared.Sim.IssueMap)
+local Issues = require(Shared.Sim.Issues)
 local Numbers = require(Shared.UI.Numbers)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local StateData = require(Shared.Sim.StateData)
 local ViewModule = require(Shared.Sim.View)
 
+local IssueIcons = require(script.Parent.Parent.UI.IssueIcons)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.MapInterface)
 
@@ -73,17 +77,15 @@ Lens.DRAINED = 0.05 -- $ a fundraiser would still raise: under this, the pool is
 Lens.MOMENTUM = 0.05 -- a momentum lead under this shows no chevron (nobody drifts)
 Lens.STRONG = 2 -- a momentum lead of this much or more shows ▲▲
 
--- Short codes for the issue chips. An issue without one shows its first three letters.
-Lens.ISSUE_CODE = table.freeze({
-	Jobs = "JOB",
-	Health = "HLT",
-	Schools = "SCH",
-	Environment = "ENV",
-	Safety = "SAF",
-	Transit = "TRN",
-	Technology = "TEC",
-	Farms = "FRM",
-} :: { [string]: string })
+-- Short codes for the issues (UI/IssueIcons): what the map shows while an
+-- issue's symbol is missing. An issue without one shows its first three letters.
+Lens.ISSUE_CODE = (function(): { [string]: string }
+	local codes: { [string]: string } = {}
+	for issue, icon in IssueIcons.icons do
+		codes[issue] = icon.code
+	end
+	return table.freeze(codes)
+end)()
 
 -- ---------------------------------------------------------------- session memory
 
@@ -151,7 +153,20 @@ function Lens.issuesOf(view: View, s: StateView): { string }
 end
 
 function Lens.issueCode(issue: string): string
-	return Lens.ISSUE_CODE[issue] or string.upper(string.sub(issue, 1, 3))
+	return Kit.issueCode(issue)
+end
+
+-- The issue each state shows in the Issues lens: the first top issue on your
+-- platform, else its first; nil for a state without top issues.
+function Lens.shownIssue(view: View, s: StateView): (string?, boolean)
+	local platform = view.players[view.you].platform or {}
+	local issues = Lens.issuesOf(view, s)
+	for _, issue in issues do
+		if table.find(platform, issue :: any) ~= nil then
+			return issue, true
+		end
+	end
+	return issues[1], false
 end
 
 -- ---------------------------------------------------------------- one line per lens
@@ -174,17 +189,23 @@ end
 -- The state's top issue to show: the first one on your platform, else its first.
 local function issuesLine(ctx: Context, s: StateView): Line
 	local view = ctx.view
-	local platform = view.players[view.you].platform or {}
-	local issues = Lens.issuesOf(view, s)
-	for _, issue in issues do
-		if table.find(platform, issue :: any) ~= nil then
-			return {
-				parts = { { text = Lens.issueCode(issue), color = colorOf(view, view.you), filled = true } },
-			}
-		end
+	local issue, yours = Lens.shownIssue(view, s)
+	if issue == nil then
+		return { parts = {} }
 	end
-	local first = issues[1]
-	return { parts = if first then { { text = Lens.issueCode(first) } } else {} }
+	if yours then
+		return {
+			parts = {
+				{
+					text = Lens.issueCode(issue),
+					icon = issue,
+					color = colorOf(view, view.you),
+					filled = true,
+				},
+			},
+		}
+	end
+	return { parts = { { text = Lens.issueCode(issue), icon = issue } } }
 end
 
 -- The momentum leader's color and whether the lead is strong, or nil.
@@ -261,7 +282,9 @@ local LINES: { [Id]: (Context, StateView) -> Line } = {
 -- The map's legend row for lens `id` (D-070): Polls explains its extra marks;
 -- the other lenses need none (their one mark is in Lens.legend and the Map key).
 function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
-	if id ~= "Polls" then
+	if id == "Issues" then
+		return Lens.issueLegend(ctx.view)
+	elseif id ~= "Polls" then
 		return nil
 	end
 	local view = ctx.view
@@ -284,6 +307,38 @@ function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
 		text = "ground game",
 	})
 	return items
+end
+
+-- The Issues lens's legend row (D-075): each symbol on the map with its name,
+-- your platform's first (in your color, always shown), then the others in
+-- Issues order (dropped first on a narrow map). Nil when no state shows one.
+function Lens.issueLegend(view: View): { LegendItem }?
+	local shown: { [string]: boolean } = {}
+	for _, s in view.states do
+		local issue = Lens.shownIssue(view, s)
+		if issue then
+			shown[issue] = true
+		end
+	end
+	local items: { LegendItem } = {}
+	local platform: { string } = (view.players[view.you].platform or {}) :: any
+	for _, issue in platform do
+		if shown[issue] then
+			table.insert(items, {
+				mark = "issue",
+				issue = issue,
+				color = colorOf(view, view.you),
+				text = Kit.issueName(issue),
+			})
+			shown[issue] = nil
+		end
+	end
+	for _, issue in Issues.list do
+		if shown[issue] then
+			table.insert(items, { mark = "issue", issue = issue, text = Kit.issueName(issue), drop = 1 })
+		end
+	end
+	return if #items > 0 then items else nil
 end
 
 -- Every state's line in lens `id`, keyed by state id.

@@ -446,7 +446,8 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		name = "02i-howto-4-events",
+		-- The eight issue symbols with their names (D-075).
+		name = "02h2-howto-4-issues",
 		moment = "Lobby",
 		screen = "Lobby",
 		steps = function(world, peer)
@@ -457,12 +458,23 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		name = "02j-howto-5-night",
+		name = "02i-howto-5-events",
 		moment = "Lobby",
 		screen = "Lobby",
 		steps = function(world, peer)
 			tapIf(world, peer, "Lobby", "HowToPlay")
 			for _ = 1, 4 do
+				tapIf(world, peer, "Lobby", "HowToNext")
+			end
+		end,
+	},
+	{
+		name = "02j-howto-6-night",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "HowToPlay")
+			for _ = 1, 5 do
 				tapIf(world, peer, "Lobby", "HowToNext")
 			end
 		end,
@@ -639,6 +651,18 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- Every message chip with its issue's symbol (D-075), and the state's
+		-- top issues under Details.
+		name = "10g-campaign-messages",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "OH")
+			tapIf(world, peer, "Campaign", "MessageMore")
+			tapIf(world, peer, "Campaign", "DetailsToggle")
+		end,
+	},
+	{
 		-- Two actions planned: each planned state wears its action's icon badge.
 		name = "10a-campaign-planned",
 		moment = "Plan",
@@ -701,6 +725,16 @@ local SHOTS: { Shot } = {
 	},
 	{ name = "11-lens-ev", moment = "Plan", screen = "Campaign", steps = lens("EV") },
 	{ name = "12-lens-issues", moment = "Plan", screen = "Campaign", steps = lens("Issues") },
+	{
+		-- The map key in the Issues lens (D-075): every issue's symbol with its name.
+		name = "12a-lens-issues-key",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "LensIssues")
+			tapIf(world, peer, "Campaign", "MapKey")
+		end,
+	},
 	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
 	{
 		-- The Polls lens with ground game on the map (D-070): your units in PA, WI
