@@ -2,6 +2,18 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Issue symbols (D-075)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Issue symbols".
+
+**Needed from the humans:** upload the eight PNGs in `assets/issues/` (`jobs.png`, `health.png`, `schools.png`, `environment.png`, `safety.png`, `transit.png`, `technology.png`, `farms.png`) and send their ids (until then the game shows the old codes and names).
+
+- **Issues have symbols:** a briefcase for Jobs, a heart with a pulse for Health, a graduation cap for Schools, a leaf for Environment, a shield for Safety, a bus for Roads & Transit, a microchip for Technology, wheat for Farms & Rural.
+- **Map, Issues tab:** each state shows its top issue's symbol instead of a code (filled in your color when it is one of yours). The row under the map names the symbols on it, the Map key lists all eight, and tapping a state shows its top issues with symbols and names.
+- The symbols also sit beside the names on the issue cards when you pick your platform, the message chips, the event strip for an issue event, the debate's rounds, and the How to play pages, which get a new page, "Your issues".
+
 ## 0.13.0: Landslide (Oct 24, 2026)
 
 The game is now **Landslide** ("Race to 270"). This release puts a real US map under the campaign, turns debates into three live rounds on their own screen, gives every candidate an illustrated portrait, lets eligible players name their candidate (the Name Pass), plays the week's results move by move, deepens the colors, and adds Map and Graph tabs to the end screen. Polls cost half. Studio checklists: `docs/TESTING.md`, "0.13.0: Landslide".

@@ -1011,3 +1011,17 @@ Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`
 6. **Phone size (390x844) and the Mac.** **Expect:** each tab fits without scrolling; nothing overlaps; the lines look straight and joined (no gaps or stray pieces sticking out of the chart).
 7. **Rejoin:** leave the game on the Results screen and rejoin (if the match result is still shown). **Expect:** the Graph still shows every week.
 8. **Send back:** an iPad screenshot of each tab, whether the MISS tags made the polling errors easy to spot, whether the graph was readable on a phone, and any Output errors from `Results`, `MapTab` or `GraphTab`.
+
+## Issue symbols (unreleased, D-075)
+
+Client only. Agents: `lune run tests "D-075"`, `lune run tests "Map lenses"`, `lune run tests/ui/snap.luau -- issues`, `-- 04-select`, `-- 10g`, `-- debate`, `-- howto`, `-- help` (0 audit findings at all three sizes). Before the upload, the game shows the old codes ("JOB") on the map and the names alone elsewhere: check that first, then again after the ids are in `src/client/UI/IssueIcons.luau`.
+
+1. **Play vs Bot** on the iPad. On the issue step, **Expect:** each issue card shows its symbol before the name (briefcase, heart with a pulse, cap, leaf, shield, bus, chip, wheat).
+2. In the campaign, tap **Issues** above the map. **Expect:** every state shows a small white symbol on its plate; states whose issue is one of yours have the plate filled in your color. Under the map, a row names the symbols of your issues (on the Mac also the others).
+3. Tap **Key**. **Expect:** "The mark is the state's top issue, below…" and all eight symbols with their names in two columns.
+4. Tap a state. **Expect:** the message chips show symbol + name (on a narrow chip only the name); under **Details +**, "Top issues:" with symbols and names.
+5. Reach a week with a spotlight or a stance event and a debate. **Expect:** the event's gold plate shows the issue's symbol; the debate intro lists the three rounds with symbols; each round's label starts with its symbol.
+6. Lobby → **How to play**: page 4 of 6 is "Your issues" with the eight symbols. In a match, **?** → **Actions** ends with the same list.
+7. At 16-20 px on the phone and the Mac: is each symbol recognizable? Does any look like a real logo or a party sign?
+
+**Send back:** screenshots of the Issues map (iPad and phone), the Map key, a message chip row, and which symbols (if any) were hard to tell apart or to read small.

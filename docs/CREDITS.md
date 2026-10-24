@@ -32,6 +32,8 @@ Third-party assets and fonts used by Landslide (formerly 270), with their licens
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
   ```
 
+- **Issue symbols** (D-075): original drawings made for this game by `assets/issues/make.py`, in the style of the Lucide icons above but not taken from them (`src/client/UI/IssueIcons.luau`, `assets/issues/README.md`).
+
 ## Sounds
 
 All sounds are Roblox audio assets used under the Roblox Terms of Use for in-experience audio (`src/client/UI/Audio.luau`).
