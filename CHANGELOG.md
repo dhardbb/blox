@@ -2,7 +2,9 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
+
+A new look (navy stage, white accent, orange losses, chunky buttons, a lit map, stamps for the big moments), a global leaderboard, Easy to Extreme bots, Leave match, How to play, and Color Pass colors claimed first come, first served. Needed from the humans: the Color Pass id (see 0.11.0).
 
 ### Color Pass colors are claimed, first come, first served (D-061)
 
