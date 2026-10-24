@@ -1078,3 +1078,16 @@ Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests "M
 11. **iPad and desktop.** **Expect:** the map looks as in 0.13.0 apart from the bracket, the quieter pins, the insets and the items above.
 
 **Send back:** a phone screenshot of Votes, Polls and Money, one with Close on, one of the end of a busy week's results, one of election night, and whether you would want Close on by default on a phone; plus any Output errors from `ShapeMap`, `Lens` or `SwingMarks`.
+
+## Admin: timers off (unreleased, D-080)
+
+Agents: `lune run tests "D-080"`, `lune run tests "Admin Timers off"`, `lune run tests/ui/snap.luau -- admin --size phone` (and `ipad`, `desktop`: 0 audit findings).
+
+1. **The toggle (owner's account).** Open the game. **Expect:** a third icon, a clock, left of Sound and Reduce motion in the top-right corner. Tap it. **Expect:** the clock is outlined and struck through, and "Timers off (admin)" shows beside it for a moment. Leave and rejoin (wait 15 s first): it is still on.
+2. **Not for everyone.** On a non-admin account. **Expect:** only the Sound and Reduce motion toggles.
+3. **Against the bot.** With it on, press **Play vs Bot**. **Expect:** "Timers off (admin): every choice waits until it's locked in." and the header reads "No timer" over "(admin)" in the clock's place; no "+15 s" on the plan. Wait two minutes at Select: nothing happens. The map reveal, the week's results and election night still play by themselves.
+4. **Mid-match.** Tap **?**. **Expect:** "Timers off (admin)" at the top of the sheet, outlined, with "On: no choice timers in this match, for every player." Tap it. **Expect:** "Timers back on (admin)…", the clock comes back with the step's full time. Tap it again: the timer goes away again.
+5. **Owner and partner.** Host a private match, the partner joins. One of you turns it on (corner or sheet). **Expect:** both headers read "No timer (admin)"; both are told "This match is unrated."; at the end neither rating moves ("Timers were off (admin), so this match doesn't count for anyone's rating.").
+6. **With anyone else.** Owner (toggle on) against a non-admin account (private code or Find match). **Expect:** normal timers for both; the owner's "?" sheet shows the toggle with "Only in games where every player is an admin."; the other player sees no toggle and no "(admin)".
+7. **Send back:** a phone and an iPad screenshot of the header with "No timer (admin)" and of the corner; the Output lines containing `timers` and `is unrated`, and any errors.
+
