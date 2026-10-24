@@ -9,6 +9,9 @@
 --   PollMiss.mapStates(view, rows, mode)        the View's states as the map paints them
 --   PollMiss.votes(rows, mode, players)         votes by player: projected (polls) or won (result)
 --   PollMiss.lead(row, mode) -> (number, number) the shown leader and their lead in points
+--   PollMiss.leadText(lead) -> string            the map's pill: "+3", "+0.4"
+--   PollMiss.votesLine(mode, ev, you, names)     "Final polls: you 290, Rex 248"
+--   PollMiss.stateLine(row, you, names)          a tapped state: its poll, its result, a miss
 --
 -- "Final polls" is each state's last public poll (the one published after the
 -- last week, View.states[i].poll): its leader and lead, as both players saw it.
@@ -180,6 +183,48 @@ function PollMiss.mapStates(view: View, rows: { Row }, mode: Mode): { StateView 
 		out[i] = copy
 	end
 	return out
+end
+
+-- The lead on a state's pill: whole points, or one decimal under 1 point (a
+-- real 0.4-point win is not a tie).
+function PollMiss.leadText(lead: number): string
+	if lead < 0.95 then
+		return string.format("+%.1f", lead)
+	end
+	return `+{math.floor(lead + 0.5)}`
+end
+
+local MODE_TITLE: { [Mode]: string } = { Polls = "Final polls", Result = "Election night" }
+
+local function nameOf(p: number, you: number, names: { string }): string
+	return if p == you then "you" else (names[p] or `Player {p}`)
+end
+
+-- "Final polls: you 290, Rex 248" / "Election night: you 302, Rex 236": you first.
+function PollMiss.votesLine(mode: Mode, ev: { number }, you: number, names: { string }): string
+	local parts = { `you {ev[you] or 0}` }
+	for p, votes in ev do
+		if p ~= you then
+			table.insert(parts, `{nameOf(p, you, names)} {votes}`)
+		end
+	end
+	return `{MODE_TITLE[mode]}: {table.concat(parts, ", ")}`
+end
+
+-- A tapped state: "Nevada · 6 votes. Final poll: Rex +1. Result: you by 2.4
+-- points. The polls missed it."
+function PollMiss.stateLine(row: Row, you: number, names: { string }): string
+	local record = StateData.byId[row.id]
+	local title =
+		`{if record then record.name else row.id} · {row.ev} {if row.ev == 1 then "vote" else "votes"}`
+	local poll = if row.pollLeader == 0
+		then "Final poll: tied"
+		else `Final poll: {nameOf(row.pollLeader, you, names)} {PollMiss.leadText(row.pollLead)}`
+	local result = if row.winner == 0
+		then "Result: tied"
+		else `Result: {nameOf(row.winner, you, names)} by {string.format("%.1f", row.margin)} points`
+	local tail = if row.miss then " The polls missed it." else ""
+	return `{title}. {poll}. {result}.{tail}`
 end
 
 return table.freeze(PollMiss)

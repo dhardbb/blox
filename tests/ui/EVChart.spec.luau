@@ -239,3 +239,21 @@ describe("EVChart.markers", function()
 		expect(markers[3].line):toBe("Week 8 · Debate: even, 1 topic each")
 	end)
 end)
+
+describe("EVChart.summary", function()
+	it("walks your line from the start to the final polls and the result", function()
+		local points = {
+			point("Start", 0, 238, 300),
+			point("1", 1, 250, 288),
+			point("12", 12, 290, 248),
+			point("Result", nil, 302, 236),
+		}
+		expect(EVChart.summary(points, 1)):toBe(
+			"You: 238 at the start, 290 in the final polls, 302 on election night."
+		)
+		expect(EVChart.summary(points, 2)):toBe(
+			"You: 300 at the start, 248 in the final polls, 236 on election night."
+		)
+		expect(EVChart.summary({}, 1)):toBe(nil)
+	end)
+end)

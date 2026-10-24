@@ -178,3 +178,41 @@ describe("PollMiss.mapStates", function()
 		expect(lead):toBe(4)
 	end)
 end)
+
+describe("PollMiss words", function()
+	it("writes a lead as whole points, or one decimal under a point", function()
+		expect(PollMiss.leadText(3.4)):toBe("+3")
+		expect(PollMiss.leadText(12.6)):toBe("+13")
+		expect(PollMiss.leadText(0.4)):toBe("+0.4")
+		expect(PollMiss.leadText(0)):toBe("+0.0")
+	end)
+
+	it("puts you first in the votes line", function()
+		expect(PollMiss.votesLine("Polls", { 248, 290 }, 2, { "Rex", "Dana" })):toBe(
+			"Final polls: you 290, Rex 248"
+		)
+		expect(PollMiss.votesLine("Result", { 302, 236 }, 1, { "Dana", "Rex" })):toBe(
+			"Election night: you 302, Rex 236"
+		)
+	end)
+
+	it("describes a tapped state, and says when the polls missed it", function()
+		local row = {
+			id = "NV",
+			ev = 6,
+			pollLeader = 2,
+			pollLead = 1.2,
+			winner = 1,
+			margin = 2.44,
+			miss = true,
+		} :: any
+		expect(PollMiss.stateLine(row, 1, { "Dana", "Rex" })):toBe(
+			"Nevada · 6 votes. Final poll: Rex +1. Result: you by 2.4 points. The polls missed it."
+		)
+		local called =
+			{ id = "OH", ev = 17, pollLeader = 0, pollLead = 0, winner = 2, margin = 5, miss = false } :: any
+		expect(PollMiss.stateLine(called, 1, { "Dana", "Rex" })):toBe(
+			"Ohio · 17 votes. Final poll: tied. Result: Rex by 5.0 points."
+		)
+	end)
+end)

@@ -11,6 +11,7 @@
 --   EVChart.segment(x1, y1, x2, y2) -> Segment     one line piece as a rotated Frame
 --   EVChart.labels(points, xs, width, charPx) -> { boolean }   x labels that fit
 --   EVChart.markers(view, names) -> { Marker }     debate and stance weeks, with their line
+--   EVChart.summary(points, you) -> string?        "You: 238 at the start, 290 in the final polls, 302 on election night."
 --
 -- History comes from `view.pollHistory` (the projected votes each time the
 -- weekly polls came out: week 0 after the draft, week w at the end of week w),
@@ -184,7 +185,7 @@ function EVChart.labels(points: { Point }, xs: { number }, width: number, charPx
 		end
 		-- A week label too close to the result gives way to it.
 		while #chosen > 2 and not fits({ chosen[#chosen - 1], chosen[#chosen] }) do
-			table.remove(chosen, #chosen - 1)
+			table.remove(chosen, (#chosen - 1)) -- the week before the result
 		end
 		if fits(chosen) or stride == n then
 			for _, i in chosen do
@@ -249,7 +250,8 @@ function EVChart.markers(view: View, names: { string }): { Marker }
 				for _, p in order do
 					local choice = choices[p]
 					local stanceName: string? = nil
-					for _, stance in definition.stances or {} do
+					local stances: { Events.Stance } = definition.stances or {}
+					for _, stance in stances do
 						if stance.id == choice then
 							stanceName = stance.name
 						end
@@ -275,6 +277,38 @@ function EVChart.markers(view: View, names: { string }): { Marker }
 		return a.kind < b.kind
 	end)
 	return markers
+end
+
+-- Your own line in words, under the chart.
+function EVChart.summary(points: { Point }, you: number): string?
+	local first, lastWeek, result = nil, nil, nil
+	for _, point in points do
+		if point.result then
+			result = point
+		elseif first == nil then
+			first = point
+			lastWeek = point
+		else
+			lastWeek = point
+		end
+	end
+	local parts: { string } = {}
+	if first and lastWeek then
+		table.insert(
+			parts,
+			`{first.ev[you]} {if first.week == 0 then "at the start" else `in week {first.week}`}`
+		)
+		if lastWeek ~= first then
+			table.insert(parts, `{lastWeek.ev[you]} in the final polls`)
+		end
+	end
+	if result then
+		table.insert(parts, `{result.ev[you]} on election night`)
+	end
+	if #parts == 0 then
+		return nil
+	end
+	return `You: {table.concat(parts, ", ")}.`
 end
 
 return table.freeze(EVChart)
