@@ -888,3 +888,10 @@ Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tall
 6. **No errors** from `Reveal`, `RevealSteps`, `TopBar` or `Campaign` in the Output window.
 
 **Send back:** a phone and an iPad screenshot mid-reveal, whether each move's effect was easy to follow, whether "New polls are in" read as the polls updating (not as moves being undone), whether each move was on screen long enough to see it land, and any Output errors.
+## Richer colors (unreleased, D-064)
+
+Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- select`, `-- election`, `-- results`); 0 audit findings. In Studio, play one match vs a bot on the iPad and look at:
+
+1. **Campaign map.** States nobody leads are dark slate circles; leaning states are a deep red or blue (not pink or grey-blue); safe states are bright red or blue. The ring around each state is a soft slate, not near-white. Open **Key**: its swatches match the map. *Send back:* a screenshot of week 3 and whether a narrow lead is easy to spot.
+2. **Names in color** (header, state card, election night): Rex's name is a vivid red, Dana's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
+3. **Color Pass colors** (if you have the pass): all six swatches look rich, and Amber still reads as gold, not orange. *Send back:* a screenshot of Select with the swatches.

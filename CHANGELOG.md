@@ -21,6 +21,16 @@ Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING
 - The per-move numbers are estimates from the polls both players saw (the server never reveals true support); one line behind "Why?" says so.
 - The header no longer jumps to the week's result when the reveal opens. Skip still ends it early.
 - **Busy weeks get a longer reveal** so each move is seen to land: 4.5 s + 0.55 s per step, between 8 and 14 s (9.4 s on average, about +16 s a match). New Config: `TIMER_RESOLVE_BASE`, `TIMER_RESOLVE_PER_STEP`, `TIMER_RESOLVE_MAX`.
+## Unreleased
+
+### A deeper, richer palette (D-064)
+
+Client colors only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Richer colors".
+
+- **The campaign map is no longer pastel.** Toss-ups are a dark slate instead of light grey, and a lead shows as a deep version of the leader's color right away (a lean is 60 % of the color, was 45 %); safe states are the full, bright color. The light ring around every state is now a slate one, so it no longer washes the fill out.
+- **Player colors are deeper and more saturated** (Crimson 212, 28, 66; Cobalt 34, 98, 228; Emerald, Amber, Violet and Teal likewise). Red stays clear of the loss orange, Violet moved farther from Cobalt.
+- **Player names in color are vivid, not pink.** Readable text keeps the color's own hue (brightened just enough), instead of fading it toward white.
+- **Gains are a clear green, not mint**, and the navy stage, cards and buttons are a richer navy at the same brightness. Every contrast floor still holds.
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 

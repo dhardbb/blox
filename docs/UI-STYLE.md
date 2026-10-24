@@ -78,34 +78,34 @@ Everything here exists in code (`src/client/UI/Kit.luau` and friends; see the he
 
 ### 2.1 Color tokens (`Shared/UI/Colors.luau`, `Kit.colors`)
 
-One dark theme: a navy stage (front-page foundation, D-056). Use the token, never a literal (`tests/ui/Tokens.spec.luau` and the audit's `tokenColor` rule enforce it).
+One dark theme: a navy stage (front-page foundation, D-056; deepened in D-064). Use the token, never a literal (`tests/ui/Tokens.spec.luau` and the audit's `tokenColor` rule enforce it).
 
 | Token | RGB | Use |
 |---|---|---|
-| `background` | 13, 17, 30 | the stage behind everything |
-| `field` | 18, 23, 38 | text boxes, read-only wells, icon plates |
-| `surface` | 24, 30, 48 | cards and panels (elevation 1) |
-| `surfaceTop` | 31, 38, 60 | top stop of a card's gradient |
-| `raised` | 38, 46, 70 | buttons, chips, pills (elevation 2) |
-| `raisedTop` | 46, 55, 82 | top stop of an elevation-4 panel's gradient |
-| `raisedHover` | 54, 64, 94 | a selected chip or card |
-| `raisedLip` | 9, 12, 22 | the lip under a secondary or icon button |
-| `line` | 70, 80, 112 | hairlines (at 0.5), dividers, sheet outline, map edges |
-| `text` | 240, 243, 250 | everything a player must read (14.9:1 on surface) |
-| `muted` | 158, 168, 194 | secondary text only (7.0:1 on surface) |
+| `background` | 11, 16, 34 | the stage behind everything |
+| `field` | 16, 23, 44 | text boxes, read-only wells, icon plates |
+| `surface` | 22, 30, 55 | cards and panels (elevation 1) |
+| `surfaceTop` | 29, 38, 68 | top stop of a card's gradient |
+| `raised` | 36, 47, 80 | buttons, chips, pills (elevation 2) |
+| `raisedTop` | 44, 56, 93 | top stop of an elevation-4 panel's gradient |
+| `raisedHover` | 52, 65, 106 | a selected chip or card |
+| `raisedLip` | 8, 12, 26 | the lip under a secondary or icon button |
+| `line` | 68, 81, 124 | hairlines (at 0.5), dividers, sheet outline, map edges |
+| `text` | 240, 243, 250 | everything a player must read (14.8:1 on surface) |
+| `muted` | 156, 168, 204 | secondary text only (7.0:1 on surface) |
 | `accent` | 244, 246, 252 (white, D-058; was pink, D-051) | **press here / selected**: the primary's face, the selection outline, the timer, the "now" mark |
 | `accentEdge` | 196, 204, 224 | the primary's 2 px edge (cool light grey) |
 | `accentLip` | 110, 122, 158 | the slate lip under the primary; the wordmark's outline |
-| `onAccent` | = background | text on the accent (17.4:1) |
-| `good` / `goodEdge` | 92, 200, 128 / 64, 136, 94 | a gain, "you lead", success; the edge of a filled good pill |
+| `onAccent` | = background | text on the accent (17.5:1) |
+| `good` / `goodEdge` | 80, 212, 96 / 50, 140, 66 | a gain, "you lead", success; the edge of a filled good pill |
 | `loss` / `lossEdge` | **255, 122, 40** / 196, 84, 20 | anything against you: a loss, a negative number, an error, a destructive button, the timer under 10 s; the edge of a filled loss tag |
-| `onLoss` | = background | text on a loss fill (7.2:1) |
+| `onLoss` | = background | text on a loss fill (7.3:1) |
 | `warn`, `danger`, `bad` | = `loss` | the old names, kept so every caller still works: there is one orange |
-| `glow` | 44, 62, 120 | the map's backdrop glow |
-| `neutral`, `undecided` | | map only |
-| player colors | Crimson, Cobalt, Emerald, Amber (240, 186, 36), Violet, Teal | that player's things: map fill, dots, bars, rings, monograms |
+| `glow` | 40, 60, 136 | the map's backdrop glow |
+| `neutral`, `undecided` | 70, 78, 104 / 164, 174, 204 | map only: a toss-up's dark slate fill (leads blend from it to a deep color, D-064), the default node ring (also the silver medal) |
+| player colors | Crimson 212, 28, 66 · Cobalt 34, 98, 228 · Emerald 0, 170, 96 · Amber 246, 190, 8 · Violet 152, 56, 228 · Teal 0, 164, 186 (D-064) | that player's things: map fill, dots, bars, rings, monograms |
 
-**Color means one thing (D-056).** Team colors mark ownership. Green marks a gain. Orange marks a loss or a warning: anything against you. White marks "press here / selected" (D-058). A battleground is marked by a ★ and a white outline, never a white fill, so it never looks like the primary or a selection; the 270 line is a plain white tick. **Red never means bad**: red and blue are the default player colors. A player's color as *text* goes through `Kit.playerText(view, p)` (`Colors.textOn`: a quarter of the way to `text`, so Crimson text is 4.7:1 on surface); fills, dots, bars and rings keep the base color.
+**Color means one thing (D-056).** Team colors mark ownership. Green marks a gain. Orange marks a loss or a warning: anything against you. White marks "press here / selected" (D-058). A battleground is marked by a ★ and a white outline, never a white fill, so it never looks like the primary or a selection; the 270 line is a plain white tick. **Red never means bad**: red and blue are the default player colors. A player's color as *text* goes through `Kit.playerText(view, p)` (`Colors.textOn`, D-064: the color itself if it reads at 4.5:1 on a card's lit top, else the same hue brightened, then lifted toward `text` only as far as needed; Crimson text is 252, 76, 113, 5.0:1 on surface); fills, dots, bars and rings keep the base color.
 
 **Orange never carries meaning alone** (audit rule `lossText`): an orange tag or number of one or two words carries a sign ("−", "▼", "lost", "behind") or sits under attribute `Warn` (the status line's warn and bad tones, the timer, a danger button). A battleground is good news: an outlined ★ tag, never orange.
 
@@ -113,7 +113,7 @@ Rules: one accent-filled thing per screen (the primary button). Selection is an 
 
 **Depth (D-053, D-056).** Cards (`Kit.card`) fill with `surfaceTop` and carry a vertical `UIGradient` ("Depth") down to `surface`. Every card, button, sheet and the action-bar plate has an "Edge" (`Kit.bevel`): a border in its base color (a 1 px `line` hairline at 0.5, the primary's 2 px `accentEdge`) lit from the top: the stroke is `text` and its own `UIGradient` "EdgeLight" fades it into the base over the top 30 %, which draws the top highlight without an extra frame (a frame would be moved by a list layout). Buttons shade to 80 % at the bottom. Shadows (`Kit.shadow`) sit beside free-standing objects (the action-bar plate, sheets, toasts, positioned tips, the spotlight); an object inside a list or grid gets no shadow (the layout would move it), its bevel carries the depth. Elevation 4 (the election spotlight, the results banner) is `Kit.depth(panel, Kit.colors.raisedTop, Kit.colors.raised)` plus a stroke in the moment's color and a glow.
 
-**Map bands (D-053, display only).** `Colors.band(margin)` returns the band for a poll margin in points (`Colors.BANDS`: toss-up < 3, lean < 8, likely < 15, safe), and `Colors.bandFill(support, colors)` is the stepped twin of `stateFill`: neutral, then 45 / 75 / 100 % of the leader's color.
+**Map bands (D-053, display only).** `Colors.band(margin)` returns the band for a poll margin in points (`Colors.BANDS`: toss-up < 3, lean < 8, likely < 15, safe), and `Colors.bandFill(support, colors)` is the stepped twin of `stateFill`: neutral, then 60 / 82 / 100 % of the leader's color (D-064, was 45 / 75: a lean reads as a deep version of the color, not a grey pastel). `stateFill` eases in the same way (`FILL_CURVE` 0.6).
 
 ### 2.2 Type (`Kit.size`, `Kit.text/caption/heading/title/eyebrow`)
 
