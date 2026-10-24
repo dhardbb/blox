@@ -414,6 +414,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextWrapped = false,
 			Parent = chip,
 		})
+		-- The issue's symbol before its name (D-075), the one players see on the map.
+		Kit.issueLead(chipNames[issue], issue, Kit.ISSUE_ICON)
 		chipLines[issue] = Kit.caption("", { Name = "IssueLine", LayoutOrder = 2, Parent = chip })
 		chips[issue] = chip
 	end
