@@ -22,8 +22,10 @@ local process = require("@lune/process")
 
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
+local EVChart = require("@ui/EVChart")
 local Events = require("@sim/Events")
 local Fixtures = require("@ui/Fixtures")
+local PollMiss = require("@ui/PollMiss")
 local Snapshot = require("@testlib/Snapshot")
 local Rig = require("./Rig")
 
@@ -688,6 +690,50 @@ local SHOTS: { Shot } = {
 	-- (23-results is the ordinary win: no stamp).
 	{ name = "23b-results-landslide", moment = "Landslide", screen = "Results" },
 	{ name = "23c-results-landslide-loss", moment = "LandslideLoss", screen = "Results" },
+	-- D-066: the end screen's Map tab (final polls, then the real results with a
+	-- missed state tapped) and Graph tab (then a debate or stance marker tapped).
+	{
+		name = "23d-results-map",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			tapIf(world, peer, "Results", "Tab_Map")
+		end,
+	},
+	{
+		name = "23e-results-map-real",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			tapIf(world, peer, "Results", "Tab_Map")
+			tapIf(world, peer, "Results", "Mode_Result")
+			local misses = PollMiss.misses(PollMiss.rows(Rig.payloadOf(world, peer).view))
+			if misses[1] then
+				tapIf(world, peer, "Results", misses[1].id)
+			end
+		end,
+	},
+	{
+		name = "23f-results-graph",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			tapIf(world, peer, "Results", "Tab_Graph")
+		end,
+	},
+	{
+		name = "23g-results-graph-marker",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			tapIf(world, peer, "Results", "Tab_Graph")
+			local view = Rig.payloadOf(world, peer).view
+			local markers = EVChart.markers(view, {})
+			if markers[1] then
+				tapIf(world, peer, "Results", `Marker_{markers[1].week}_{markers[1].kind}`)
+			end
+		end,
+	},
 	{
 		name = "24-help",
 		moment = "Plan",
