@@ -29,6 +29,17 @@ local SIZES = {
 	{ x = 1280, y = 720 }, -- desktop
 }
 
+-- The symbols as they were before the upload: every id "".
+local function notUploaded(): { [string]: any }
+	local icons = {}
+	for issue, icon in IssueIcons.icons do
+		local copy = table.clone(icon)
+		copy.id = ""
+		icons[issue] = copy
+	end
+	return icons
+end
+
 -- A fixture client whose issue symbols are not uploaded (and not previewed).
 local function fallbackFixture(
 	moment: string,
@@ -36,6 +47,7 @@ local function fallbackFixture(
 ): (FakeRoblox.World, FakeRoblox.Peer)
 	local world = Rig.newWorld(3, screen)
 	FakeRoblox.setModuleField(world, PATH, "preview", false)
+	FakeRoblox.setModuleField(world, PATH, "icons", notUploaded())
 	local peer = FakeRoblox.join(world, "P", { DebugScreen = moment })
 	FakeRoblox.run(world, 1.5)
 	return world, peer
@@ -122,6 +134,7 @@ describe("Issue symbols (D-076)", function()
 
 		-- Not uploaded: the code alone, the name alone beside, no lead.
 		Live.preview = false
+		Live.icons = notUploaded()
 		local fallback = Kit.issueIcon("Farms", 20)
 		expect(fallback.ClassName):toBe("TextLabel")
 		expect(fallback.Text):toBe("FRM")
