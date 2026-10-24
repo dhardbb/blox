@@ -713,6 +713,23 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "14-lens-money", moment = "Plan", screen = "Campaign", steps = lens("Money") },
+	{
+		-- The Close filter (D-075): only the states within 8 points keep their fill and value.
+		name = "14b-close-filter",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = lens("Close"),
+	},
+	{
+		-- The Close filter on the Polls lens.
+		name = "14c-close-polls",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "LensPolls")
+			tapIf(world, peer, "Campaign", "LensClose")
+		end,
+	},
 	{ name = "15-campaign-choice-week", moment = "ChoiceWeek", screen = "Campaign" },
 	{
 		-- Beat one of the reveal: "Both plans are in" and who goes first.

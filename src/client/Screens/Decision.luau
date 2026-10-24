@@ -29,7 +29,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
-local MapLayout = require(Shared.UI.MapLayout)
 local Session = require(Shared.Net.Session)
 local SharedTypes = require(Shared.Types)
 local Swing = require(Shared.UI.Swing)
@@ -109,7 +108,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local body = Kit.box({ Name = "Body", Parent = parent })
 
 	local mapArea = Kit.box({ Name = "MapArea", Parent = body })
-	-- The map key: two dots, no sentence ("● helps you  ● hurts you").
+	-- The map key: two rings, no sentence ("○ helps you  ○ hurts you"), in the
+	-- green and orange the map outlines those states in (D-075).
 	local legend = Kit.box({ Name = "MapLegend", Size = UDim2.new(1, 0, 0, CAPTION_H), Parent = mapArea })
 	Kit.dataColor(legend)
 	local legendList = Kit.list("Horizontal", Kit.space.xs)
@@ -124,6 +124,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Parent = legend,
 		}) :: Frame
 		Kit.round().Parent = dot
+		dot.BackgroundTransparency = 1
+		local ring = Kit.stroke(Kit.colors.good, 2)
+		ring.Name = "Ring"
+		ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		ring.Parent = dot
 		local label = Kit.text("", {
 			Name = `{name}Text`,
 			LayoutOrder = order + 1,
@@ -139,7 +144,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 	local gainDot, gainText = keyItem(1, "Gain")
 	local lossDot, lossText = keyItem(3, "Loss")
-	lossDot.BackgroundColor3 = Kit.colors.danger
+	lossDot.BackgroundColor3 = Kit.colors.loss
+	local lossRing = lossDot:FindFirstChild("Ring") :: UIStroke
+	lossRing.Color = Kit.colors.loss
 	local mapHolder = Kit.box({
 		Name = "MapHolder",
 		Position = UDim2.fromOffset(0, CAPTION_H + Kit.space.xs),
@@ -224,7 +231,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if isPortrait then
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
-			local mapHeight = math.floor(math.min(width / MapLayout.ASPECT, height * PORTRAIT_MAP_MAX))
+			local maxHeight = height * PORTRAIT_MAP_MAX
+			local mapHeight = math.floor(math.min(width / map:aspectFor(width, maxHeight), maxHeight))
 			local areaHeight = mapHeight + CAPTION_H + Kit.space.xs
 			mapArea.Size = UDim2.new(1, 0, 0, areaHeight)
 			sideColumn.Position = UDim2.fromOffset(0, areaHeight + GAP)
@@ -266,7 +274,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 		local stance: SharedTypes.Choice? = Model.previewStance(model, p)
-		gainDot.BackgroundColor3 = Kit.playerColor(view, view.you)
+		gainDot.BackgroundColor3 = Kit.colors.good
 		lossDot.Visible = stance ~= nil
 		lossText.Visible = stance ~= nil
 		gainDot.Visible = stance ~= nil

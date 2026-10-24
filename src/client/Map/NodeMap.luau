@@ -929,6 +929,19 @@ function NodeMap.circles(): MapInterface.Map
 		Motion.ring(node.circle, color)
 	end
 
+	-- A short shake of the circle (an election call; nothing under reduced motion).
+	function map.shake(_self: any, id: string)
+		local node = byId[id]
+		if node then
+			Motion.shake(node.circle)
+		end
+	end
+
+	-- The circles keep their 1.6 box everywhere.
+	function map.aspectFor(_self: any, _widthPx: number, _heightPx: number?): number
+		return MapLayout.ASPECT
+	end
+
 	-- Candidate pins stand on the circle's top edge (D-070).
 	local pinLayer = Kit.box({ Name = "Pins", ZIndex = 6, Parent = root })
 	function map.setPins(_self: any, pins: { MapInterface.Pin })

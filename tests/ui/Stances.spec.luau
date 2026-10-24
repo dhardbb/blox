@@ -1,7 +1,7 @@
 --!strict
 -- The screens for stances and debates (D-042) on the fake engine: a Choice week
--- previews the selected (or held) stance on the map with badges, glows and FLIP
--- calls, and says which states you need; the debate reveal names the states each
+-- previews the selected (or held) stance on the map with green and orange
+-- outlines, the biggest gains' tags and ▲ / ▼ flip tags (D-075), and says which states you need; the debate reveal names the states each
 -- topic swung and calls out every flip and gaffe; the resolve reveal after a
 -- Choice week does the same for both stances; Results says what debates and
 -- stances decided. Every moment passes the strict UI audit at 1280x720, 844x390
@@ -84,19 +84,52 @@ local function nodePart(peer: FakeRoblox.Peer, id: string, part: string): any
 	error(`no {part} on map node {id}`)
 end
 
--- The number in a state's tag, without the " FLIP" a flip adds.
+local UP, DOWN = "▲", "▼" -- a flip's tag (SwingMarks, D-075)
+local LABELS = 8 -- tags on the map at most (SwingMarks.LABELS)
+
+-- The text of a state's tag, or nil.
 local function badgeOf(peer: FakeRoblox.Peer, id: string): string?
 	local badge = nodePart(peer, id, "Badge")
-	return if badge.Visible then (string.gsub(badge.Text, " FLIP$", "")) else nil
+	return if badge.Visible then badge.Text else nil
 end
 
--- The color a state's tag is in: its fill, or its edge once it says FLIP.
+local function isFlipTag(text: string?): boolean
+	return text == UP or text == DOWN
+end
+
+-- The color a state's tag is in: its fill, or its edge for a flip's ▲ / ▼.
 local function tagColor(peer: FakeRoblox.Peer, id: string): Color3
 	local badge = nodePart(peer, id, "Badge")
-	if string.find(badge.Text, "FLIP", 1, true) then
+	if isFlipTag(badge.Text) then
 		return badge:FindFirstChildOfClass("UIStroke").Color
 	end
 	return badge.BackgroundColor3
+end
+
+-- The color a state is outlined in (its chip's edge for a callout state), or nil.
+local function outlineColor(peer: FakeRoblox.Peer, id: string): Color3?
+	local map = need(peer, "NodeMap")
+	local outline = map.Outlines:FindFirstChild(`Outline{id}`)
+	if outline and outline.Visible then
+		return outline:GetChildren()[1].BackgroundColor3
+	end
+	local node = map.Nodes:FindFirstChild(id)
+	local chip = node and node:FindFirstChild("Chip")
+	if chip then
+		return chip:FindFirstChildOfClass("UIStroke").Color
+	end
+	return nil
+end
+
+-- How many tags the map shows.
+local function tagCount(peer: FakeRoblox.Peer, view: any): number
+	local n = 0
+	for _, s in view.states do
+		if badgeOf(peer, s.id) ~= nil then
+			n += 1
+		end
+	end
+	return n
 end
 
 local function strict(world: FakeRoblox.World, peer: FakeRoblox.Peer, rootName: string): { string }
@@ -149,7 +182,7 @@ describe("Stances: the Choice week", function()
 		Rig.noErrors(world)
 	end)
 
-	it("previews the selected stance on the map: gains in your color, losses in orange", function()
+	it("previews the selected stance on the map: gains outlined green, losses orange", function()
 		local world, peer = open("Stance", nil)
 		local Kit = kitOf(world, peer)
 		local view = viewOf(world, peer)
@@ -157,33 +190,41 @@ describe("Stances: the Choice week", function()
 		local preview = Swing.stance(C, view, "A")
 		expect(textOf(peer, "ChoiceSummary")):toBe(Swing.stanceSummary(C, view, preview))
 		check(#preview.gains > 0 and #preview.losses > 0, "stance A moves no state both ways")
-		local mine = Kit.playerColor(view, view.you)
-		-- Every moved state glows; only the biggest moves (and flips) carry a badge.
-		local badges = 0
+		local flipped: { [string]: boolean } = {}
+		for _, flip in preview.flips do
+			flipped[flip.state] = true
+		end
+		-- Every moved state is outlined in the legend's colors (D-075: never a
+		-- player's color, which the fills use); only the biggest gains (and
+		-- flips, ▲ / ▼) carry a tag.
+		local gainTags = 0
 		local function look(id: string, color: Color3, what: string)
-			local halo = nodePart(peer, id, "Halo")
-			check(halo.Visible == true, `{id} does not glow`)
-			check(same(halo.BackgroundColor3, color), `{id} does not glow {what}`)
+			local got = outlineColor(peer, id)
+			check(got ~= nil and same(got, color), `{id} is not outlined {what}`)
 			local badge = badgeOf(peer, id)
-			if badge ~= nil then
-				badges += 1
+			if badge ~= nil and not isFlipTag(badge) then
+				gainTags += 1
 				expect(badge):toBe(Numbers.signed(preview.effects[id]))
-				check(same(tagColor(peer, id), color), `{id}'s badge is not {what}`)
+				check(preview.effects[id] > 0, `{id}: a loss carries a tag`)
+				check(same(tagColor(peer, id), Kit.colors.good), `{id}'s tag is not green`)
 			end
 		end
 		for _, id in preview.gains do
-			look(id, mine, "in your color")
-		end
-		for _, id in preview.losses do
-			look(id, Kit.colors.loss, "orange")
-			-- A loss tag is orange with a dark number (D-056).
-			local badge = nodePart(peer, id, "Badge")
-			if badge.Visible and not string.find(badge.Text, "FLIP", 1, true) then
-				check(same(badge.TextColor3, Kit.colors.onLoss), `{id}'s loss tag text is not dark`)
+			if not flipped[id] then
+				look(id, Kit.colors.good, "green")
 			end
 		end
-		check(badges > 0 and badges <= 5 + #preview.flips, `{badges} badges on the map`)
+		for _, id in preview.losses do
+			if not flipped[id] then
+				look(id, Kit.colors.loss, "orange")
+			end
+		end
+		check(gainTags > 0 and gainTags <= 5, `{gainTags} gain tags on the map`)
+		check(tagCount(peer, view) <= LABELS, `{tagCount(peer, view)} tags on the map`)
 		check(Rig.contains(textOf(peer, "GainText"), "Helps you"), textOf(peer, "GainText"))
+		-- The legend's rings are the outlines' colors.
+		local gainRing = need(peer, "GainDot"):FindFirstChild("Ring")
+		check(gainRing ~= nil and same(gainRing.Color, Kit.colors.good), "the Helps you ring is not green")
 		Rig.noErrors(world)
 	end)
 
@@ -199,10 +240,7 @@ describe("Stances: the Choice week", function()
 		Rig.push(world, peer, payload)
 		tap(world, peer, `Choice{id}`)
 		local tag = nodePart(peer, state, "Badge")
-		check(
-			tag.Visible == true and string.find(tag.Text, "FLIP", 1, true) ~= nil,
-			`{state} shows "{tag.Text}", not FLIP`
-		)
+		check(tag.Visible == true and isFlipTag(tag.Text), `{state} shows "{tag.Text}", not ▲ or ▼`)
 		local summary = textOf(peer, "ChoiceSummary")
 		check(Rig.contains(summary, `flip {state}`), summary)
 		Rig.noErrors(world)
@@ -238,7 +276,7 @@ describe("Stances: the Choice week", function()
 end)
 
 describe("Stances: the debate on the map (D-072)", function()
-	it("the clash badges what the round moved, and every flip says FLIP", function()
+	it("the clash tags what the round moved: the biggest flips ▲ / ▼, at most 8 tags", function()
 		local world, peer = open("Clash", nil)
 		local view = viewOf(world, peer)
 		local rounds = if view.debate then view.debate.rounds else view.debates[#view.debates].rounds
@@ -246,8 +284,11 @@ describe("Stances: the debate on the map (D-072)", function()
 		local entry = Swing.debateRound(C, view, round)
 		expect(textOf(peer, "ClashLine")):toBe(entry.line)
 		for _, flip in entry.flips do
-			local tag = nodePart(peer, flip.state, "Badge").Text
-			check(string.find(tag, "FLIP", 1, true) ~= nil, `{flip.state} shows "{tag}", not FLIP`)
+			local tag = badgeOf(peer, flip.state)
+			check(tag == nil or isFlipTag(tag), `{flip.state} shows "{tag}", not ▲ or ▼`)
+			if #entry.flips <= 5 then
+				check(isFlipTag(tag), `{flip.state} has no flip tag`)
+			end
 		end
 		local moved: { [string]: boolean } = {}
 		for _, move in round.moves do
@@ -263,7 +304,7 @@ describe("Stances: the debate on the map (D-072)", function()
 				check(moved[s.id] == true, `{s.id} has a badge but the round did not touch it`)
 			end
 		end
-		check(badges <= 5 + #entry.flips, `{badges} badges on the map`)
+		check(badges <= LABELS, `{badges} tags on the map`)
 		Rig.noErrors(world)
 	end)
 
@@ -284,14 +325,21 @@ describe("Stances: the debate on the map (D-072)", function()
 		Rig.noErrors(world)
 	end)
 
-	it("the verdict badges the whole debate's moves and flips", function()
+	it("the verdict tags the whole debate's biggest flips and moves, at most 8", function()
 		local world, peer = open("Debate", nil)
 		local view = viewOf(world, peer)
 		local result = view.debates[#view.debates]
-		for _, flip in Swing.flips(result.flips) do
-			local tag = nodePart(peer, flip.state, "Badge").Text
-			check(string.find(tag, "FLIP", 1, true) ~= nil, `{flip.state} shows "{tag}", not FLIP`)
+		local flips = Swing.flips(result.flips)
+		local tagged = 0
+		for _, flip in flips do
+			local tag = badgeOf(peer, flip.state)
+			check(tag == nil or isFlipTag(tag), `{flip.state} shows "{tag}", not ▲ or ▼`)
+			if tag then
+				tagged += 1
+			end
 		end
+		expect(tagged):toBe(math.min(5, #flips))
+		check(tagCount(peer, view) <= LABELS, `{tagCount(peer, view)} tags on the map`)
 		Rig.noErrors(world)
 	end)
 end)
@@ -318,8 +366,14 @@ describe("Stances: the resolve reveal after a Choice week", function()
 		end
 		local marks = Words.topMarks(Swing.net(entry.moves, view), flips)
 		for id, net in marks do
-			expect(badgeOf(peer, id)):toBe(if flipped[id] then "FLIP" else Numbers.signed(net))
+			local tag = badgeOf(peer, id)
+			if flipped[id] then
+				check(tag == nil or isFlipTag(tag), `{id} shows "{tag}", not ▲ or ▼`)
+			elseif tag ~= nil then
+				expect(tag):toBe(Numbers.signed(net))
+			end
 		end
+		check(tagCount(peer, view) <= LABELS, `{tagCount(peer, view)} tags on the map`)
 		check(Rig.contains(textOf(peer, "FeedEvent"), lines[1]), textOf(peer, "FeedEvent"))
 		Rig.noErrors(world)
 	end)

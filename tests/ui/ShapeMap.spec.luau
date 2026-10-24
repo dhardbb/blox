@@ -1,12 +1,15 @@
 --!strict
--- The real map (src/client/Map/ShapeMap.luau, D-070) on the fake engine: one
--- tinted shape per state from its atlas rect, a 36 px tap square per state and
--- a chip per callout state, taps settled by outline, outlines for selection and
--- rings, the Polls extras, candidate pins, the legend, and a clean strict audit.
+-- The real map (src/client/Map/ShapeMap.luau, D-070, D-075) on the fake engine:
+-- one tinted shape per state from its atlas rect, a 36 px tap square per state
+-- and a chip per callout state, taps settled by outline, outlines for selection
+-- and rings (dashed, hollow), the Polls pill, quiet candidate pins, the legend,
+-- the tall layout on a phone with one-line labels that never overlap, and a
+-- clean strict audit.
 
 local FakeRoblox = require("@testlib/FakeRoblox")
 local MapLayout = require("@ui/MapLayout")
 local MapShape = require("@ui/MapShape")
+local StateData = require("@sim/StateData")
 local Rig = require("./Rig")
 local Test = require("@testlib/Test")
 
@@ -128,19 +131,102 @@ describe("ShapeMap", function()
 		check(same(button(m, "VT").Chip.BackgroundColor3, m.Kit.color(Colors.neutral)), "VT chip fill")
 	end)
 
-	it("gives every state a tap target of at least 36 px; callouts get chips with leaders", function()
-		for _, size in { { 390, 244 }, { 340, 212 } } do
+	it("gives every state a tap target of at least 36 px; callouts get chips and one bracket", function()
+		for _, size in { { 390, 244 }, { 340, 212 }, { 390, 312 }, { 340, 272 } } do
 			local m = mount(size[1], size[2])
+			settle(m)
 			for _, shape in MapShape.list() do
 				local hit = button(m, shape.id)
 				local s = hit.AbsoluteSize
-				check(s.X >= 35.5 and s.Y >= 35.5, `{shape.id} is {s.X}x{s.Y} at {size[1]}`)
+				check(s.X >= 35.5 and s.Y >= 35.5, `{shape.id} is {s.X}x{s.Y} at {size[1]}x{size[2]}`)
 			end
+			-- At rest: the bracket, no leader of its own on any chip.
 			for _, id in MapLayout.LADDER do
 				check(button(m, id):FindFirstChild("Chip") ~= nil, `{id} has no chip`)
-				check(m.map.root.Leaders:FindFirstChild(`Leader{id}`) ~= nil, `{id} has no leader`)
+				check(m.map.root.Leaders:FindFirstChild(`Leader{id}`) == nil, `{id} has a leader at rest`)
 			end
-			expect(#m.map.root.Leaders:GetChildren()):toBe(#MapLayout.LADDER)
+			check(m.map.root.Leaders:FindFirstChild("Bracket1_1") ~= nil, "no bracket")
+			-- Selected: its leader to its state.
+			m.map:select("RI")
+			check(m.map.root.Leaders:FindFirstChild("LeaderRI") ~= nil, "the selected chip has no leader")
+			m.map:select(nil)
+			check(
+				m.map.root.Leaders:FindFirstChild("LeaderRI") == nil,
+				"the leader stays after the selection"
+			)
+		end
+	end)
+
+	it("stands up on a phone in portrait: the tall layout, chips in a row under the land", function()
+		local m = mount(390, 400)
+		m.map:setLens({})
+		settle(m)
+		local root = m.map.root
+		expect(root:GetAttribute("Layout")):toBe("tall")
+		local size = root.AbsoluteSize
+		check(math.abs(size.X / size.Y - MapShape.TALL_ASPECT) < 0.02, `the box is {size.X}x{size.Y}`)
+		local chips = {}
+		for _, id in MapLayout.LADDER do
+			table.insert(chips, button(m, id).Chip.AbsolutePosition)
+		end
+		for k = 2, #chips do
+			check(math.abs(chips[k].Y - chips[1].Y) < 1, "the chips are not in one row")
+			check(chips[k].X > chips[k - 1].X, "the chips are out of order")
+		end
+		-- An iPad's map column keeps the wide layout.
+		local wide = mount(620, 600)
+		wide.map:setLens({})
+		settle(wide)
+		expect(wide.map.root:GetAttribute("Layout")):toBe("wide")
+		-- The frame narrowing switches it.
+		wide.stage.Size = UDim2.fromOffset(372, 400)
+		wide.map:setLens({})
+		settle(wide)
+		expect(wide.map.root:GetAttribute("Layout")):toBe("tall")
+		check(wide.map.root.Borders:FindFirstChild("InsetHI") ~= nil, "no Hawaii inset")
+	end)
+
+	it("labels every state on one line on a phone, and no two labels overlap", function()
+		local m = mount(390, 312)
+		local lines = {}
+		for _, record in StateData.list do
+			lines[record.id] = { parts = { { text = tostring(record.ev) } } }
+		end
+		m.map:setLens(lines)
+		settle(m)
+		local shown = {}
+		local values = 0
+		for _, record in StateData.list do
+			local node = button(m, record.id)
+			for _, name in { "Label", "Lens" } do
+				local inst = node:FindFirstChild(name)
+				if inst and inst.Visible then
+					table.insert(shown, { id = record.id, inst = inst })
+					if name == "Lens" then
+						values += 1
+						-- On the code's line, not under it.
+						if node.Label.Visible and not MapShape.get(record.id).chip then
+							check(
+								math.abs(
+									(inst.AbsolutePosition.Y + inst.AbsoluteSize.Y / 2)
+										- (node.Label.AbsolutePosition.Y + node.Label.AbsoluteSize.Y / 2)
+								) < 1,
+								`{record.id}'s value is not on its code's line`
+							)
+						end
+					end
+				end
+			end
+		end
+		-- Every value shows on a phone (the audit counted 33 missing before D-075).
+		expect(values):toBe(#StateData.list)
+		for i = 1, #shown do
+			for j = i + 1, #shown do
+				local a, b = shown[i], shown[j]
+				if a.id ~= b.id then
+					check(not overlaps(a.inst, b.inst), `{a.id}'s label overlaps {b.id}'s`)
+				end
+			end
 		end
 	end)
 
@@ -192,7 +278,7 @@ describe("ShapeMap", function()
 		expect(button(m, "RI").Chip:FindFirstChildOfClass("UIStroke").Color):toBe(m.Kit.colors.accent)
 	end)
 
-	it("shows the lens value where the state has room and the Polls extras under it", function()
+	it("shows the lens value where the state has room, the Polls marks in the same pill", function()
 		local m = mount(832, 520)
 		local blue, red = rgb(m, 70, 110, 220), rgb(m, 220, 70, 80)
 		m.map:setLens({
@@ -203,16 +289,20 @@ describe("ShapeMap", function()
 				pips = { { count = 2, color = blue }, { count = 3, color = red, hollow = true } },
 			},
 			OH = { parts = { { text = "tie" } } },
+			-- No value: no ▲, no pips (D-075).
+			PA = { parts = {}, momentum = red, pips = { { count = 2, color = blue } } },
 		})
 		settle(m)
 		local tx = button(m, "TX")
 		expect(tx.Lens.Visible):toBe(true)
 		expect(tx.Lens.Part1.Text):toBe("+5")
-		expect(tx.Extras.Visible):toBe(true)
-		expect(tx.Extras.Momentum.Text):toBe("▲▲")
-		expect(tx.Extras.Momentum.TextColor3):toBe(red)
+		expect(tx.Lens.Momentum.Visible):toBe(true)
+		expect(tx.Lens.Momentum.Text):toBe("▲▲")
+		expect(tx.Lens.Momentum.TextColor3):toBe(red)
+		-- One pill: the row wears the plate around the lead and its suffix.
+		expect(tx.Lens.BackgroundTransparency):toBe(0)
 		local yours, theirs = 0, 0
-		for _, pip in tx.Extras.Pips:GetChildren() do
+		for _, pip in tx.Lens.Pips:GetChildren() do
 			if pip.Name == "Yours" then
 				yours += 1
 			elseif pip.Name == "Theirs" then
@@ -222,13 +312,41 @@ describe("ShapeMap", function()
 		end
 		expect(yours):toBe(2)
 		expect(theirs):toBe(3)
-		expect(button(m, "OH").Extras.Visible):toBe(false)
+		expect(button(m, "OH").Lens.Momentum.Visible):toBe(false)
+		expect(button(m, "OH").Lens.BackgroundTransparency):toBe(1)
+		expect(button(m, "PA").Lens.Visible):toBe(false)
+		expect(button(m, "PA").Lens.Momentum.Visible):toBe(false)
 		m.map:setLens({})
+		settle(m)
 		expect(tx.Lens.Visible):toBe(false)
-		expect(tx.Extras.Visible):toBe(false)
 	end)
 
-	it("pins each candidate on their state, yours flagged You, and shows the legend", function()
+	it("draws a missed poll dashed, an uncalled state hollow, a quiet state faded", function()
+		local m = mount(832, 520)
+		local red = rgb(m, 220, 70, 80)
+		m.map:setMarks({ TX = { ring = red, dashed = true }, OH = { hollow = true } })
+		m.map:setLens({ CA = { parts = {}, quiet = true } })
+		settle(m)
+		local root = m.map.root
+		local tx = root.Outlines:FindFirstChild("OutlineTX")
+		check(tx ~= nil and tx.Visible, "no dashed outline on Texas")
+		local shown, hidden = 0, 0
+		for _, part in tx:GetChildren() do
+			if part.Visible then
+				shown += 1
+				expect(part.BackgroundColor3):toBe(red)
+			else
+				hidden += 1
+			end
+		end
+		check(shown > 0 and hidden > 0, `Texas's outline is not dashed ({shown} on, {hidden} off)`)
+		check(same(root.Shapes.ShapeOH.ImageColor3, m.Kit.colors.field), "Ohio is not hollow")
+		local oh = root.Outlines:FindFirstChild("OutlineOH")
+		check(oh ~= nil and oh.Visible, "a hollow state has no hairline")
+		check(root.Shapes.ShapeCA.ImageTransparency > 0.5, "a quiet state is not faded")
+	end)
+
+	it("pins each candidate as a face, named only when the state is selected or the pin asks", function()
 		local m = mount(832, 520)
 		local blue, red = rgb(m, 70, 110, 220), rgb(m, 220, 70, 80)
 		m.map:setPins({
@@ -239,13 +357,31 @@ describe("ShapeMap", function()
 		local pins = m.map.root.Pins
 		local mine = pins:FindFirstChild("PinOH")
 		check(mine ~= nil, "no pin on Ohio")
+		check(mine:FindFirstChild("Flag") == nil, "your pin is named at rest")
+		check(mine:FindFirstChild("Monogram", true) ~= nil or mine:FindFirstChild("Face") ~= nil, "no face")
+		-- Yours is a little bigger.
+		check(
+			mine.Face.AbsoluteSize.X > pins:FindFirstChild("PinPA").Face.AbsoluteSize.X,
+			"your pin is not bigger"
+		)
+		-- Selecting its state names it.
+		m.map:select("OH")
+		settle(m)
+		mine = pins:FindFirstChild("PinOH")
 		expect(mine.Flag.Text):toBe("You")
 		expect(mine.Flag.BackgroundColor3):toBe(blue)
-		check(mine:FindFirstChild("Monogram", true) ~= nil or mine:FindFirstChild("Face") ~= nil, "no face")
-		expect(pins:FindFirstChild("PinPA").Flag.Text):toBe("Rex")
-		-- With a candidate id the face is their portrait, ringed in the player's color (D-068).
+		check(pins:FindFirstChild("PinPA"):FindFirstChild("Flag") == nil, "the rival's pin is named")
+		m.map:select(nil)
+		-- The first week names both (Pin.label).
 		m.map:setPins({
-			{ state = "PA", name = "Rex Calloway", candidate = "calloway", color = red, tag = "Rex" },
+			{
+				state = "PA",
+				name = "Rex Calloway",
+				candidate = "calloway",
+				color = red,
+				tag = "Rex",
+				label = true,
+			},
 			{
 				state = "OH",
 				name = "Dana Okafor",
@@ -253,9 +389,11 @@ describe("ShapeMap", function()
 				color = blue,
 				tag = "You",
 				you = true,
+				label = true,
 			},
 		})
 		settle(m)
+		expect(pins:FindFirstChild("PinPA").Flag.Text):toBe("Rex")
 		local face = pins:FindFirstChild("PinOH").Face
 		local portrait = face:FindFirstChild("Portrait")
 		check(portrait ~= nil, "no portrait on your pin")
@@ -303,11 +441,21 @@ describe("ShapeMap", function()
 		expect(tx.Text):toBe("+4.1")
 		check(same(tx.TextColor3, m.Kit.colors.good), "a gain is not green")
 		check(same(oh.TextColor3, m.Kit.colors.loss), "a loss is not orange")
-		-- Beside Texas's code and rows, never on them, so the Polls marks stay readable.
+		-- Beside Texas's code and its pill (on its line, on a phone), never on them.
 		local tex = button(m, "TX")
-		check(not overlaps(tx, tex.Extras), "the tag covers the Polls row")
 		check(not overlaps(tx, tex.Lens), "the tag covers the lead")
 		check(not overlaps(tx, tex.Label), "the tag covers the code")
+		-- Two neighbors' preview tags never cover each other (D-075).
+		m.map:setPreview({ PA = { text = "+9.4" }, OH = { text = "+5.4" }, WV = { text = "+1.2" } })
+		settle(m)
+		check(not overlaps(layer.PA, layer.OH), "PA's and OH's preview tags overlap")
+		check(not overlaps(layer.OH, layer.WV), "OH's and WV's preview tags overlap")
+		m.map:setPreview({
+			TX = { text = "+4.1" },
+			OH = { text = "-0.6", negative = true },
+			RI = { text = "+1.2" },
+		})
+		settle(m)
 		-- A callout's tag stands left of its chip.
 		check(
 			ri.AbsolutePosition.X + ri.AbsoluteSize.X <= button(m, "RI").Chip.AbsolutePosition.X + 1,
@@ -319,7 +467,7 @@ describe("ShapeMap", function()
 	end)
 
 	it("passes the strict audit on phone, iPad and smaller maps", function()
-		for _, size in { { 390, 244 }, { 620, 388 }, { 832, 520 }, { 300, 188 } } do
+		for _, size in { { 390, 244 }, { 390, 312 }, { 340, 272 }, { 620, 388 }, { 832, 520 }, { 300, 188 } } do
 			local m = mount(size[1], size[2])
 			local blue, red = rgb(m, 70, 110, 220), rgb(m, 220, 70, 80)
 			m.map:setMarks({
@@ -328,11 +476,17 @@ describe("ShapeMap", function()
 				CA = { badge = "B", arrow = "up", halo = red, haloStrong = true },
 				ME = { badge = "+1.5", note = "FLIP", noteColor = red },
 				WA = { badge = "+2" },
+				TX = { ring = red, dashed = true },
+				NV = { hollow = true },
+				NJ = { note = "▲", noteColor = blue },
 			})
 			m.map:setLens({
 				TX = { parts = { { text = "+5", color = red, filled = true } }, momentum = red },
 				PA = { parts = { { text = "tie" } }, pips = { { count = 4, color = blue } } },
 				VT = { parts = { { text = "★3", outlined = true } } },
+				CA = { parts = { { text = "$7.1", icon = "coins", iconColor = red } } },
+				NY = { parts = { { text = "+3", color = blue, filled = true }, { text = "×" } } },
+				KS = { parts = {}, quiet = true },
 			})
 			m.map:setPins({
 				{ state = "WA", name = "Rex Calloway", color = red, tag = "Rex" },

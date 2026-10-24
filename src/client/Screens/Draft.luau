@@ -39,7 +39,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Draft = require(ReplicatedStorage.Shared.Sim.Draft)
-local MapLayout = require(ReplicatedStorage.Shared.UI.MapLayout)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
@@ -139,7 +138,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- Wide screens: the legend's two keys beside the lens chips.
 	local legendSlot = Kit.box({
 		Name = "LegendSlot",
-		Size = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.md), 0, LensToggle.HEIGHT),
+		Size = UDim2.new(
+			1,
+			-(LensToggle.WIDTH + LensToggle.CLOSE_W + Kit.space.xs + Kit.space.md),
+			0,
+			LensToggle.HEIGHT
+		),
 		Parent = mapHolder,
 	})
 
@@ -353,8 +357,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		laidOut = shape
 		local top = header.height + GAP
 		if portrait then
-			local mapH = LENS_H
-				+ math.floor(math.min(size.X / MapLayout.ASPECT, MAP_SHARE_PORTRAIT * size.Y - LENS_H))
+			local maxH = MAP_SHARE_PORTRAIT * size.Y - LENS_H
+			local mapH = LENS_H + math.floor(math.min(size.X / map:aspectFor(size.X, maxH), maxH))
 			mapArea.Position = UDim2.fromOffset(0, top)
 			mapArea.Size = UDim2.new(1, 0, 0, mapH)
 			mapHolder.Size = UDim2.fromScale(1, 1)
@@ -838,6 +842,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end)
 	chips.root.AnchorPoint = Vector2.new(1, 0)
 	chips.root.Position = UDim2.fromScale(1, 0)
+	-- The Close filter left of them (D-075).
+	local closeChip = LensToggle.close(mapHolder, function()
+		render()
+	end)
+	closeChip.root.AnchorPoint = Vector2.new(1, 0)
+	closeChip.root.Position = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.xs), 0, 0)
 
 	return {
 		update = function(state: Types.State)

@@ -30,7 +30,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
-local MapLayout = require(Shared.UI.MapLayout)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local PlanPreview = require(Shared.UI.PlanPreview)
@@ -68,9 +67,10 @@ local Screen = {}
 local GAP = Kit.space.sm -- px between the big blocks
 local LENS_H = LensToggle.HEIGHT -- px, the "Map key" button and the lens chips above the map
 local KEY_W = 88 -- px, the map key chip
+local KEY_NARROW = Kit.MIN_TOUCH -- px, ... its icon alone (a phone, so the Close chip fits)
 local KEY_ICON = 24 -- px, its icon plate
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
-local PORTRAIT_MAP_MAX = 0.42 -- most of the body height the map may take on phones
+local PORTRAIT_MAP_MAX = 0.5 -- most of the body height the map may take on phones (D-075: room for the tall map)
 local BACK_SECONDS = 4 -- how long "<name>: back" shows after a reconnect
 local SWATCH = 20 -- px, a color step's dot in the map key
 local KEY_ROW_H = 24 -- px, one color step's row in the map key
@@ -162,7 +162,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	keyList.VerticalAlignment = Enum.VerticalAlignment.Center
 	keyList.Parent = keyContent
 	Kit.iconPlate("search", KEY_ICON, Kit.colors.text).Parent = keyContent
-	Kit.text("Key", {
+	local keyLabel = Kit.text("Key", {
 		Name = "Label",
 		LayoutOrder = 2,
 		Size = UDim2.fromOffset(0, LENS_H),
@@ -210,6 +210,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	lensToggle.root.AnchorPoint = Vector2.new(1, 0)
 	lensToggle.root.Position = UDim2.fromScale(1, 0)
 	-- The key chip keeps its own width (KEY_W); the lens chips take the right end.
+	-- Between them, the Close filter (D-075): only the states still in play.
+	local closeChip = LensToggle.close(mapArea, function()
+		lensFade = true
+		model.render()
+		lensFade = false
+	end)
+	-- On a phone the key chip is its icon alone, so Close fits beside the lenses.
+	local function placeChips(width: number)
+		local full = KEY_W + LensToggle.CLOSE_W + LensToggle.WIDTH + 2 * Kit.space.xs <= width
+		local keyW = if full then KEY_W else KEY_NARROW
+		keyButton.Size = UDim2.fromOffset(keyW, LENS_H)
+		keyLabel.Visible = full
+		closeChip.root.Position = UDim2.fromOffset(keyW + Kit.space.xs, 0)
+	end
 
 	-- A plan that can't go: the bar shakes, its status flashes, one "error".
 	local bar: ActionBar.ActionBar
@@ -305,7 +319,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- How to read the map: one tap away, never a caption line over it.
 	local key = Sheet.new(parent, { title = "How to read the map", name = "MapKeySheet", height = 0.6 })
 	local keyLines: { TextLabel } = {}
-	for k = 1, 6 do
+	for k = 1, 8 do
 		keyLines[k] = Kit.text("", {
 			Name = `KeyLine{k}`,
 			-- The color steps come right after the first line (what color means).
@@ -423,7 +437,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if isPortrait then
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
-			local mapHeight = math.floor(math.min(width / MapLayout.ASPECT, height * PORTRAIT_MAP_MAX))
+			-- The map's box for this room (D-075: it stands up on a phone, 1.25 instead of 1.6).
+			local maxHeight = height * PORTRAIT_MAP_MAX
+			local mapHeight = math.floor(math.min(width / map:aspectFor(width, maxHeight), maxHeight))
 			local areaHeight = mapHeight + LENS_H + Kit.space.xs
 			mapArea.Size = UDim2.new(1, 0, 0, areaHeight)
 			sideColumn.Position = UDim2.fromOffset(0, areaHeight + GAP)
@@ -434,6 +450,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			sideColumn.Position = UDim2.new(MAP_SHARE, GAP // 2, 0, 0)
 			sideColumn.Size = UDim2.new(1 - MAP_SHARE, -GAP // 2, 1, 0)
 		end
+		placeChips(mapArea.AbsoluteSize.X)
 	end
 
 	local function relayout(force: boolean?)
@@ -460,8 +477,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		for p, player in view.players do
 			colors[p] = Colors.of(player.color)
 		end
-		map:setView(shown, colors)
 		local live = model.payload
+		-- During a reveal the fills tween to each step's polls (D-075): the map
+		-- tells the story, the tags only name the flips and biggest moves.
+		map:setView(shown, colors, live ~= nil and live.reveal ~= nil)
 		local event = if live then Model.shownEvent(live) else nil
 		local starred = if event then PlanDraft.eventStates(event, view.issueMap) else {}
 		-- Owner rings and the event's * stay in every lens; the rest is in the
@@ -699,6 +718,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		renderTip(p)
 		renderKey(p)
 		lensToggle.refresh()
+		closeChip.refresh()
 		renderBar(p, now)
 		if top:render(now) or eventStrip:height() ~= placedStrip then
 			relayout(true)

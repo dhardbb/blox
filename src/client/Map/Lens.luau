@@ -23,8 +23,15 @@
 --           legend row (Lens.mapLegend) says what they mean. Your internal
 --           poll numbers stay on the state card (Details)
 --   Money   what one more fundraiser there would raise this week, from
---           Explain.action (the state card's number); dim when your plan
---           already empties the pool
+--           Explain.action (the state card's number), on the Lens.MONEY_TOP
+--           richest pools only, each with an amber coin (D-075: 51 values
+--           within $5.0-$7.1 said nothing); dim when your plan already
+--           empties the pool
+--
+-- Close (D-075): a filter on top of any lens, remembered like the lens. On, a
+-- state whose public-poll lead (or lean, before the first poll) is more than
+-- Lens.CLOSE points is quiet: its fill at 40 % and no value, so the map shows
+-- only the states still in play.
 --
 -- Reads only the player's own View (and, for Money, their drafted plan): public
 -- momentum, your own ground game and your own scouting. The lens choice is
@@ -34,6 +41,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
+local Colors = require(Shared.UI.Colors)
 local ConfigModule = require(Shared.Sim.Config)
 local Explain = require(Shared.UI.Explain)
 local IssueMap = require(Shared.Sim.IssueMap)
@@ -72,6 +80,9 @@ Lens.TIE = 0.5 -- a public-poll lead under this many points reads "tie"
 Lens.DRAINED = 0.05 -- $ a fundraiser would still raise: under this, the pool is spent
 Lens.MOMENTUM = 0.05 -- a momentum lead under this shows no chevron (nobody drifts)
 Lens.STRONG = 2 -- a momentum lead of this much or more shows ▲▲
+Lens.MONEY_TOP = 8 -- Money labels this many of the richest pools (ties by votes)
+Lens.CLOSE = 8 -- points: the Close filter keeps states within this lead
+local COIN = Kit.color(Colors.player.Amber) -- the Money lens's coin (gold, the event strip's money plate)
 
 -- Short codes for the issue chips. An issue without one shows its first three letters.
 Lens.ISSUE_CODE = table.freeze({
@@ -88,6 +99,7 @@ Lens.ISSUE_CODE = table.freeze({
 -- ---------------------------------------------------------------- session memory
 
 local current: Id = "EV"
+local closeOnly = false
 
 function Lens.current(): Id
 	return current
@@ -99,6 +111,15 @@ function Lens.set(id: Id)
 	end
 end
 
+-- The Close filter (remembered for the session, like the lens).
+function Lens.close(): boolean
+	return closeOnly
+end
+
+function Lens.setClose(on: boolean)
+	closeOnly = on
+end
+
 -- One short line on how to read the lens, in plain words (fits beside the
 -- chips on a phone). The Campaign screen's "Map key" sheet says more.
 function Lens.legend(_config: ConfigModule.Config, id: Id): string
@@ -107,7 +128,7 @@ function Lens.legend(_config: ConfigModule.Config, id: Id): string
 	elseif id == "Polls" then
 		return `Poll lead · {Kit.glyph.up} momentum · {Kit.glyph.bullet} ground game`
 	elseif id == "Money" then
-		return "What one more fundraiser raises"
+		return `The {Lens.MONEY_TOP} richest pools for a fundraiser`
 	end
 	return `Votes · {Kit.STAR} = battleground`
 end
@@ -245,10 +266,46 @@ local function moneyLine(ctx: Context, s: StateView): Line
 	local drained = money < Lens.DRAINED
 	return {
 		parts = {
-			{ text = Numbers.money(money), color = if drained then Kit.colors.muted else Kit.colors.good },
+			{
+				text = Numbers.money(money),
+				color = if drained then Kit.colors.muted else Kit.colors.text,
+				icon = if drained then nil else "coins",
+				iconColor = COIN,
+			},
 		},
 		dim = drained,
 	}
+end
+
+-- Money keeps the MONEY_TOP richest pools' values (the rest are on their cards).
+local function topPools(ctx: Context, lines: { [string]: Line })
+	local ids: { string } = {}
+	local amount: { [string]: number } = {}
+	for _, s in ctx.view.states do
+		amount[s.id] = Lens.fundraise(ctx, s.id)
+		if amount[s.id] >= Lens.DRAINED then
+			table.insert(ids, s.id)
+		end
+	end
+	table.sort(ids, function(a: string, b: string): boolean
+		if math.abs(amount[a] - amount[b]) > 1e-9 then
+			return amount[a] > amount[b]
+		end
+		local ea, eb = StateData.byId[a].ev, StateData.byId[b].ev
+		if ea ~= eb then
+			return ea > eb
+		end
+		return a < b
+	end)
+	local keep: { [string]: boolean } = {}
+	for k = 1, math.min(Lens.MONEY_TOP, #ids) do
+		keep[ids[k]] = true
+	end
+	for id, line in lines do
+		if not keep[id] and not line.dim then
+			line.parts = {}
+		end
+	end
 end
 
 local LINES: { [Id]: (Context, StateView) -> Line } = {
@@ -286,12 +343,42 @@ function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
 	return items
 end
 
--- Every state's line in lens `id`, keyed by state id.
-function Lens.lines(id: Id, ctx: Context): { [string]: Line }
+-- The public lead (or lean, before the first poll) in points, or nil for a
+-- state nobody leads yet.
+function Lens.leadOf(s: StateView): number?
+	if s.poll then
+		local _, lead = leaderOf(s.poll.support)
+		return lead
+	elseif s.leanTo and s.lean > 0 then
+		return s.lean
+	end
+	return nil
+end
+
+-- Is `s` close enough for the Close filter (within Lens.CLOSE points, or not led)?
+function Lens.isClose(s: StateView): boolean
+	local lead = Lens.leadOf(s)
+	return lead == nil or lead <= Lens.CLOSE
+end
+
+-- Every state's line in lens `id`, keyed by state id. With `close` (the Close
+-- filter, default Lens.close()), a safe state's line is quiet and empty.
+function Lens.lines(id: Id, ctx: Context, close: boolean?): { [string]: Line }
 	local build = LINES[id] or evLine
 	local out: { [string]: Line } = {}
 	for _, s in ctx.view.states do
 		out[s.id] = build(ctx, s)
+	end
+	if id == "Money" then
+		topPools(ctx, out)
+	end
+	local filter = if close == nil then closeOnly else close
+	if filter then
+		for _, s in ctx.view.states do
+			if not Lens.isClose(s) then
+				out[s.id] = { parts = {}, quiet = true }
+			end
+		end
 	end
 	return out
 end

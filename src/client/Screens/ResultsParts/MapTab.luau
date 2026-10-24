@@ -16,8 +16,9 @@
 --   MapBox       the map: each state's fill is the final poll's leader by their
 --                lead (as players saw it the last week) or election night's
 --                winner by their margin; the lead or margin in the state's pill
---                ("+3", "+0.4"); every state the polls called wrong carries a
---                MISS tag edged in the real winner's color, in both modes
+--                ("+3", "+0.4"); every state the polls called wrong has a
+--                dashed outline in the real winner's color and "×" after its
+--                value, in both modes (D-075)
 --   StateLine    "Tap a state to compare." / the tapped state's poll and result
 -- The map is made the first time the tab shows (NodeMap is heavy; most players
 -- never open the tab) and sized so the whole tab fits the screen without
@@ -26,7 +27,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
-local MapLayout = require(ReplicatedStorage.Shared.UI.MapLayout)
+local MapShape = require(ReplicatedStorage.Shared.UI.MapShape)
 local PollMiss = require(ReplicatedStorage.Shared.UI.PollMiss)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
@@ -36,7 +37,7 @@ local NodeMap = require(script.Parent.Parent.Parent.Map.NodeMap)
 
 local MapTab = {}
 
-local MISS = "MISS" -- the tag on a state the polls called wrong
+local MISS = Kit.glyph.close -- the mark after a missed state's value ("+0.4 ×"; D-075: was a MISS tag)
 local LINE_H = Kit.size.body + 6 -- px, a one-line text row
 local MAP_MIN_H = 160 -- px, the map never gets smaller than this
 local STATE_H = 2 * (Kit.size.caption + 4) -- px, room for a tapped state's two lines, so a tap never moves the map
@@ -140,21 +141,19 @@ function MapTab.new(parent: Instance, order: number): Tab
 		local lines: { [string]: MapInterface.LensLine } = {}
 		for _, row in rows do
 			local leader, lead = PollMiss.lead(row, mode)
-			if leader ~= 0 then
-				lines[row.id] = {
-					parts = {
-						{
-							text = PollMiss.leadText(lead),
-							color = Kit.playerColor(view, leader),
-							filled = true,
-						},
-					},
+			-- A miss: "×" after its value, and a dashed outline in the real winner's
+			-- color, so the codes and values under it stay readable (D-075).
+			local parts: { MapInterface.LensPart } = if leader ~= 0
+				then {
+					{ text = PollMiss.leadText(lead), color = Kit.playerColor(view, leader), filled = true },
 				}
-			else
-				lines[row.id] = { parts = { { text = "tie", color = Kit.colors.muted } } }
-			end
+				else { { text = "tie", color = Kit.colors.muted } }
 			if row.miss then
-				marks[row.id] = { note = MISS, noteColor = Kit.playerColor(view, row.winner) }
+				table.insert(parts, { text = MISS })
+			end
+			lines[row.id] = { parts = parts }
+			if row.miss then
+				marks[row.id] = { ring = Kit.playerColor(view, row.winner), dashed = true }
 			end
 		end
 		m:setMarks(marks)
@@ -231,7 +230,8 @@ function MapTab.new(parent: Instance, order: number): Tab
 				+ missLine.AbsoluteSize.Y
 				+ STATE_H
 				+ 4 * Kit.space.sm
-			local h = math.floor(math.min(width / MapLayout.ASPECT, math.max(height - others, MAP_MIN_H)))
+			-- The real map's box for this room (D-075: it stands up on a phone).
+			local h = MapShape.heightFor(width, math.max(height - others, MAP_MIN_H))
 			mapBox.Size = UDim2.new(1, 0, 0, h)
 		end,
 	}

@@ -361,12 +361,14 @@ describe("Map lenses", function()
 		local map = mapOf(peer, "Campaign")
 		Rig.tap(world, peer, "Campaign", "LensEV")
 		expect(map.MapLegend.Visible):toBe(false)
-		expect(map.Nodes.TX.Extras.Visible):toBe(false)
+		expect(map.Nodes.TX.Lens.Pips.Visible):toBe(false)
 		Rig.tap(world, peer, "Campaign", "LensPolls")
 		expect(map.MapLegend.Visible):toBe(true)
-		expect(map.Nodes.TX.Extras.Visible):toBe(true)
+		-- In the lead's own pill (D-075), never on their own.
+		expect(map.Nodes.TX.Lens.Visible):toBe(true)
+		expect(map.Nodes.TX.Lens.Pips.Visible):toBe(true)
 		local yours = 0
-		for _, pip in map.Nodes.TX.Extras.Pips:GetChildren() do
+		for _, pip in map.Nodes.TX.Lens.Pips:GetChildren() do
 			if pip.Name == "Yours" then
 				yours += 1
 			end
@@ -375,31 +377,53 @@ describe("Map lenses", function()
 		Rig.noErrors(world)
 	end)
 
-	it("Money: Explain's fundraiser number per state, dimmed once your plan empties the pool", function()
-		local world, peer = Rig.fixture("Plan")
-		local Lens = modules(world, peer)
-		Rig.tap(world, peer, "Campaign", "LensMoney")
-		local view = Fixtures.payload(C, "Plan").view
-		local empty = PlanDraft.new()
-		for _, s in view.states do
-			local money = Explain.action(C, view, empty, s.id, "Fundraise").money or 0
-			expect(pills(peer, "Campaign", s.id)):toEqual({ Numbers.money(money) })
-		end
-		-- Enough fundraisers in OH take the whole pool: one more raises nothing.
-		local draft = PlanDraft.new()
-		for _ = 1, 40 do
-			if Lens.fundraise({ config = C, view = view, draft = draft }, "OH") < Lens.DRAINED then
-				break
+	it(
+		"Money: Explain's number on the 8 richest pools, a coin each; dimmed once your plan empties one",
+		function()
+			local world, peer = Rig.fixture("Plan")
+			local Lens = modules(world, peer)
+			Rig.tap(world, peer, "Campaign", "LensMoney")
+			local view = Fixtures.payload(C, "Plan").view
+			local empty = PlanDraft.new()
+			local amounts = {}
+			for _, s in view.states do
+				table.insert(amounts, Explain.action(C, view, empty, s.id, "Fundraise").money or 0)
 			end
-			PlanDraft.add(draft, { kind = "Fundraise", state = "OH" } :: any)
+			table.sort(amounts, function(a: number, b: number): boolean
+				return a > b
+			end)
+			local floor = amounts[Lens.MONEY_TOP]
+			local shown = 0
+			for _, s in view.states do
+				local money = Explain.action(C, view, empty, s.id, "Fundraise").money or 0
+				local got = pills(peer, "Campaign", s.id)
+				if #got > 0 then
+					shown += 1
+					expect(got):toEqual({ Numbers.money(money) })
+					check(money >= floor - 1e-9, `{s.id} shows {got[1]} but is not among the richest`)
+					local row = mapOf(peer, "Campaign").Nodes:FindFirstChild(s.id).Lens
+					check(row:FindFirstChild("Icon1") ~= nil, `{s.id} has no coin`)
+				elseif money > floor + 1e-9 then
+					error(`{s.id} ({Numbers.money(money)}) is among the richest but shows nothing`)
+				end
+			end
+			check(shown > 0 and shown <= Lens.MONEY_TOP, `{shown} money values on the map`)
+			-- Enough fundraisers in OH take the whole pool: one more raises nothing.
+			local draft = PlanDraft.new()
+			for _ = 1, 40 do
+				if Lens.fundraise({ config = C, view = view, draft = draft }, "OH") < Lens.DRAINED then
+					break
+				end
+				PlanDraft.add(draft, { kind = "Fundraise", state = "OH" } :: any)
+			end
+			check(#draft.actions >= 2, `one fundraiser drained OH ({#draft.actions})`)
+			local lines = Lens.lines("Money", { config = C, view = view, draft = draft })
+			expect(lines.OH.dim):toBe(true)
+			expect(lines.OH.parts[1].text):toBe("$0.0")
+			expect(lines.PA.dim):toBe(false)
+			Rig.noErrors(world)
 		end
-		check(#draft.actions >= 2, `one fundraiser drained OH ({#draft.actions})`)
-		local lines = Lens.lines("Money", { config = C, view = view, draft = draft })
-		expect(lines.OH.dim):toBe(true)
-		expect(lines.OH.parts[1].text):toBe("$0.0")
-		expect(lines.PA.dim):toBe(false)
-		Rig.noErrors(world)
-	end)
+	)
 
 	it("dims a drained state on the circle map and lights it again in another lens", function()
 		local world, peer = Rig.fixture("Plan")
@@ -475,12 +499,16 @@ describe("Map lenses", function()
 		Rig.toDraftInput(world, peer)
 		Rig.tap(world, peer, "Draft", "LensMoney")
 		expect(selected(peer, "Draft")):toEqual({ "Money" })
+		local function anyMoney(screen: string, view: any): boolean
+			for _, s in view.states do
+				if string.sub(pills(peer, screen, s.id)[1] or "", 1, 1) == "$" then
+					return true
+				end
+			end
+			return false
+		end
 		local p = Rig.payloadOf(world, peer)
-		local first = p.view.states[1]
-		check(
-			string.sub(pills(peer, "Draft", first.id)[1] or "", 1, 1) == "$",
-			"the draft map shows no money"
-		)
+		check(anyMoney("Draft", p.view), "the draft map shows no money")
 		local driven: { [number]: boolean } = {}
 		Rig.waitFor(world, function()
 			local q = Rig.payloadOf(world, peer)
@@ -494,10 +522,7 @@ describe("Map lenses", function()
 		FakeRoblox.run(world, 1)
 		expect(selected(peer, "Campaign")):toEqual({ "Money" })
 		local q = Rig.payloadOf(world, peer)
-		check(
-			string.sub(pills(peer, "Campaign", q.view.states[1].id)[1] or "", 1, 1) == "$",
-			"the campaign map shows no money"
-		)
+		check(anyMoney("Campaign", q.view), "the campaign map shows no money")
 		Rig.noErrors(world)
 	end)
 

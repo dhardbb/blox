@@ -113,25 +113,73 @@ describe("Results map tab", function()
 		Rig.noErrors(world)
 	end)
 
-	it("tags every missed state MISS, in both modes", function()
-		local world, peer = Rig.fixture("Over", nil)
-		local misses = PollMiss.misses(PollMiss.rows(Rig.payloadOf(world, peer).view))
-		check(#misses > 0, "the Over fixture has no missed state: pick another seed")
-		local function tagged(): number
-			local n = 0
-			for _, inst in FakeRoblox.find(peer, "Results"):GetDescendants() do
-				if inst.ClassName == "TextLabel" and inst.Text == "MISS" and Rig.shown(inst, "Results") then
-					n += 1
+	it(
+		"marks every missed state with a dashed outline in the winner's color and ×, in both modes",
+		function()
+			local world, peer = Rig.fixture("Over", nil)
+			local view = Rig.payloadOf(world, peer).view
+			local misses = PollMiss.misses(PollMiss.rows(view))
+			check(#misses > 0, "the Over fixture has no missed state: pick another seed")
+			local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
+			local function same(a: Color3, b: Color3): boolean
+				return math.abs(a.R - b.R) < 0.003
+					and math.abs(a.G - b.G) < 0.003
+					and math.abs(a.B - b.B) < 0.003
+			end
+			local function look()
+				local map = Rig.need(peer, "Results", "NodeMap")
+				local missed: { [string]: boolean } = {}
+				for _, row in misses do
+					missed[row.id] = true
+					local color = Kit.playerColor(view, row.winner)
+					local chip = map.Nodes:FindFirstChild(row.id):FindFirstChild("Chip")
+					if chip then
+						-- A callout chip: its edge in the winner's color.
+						check(
+							same(chip:FindFirstChildOfClass("UIStroke").Color, color),
+							`{row.id}'s chip edge`
+						)
+					else
+						local outline = map.Outlines:FindFirstChild(`Outline{row.id}`)
+						check(outline ~= nil and outline.Visible, `{row.id} has no outline`)
+						local on, off = 0, 0
+						for _, part in outline:GetChildren() do
+							if part.Visible then
+								on += 1
+								check(
+									same(part.BackgroundColor3, color),
+									`{row.id}'s outline is not the winner's color`
+								)
+							else
+								off += 1
+							end
+						end
+						check(on > 0 and off > 0, `{row.id}'s outline is not dashed`)
+					end
+					-- "×" after its value, in the same pill (when the value shows).
+					local lens = map.Nodes:FindFirstChild(row.id).Lens
+					if lens.Visible and not chip then
+						expect(lens.Part2.Text):toBe(Kit.glyph.close)
+					end
+				end
+				-- No MISS tags any more, and no × on a state the polls called right.
+				for _, inst in map:GetDescendants() do
+					check(not (inst.ClassName == "TextLabel" and inst.Text == "MISS"), "a MISS tag")
+				end
+				for _, node in map.Nodes:GetChildren() do
+					local part = node:FindFirstChild("Lens") and node.Lens:FindFirstChild("Part2")
+					if part and part.Visible and part.Text == Kit.glyph.close then
+						check(missed[node.Name] == true, `{node.Name} is marked missed`)
+					end
 				end
 			end
-			return n
+			Rig.tap(world, peer, "Results", "Tab_Map")
+			look()
+			Rig.tap(world, peer, "Results", "Mode_Result")
+			look()
+			Rig.noErrors(world)
 		end
-		Rig.tap(world, peer, "Results", "Tab_Map")
-		expect(tagged()):toBe(#misses)
-		Rig.tap(world, peer, "Results", "Mode_Result")
-		expect(tagged()):toBe(#misses)
-		Rig.noErrors(world)
-	end)
+	)
 
 	it("compares a tapped state's final poll with its result", function()
 		local world, peer = Rig.fixture("Over", nil)

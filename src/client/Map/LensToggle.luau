@@ -6,8 +6,13 @@
 --
 --   LensToggle.new(parent, onChange) -> Toggle   the chips alone (the caller places root)
 --   LensToggle.bar(parent, config, onChange) -> Toggle   a full-width row: legend, then chips
+--   LensToggle.close(parent, onChange) -> Toggle  the "Close" filter chip (D-075):
+--                                        on, only the states within Lens.CLOSE
+--                                        points keep their fill and value;
+--                                        remembered for the session like the lens
 --
--- Buttons are named Lens<Id> ("LensEV", "LensIssues", "LensPolls", "LensMoney").
+-- Buttons are named Lens<Id> ("LensEV", "LensIssues", "LensPolls", "LensMoney")
+-- and LensClose.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -18,10 +23,11 @@ local Lens = require(script.Parent.Lens)
 
 local LensToggle = {}
 
-local BUTTON_W = 64 -- px, one chip ("Issues", "Money" fit at body size)
+local BUTTON_W = 60 -- px, one chip ("Issues", "Money" fit at body size; 60 leaves a phone room for Close)
 local GAP = Kit.space.xs -- px, between chips
 LensToggle.HEIGHT = Kit.MIN_TOUCH
 LensToggle.WIDTH = #Lens.ORDER * BUTTON_W + (#Lens.ORDER - 1) * GAP
+LensToggle.CLOSE_W = 60 -- px, the Close chip
 
 export type Toggle = {
 	root: Frame,
@@ -79,6 +85,32 @@ function LensToggle.new(parent: Instance, onChange: (Lens.Id) -> ()): Toggle
 	toggle = { root = root, refresh = refresh }
 	refresh()
 	return toggle
+end
+
+-- The Close filter chip: selected while the filter is on; a tap flips it,
+-- remembers it (Lens.setClose) and calls `onChange`.
+function LensToggle.close(parent: Instance, onChange: (on: boolean) -> ()): Toggle
+	local button: TextButton
+	local function refresh()
+		Kit.setSelected(button, Lens.close())
+	end
+	button = Kit.button("Close", function()
+		Lens.setClose(not Lens.close())
+		refresh()
+		onChange(Lens.close())
+	end, {
+		variant = "chip",
+		Name = "LensClose",
+		Size = UDim2.fromOffset(LensToggle.CLOSE_W, LensToggle.HEIGHT),
+		Parent = parent,
+	})
+	local pad = button:FindFirstChildOfClass("UIPadding")
+	if pad then
+		pad.PaddingLeft = UDim.new(0, Kit.space.xs)
+		pad.PaddingRight = UDim.new(0, Kit.space.xs)
+	end
+	refresh()
+	return { root = button :: any, refresh = refresh }
 end
 
 function LensToggle.bar(parent: Instance, config: ConfigModule.Config, onChange: (Lens.Id) -> ()): Toggle

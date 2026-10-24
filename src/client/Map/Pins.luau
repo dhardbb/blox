@@ -2,20 +2,25 @@
 -- Candidate pins on the map (D-070): where each candidate is right now
 -- (PlayerView.location, public for every player), so you can find yourself at a
 -- glance. A pin is compact: the candidate's face (their portrait ringed in
--- their color, D-068) with a tab beside it in the same color, "You" on yours
--- and the rival's first name (or custom name) on theirs, and a tiny pointer
--- under the face. The real map stands it
--- beside the state's code with a thin leader (ShapeMap's mark layout), never on
--- the code. Pins are edged in the stage navy so they stand off any fill
--- (nothing on the map is white: white means selected, D-058).
+-- their color, D-068) and a tiny pointer under it; your own pin is a little
+-- bigger and drawn on top. At rest that is all (D-075: the name tabs were the
+-- brightest marks on the map); the tab beside the face, in the same color
+-- ("You" on yours, the rival's first name or custom name on theirs), shows in
+-- the first week (Pin.label) and while the pin's state is selected. The real
+-- map stands it beside the state's code with a thin leader (ShapeMap's mark
+-- layout), never on a code or a value. Pins are edged in the stage navy so
+-- they stand off any fill (nothing on the map is white: white means selected,
+-- D-058).
 --
 --   Pins.of(config, view) -> { Pin }     yours last (drawn on top)
 --   Pins.face(name, color, px, candidate?) -> Frame  the face: the ONE place
 --                                        that picks it: Kit.portrait ringed in
 --                                        `color` on a navy edge; Kit.monogram
 --                                        without a candidate
---   Pins.build(pin, px) -> Frame "Pin<state>"   `px` the face; AnchorPoint at the
---                                        pointer's tip (bottom middle of the face)
+--   Pins.build(pin, px, tab?) -> Frame "Pin<state>"   `px` the face; `tab`
+--                                        (default true) adds the name tab;
+--                                        AnchorPoint at the pointer's tip
+--                                        (bottom middle of the face)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -69,6 +74,8 @@ function Pins.of(config: ConfigModule.Config, view: ViewModule.View): { Pin }
 					elseif player.customName then name
 					else (string.match(name, "^(%S+)") or name),
 				you = if p == view.you then true else nil,
+				-- The first week names both pins; after that, a tap on the state does.
+				label = if view.week <= 1 then true else nil,
 			}
 			if p == view.you then
 				mine = pin
@@ -104,12 +111,13 @@ function Pins.face(name: string, color: Color3, px: number, candidate: string?):
 	return holder
 end
 
--- A pin: the face `px` wide, the tab right of it, the pointer under the face.
--- Not a tap target: taps go through to the state under it.
-function Pins.build(pin: Pin, px: number): Frame
+-- A pin: the face `px` wide, the tab right of it (unless `tab` is false), the
+-- pointer under the face. Not a tap target: taps go through to the state under it.
+function Pins.build(pin: Pin, px: number, tab: boolean?): Frame
+	local showTab = tab ~= false
 	local point = math.max(4, math.floor(px * POINT))
-	local tabW = #pin.tag * TAB_CHAR + 2 * TAB_PAD
-	local width = px + TAB_GAP + tabW
+	local tabW = if showTab then #pin.tag * TAB_CHAR + 2 * TAB_PAD else 0
+	local width = if showTab then px + TAB_GAP + tabW else px
 	local height = px + point // 2
 	local root = Kit.dataColor(Kit.box({
 		Name = `Pin{pin.state}`,
@@ -142,6 +150,9 @@ function Pins.build(pin: Pin, px: number): Frame
 	if edge then
 		edge.Color = Kit.colors.background -- the monogram's edge, in the stage navy
 		edge.Thickness = EDGE
+	end
+	if not showTab then
+		return root
 	end
 	-- The tab: "You" or the rival's first name, in the candidate's color.
 	local flag = Kit.text(pin.tag, {

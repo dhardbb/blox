@@ -20,9 +20,12 @@
 -- on the spotlight (whose stroke and portrait ring turn that color, eyebrow "JUST
 -- CALLED"; the suspense says "TOO CLOSE TO CALL" in orange); crossing 270
 -- flashes the tick with a glow and, CROSS_STAMP later, stamps "270!" over it;
--- the tipping state keeps a white ring and an accent glow (its call has no
--- CALLED stamp: one stamp per moment; when it is the last call, the banner
--- waits BANNER_HOLD for it). Feed rows carry a
+-- the tipping state is outlined in white before its call and keeps the ring
+-- and an accent glow after it (its call has no CALLED stamp: one stamp per
+-- moment; when it is the last call, the banner waits BANNER_HOLD for it).
+-- On the map (D-075) states not called yet are hollow (a dark fill and a
+-- hairline), each call shakes its state, and nothing carries a tag: the race
+-- bar's "270!" is the night's one big label. Feed rows carry a
 -- left bar in the winner's color. The banner: eyebrow "ELECTION NIGHT", the
 -- line in Fredoka, the winner's stroke and glow.
 --
@@ -57,7 +60,6 @@ local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Header = require(script.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
-local MapLayout = require(ReplicatedStorage.Shared.UI.MapLayout)
 local Motion = require(script.Parent.Parent.UI.Motion)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local State = require(ReplicatedStorage.Shared.Sim.State)
@@ -488,7 +490,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		body.Position = UDim2.fromOffset(0, top)
 		body.Size = UDim2.new(1, 0, 1, -top)
 		if portrait then
-			local mapH = math.floor(math.min(size.X / MapLayout.ASPECT, MAP_SHARE_PORTRAIT * size.Y))
+			local maxH = MAP_SHARE_PORTRAIT * size.Y
+			local mapH = math.floor(math.min(size.X / map:aspectFor(size.X, maxH), maxH))
 			mapBox.Position = UDim2.fromScale(0, 0)
 			mapBox.Size = UDim2.new(1, 0, 0, mapH)
 			side.Position = UDim2.fromOffset(0, mapH + GAP)
@@ -590,21 +593,37 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			else
 				map:ring(result.state, Kit.colors.muted)
 			end
+			-- The call lands: the state shakes (nothing under reduced motion).
+			if flash then
+				map:shake(result.state)
+			end
 		end
 
+		-- Not called yet: drawn hollow, a dark fill and a hairline (D-075), so
+		-- the slate fill keeps meaning "toss-up" on every other screen.
 		local marks: { [string]: MapInterface.Mark } = {}
+		for k = count + 1, #results do
+			marks[results[k].state] = { hollow = true }
+		end
 		if count > 0 then
 			marks[results[count].state] = { ring = Kit.colors.accent }
 		end
-		-- The state that took someone to 270 keeps a white ring and a glow all night.
+		-- The state that will take someone to 270 is outlined in white before
+		-- its call (the suspense); once called it keeps the ring and a glow all
+		-- night. The race bar's "270!" stays the only big label: no tags here.
 		if tipping and count >= tipping then
 			marks[results[tipping].state] =
 				{ ring = Kit.colors.text, halo = Kit.colors.accent, haloStrong = true }
+		elseif tipping then
+			marks[results[tipping].state] = { ring = Kit.colors.text, hollow = true }
 		end
 		local nextResult = results[count + 1]
 		if nextResult and slowCalls[count + 1] then
-			-- The state everyone is waiting on glows in the accent.
-			marks[nextResult.state] = { ring = Kit.colors.accent, badge = "?", halo = Kit.colors.accent }
+			-- The state everyone is waiting on glows in the accent (the tipping
+			-- state keeps its white ring).
+			local waiting = marks[nextResult.state]
+			waiting.ring = waiting.ring or Kit.colors.accent
+			waiting.halo = Kit.colors.accent
 		end
 		map:setMarks(marks)
 	end

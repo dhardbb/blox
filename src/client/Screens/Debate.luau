@@ -34,7 +34,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
-local MapLayout = require(Shared.UI.MapLayout)
 local SharedTypes = require(Shared.Types)
 local Swing = require(Shared.UI.Swing)
 
@@ -205,7 +204,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if isPortrait then
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
-			local mapHeight = math.floor(math.min(width / MapLayout.ASPECT, height * PORTRAIT_MAP_MAX))
+			local maxHeight = height * PORTRAIT_MAP_MAX
+			local mapHeight = math.floor(math.min(width / map:aspectFor(width, maxHeight), maxHeight))
 				+ MAP_INSET
 			mapArea.Size = UDim2.new(1, 0, 0, mapHeight)
 			sideColumn.Position = UDim2.fromOffset(0, mapHeight + GAP)

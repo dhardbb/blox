@@ -27,6 +27,11 @@ export type Mark = {
 	-- for a state whose poll leader changes.
 	halo: Color3?,
 	haloStrong: boolean?,
+	-- D-075: `ring` drawn dashed and 2 px (a state the final polls called
+	-- wrong); `hollow`: the state drawn empty, a dark fill and a hairline
+	-- outline (not called yet on election night).
+	dashed: boolean?,
+	hollow: boolean?,
 }
 
 -- One short pill in a state's lens row (Map/Lens): "17", "JOB", "+3", "$2.4".
@@ -35,6 +40,12 @@ export type LensPart = {
 	color: Color3?, -- the text's color (default: the text color)
 	filled: boolean?, -- fill the pill in `color` instead (e.g. an issue on your platform)
 	outlined: boolean?, -- the battleground mark (D-058): field fill, a white outline, white text
+	-- D-075: a Kit.icon name drawn before the text (Money's coin) in `iconColor`
+	-- (default `color`); with `disc`, the icon alone at 20 px on a 24 px disc
+	-- (the slot an issue icon takes; `text` is then "").
+	icon: string?,
+	iconColor: Color3?,
+	disc: boolean?,
 }
 
 -- A run of ground-game pips: `count` dots in `color`, hollow when it is the
@@ -55,6 +66,8 @@ export type LensLine = {
 	momentum: Color3?,
 	momentumStrong: boolean?,
 	pips: { Pips }?,
+	-- D-075: the Close filter's safe state: its fill at 40 % and no value.
+	quiet: boolean?,
 }
 
 -- A candidate's pin on the state they are in (D-070).
@@ -65,6 +78,7 @@ export type Pin = {
 	color: Color3,
 	tag: string, -- the word on the pin's flag: "You", or the rival's first name
 	you: boolean?, -- your own pin (drawn on top)
+	label: boolean?, -- show the flag at rest (the first week); else only while its state is selected (D-075)
 }
 
 -- One item of the map's small legend row (D-070): a mark and a word or two.
@@ -87,7 +101,8 @@ export type PreviewTag = {
 export type Map = {
 	root: GuiObject, -- the map box; parent it, size it, it keeps its own aspect ratio
 	-- Fill colors from public polls, undecided rings, leans before polls exist.
-	setView: (self: Map, view: View.View, colors: { Colors.RGB }) -> (),
+	-- `animate` (a reveal): a fill that changes tweens to its new color.
+	setView: (self: Map, view: View.View, colors: { Colors.RGB }, animate: boolean?) -> (),
 	setMarks: (self: Map, marks: { [string]: Mark }) -> (),
 	-- The lens row under each state's label; states missing from `lines` show none.
 	-- `fade`: the pills fade in (the player just switched lenses).
@@ -104,6 +119,9 @@ export type Map = {
 	ring: (self: Map, id: string, color: Color3) -> (),
 	badge: (self: Map, id: string, icon: string?) -> (),
 	wipe: (self: Map, id: string, color: Color3) -> (),
+	-- shake: a short shake of the state (an election call landing; nothing
+	-- under reduced motion).
+	shake: (self: Map, id: string) -> (),
 	-- ghost: while an action button is held, what it would do ("+4.1") as a
 	-- see-through tag on the node; nil hides it. One ghost at a time.
 	ghost: (self: Map, id: string, text: string?) -> (),
@@ -115,6 +133,9 @@ export type Map = {
 	-- The plan preview: one faint tag per state, on top of everything (nil or
 	-- empty hides them).
 	setPreview: (self: Map, tags: { [string]: PreviewTag }?) -> (),
+	-- The box's aspect (width / height) in a frame up to `widthPx` x `heightPx`
+	-- (D-075: the real map stands up on a phone; the circles stay at 1.6).
+	aspectFor: (self: Map, widthPx: number, heightPx: number?) -> number,
 	destroy: (self: Map) -> (),
 }
 
