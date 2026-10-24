@@ -111,6 +111,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		peekFocus = nil,
 		stanceMap = false,
 		revealSwing = nil,
+		revealEV = nil,
 		caption = nil,
 		moreActions = false,
 		details = false,
@@ -274,10 +275,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			model.caption = text
 			top:render(ctx.now())
 		end,
+		-- The map and the header's score show the same moment of the reveal.
 		paint = function(view: View)
 			local p = model.payload
 			if p then
 				paintMapFor(p.view, view)
+				model.revealEV = view.projectedEV
+				top:render(ctx.now())
 			end
 		end,
 		focus = function(id: string?)
@@ -637,6 +641,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local now = ctx.now()
 		if p.reveal == nil then
 			model.revealSwing = nil
+			model.revealEV = nil
 			model.caption = nil
 		end
 		syncBadges(p)
@@ -750,6 +755,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			-- The plan was sent and resolved: the View already includes it.
 			model.draft = PlanDraft.new()
 			model.draftStep = nil
+		end
+		if p.reveal == "Resolve" then
+			-- The reveal sets the header's score (the week's start) before it renders.
+			reveal:tick(p, now)
 		end
 		render()
 		reveal:tick(p, now)

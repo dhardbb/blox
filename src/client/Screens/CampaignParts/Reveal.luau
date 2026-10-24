@@ -3,14 +3,23 @@
 -- a reveal plays. Its buttons live in the action bar (Skip for the resolve
 -- reveal; the debate cannot be skipped). The copy is Shared/UI/Words/Reveal.
 --
--- Resolve, in three beats (docs/UI-STYLE.md §2.7, D-053). One: "Both plans are
--- in" (RevealIntro) and who goes first, for REVEAL_INTRO seconds. Two: the
--- actions land one beat at a time, the trailing player's first (Words.revealFirst
--- on the polls before the week, so the leader answers last); each beat bumps its
--- states on the map with a ring in the actor's color and a pop. Three: the new
--- polls, a ring on every state that changed leader, "What changed" rows coming
--- in one after another. Every cue goes with one of those visuals.
--- The week's events arrive one at a time, merged into two groups,
+-- Resolve, in three beats (docs/UI-STYLE.md §2.7, D-053), as a running tally
+-- (D-063, Shared/UI/RevealSteps). One: "Both plans are in" (RevealIntro) and
+-- who goes first, for REVEAL_INTRO seconds; the map and the score still show
+-- the week's start. Two: the moves land one step at a time, the trailing
+-- player's first (Words.revealFirst on the polls before the week, so the leader
+-- answers last). A step is one move (with the still events around it, such as
+-- a flight or a fundraiser), followed at once by its effect: its states bump
+-- with a ring in the actor's color and a pop, the map's fill and leads move to
+-- the running tally (badged with the step's points; FLIP and a ring where the
+-- leader changes) and the header's projected votes and race bar count to it.
+-- Those per-move numbers are estimates from the polls both players saw (the
+-- server never says what one action did; RevealSteps says why), and the panel
+-- says so. Three: "Polls settle", the real new polls: the map and the score
+-- land exactly on them, a ring on every state the settle flipped, and "What
+-- changed" rows (the whole week's real flips and biggest moves) come in one
+-- after another. Every cue goes with one of those visuals.
+-- The week's events arrive one step at a time, merged into two groups,
 -- "Your week" and "{Rex}'s week" (one line per action and state: "Rally in
 -- Texas ×2 · Farms & Rural", never the same line twice). Once the new polls are
 -- in, "What changed": every state whose poll leader flipped, one bold line each
@@ -31,7 +40,7 @@
 --
 --   local reveal = Reveal.new(parent, model, order, hooks)
 --     hooks.caption(text)   the line over the map
---     hooks.paint(view)     repaint the map from this view's polls
+--     hooks.paint(view)     repaint the map (and the header's score) from this view's polls
 --     hooks.focus(id?)      highlight a state on the map
 --     hooks.swing(swing?)   badge what moved on the map (nil: the usual marks)
 --     hooks.map             the map, for its motion (pulse, ring); optional
@@ -42,7 +51,7 @@
 --
 -- Element names: RevealPanel, RevealEyebrow, RevealTitle, RevealIntro, RevealOrder, RevealGroups, YouGroup, YouHead,
 -- RevealLine<k> (your lines), ThemGroup, ThemHead, RevealThem<k>, RevealChanged,
--- RevealFlipRow<k> (its Mark and RevealFlip<k>), RevealFlipMore, RevealMoves, RevealMove<k>, RevealSummary,
+-- RevealFlipRow<k> (its Mark and RevealFlip<k>), RevealFlipMore, RevealMoves, RevealMove<k>, RevealNote, RevealSummary,
 -- WhyButton, RevealWhy (details), RevealChoice; DebateRows, DebateHead,
 -- DebateRow<t>, DebateTopic<t>, DebateScore<t>, DebateVerdict<t>,
 -- DebateSwing<t>, DebateGaffe<t>, DebateHeadlineBox (its Stamp's label is
@@ -55,6 +64,7 @@ local SharedFolder = ReplicatedStorage.Shared
 local Swing = require(SharedFolder.UI.Swing)
 local Explain = require(SharedFolder.UI.Explain)
 local SimState = require(SharedFolder.Sim.State)
+local RevealSteps = require(SharedFolder.UI.RevealSteps)
 local ViewModule = require(SharedFolder.Sim.View)
 local Words = require(SharedFolder.UI.Words.Reveal)
 
@@ -76,7 +86,7 @@ local REVEAL_INTRO = 0.5 -- seconds of "Both plans are in" before the first acti
 local LAND_MAX = 3 -- most states one beat bumps on the map (a catch-up beat can hold many)
 local THEIR_PITCH = 0.94 -- the opponent's actions land a little lower than yours
 local REVEAL_BEAT = 0.25 -- fastest pace: one tick of the router
-local REVEAL_SLOW = 0.8 -- slowest pace, when there are few events
+local REVEAL_SLOW = 0.8 -- slowest pace, when there are few steps
 local GROUP_LINES = 6 -- lines per side before "+N more"
 local DEBATE_BEAT = 2 -- seconds per debate topic
 local PORTRAIT = 24 -- px, a player's monogram in a group head
@@ -102,8 +112,6 @@ export type Reveal = {
 	tick: (self: Reveal, p: Payload, now: number) -> (),
 	status: (self: Reveal, p: Payload) -> string,
 }
-
-type Item = { event: Event, polls: boolean, choice: boolean }
 
 local function grows(props: { [string]: any }): { [string]: any }
 	props.Size = UDim2.fromScale(1, 0)
@@ -370,6 +378,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 
 	-- ------------------------------------------------------------ summary and Why?
 
+	-- While the moves land: their points on the map are estimates (D-063).
+	local note = Kit.caption("", { Name = "RevealNote", LayoutOrder = 5, Visible = false, Parent = root })
 	local summary = Kit.caption("", { Name = "RevealSummary", LayoutOrder = 6, Parent = root })
 
 	local whyOpen = false
@@ -431,11 +441,11 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 
 	local planView: View? = nil
 	local step: number? = nil
-	local items: { Item } = {}
-	-- Items shown: -2 before the first tick, -1 during "Both plans are in".
+	local tally: RevealSteps.Tally? = nil
+	-- Steps shown: -2 before the first tick, -1 during "Both plans are in".
 	local shown = -2
 	local flipsRung = false -- the new polls' flips have had their rings
-	local choiceRung = false -- the stance's flips have had their rings
+	local choiceRung = false -- the stance's flips have had their rings (no week start to tally from)
 	local oldView: View? = nil
 	local debateShown = 0
 	local debateTopics = 0
@@ -461,14 +471,18 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		Audio.play("flip")
 	end
 
-	-- Beat two: the states of the newly shown items bump on the map, a ring in
+	-- Beat two: the states of the newly shown steps bump on the map, a ring in
 	-- the actor's color, and the newest one's pop sound (yours a little higher).
-	local function land(view: View, from: number, to: number)
+	local function land(view: View, steps: { RevealSteps.Step }, from: number, to: number)
 		local landed: { Event } = {}
 		for k = math.max(1, from), to do
-			local item = items[k]
-			if item and not item.polls and item.event.state ~= nil then
-				table.insert(landed, item.event)
+			local entry = steps[k]
+			if entry and entry.kind == "Move" then
+				for _, event in entry.events do
+					if event.state ~= nil then
+						table.insert(landed, event)
+					end
+				end
 			end
 		end
 		if #landed == 0 then
@@ -567,41 +581,16 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 
 	local function startResolve(p: Payload)
 		step = p.step
-		items = {}
 		shown = -2
 		flipsRung = false
 		choiceRung = false
 		local view = p.view
 		local old = planView
 		oldView = if old and old.week == view.week - 1 then old else nil
-		-- The trailing player's actions first, from the polls before the week.
-		local first, trails = Words.revealFirst(oldView or view)
-		local news: { Item } = {}
-		local firsts: { Item } = {}
-		local seconds: { Item } = {}
-		local polls: { Item } = {}
-		for _, event in p.events do
-			local kind: string = event.kind
-			local isPolls, isChoice = kind == "Polls", kind == "Choice"
-			if Words.shows(event) or isPolls then
-				local item = { event = event, polls = isPolls, choice = isChoice }
-				if isPolls then
-					table.insert(polls, item)
-				elseif event.player == nil then
-					table.insert(news, item)
-				elseif event.player == first then
-					table.insert(firsts, item)
-				else
-					table.insert(seconds, item)
-				end
-			end
-		end
-		for _, list in { news, firsts, seconds, polls } do
-			for _, item in list do
-				table.insert(items, item)
-			end
-		end
-		orderLine.Text = Words.orderLine(view, first, trails, themName(view))
+		-- The trailing player's moves first, from the polls before the week.
+		local built = RevealSteps.build(config, oldView, view, p.events)
+		tally = built
+		orderLine.Text = Words.orderLine(view, built.first, built.trails, themName(view))
 		hooks.swing(nil)
 		Audio.play("whoosh")
 		eyebrow.Text = string.upper(`Week {math.max(1, view.week - 1)} results`)
@@ -613,20 +602,44 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		portrait(themDot, Model.candidateName(config, view, them), Kit.playerColor(view, them))
 		changed.Visible = false
 		summary.Text = ""
+		note.Text = Words.ESTIMATE_NOTE
+		note.Visible = false
 		choiceText.Text = ""
 		setWhy(false)
 		maybeTip()
 	end
 
+	-- The header's one line for a step: who and what ("You: Rally in Texas";
+	-- the panel has the issue), or the settle.
+	local function stepCaption(view: View, entry: RevealSteps.Step): string
+		if entry.kind == "Settle" then
+			return Words.SETTLE
+		end
+		local event = RevealSteps.lead(entry)
+		if event == nil then
+			return ""
+		end
+		local who = if event.player == nil or event.player == view.you then "You" else themName(view)
+		local one = Words.group(view, { event })
+		local text = one.mine[1] or one.theirs[1]
+		local short = if text then string.match(text, "^(.-) · ") or text else nil
+		return if short then `{who}: {short}` else ""
+	end
+
 	local function tickResolve(p: Payload, now: number)
 		local view = p.view
-		local n = #items
+		local current = tally
+		if current == nil then
+			return
+		end
+		local steps = current.steps
+		local n = #steps
 		local duration = math.max(REVEAL_BEAT, p.deadline - p.stageStart)
 		local window = math.max(REVEAL_BEAT, duration - REVEAL_TAIL - REVEAL_INTRO)
 		local beats = math.max(1, math.floor(window / REVEAL_BEAT))
 		local perBeat = math.max(1, math.ceil(n / beats))
-		local steps = math.max(1, math.ceil(n / perBeat))
-		local interval = math.clamp(window / steps, REVEAL_BEAT, REVEAL_SLOW)
+		local beatCount = math.max(1, math.ceil(n / perBeat))
+		local interval = math.clamp(window / beatCount, REVEAL_BEAT, REVEAL_SLOW)
 		local elapsed = now - p.stageStart - REVEAL_INTRO
 		local count = if elapsed < 0 then -1 else math.min(n, (math.floor(elapsed / interval) + 1) * perBeat)
 		if count == shown then
@@ -635,7 +648,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		local before = shown
 		shown = count
 
-		-- Beat one: both plans are in; the map still shows last week's polls.
+		-- Beat one: both plans are in; the map and the score still show the week's start.
 		if count < 0 then
 			intro.Visible = true
 			groups.Visible = false
@@ -643,29 +656,24 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			Motion.pop(introLine)
 			Motion.enter(orderLine, 4)
 			hooks.caption("Both plans are in")
-			hooks.paint(oldView or view)
+			hooks.paint(RevealSteps.viewAt(current, 0))
 			return
 		end
 		intro.Visible = false
 		groups.Visible = true
-		land(view, before + 1, count)
-		local events: { Event } = {}
-		local pollsIn = oldView == nil
+		land(view, steps, before + 1, count)
+		local events = RevealSteps.eventsUpTo(current, count)
 		local choiceShown = false
 		local focus: string? = nil
-		for k = 1, count do
-			local item = items[k]
-			if item.polls then
-				pollsIn = true
-			else
-				table.insert(events, item.event)
-			end
-			if item.choice then
+		for _, event in events do
+			if event.kind == "Choice" then
 				choiceShown = true
 			end
-			if item.event.state then
-				focus = item.event.state
-			end
+		end
+		local latest = steps[count]
+		local lead = if latest then RevealSteps.lead(latest) else nil
+		if latest and lead and latest.kind == "Move" then
+			focus = lead.state
 		end
 		local grouped = Words.group(view, events)
 		fillLines(youLines, grouped.mine)
@@ -673,46 +681,54 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		youGroup.Visible = true
 		themGroup.Visible = #grouped.theirs > 0
 
-		-- The stances: their numbers behind Why?, their marks on the map.
+		-- The stances: their numbers behind Why?. Their points land on the map
+		-- with their steps; with no week start to tally from, the map badges
+		-- what the stances asked for (public) instead.
 		local entry = if choiceShown then Swing.lastChoice(view) else nil
 		local choiceFlips: { Swing.Flip } = {}
 		if entry then
 			choiceText.Text = table.concat(Swing.choiceLines(config, view, entry), "\n")
 			setWhy(true)
-			choiceFlips = Swing.flips(entry.flips)
-			hooks.swing({
-				net = Words.topMarks(Swing.net(entry.moves, view), choiceFlips),
-				flips = choiceFlips,
-			})
-			if not choiceRung then
-				choiceRung = true
-				ringFlips(view, choiceFlips)
+			if oldView == nil then
+				choiceFlips = Swing.flips(entry.flips)
+				hooks.swing({
+					net = Words.topMarks(Swing.net(entry.moves, view), choiceFlips),
+					flips = choiceFlips,
+				})
+				if not choiceRung then
+					choiceRung = true
+					ringFlips(view, choiceFlips)
+				end
 			end
 		end
 
-		-- The map caption follows the newest event.
-		local last = items[count]
-		if last and not last.polls then
-			local who = if last.event.player == nil or last.event.player == view.you
-				then "You"
-				else themName(view)
-			local one = Words.group(view, { last.event })
-			local text = one.mine[1] or one.theirs[1]
-			-- One line in the header: the action and the state, not the issue
-			-- ("You: Rally in Texas"; the panel has the rest).
-			local short = if text then string.match(text, "^(.-) · ") or text else nil
-			hooks.caption(if short then `{who}: {short}` else "")
-		else
-			hooks.caption("New polls are in")
+		-- The newest step's effect: its points and flips on the map, a ring on
+		-- every flip the newly shown steps made, the map and the score at the tally.
+		local rings: { Swing.Flip } = {}
+		for k = math.max(1, before + 1), count do
+			local entry2 = steps[k]
+			if entry2 and entry2.kind == "Move" then
+				for _, flip in entry2.flips do
+					table.insert(rings, flip)
+				end
+			end
 		end
-		hooks.paint(if pollsIn then view else oldView :: View)
-		-- Once the events are done, the map follows the player's own pick again.
+		if oldView and latest and latest.kind == "Move" then
+			hooks.swing({ net = Words.topMarks(latest.net, latest.flips), flips = latest.flips })
+		end
+		ringFlips(view, rings)
+		if latest then
+			hooks.caption(stepCaption(view, latest))
+		end
+		hooks.paint(RevealSteps.viewAt(current, count))
+		-- Once the moves are done, the map follows the player's own pick again.
 		hooks.focus(if count < n then focus else model.selected)
+		note.Visible = oldView ~= nil and count < n
 		if count < n then
 			return
 		end
 
-		-- What changed: flips and the biggest moves on the new public polls.
+		-- What changed: the week's flips and biggest moves on the new public polls.
 		local old = oldView
 		local flips: { Swing.Flip } = choiceFlips
 		local moves: { Words.Move } = {}
@@ -724,23 +740,22 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				net[move.state] = move.delta
 			end
 			hooks.swing({ net = Words.topMarks(net, flips), flips = flips })
+			hooks.paint(view)
 		end
 		showFlips(view, flips)
 		showMoves(view, moves)
 		changed.Visible = #flips > 0 or #moves > 0
 		title.Text = Words.flipHeadline(view, flips, themName(view))
 		if not flipsRung then
-			-- Beat three, once: rings on the flips (the stance's rang already).
+			-- Beat three, once: rings on what the settle flipped.
 			flipsRung = true
 			if old then
-				ringFlips(view, flips)
+				ringFlips(view, steps[n].flips)
 			end
 			Motion.pop(title)
 			enterChanged()
 		end
-		summary.Text = if #flips > 0
-			then "New polls are in. Tap a state for details."
-			else "New polls are in. No state changed leader."
+		summary.Text = Words.settleLine(old ~= nil, #flips > 0)
 	end
 
 	local function startDebate(p: Payload)
@@ -922,6 +937,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			choiceText.Visible = p.reveal == "Resolve" and choiceText.Text ~= ""
 			if p.reveal ~= "Resolve" then
 				changed.Visible = false
+				note.Visible = false
 			end
 		end,
 		tick = function(_self: Reveal, p: Payload, now: number)
@@ -944,7 +960,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 					then `Debate · topic {debateShown} of {debateTopics}`
 					else "Debate"
 			end
-			local n = #items
+			local n = if tally then #(tally :: RevealSteps.Tally).steps else 0
 			if shown < 0 then
 				return "Both plans are in"
 			end

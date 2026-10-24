@@ -377,7 +377,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 				scoreShown = wantScore
 				layout()
 			end
-			local ev = view.projectedEV
+			-- During a reveal the score follows what the map shows (the running tally, D-063).
+			local ev = if p.reveal ~= nil and model.revealEV then model.revealEV else view.projectedEV
 			local mine, theirs = ev[me] or 0, ev[rival] or 0
 			local myName = Model.candidateName(config, view, me)
 			local theirName = Model.candidateName(config, view, rival)

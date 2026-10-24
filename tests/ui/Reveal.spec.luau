@@ -8,6 +8,7 @@
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
+local RevealSteps = require("@ui/RevealSteps")
 local Rig = require("./Rig")
 local Test = require("@testlib/Test")
 local Words = require("@ui/Words/Reveal")
@@ -104,6 +105,72 @@ describe("Reveal: three beats", function()
 			expect(Rig.textOf(calmPeer, "Campaign", name)):toBe(Rig.textOf(peer, "Campaign", name))
 		end
 		Rig.noErrors(calmWorld)
+	end)
+end)
+
+describe("Reveal: a running tally (D-063)", function()
+	-- The score in the header, as numbers.
+	local function score(peer: FakeRoblox.Peer): (number, number)
+		return tonumber(Rig.textOf(peer, "Campaign", "YouVotes")) or -1,
+			tonumber(Rig.textOf(peer, "Campaign", "ThemVotes")) or -1
+	end
+
+	-- When step k is on screen: the reveal's pace for this payload (Reveal.tickResolve).
+	local function stepTime(payload: any, steps: number, k: number): number
+		local window = payload.deadline - payload.stageStart - 2 - 0.5
+		local interval = math.clamp(window / steps, 0.25, 0.8)
+		return 0.5 + (k - 1) * interval + interval / 2
+	end
+
+	it("moves the header's score with each step and lands on the new polls", function()
+		local world, peer, before = resolveRig({ reducedMotion = true })
+		local payload = Rig.payloadOf(world, peer)
+		local view = payload.view
+		local them = 3 - view.you
+		local tally = RevealSteps.build(Config.defaults, before, view, payload.events)
+		local steps = tally.steps
+		-- The intro: still the week's start, not the result.
+		local mine, theirs = score(peer)
+		expect(mine):toBe(before.projectedEV[view.you])
+		expect(theirs):toBe(before.projectedEV[them])
+		check(not shown(peer, "RevealNote"), "the estimate note shows during the intro")
+		local start = payload.stageStart
+		local changedMidway = false
+		for k = 1, #steps - 1 do
+			FakeRoblox.run(world, math.max(0, start + stepTime(payload, #steps, k) - world.clock))
+			expect(Rig.textOf(peer, "Campaign", "BarStatus")):toBe(`Results · {k} of {#steps}`)
+			mine, theirs = score(peer)
+			expect(mine):toBe(steps[k].ev[view.you])
+			expect(theirs):toBe(steps[k].ev[them])
+			if mine ~= before.projectedEV[view.you] or theirs ~= before.projectedEV[them] then
+				changedMidway = true
+			end
+			check(shown(peer, "RevealNote"), `no estimate note at step {k}`)
+			expect(Rig.textOf(peer, "Campaign", "RevealSummary")):toBe("")
+		end
+		check(changedMidway, "the score never moved before the polls settled")
+		FakeRoblox.run(world, 7)
+		mine, theirs = score(peer)
+		expect(mine):toBe(view.projectedEV[view.you])
+		expect(theirs):toBe(view.projectedEV[them])
+		check(not shown(peer, "RevealNote"), "the estimate note outstays the moves")
+		check(Rig.textOf(peer, "Campaign", "RevealSummary") ~= "", "the reveal never finished")
+		Rig.noErrors(world)
+	end)
+
+	it("lands on the same numbers when both players skip", function()
+		local world, peer = resolveRig({ reducedMotion = true })
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		-- Both skipped: the server ends the stage early (TIMER_RESOLVE_SKIPPED).
+		payload.deadline = payload.stageStart + Config.defaults.TIMER_RESOLVE_SKIPPED
+		Rig.push(world, peer, payload)
+		FakeRoblox.run(world, Config.defaults.TIMER_RESOLVE_SKIPPED)
+		local view = payload.view
+		local mine, theirs = score(peer)
+		expect(mine):toBe(view.projectedEV[view.you])
+		expect(theirs):toBe(view.projectedEV[3 - view.you])
+		check(Rig.textOf(peer, "Campaign", "RevealSummary") ~= "", "the skipped reveal never finished")
+		Rig.noErrors(world)
 	end)
 end)
 
