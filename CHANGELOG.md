@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Fixes
+
+- **Reporting a name from Results hides it at once:** after **Report** on the opponent's card, the banner, both cards, the Map and Graph tabs switch to the candidate's own name and the Report button goes away. (The match is over, so the server sends no new screen; the client now hides the name itself when the server confirms the report.)
+- **The LANDSLIDE shine stays on the stamp:** the light that sweeps the winner's tilted LANDSLIDE stamp no longer shows outside it. Roblox does not clip inside a rotated frame or to rounded corners, so the light is now a gradient on a layer the stamp's own shape. The primary button's shine moves the same way.
+- **Long custom names fit the debate on a phone:** the clash and verdict stamps never run past the column; with a name over 10 letters they say "THEY WIN BY 3" / "THEY WON THE CROWD", and the crowd meter "Them +2". The names over the faces shrink to fit instead of cutting off.
+- **A held debate move no longer sticks:** the map preview of a held move ends when the finger slides off and lifts, when a touch is cancelled, or when the mouse leaves the button.
+- **Results cleans up after itself:** the LANDSLIDE shine, the glow's breathing and the Map tab's map stop when the screen closes (no animations left running in the lobby).
+- **No error on a payload without your seat** after Lock in on the debate, plan and decision screens.
+
 ## 0.13.0: Landslide (Oct 24, 2026)
 
 The game is now **Landslide** ("Race to 270"). This release puts a real US map under the campaign, turns debates into three live rounds on their own screen, gives every candidate an illustrated portrait, lets eligible players name their candidate (the Name Pass), plays the week's results move by move, deepens the colors, and adds Map and Graph tabs to the end screen. Polls cost half. Studio checklists: `docs/TESTING.md`, "0.13.0: Landslide".

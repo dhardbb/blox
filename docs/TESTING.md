@@ -1011,3 +1011,15 @@ Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`
 6. **Phone size (390x844) and the Mac.** **Expect:** each tab fits without scrolling; nothing overlaps; the lines look straight and joined (no gaps or stray pieces sticking out of the chart).
 7. **Rejoin:** leave the game on the Results screen and rejoin (if the match result is still shown). **Expect:** the Graph still shows every week.
 8. **Send back:** an iPad screenshot of each tab, whether the MISS tags made the polling errors easy to spot, whether the graph was readable on a phone, and any Output errors from `Results`, `MapTab` or `GraphTab`.
+
+## Client fixes (unreleased)
+
+Agents: `lune run tests "Reporting a custom name"`, `lune run tests "Landslide stamp"`, `lune run tests "long custom name"`, `lune run tests "holding a move"`, `lune run tests "without your seat"`.
+
+1. **Report from Results** (two accounts, A with a custom name, e.g. "Captain Zed"): play to the end (A can **Leave match**). On B's Results, tap **Report** on A's card, then **Report**. **Expect:** at once B's banner reasons, A's card, and the Map and Graph tabs show A's candidate's own name; the Report button is gone; "Thanks for the report" shows.
+2. **LANDSLIDE shine** (iPad): win with more than 70% of the votes (Play vs Bot, Easy). **Expect:** every few seconds a soft light sweeps across the tilted LANDSLIDE stamp and stays inside its rounded edges: nothing bright shows outside the stamp. The primary button's shine also stays inside its rounded corners.
+3. **Long name in a debate** (phone size 390x844): name A's candidate with 16 letters (e.g. "Bartholomew Zork"), play B against A to a debate, and let A win a round and the crowd. **Expect:** B's stamps read "THEY WIN BY …" and "THEY WON THE CROWD", fully inside the panel; A's name over the face is smaller but whole; the crowd line reads "Them +N".
+4. **Hold a move** (iPad): in a debate round, press and hold **Attack**, slide the finger off the button and lift it. **Expect:** the map preview of Attack goes away. On the Mac: press, drag the mouse off the button, release. **Expect:** same.
+5. **Back to lobby after a landslide:** from the Results above, tap **Back to lobby**. **Expect:** no errors in Output.
+
+**Send back:** an iPad screenshot of the LANDSLIDE stamp mid-shine, a phone screenshot of the long-name verdict, and any Output errors from `Results`, `Moves`, `Clash` or `Motion`.

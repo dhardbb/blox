@@ -126,7 +126,7 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 		Motion.stamp(s)
 	end
 
-	local function toneColor(tone: Words.Tone): Color3
+	local function toneColor(tone: string): Color3 -- a Words.Tone
 		return if tone == "good"
 			then Kit.colors.good
 			elseif tone == "loss" then Kit.colors.loss
