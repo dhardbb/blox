@@ -2,9 +2,15 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.15.0: Daily Race, matchmaking across servers, short tutorial (Oct 24, 2026)
 
-- **Experience page art and text (draft):** a 512x512 icon (three variants; `icon.png` is the recommended map-and-270 one), four 1920x1080 thumbnails (the candidates over election night, a real campaign week, a real debate round, the landslide win) and `DESCRIPTION.md` (title "Landslide: Race to 270", the description, and the content maturity answers we expect: Minimal). All in `assets/promo/`, drawn by `assets/promo/make.py` from the game's palette, wordmark, portraits, map and UI snapshots. No game code changed. Studio checklist: `docs/TESTING.md`, "Promo art". Needed from the humans: upload them in the Creator Dashboard if you like them.
+A new Daily Race (one seeded race a day, the same candidate for everyone, a daily board and a streak), matchmaking across every server of the game (bigger servers, a bot game while you wait, the online count, Rematch on Results, invites that drop a friend straight into your match), a tutorial cut to 4 short weeks that ends with "You're ready!" and a real match, a Timers off switch for admins, a phone Lobby that fits on one screen, and the art and text for the experience page. Normal matches play exactly as in 0.14.0 (balance harness unchanged). Studio checklists: `docs/TESTING.md`, "0.15.0".
+
+**Needed from the humans:**
+1. **Server size:** set **Max Players** to **50** and **Server Fill** to "Roblox optimized" (or reserve 2 to 4 slots for friends) in the place's settings, then publish (`docs/TESTING.md`, "Matchmaking", step 0).
+2. **Publish to test online play:** teleports to match servers, matching across servers, invites and the online count only work in the published game played from the Roblox app; Studio's Play keeps everything on one server, as before.
+3. **Promo art:** upload the icon and thumbnails from `assets/promo/` and paste the title and description from `assets/promo/DESCRIPTION.md` if you like them ("Promo art").
+4. **Still open from 0.13.0:** the Color Pass and Name Pass ids (both still 0 in `src/shared/Net/Products.luau`), and renaming the experience to Landslide.
 
 ### A short tutorial (D-080)
 
@@ -15,14 +21,6 @@ Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from t
 - **A clear end:** after the tutorial, Results says **"You're ready!"** (what a real match adds: 12 weeks, 2 debates, timers) and the main button is **Play a real match**.
 - **Always the Easy bot:** the first tutorial no longer uses the level picked in the Lobby. How to play's **Play the tutorial** starts the short version ("A short 4-week match against the Easy bot, with tips and no timers.").
 - Help in the tutorial follows its schedule (election after week 4, the debate in week 3, one stance event). A normal match is unchanged (balance harness identical). New `Config` keys: `TUTORIAL_WEEKS` 4, `TUTORIAL_CHOICE_WEEK` 2, `TUTORIAL_DEBATE_WEEKS` {3}, `TUTORIAL_CLOSING_FROM_WEEK` 4, `TUTORIAL_START_CASH` 8, `EVENT_CHOICE_ONLY` false; new harness `tests/harness/tutorial.luau`.
-
-### Admin: timers off (D-081)
-
-- **Admins can turn the choice timers off in their own games** to take notes during playtests. The toggle (a struck-through clock) is in the Lobby's top-right corner, next to Sound and Reduce motion, and at the top of the in-match "?" sheet; only admins see it, and it is saved with their profile.
-- **It only works when every player in the match is an admin** (the owner against a bot, or the owner and the partner in a private match). In a match with anyone else it does nothing and the sheet says "Only in games where every player is an admin."; nobody else can ever be kept waiting.
-- Turning it on or off mid-match acts at once: an open choice loses its deadline, or gets a fresh full timer back. Both players see "No timer (admin)" in the header. Reveals, debates' clashes and election night still play by themselves.
-- A match between people where the timers were off at any point is **unrated** (both are told). Bot matches were already unrated.
-- New `Config.SET_TIMERS_OFF_COOLDOWN` (1 s, a server limit). Studio checklist: `docs/TESTING.md`, "Admin: timers off". Nothing needed from the humans.
 
 ### The Daily Race (D-082)
 
@@ -42,6 +40,26 @@ Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from t
 - **Rematch** on Results: against the bot a new match at the same level at once; against a person both tap within 20 s (`REMATCH_WINDOW_SECONDS`) for a new match with the same seats. The button says "Opponent left" or "Rematch expired" when it can't. It replaces Play again.
 - **Invite a friend** (Play a friend sheet, and the code screen) opens Roblox's invite with your private code inside; a friend who joins from it goes straight into your match, on any server. "That invite has expired" if you left.
 - Checklist: `docs/TESTING.md`, "Matchmaking" (two accounts, published game). Needed from the humans: Max Players, and a published game to test teleports and invites.
+
+### Admin: timers off (D-081)
+
+- **Admins can turn the choice timers off in their own games** to take notes during playtests. The toggle (a struck-through clock) is in the Lobby's top-right corner, next to Sound and Reduce motion, and at the top of the in-match "?" sheet; only admins see it, and it is saved with their profile.
+- **It only works when every player in the match is an admin** (the owner against a bot, or the owner and the partner in a private match). In a match with anyone else it does nothing and the sheet says "Only in games where every player is an admin."; nobody else can ever be kept waiting.
+- Turning it on or off mid-match acts at once: an open choice loses its deadline, or gets a fresh full timer back. Both players see "No timer (admin)" in the header. Reveals, debates' clashes and election night still play by themselves.
+- A match between people where the timers were off at any point is **unrated** (both are told). Bot matches were already unrated.
+- New `Config.SET_TIMERS_OFF_COOLDOWN` (1 s, a server limit). Studio checklist: `docs/TESTING.md`, "Admin: timers off". Nothing needed from the humans.
+
+### How they fit together, and a phone Lobby that fits (D-084)
+
+- **After the tutorial**, Results' big button is still **Play a real match** (not Rematch): it joins the queue across servers, and after 30 s offers a bot game while you wait like any queue.
+- **Bot games stay where you are:** the tutorial, Play vs Bot, the Daily Race and a bot game while waiting never move you to another server; only a match against a person found on another server does.
+- **Rematch after a Daily Race** plays today's race again (same candidate, same day); once today's run counts it is practice, and Results says so ("Rematch plays today's race as practice.").
+- **Admin Timers off** works in a match server between two admins too. It never applies in a Daily Race (every run keeps the same clock, so the day's board is fair); the "?" sheet says so.
+- **Phone Lobby (390x844):** Play vs Bot and its level, Find match, Play a friend (with Invite a friend inside), How to play, the Daily Race card and the leaderboard's top 3 all fit without scrolling. The Daily Race card is one row on a phone ("Play" or "Practice", and "Top 50" for today's board); the online count sits beside your record; How to play shares a row with the Color button; the column starts below the corner toggles, so "A 1V1 ELECTION STRATEGY GAME" and the logo are never under them. (An admin's extra Review names button leaves room for "You" and See all only.) iPad and desktop keep the full layout.
+
+### Experience page art (draft)
+
+- **Experience page art and text (draft):** a 512x512 icon (three variants; `icon.png` is the recommended map-and-270 one), four 1920x1080 thumbnails (the candidates over election night, a real campaign week, a real debate round, the landslide win) and `DESCRIPTION.md` (title "Landslide: Race to 270", the description, and the content maturity answers we expect: Minimal). All in `assets/promo/`, drawn by `assets/promo/make.py` from the game's palette, wordmark, portraits, map and UI snapshots. No game code changed. Studio checklist: `docs/TESTING.md`, "Promo art". Needed from the humans: upload them in the Creator Dashboard if you like them. The description now lists online play with invites, the 5-minute tutorial and the Daily Race.
 
 ## 0.14.0: Map polish, issue symbols, the tutorial, fixes (Oct 24, 2026)
 

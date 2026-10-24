@@ -1079,19 +1079,25 @@ Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests "M
 
 **Send back:** a phone screenshot of Votes, Polls and Money, one with Close on, one of the end of a busy week's results, one of election night, and whether you would want Close on by default on a phone; plus any Output errors from `ShapeMap`, `Lens` or `SwingMarks`.
 
-## Promo art: icon, thumbnails, description (unreleased)
+## 0.15.0: Daily Race, matchmaking, short tutorial (D-080 to D-084)
+
+Everything new in 0.15.0, one section per feature, then how they fit together on a phone. A fresh account on the iPad covers the tutorial, the Daily Race and the phone-free parts; matchmaking, invites and the online count need two accounts in the **published** game (Studio's Play keeps every match on one server). Agents: `lune run tests`, `lune run tests/ui/snap.luau -- --size phone` (and `ipad`, `desktop`): 0 audit findings.
+
+**Before you start (once):** set Max Players 50 and Server Fill ("Matchmaking", step 0) and publish; keep **Enable Studio Access to API Services** on (saved data, the boards).
+
+### Promo art: icon, thumbnails, description
 
 Files in `assets/promo/` (open them in Preview). Nothing changes in the game. The text, the alt text and the questionnaire answers are in `assets/promo/DESCRIPTION.md`.
 
 1. **Look at the art.** Open `icon.png`, `icon-faceoff.png`, `icon-stamp.png` and the four `thumb-*.png`. Should see: the icon readable even when small (the US map in blue and red, a big "270", "LANDSLIDE" on the ribbon); the thumbnails' big captions at the top and nothing important in the bottom strip (Roblox puts the player count there). Send back: which icon you prefer (we recommend `icon.png`, the map one) and any thumbnail you'd drop or change.
 2. **Icon.** Creator Dashboard → the experience → **Configurations → Places** → the start place (the one with a star) → **Icon** → media type **Image** → **Change** → `icon.png` → check the preview → **Save Changes**. It shows after Roblox moderation. Send back: a screenshot of the experience page once it shows.
 3. **Thumbnails.** Same place → **Thumbnails** → **Experience Detail Page** tab: upload `thumb-1-hero.png`, `thumb-2-campaign.png`, `thumb-3-debate.png`, `thumb-4-landslide.png` in that order and give each the alt text from `DESCRIPTION.md`. Then the **Home Page** tab → **Edit active thumbnails** → tick **Active** on 2 to 5 of them → **Save changes** → **Start** (Roblox then shows each player the one that works best for them). Send back: any upload Roblox rejects, with its message.
-4. **Title and description.** In Studio: **Home → Game Settings → Basic Info**, set the name to `Landslide: Race to 270` and paste the description block from `DESCRIPTION.md` → **Save**. First check the "Before publishing" list there (Daily Race shipped? four bot levels?). Should see: no "too long" warning (it's 800 characters). Send back: the text as you published it, if you changed it.
+4. **Title and description.** In Studio: **Home → Game Settings → Basic Info**, set the name to `Landslide: Race to 270` and paste the description block from `DESCRIPTION.md` → **Save**. First check the "Before publishing" list there (0.15.0 shipped the Daily Race, online matches and invites). Should see: no "too long" warning (it's 872 characters). Send back: the text as you published it, if you changed it.
 5. **Content rating.** Creator Dashboard → the experience → **Publish settings → Content rating → Start** (or **Restart**). Answer as in the table in `DESCRIPTION.md`. Should see: the preview page shows **Minimal** and no descriptors. Send back: a screenshot of that preview page before you press **Submit**, especially if anything other than Minimal shows.
 
 To redraw the art after the UI, the portraits or the map change: `python3 assets/promo/make.py --sheet build/promo/sheet.png` from the repository root (needs Pillow, lune and Roblox Studio installed on the Mac, for its Fredoka One and Builder Sans fonts). The two gameplay thumbnails come from the game's headless snapshots, which draw the text in Helvetica rather than Builder Sans; if you'd rather have true in-game pictures, take 1920x1080 screenshots in Studio of the same moments (week 3 plan with Pennsylvania open; debate round 2) and send them over.
 
-## The short tutorial (unreleased, D-080)
+### The short tutorial (D-080)
 
 Server and client. Agents: `lune run tests Tutorial`, `lune run tests/harness/tutorial.luau 400` (the bot-vs-bot table and the length), `lune run tests/ui/snap.luau -- 30` at all three sizes: 0 audit findings. In Studio the first-match tutorial needs saved data (**Enable Studio Access to API Services**); the replay from How to play works without it.
 
@@ -1104,7 +1110,7 @@ Server and client. Agents: `lune run tests Tutorial`, `lune run tests/harness/tu
 
 **Send back:** your tutorial time, a phone or iPad screenshot of the "You're ready!" screen, and whether 4 weeks felt like enough to learn the game.
 
-## Admin: timers off (unreleased, D-081)
+### Admin: timers off (D-081)
 
 Agents: `lune run tests "D-081"`, `lune run tests "Admin Timers off"`, `lune run tests/ui/snap.luau -- admin --size phone` (and `ipad`, `desktop`: 0 audit findings).
 
@@ -1116,14 +1122,14 @@ Agents: `lune run tests "D-081"`, `lune run tests "Admin Timers off"`, `lune run
 6. **With anyone else.** Owner (toggle on) against a non-admin account (private code or Find match). **Expect:** normal timers for both; the owner's "?" sheet shows the toggle with "Only in games where every player is an admin."; the other player sees no toggle and no "(admin)".
 7. **Send back:** a phone and an iPad screenshot of the header with "No timer (admin)" and of the corner; the Output lines containing `timers` and `is unrated`, and any errors.
 
-## The Daily Race (unreleased, D-082)
+### The Daily Race (D-082)
 
 Agents: `lune run tests "Daily:"`, `lune run tests "e2e: the Daily"`, `lune run tests "Daily Race"`, `lune run tests/ui/snap.luau -- daily` and `-- 01-lobby` (0 audit findings at all three sizes). The board and the counted run need DataStores: test them in the published place (Studio: "Enable Studio Access to API Services" also works).
 
 1. **The card** (iPad and a phone). Open the game. **Expect:** under How to play, a Daily Race card with a face, "Daily Race · <today's date>", "Everyone plays as <name> today", and "<h>h <m>m left · No streak yet · Not played yet"; the time counts down. On a phone the leaderboard below shows only "You" and See all. Ask your partner: **Expect** the same name on their card.
 2. **Play it.** Tap **Play today's race**. **Expect:** "Daily Race: this run counts once week 1 starts. Good luck!"; Select opens on the issues (no candidate cards) with your candidate already the card's, and the bar reads "Daily Race: everyone is <first name> today". The bot is Hard and the timer is the normal 38 s (not 57 s). It is not the tutorial (no "No timer").
 3. **Leave early.** **Leave match** during Select. **Expect:** back in the Lobby, the card still says "Not played yet" and Play is still **Play today's race**.
-4. **The counted run.** Play a run to the end. **Expect:** Results show a "DAILY RACE · <date>" card: "You won by N votes." (or lost), then "Rank today: #N · 1-day streak" (the rank can take a few seconds); the primary button is **Practice again**; no rating line. Back in the Lobby: "Won by N today" (or "Lost by N today"), and the button reads **Practice today's race**. Your rating and record are unchanged.
+4. **The counted run.** Play a run to the end. **Expect:** Results show a "DAILY RACE · <date>" card: "You won by N votes." (or lost), then "Rank today: #N · 1-day streak" (the rank can take a few seconds); the primary button is **Rematch** with "Rematch plays today's race as practice." over it (D-084); no rating line. Back in the Lobby: "Won by N today" (or "Lost by N today"), and the button reads **Practice today's race** (on a phone the one-row card shows **Practice**). Your rating and record are unchanged.
 5. **Practice.** Tap **Practice today's race** and play (or leave from week 1 on). **Expect:** "Practice run: today's Daily Race already counts. This one won't."; at the end Results say "Practice run: …" and "Only your first run counts. Today: …"; the board and your Lobby line do not change.
 6. **The board.** Tap **Today's board**. **Expect:** "Today's top 50", how it ranks, "You: #N · +N" in bold, and your row highlighted. With your partner's run in too: a bigger margin is higher.
 7. **Streak** (over two days): play a counted run tomorrow (after 00:00 UTC). **Expect:** a new candidate, and "2-day streak". Skip a day: **Expect** "No streak yet" again, nothing else.
@@ -1131,7 +1137,7 @@ Agents: `lune run tests "Daily:"`, `lune run tests "e2e: the Daily"`, `lune run 
 
 **Send back:** a phone and an iPad screenshot of the Lobby card, one of Results after the counted run and one after a practice run, the board sheet, and the Output lines containing `daily race`.
 
-## Matchmaking (unreleased, D-083)
+### Matchmaking (D-083)
 
 Agents: `lune run tests Matchmaking` (pure rules, e2e on the fake engine with two and three servers, UI at three sizes), `lune run tests/ui/snap.luau -- -mm- --size phone` (and `ipad`, `desktop`; 0 audit findings).
 
@@ -1149,3 +1155,11 @@ Agents: `lune run tests Matchmaking` (pure rules, e2e on the fake engine with tw
 8. **Online count.** On the Lobby: "● N online". With A and B on different servers, within a minute both show at least 2. While queued it reads "N online · you'll start as soon as someone joins."
 9. **Bigger servers.** With Max Players 50, more than 20 players on one server (or ask friends) can all start practice matches; nobody sees "Server full" until 50 matches run.
 10. **Send back:** for each step, OK or what happened instead; screenshots of steps 2, 4 and 7 on the iPad; the Server Output lines containing `MemoryStore`, `teleport`, `Teleport`, `match server`, `rematch`, and any errors.
+
+### How they fit together, and the phone Lobby (D-084)
+
+1. **Phone Lobby.** On a phone (or Studio's device emulator at iPhone 14, 390x844) open the Lobby. **Expect, without scrolling:** the corner toggles at the top right with nothing under them; "A 1V1 ELECTION STRATEGY GAME", LANDSLIDE and its ribbon below them; your record and "● N online" on one line; Play vs Bot and the four levels; Find match and Play a friend; How to play (beside "Color: …" once the Color Pass is set up); the Daily Race card in one row (portrait, "Daily Race", "As <name>", "5h 11m · 3-day streak", **Play**, **Top 50**); the leaderboard with the top 3 and "You: #N". On the iPad and the Mac: the full Daily card ("Play today's race", "Today's board") and the leaderboard beside the column, as in 0.14.0. *Send back:* a phone and an iPad screenshot of the Lobby.
+2. **Tutorial into a real match.** With a fresh account finish (or leave) the tutorial. **Expect:** Results shows "You're ready!" and **Play a real match** (no Rematch). Tap it: "Looking for an opponent…" with the online count; after 30 s alone, "Play a bot while you wait". In the published game with a second account on another server queueing: both move to a match server.
+3. **Rematch after a Daily Race.** Play today's race to the end (or after today's run already counts). **Expect:** Results' bar reads "Rematch plays today's race as practice."; **Rematch** starts the same race again on the same server, with "Practice run: today's Daily Race already counts."
+4. **Admin timers and the Daily Race.** As an admin with **Timers off** on, start the Daily Race. **Expect:** normal timers; the "?" sheet's admin line says "Not in the Daily Race: every run has the same clock." Then two admins with Timers off on different servers, both **Find match** (published game): in the match server the header reads "No timer (admin)" and both are told the match is unrated.
+5. *Send back:* OK or what happened for each, and any Output errors from `Lobby`, `DailyRace`, `Results`, `MatchService` or `CrossServer`.

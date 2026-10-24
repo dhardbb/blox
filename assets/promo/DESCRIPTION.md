@@ -27,20 +27,21 @@ Pick a candidate, choose your issues, then plan each week: rally, fundraise, run
 
 - 1v1 strategy on a real US map: all 50 states and DC
 - Live debates: Defend, Attack or Pivot in three rounds
-- Play a friend with a private code, find a match, or take on bots at four levels from Easy to Extreme
-- Daily Race: a new challenge every day
+- Play online: find a match on any server, or invite a friend to yours
+- Bots at four levels from Easy to Extreme, and a 5-minute tutorial
+- Daily Race: everyone plays the same candidate for a spot on today's board
 - Global leaderboard: climb the ranks in rated matches
 
 Every candidate, issue and event is made up. No real politicians, parties or policies. A match takes about 15 minutes.
 ```
 
-800 characters. The Creator Hub's description box takes up to 1,000 characters; Roblox's docs give no number of their own, so check the counter when you paste. What the docs do ask, and this follows: say what the game is in the first sentence, use the keywords players search for (strategy, 1v1, election, campaign, debates, map, leaderboard), and don't repeat keywords or add unrelated ones, which "may result in demotion of your experience".
+872 characters. The Creator Hub's description box takes up to 1,000 characters; Roblox's docs give no number of their own, so check the counter when you paste. What the docs do ask, and this follows: say what the game is in the first sentence, use the keywords players search for (strategy, 1v1, election, campaign, debates, map, leaderboard), and don't repeat keywords or add unrelated ones, which "may result in demotion of your experience".
 
-Before publishing, check:
+Before publishing, check (updated for 0.15.0, which shipped all of these):
 
-- **Daily Race** is in this build (it is being built at the same time as this text). If it doesn't ship, delete that bullet; never describe a feature the game doesn't have.
-- **Four bot levels** (Easy, Medium, Hard, Extreme) and the **private code** match the Lobby you publish.
-- "about 15 minutes" is the typical length (D-005). It runs longer in the untimed first tutorial match.
+- **Daily Race**, **matches across servers** and **invites** are in this build. Invites and matching across servers only work in the published game (not in a Studio playtest), so try them there once before you publish the text.
+- **Four bot levels** (Easy, Medium, Hard, Extreme), the **short tutorial** (4 weeks, about 5 minutes) and the **private code** match the Lobby you publish.
+- "about 15 minutes" is the typical length of a real match (D-005).
 
 Why it is written this way: plain words for a young audience, one exclamation mark, no all-caps or emoji, no claims ("best", "#1", "most popular"), and no political content. The topics are the game's eight neutral issues (jobs, schools, farms and so on), never a side or a slogan.
 
