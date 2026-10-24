@@ -31,6 +31,29 @@ Client colors only: no rule, sim, server, payload or Config changes. Studio chec
 - **Player colors are deeper and more saturated** (Crimson 212, 28, 66; Cobalt 34, 98, 228; Emerald, Amber, Violet and Teal likewise). Red stays clear of the loss orange, Violet moved farther from Cobalt.
 - **Player names in color are vivid, not pink.** Readable text keeps the color's own hue (brightened just enough), instead of fading it toward white.
 - **Gains are a clear green, not mint**, and the navy stage, cards and buttons are a richer navy at the same brightness. Every contrast floor still holds.
+## Unreleased
+
+### Candidate portraits (D-062)
+
+Client and assets only: no rule, sim, server or Config changes. Studio checklist: `docs/TESTING.md`, "Candidate portraits". Needed from the humans: upload the eight PNGs in `assets/portraits/` and send the ids (until then the game shows initials on the plates).
+
+- **Every candidate has an illustrated portrait:** a friendly flat bust with their own face, hair, outfit and a prop that hints at the perk (Rex's straw boater, Helen's glasses and pencil, Walt's field cap, Priya's headset, ...).
+- **Select:** the eight cards show the eight faces on the same neutral plate; a ring in your color marks your pick, a ring in your opponent's color (dimmed) marks theirs. Cards are a little taller for the bigger faces; a phone still fits step 1 without scrolling.
+- Portraits also on the map reveal's strongholds card, the Campaign header (wide screens), the week reveal, a new face-off over the debate scoreboard, the election spotlight, Results and How to play.
+- New `Kit.portrait`; `Kit.monogram` is unchanged. The headless snapshots draw the PNGs.
+
+### The Name Pass: a custom name for your candidate (D-063)
+
+Server, payload, Select, Help, Results and the Lobby. New Config values (name limits, reports, review, admins; no rule changes). Studio checklist: `docs/TESTING.md`, "The Name Pass". Needed from the humans: the pass and its id.
+
+- **A Game Pass to give your candidate a name of your own** (up to 16 characters), entered on Select and remembered for your next matches. The candidate keeps its portrait and perk. Bots never get custom names.
+- **Only for players Roblox lets chat, and only shown to them** (the stand-in for 16+: Roblox gives games no age). A viewer sees a name only if Roblox would let the two of them chat.
+- **Filtered like chat:** Roblox's filter when you set it, and again for each viewer at their own level; anything hidden, or a filter that can't be reached, shows the candidate's own name. Letters, spaces, - ' and . only (no digits, emoji, links or handles), at least 2 letters, no letter three times in a row.
+- **A server-only blocklist** of real politicians, parties and slogans, Roblox staff words, social-app and Robux bait, and the game's own words, matched through look-alike spellings. A note says names must follow Roblox's Community Standards.
+- **Report name:** in the in-match "?" sheet and on Results. The reporter stops seeing that name at once and in later matches; the report waits for the owners. The sheet also points to Roblox's own Report for serious cases (games can't open it).
+- **Owner review:** admins get "Review names (N)" in the Lobby: Keep, or Remove (the name is cleared, its owner told, and it and names like it are blocked on every server).
+- **Admins** (the owner and originalyellowboss) get the color picker and custom names free, even before the passes exist.
+- Wire: requests `SetName`, `ReportName`, `ReviewList`, `ReviewKeep`, `ReviewRemove`; message `Review`; DataStores `NameReports_v1`, `NameBlocklist_v1`; MessagingService topic `NameBlocklist`.
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 

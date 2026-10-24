@@ -53,6 +53,7 @@ local NOTICE_H = 24 -- px, the disconnected notice
 local NAMES_H = 22 -- px, the names line in the score strip (votes in Fredoka at heading size)
 local BAR_H = 10 -- px, the race bar under the names (Kit.raceBar; it overhangs 4 px each way)
 local SCORE_GAP = 2 -- px between the names line and the race bar's box
+local FACE = NAMES_H -- px, each side's candidate portrait at the outer end of the names line (D-062)
 local SCORE_START = 0.24 -- share of the row where the score strip starts (wide)
 local PORTRAIT_SCORE_START = 0.25 -- ... on a phone, after the short "Week 3"
 local BUDGET_SHARE = 0.44 -- share of the now line the actions and money take
@@ -118,9 +119,10 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	-- layout (the sound button steps aside when a long title needs the room).
 	local laidOutRight = header.rightWidth
 
-	-- The score strip: each side's projected votes (Fredoka, at the outer ends)
-	-- and name (wide screens only) over the race bar (Kit.raceBar) with its
-	-- 270 tick. Names and numbers in the readable player colors.
+	-- The score strip: each side's candidate portrait (wide screens only) and
+	-- projected votes (Fredoka) at the outer ends and name (wide screens only) over the race
+	-- bar (Kit.raceBar) with its 270 tick. Names and numbers in the readable
+	-- player colors; each portrait is ringed in its player's color.
 	local score = Kit.box({ Name = "Score", Parent = header.root })
 	Kit.dataColor(score)
 	local function side(sideName: string, right: boolean): Frame
@@ -163,8 +165,34 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			Parent = group,
 		})
 	end
+	local function faceSlot(slotName: string, order: number, group: Frame): Frame
+		return Kit.box({
+			Name = slotName,
+			LayoutOrder = order,
+			Size = UDim2.fromOffset(FACE, FACE),
+			Parent = group,
+		})
+	end
 	local youSide = side("YouSide", false)
 	local themSide = side("ThemSide", true)
+	local youFace = faceSlot("YouFace", 0, youSide)
+	local themFace = faceSlot("ThemFace", 3, themSide)
+	-- Puts candidate `id`'s portrait ringed in `color` in `slot` (rebuilt only
+	-- when the candidate or the name changes; the ring follows the color).
+	local function paintFace(slot: Frame, id: string?, label: string, color: Color3)
+		local key = `{id}|{label}`
+		local face = slot:FindFirstChild("Portrait") :: Frame?
+		if face == nil or slot:GetAttribute("For") ~= key then
+			if face then
+				face:Destroy()
+			end
+			slot:SetAttribute("For", key)
+			face = Kit.portrait(id, label, FACE)
+			local built = face :: Frame
+			built.Parent = slot
+		end
+		Kit.paintPortrait(face :: Frame, { ring = color })
+	end
 	local youVotes = votes("YouVotes", 1, youSide)
 	local you = name("YouLabel", 2, youSide)
 	local them = name("ThemLabel", 1, themSide)
@@ -264,6 +292,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		-- A phone's strip has room for the numbers only: the colors say who.
 		you.Visible = not portrait
 		them.Visible = not portrait
+		youFace.Visible = not portrait
+		themFace.Visible = not portrait
 		root.Size = UDim2.new(1, 0, 0, height())
 	end
 
@@ -416,6 +446,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			shownMine, shownTheirs = mine, theirs
 			you.TextColor3, youVotes.TextColor3 = myText, myText
 			them.TextColor3, themVotes.TextColor3 = theirText, theirText
+			paintFace(youFace, view.players[me].candidate, myName, myColor)
+			paintFace(themFace, view.players[rival].candidate, theirName, theirColor)
 			race:setColors(myColor, theirColor)
 			if mineBefore ~= mine or theirsBefore ~= theirs then
 				race:set(mine / TOTAL_EV, theirs / TOTAL_EV)

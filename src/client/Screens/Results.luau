@@ -18,10 +18,10 @@
 --   RatingSlot    the rating change, once the server sends it (rated matches)
 --   EVBar         Kit.raceBar, 14 px: you from the left, them from the right,
 --                 the 270 tick (Marker270) with its caption (data colors)
---   Versus        two player cards: a 64 px monogram over the name, You /
+--   Versus        two player cards: a 64 px portrait (D-062) over the name, You /
 --                 Opponent, "280 votes" in Fredoka, "20 states", debate topics
 --                 won; the winner's card is edged in their color. Player colors
---                 stay on the monogram, the edge and the bar, never on big
+--                 stay on the portrait ring, the edge and the bar, never on big
 --                 numbers next to the primary button (D-047, D-051).
 --   WhyHead       "Why you won" / "Why Rex won" and three bullets Reason_<k>
 --                 (Shared/UI/Words/Reveal.keyReasons); after a loss, one more
@@ -46,6 +46,7 @@ local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
 local Swing = require(ReplicatedStorage.Shared.UI.Swing)
+local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
@@ -65,7 +66,7 @@ local CLOSEST_STATES = 5
 local TOTAL_EV = 538
 local WIN_EV = 270
 local EV_BAR_H = 14 -- px, the race bar's thickness
-local PORTRAIT = 64 -- px, a player's monogram on their card
+local PORTRAIT = 64 -- px, a player's portrait on their card
 local STAMP_SLACK = 36 -- px over the banner stamp's height in its row: room for its tilt
 local BANNER_GLOW = 0.6 -- the glow behind the banner, in the winner's color (transparency)
 local BANNER_GLOW_W = 1.1 -- the glow's width, a share of the column
@@ -198,8 +199,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if result and result.winner == player then
 			Kit.bevel(card, color, 2, 1)
 		end
-		local name = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
-		local portrait = Kit.monogram(name, color, PORTRAIT)
+		local name = Data.playerName(ctx.config, view, player)
+		local portrait =
+			Kit.portrait(if entry then entry.candidate else nil, name, PORTRAIT, { ring = color })
 		portrait.LayoutOrder = 1
 		portrait.Parent = card
 		Kit.text(name, {
@@ -244,6 +246,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				TextSize = Kit.size.caption,
 				TextColor3 = Kit.colors.muted,
 				TextXAlignment = center,
+			})
+		end
+		-- The opponent's custom name (D-063): a quiet way to report it.
+		local report = ctx.report
+		if not mine and report and entry and entry.customName then
+			Kit.button(SetupWords.REPORT, function()
+				report(player)
+			end, {
+				variant = "ghost",
+				Name = "ReportName",
+				LayoutOrder = 7,
+				Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+				Parent = card,
 			})
 		end
 		return votes
@@ -379,8 +394,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local names: { string } = {}
 		for p = 1, #view.players do
 			local entry = view.players[p]
-			local full = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
-			names[p] = string.match(full, "^(%S+)") or full
+			local full = Data.playerName(ctx.config, view, p)
+			-- A custom name stays whole (D-063); a candidate's goes by its first name.
+			names[p] = if entry and entry.customName then full else string.match(full, "^(%S+)") or full
 		end
 
 		-- A landslide (D-062): the big stamp in the winner's color, for both players.

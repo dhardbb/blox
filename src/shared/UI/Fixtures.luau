@@ -17,6 +17,8 @@ type Config = ConfigModule.Config
 export type Moment =
 	"Select" -- character select, nothing chosen yet
 	| "SelectColor" -- the same for a Color Pass owner: you hold Violet, Rex claimed Teal (D-061)
+	| "SelectName" -- Select for a Name Pass owner (D-063): you named your candidate "Captain Zed"; Rex is "Big Wave"
+	| "SelectNameBuy" -- Select for an eligible player without the Name Pass (D-063)
 	| "MapReveal" -- leans shown
 	| "Draft" -- a nomination round in progress, homes picked and strongholds assigned
 	| "Plan" -- week 3 plan, with history behind it
@@ -38,6 +40,8 @@ local END_SEED = 26 -- the default seed of the Election and Over moments
 Fixtures.MOMENTS = table.freeze({
 	"Select",
 	"SelectColor",
+	"SelectName",
+	"SelectNameBuy",
 	"MapReveal",
 	"Draft",
 	"Plan",
@@ -171,6 +175,42 @@ local function landslide(config: Config, payload: Session.StatePayload, winner: 
 	return payload
 end
 
+-- Made-up Name Pass id for fixtures (the real one lives in Net/Products).
+Fixtures.NAME_PASS_ID = 7654321
+Fixtures.YOUR_NAME = "Captain Zed" -- the custom names in the SelectName fixture
+Fixtures.THEIR_NAME = "Big Wave"
+
+-- Select for a player who may use the Name Pass (D-063), both seats eligible
+-- (they see custom names): `owned` you own it and named your candidate; the
+-- opponent, holding Rex Calloway, is named too. Without `owned`, nobody is named.
+local function selectName(config: Config, s: number, owned: boolean): Session.StatePayload
+	local session = Session.new(config, "fixture", s, {
+		{
+			id = "you",
+			kind = "Human",
+			seesNames = true,
+			namePass = { id = Fixtures.NAME_PASS_ID, owned = owned },
+			customName = if owned then Fixtures.YOUR_NAME else nil,
+		},
+		{
+			id = "rex",
+			kind = "Human",
+			seesNames = true,
+			namePass = { id = Fixtures.NAME_PASS_ID, owned = owned },
+			customName = if owned then Fixtures.THEIR_NAME else nil,
+		},
+	}, 0)
+	local ok, reason = Session.claim(session, 2, session.step, "calloway", 0)
+	assert(ok, `fixture claim rejected: {reason}`)
+	Session.update(session, 0)
+	if owned then
+		-- The server shares each name once it is filtered for the viewer.
+		Session.showName(session, 1, 2, Fixtures.THEIR_NAME, Fixtures.THEIR_NAME)
+	end
+	Session.drain(session)
+	return Session.payload(session, 1)
+end
+
 -- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
 -- as candidate `candidate` (default Dana Okafor) against Rex Calloway. Stance,
 -- ChoiceWeek and ChoiceResolve try the next seeds in turn until one deals a Choice event
@@ -193,6 +233,8 @@ function Fixtures.payload(
 	end
 	if moment == "SelectColor" then
 		return selectColor(config, first)
+	elseif moment == "SelectName" or moment == "SelectNameBuy" then
+		return selectName(config, first, moment == "SelectName")
 	end
 	local tries = if moment == "Stance" or moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
 	for k = 0, tries - 1 do

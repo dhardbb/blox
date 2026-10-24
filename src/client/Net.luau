@@ -67,6 +67,23 @@ local REASONS: { [string]: string } = {
 	NoColorPass = "Picking a color needs the Color Pass.",
 	NotSaved = "Your saved data didn't load, so your color can't be saved.",
 	ColorTaken = "Your opponent has that color. Pick another.",
+	-- Custom names (D-063)
+	NoNamePass = "Naming your candidate needs the Name Pass.",
+	NameNotEligible = "Custom names are for age-checked players 16 and over.",
+	NameBadText = "Use letters, spaces, - ' and . only. Try another.",
+	NameEmpty = "Type a name first.",
+	NameTooShort = "Use at least 2 letters.",
+	NameRepeats = "No letter three times in a row. Try another.",
+	NameTooLong = `Names can be at most {Config.defaults.NAME_MAX_LENGTH} characters.`,
+	NameFiltered = "That name isn't allowed. Try another.",
+	NameFilterFailed = "Names can't be checked right now. Try again in a minute.",
+	NameNotSaved = "Your saved data didn't load, so your name can't be saved.",
+	ReportSelf = "That's your own name.",
+	ReportNoName = "There's no custom name to report there.",
+	ReportTooSoon = "Wait a few seconds before reporting again.",
+	ReportLimit = "You've sent a lot of reports. Thanks! Try again later.",
+	NotAdmin = "Only the game's owners can review names.",
+	ReviewFailed = "The review list couldn't be saved. Try again in a minute.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -80,6 +97,8 @@ local NOTICES: { [string]: string } = {
 	OpponentReconnected = "Your opponent is back.",
 	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
 	OpponentForfeited = "Your opponent left the match. You win by forfeit.",
+	NameReported = "Thanks for the report. You'll see the candidate's own name instead.",
+	NameRemoved = "Your custom name was removed after a review. You can pick a new one.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,
@@ -97,7 +116,11 @@ local function colorTakenText(): string
 	if payload and payload.view.claims then
 		for id, owner in payload.view.claims do
 			if owner ~= payload.you and Candidates.exists(id) then
-				who = Words.firstName(Candidates.profile(Config.defaults, id).name)
+				-- Their custom name when this view carries one (D-063).
+				local them = payload.view.players[owner]
+				who = if them and them.customName
+					then them.customName
+					else Words.firstName(Candidates.profile(Config.defaults, id).name)
 			end
 		end
 	end
@@ -130,6 +153,8 @@ function Net.start()
 			Store.setLobby(message.lobby)
 		elseif message.kind == "Rating" and message.rating then
 			Store.setRating(message.rating)
+		elseif message.kind == "Review" and message.review then
+			Store.setReview(message.review)
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Notice" then
@@ -187,6 +212,18 @@ end
 -- server checks the pass itself.
 function Net.setColor(color: string?)
 	Net.send("SetColor", { color = color })
+end
+
+-- Names your candidate (Name Pass owners, D-063); nil goes back to the
+-- candidate's own name. The server checks the pass, the age rule and the
+-- text filter itself.
+function Net.setName(name: string?)
+	Net.send("SetName", { name = name })
+end
+
+-- Reports the custom name this player was shown for `userId` (D-063).
+function Net.reportName(userId: string)
+	Net.send("ReportName", { userId = userId })
 end
 
 -- Opens Roblox's purchase prompt for a pass (a LocalScript may, per the

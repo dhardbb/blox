@@ -23,6 +23,7 @@ local Audio = require(script.Parent.UI.Audio)
 local Kit = require(script.Parent.UI.Kit)
 local Help = require(script.Parent.UI.Help)
 local LeaveMatch = require(script.Parent.UI.LeaveMatch)
+local ReportName = require(script.Parent.UI.ReportName)
 local Net = require(script.Parent.Net)
 local Router = require(script.Parent.Router)
 local Store = require(script.Parent.Store)
@@ -119,6 +120,8 @@ local help = Help.mount(background, ctx)
 ctx.help = help.open
 -- "Leave match" (D-059): above Help, below the toast (ZIndex 45).
 ctx.leave = LeaveMatch.mount(background, ctx).open
+-- "Report name" (D-063): the same layer as Leave.
+ctx.report = ReportName.mount(background, ctx).open
 
 local fixture = workspace:GetAttribute("DebugScreen")
 if type(fixture) == "string" then
@@ -203,6 +206,28 @@ if type(fixture) == "string" then
 	end
 	fakeNet.buyPass = function(passId: number)
 		print("[270] DEBUG_UI buyPass", passId)
+	end
+	fakeNet.reportName = function(userId: string)
+		print("[270] DEBUG_UI reportName", userId)
+	end
+	fakeNet.setName = function(name: string?)
+		print("[270] DEBUG_UI setName", name or "(own)")
+		-- Offline there is no server or filter: use the name as typed, trimmed.
+		local payload = Store.get().payload
+		local naming = if payload then payload.naming else nil
+		if payload == nil or naming == nil or not naming.owned then
+			return
+		end
+		local trimmed = if name then string.match(name, "^%s*(.-)%s*$") else nil
+		local named = table.clone(naming)
+		named.name = if trimmed ~= "" then trimmed else nil
+		local copy = table.clone(payload)
+		copy.naming = named
+		copy.view = table.clone(payload.view)
+		copy.view.players = table.clone(payload.view.players)
+		copy.view.players[payload.you] = table.clone(payload.view.players[payload.you])
+		copy.view.players[payload.you].customName = named.name
+		Store.setPayload(copy)
 	end
 	fakeNet.skip = function()
 		print("[270] DEBUG_UI skip")

@@ -23,7 +23,9 @@
 -- Layout (docs/UI-STYLE.md §4.2): the standard Header with the "what to do now"
 -- line and the timer, a scroll area (a coach tip, the cards or chips, then the
 -- color line with one ghost button for details), and the pinned ActionBar. Each
--- card shows a short strength and weakness (Shared/UI/Words/Setup); the exact
+-- card shows the candidate's portrait (Kit.portrait, D-062) on a neutral plate,
+-- ringed in a player color only once it is picked (yours) or taken (theirs,
+-- dimmed), and a short strength and weakness (Shared/UI/Words/Setup); the exact
 -- numbers are in a sheet ("About Dana"), and "How issues work" explains votes
 -- and boost.
 --
@@ -31,9 +33,11 @@
 -- when it opens (Motion.stagger), and a card pops as it is picked; the outline
 -- and the "select" cue come from Kit. Nothing waits on an animation.
 --
--- Stable names: Candidate_<id> (with Name, Archetype, Perk, Drawback, Taken),
+-- Stable names: Candidate_<id> (with Portrait, Name, Archetype, Perk, Drawback, Taken),
 -- Issue_<issue> (with IssueName, IssueLine), Candidates, Issues, ColorRow,
 -- ColorDot, ColorLine, ColorPicker (ColorSwatch_<Color>, each with ColorName),
+-- NameRow (NameLine, NameButton), NameSheet (NameBox, NameHint, NameStatus,
+-- NameReset, NameSave),
 -- Details, CandidateSheet, IssuesHelp, IssuesSheet, LockIn,
 -- BarStatus, BarOpponent, NowText, Timer.
 
@@ -43,6 +47,7 @@ local Players = game:GetService("Players")
 
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
+local CustomName = require(ReplicatedStorage.Shared.Net.CustomName)
 local IssueMap = require(ReplicatedStorage.Shared.Sim.IssueMap)
 local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
@@ -63,10 +68,10 @@ local Types = require(script.Parent.Types)
 local Screen = {}
 
 local MAX_WIDTH = 1000 -- px
-local CARD_H = 128 -- px, a candidate card: the monogram beside name and kind, then strength and weakness
-local CARD_H_PORTRAIT = 100 -- px, the same on a phone (tighter padding, a smaller monogram)
-local MONO = 48 -- px, a candidate's monogram (Kit.monogram) on a wide screen
-local MONO_PORTRAIT = 36 -- px, on a phone
+local CARD_H = 136 -- px, a candidate card: the portrait beside name and kind, then strength and weakness
+local CARD_H_PORTRAIT = 102 -- px, the same on a phone (tighter padding, a smaller portrait)
+local FACE = 56 -- px, a candidate's portrait (Kit.portrait) on a wide screen
+local FACE_PORTRAIT = 40 -- px, on a phone
 local ISSUE_H = 68 -- px, an issue chip: the name over "154 votes · +41% boost"
 local ISSUE_H_PORTRAIT = 86 -- px, on a phone the votes and the boost take a line each
 local DOT = 24 -- px, the color line's monogram (your candidate's initials in your color)
@@ -75,6 +80,7 @@ local SWATCH = 36 -- px, a color swatch's monogram (Color Pass owners, D-061)
 local SWATCH_CELL_MAX = 72 -- px, widest a swatch's cell gets (six in a row; a phone gives each about 56)
 local SWATCH_NAME_H = 18 -- px, the color name (or "Taken") under a swatch
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
+local NAME_BUTTON_W = 180 -- px, the name line's Rename / Get the Name Pass button (D-063)
 local PICKED = Kit.glyph.bullet .. " " -- before a picked issue's name
 local TAKEN_FADE = 0.5 -- a taken card's fill and text transparency
 local ARRIVE_FROM = 0.92 -- scale a card pops in from when its step opens
@@ -162,8 +168,17 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return nil
 	end
 
-	-- The opponent's first name once they hold a candidate, else "your opponent".
+	-- The opponent's custom name when this view carries one (D-063), else their
+	-- candidate's first name once they hold one, else "your opponent".
 	local function opponentName(): string
+		local current = payload
+		if current then
+			local other = Data.opponent(current)
+			local them = current.view.players[other]
+			if them and them.customName then
+				return them.customName
+			end
+		end
 		for _, id in Candidates.ids do
 			if holder(id) == "theirs" then
 				return Words.firstName(Candidates.profile(ctx.config, id).name)
@@ -279,18 +294,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			AutomaticSize = Enum.AutomaticSize.None, -- the grid sizes it
 			Parent = candidateGrid,
 		})
-		-- The top row: the candidate's monogram (painted in renderMonograms)
+		-- The top row: the candidate's portrait (painted in renderPortraits)
 		-- beside the name over the kind.
 		local top = Kit.box({
 			Name = "Top",
 			LayoutOrder = 1,
-			Size = UDim2.new(1, 0, 0, MONO),
+			Size = UDim2.new(1, 0, 0, FACE),
 			Parent = card,
 		})
 		local who = Kit.box({
 			Name = "Who",
-			Position = UDim2.fromOffset(MONO + Kit.space.sm, 0),
-			Size = UDim2.new(1, -(MONO + Kit.space.sm), 1, 0),
+			Position = UDim2.fromOffset(FACE + Kit.space.sm, 0),
+			Size = UDim2.new(1, -(FACE + Kit.space.sm), 1, 0),
 			Parent = top,
 		})
 		local whoList = Kit.list("Vertical", 0)
@@ -568,12 +583,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		swatches[color] = { cell = cell, button = button, slot = slot, name = name }
 	end
 
-	-- Each card's monogram: in your color (the face you'd play), the taken
-	-- one in your opponent's; grey until colors are dealt.
-	local function renderMonograms()
+	-- Each card's portrait (D-062) on a neutral plate, so the eight faces tell
+	-- the candidates apart. A ring in a player color marks whose it is: yours
+	-- (picked or claimed) in your color, the taken one in your opponent's
+	-- (dimmed); free candidates have none.
+	local function renderPortraits()
 		local current = payload
-		local mine = Kit.colors.neutral
-		local theirs = Kit.colors.neutral
+		local mine: Color3? = nil
+		local theirs: Color3? = nil
 		if current then
 			mine = Kit.playerColor(current.view, current.you)
 			local other = Data.opponent(current)
@@ -581,16 +598,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				theirs = Kit.playerColor(current.view, other)
 			end
 		end
-		local px = if lastPortrait then MONO_PORTRAIT else MONO
+		local px = if lastPortrait then FACE_PORTRAIT else FACE
 		for id, p in parts do
-			local profile = Candidates.profile(ctx.config, id)
-			paintMonogram(
-				p.top,
-				"Monogram",
-				profile.name,
-				if holder(id) == "theirs" then theirs else mine,
-				px
-			)
+			local face = p.top:FindFirstChild("Portrait") :: Frame?
+			if face == nil or face.Size.X.Offset ~= px then
+				if face then
+					face:Destroy()
+				end
+				face = Kit.portrait(id, Candidates.profile(ctx.config, id).name, px)
+				local built = face :: Frame
+				built.Parent = p.top
+			end
+			local who = holder(id)
+			local ring = if who == "theirs"
+				then theirs
+				elseif who == "mine" or id == candidate then mine
+				else nil
+			Kit.paintPortrait(face :: Frame, {
+				ring = ring or (if who ~= nil or id == candidate then Kit.colors.neutral else nil),
+				fade = if who == "theirs" then TAKEN_FADE else 0,
+			})
 			p.top.Size = UDim2.new(1, 0, 0, px)
 			p.who.Position = UDim2.fromOffset(px + Kit.space.sm, 0)
 			p.who.Size = UDim2.new(1, -(px + Kit.space.sm), 1, 0)
@@ -685,6 +712,165 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		paintMonogram(dotSlot, "ColorDot", label, Kit.color(Colors.of(name)), DOT)
 		colorLine.Text = if name then `Your color: {name}` else "Your color: red or blue"
 		renderPicker(name)
+	end
+
+	-- ------------------------------------------------------------ custom name (D-063)
+
+	-- A line under the color for a player who may use the Name Pass (it is set
+	-- up and they are a verified 16+ account: payload.naming): "Name: Captain
+	-- Zed" and Rename (an owner: opens the name sheet) or Get the Name Pass
+	-- (Roblox's purchase prompt; the server hears the outcome and the next State
+	-- turns the button into Rename). Hidden for everyone else.
+	local nameRow = Kit.box({
+		Name = "NameRow",
+		LayoutOrder = 11,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Visible = false,
+		Parent = content,
+	})
+	local nameLine = Kit.text("", {
+		Name = "NameLine",
+		Position = UDim2.fromOffset(Kit.space.xs, 0),
+		Size = UDim2.new(1, -(NAME_BUTTON_W + Kit.space.xs), 1, 0),
+		TextScaled = true,
+		TextWrapped = false,
+		Parent = nameRow,
+	})
+	Kit.new(
+		"UITextSizeConstraint",
+		{ MaxTextSize = Kit.size.body, MinTextSize = Kit.MIN_TEXT, Parent = nameLine }
+	)
+	-- Under the offer (eligible, without the pass): names follow Roblox's rules.
+	local nameRules = Kit.caption(Words.NAME_RULES, {
+		Name = "NameRules",
+		LayoutOrder = 12,
+		Visible = false,
+		Parent = content,
+	})
+	local nameSheet = Sheet.new(parent, { title = Words.NAME_TITLE, name = "NameSheet", height = 0.5 })
+	local openNameSheet: (current: string?) -> ()
+	local nameButton = Kit.button("", function()
+		local current = payload
+		local naming = if current then current.naming else nil
+		if naming == nil then
+			return
+		end
+		if naming.owned then
+			openNameSheet(naming.name)
+		else
+			local buy = ctx.net.buyPass
+			if buy then
+				buy(naming.id)
+			end
+		end
+	end, {
+		variant = "ghost",
+		Name = "NameButton",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.new(0, NAME_BUTTON_W, 1, 0),
+		Parent = nameRow,
+	})
+	local nameBox = Kit.new("TextBox", {
+		Name = "NameBox",
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		BackgroundColor3 = Kit.colors.field,
+		BorderSizePixel = 0,
+		Font = Kit.font.medium,
+		TextSize = Kit.size.body,
+		TextColor3 = Kit.colors.text,
+		PlaceholderColor3 = Kit.colors.muted,
+		ClearTextOnFocus = false,
+		Text = "",
+		Parent = nameSheet.body,
+	}) :: TextBox
+	Kit.corner(Kit.radius.control).Parent = nameBox
+	Kit.stroke(Kit.colors.line, 1).Parent = nameBox
+	Kit.pad(Kit.space.md).Parent = nameBox
+	-- Typing stops at the limit (the server checks it again after trimming).
+	nameBox:GetPropertyChangedSignal("Text"):Connect(function()
+		local text = nameBox.Text
+		local length = utf8.len(text)
+		local max = ctx.config.NAME_MAX_LENGTH
+		if length and length > max then
+			nameBox.Text = string.sub(text, 1, (utf8.offset(text, max + 1) or (#text + 1)) - 1)
+		end
+	end)
+	Kit.caption(Words.nameHint(ctx.config.NAME_MAX_LENGTH), {
+		Name = "NameHint",
+		LayoutOrder = 2,
+		Parent = nameSheet.body,
+	})
+	Kit.caption(Words.NAME_RULES, { Name = "NameSheetRules", LayoutOrder = 3, Parent = nameSheet.body })
+	local nameStatus = Kit.caption("", { Name = "NameStatus", LayoutOrder = 4, Parent = nameSheet.body })
+	local namePending = false -- a SetName sent and not yet answered
+	local nameWanted: string? = nil -- the name it asked for, cleaned as the server cleans it
+	local messageAtName = 0 -- id of the newest message when it was sent
+	local function sendName(name: string?)
+		local send = ctx.net.setName
+		if send == nil or namePending then
+			return
+		end
+		namePending = true
+		nameWanted = if name then (CustomName.normalize(name, ctx.config)) else nil
+		messageAtName = Messages.lastId(ctx.store.get())
+		nameStatus.Text = Words.NAME_SAVING
+		nameStatus.TextColor3 = Kit.colors.muted
+		nameStatus:SetAttribute("Warn", nil)
+		send(name)
+	end
+	local nameActions = Kit.box({
+		Name = "NameActions",
+		LayoutOrder = 5,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Parent = nameSheet.body,
+	})
+	Kit.list("Horizontal", Kit.space.sm).Parent = nameActions
+	Kit.button(Words.NAME_RESET, function()
+		sendName(nil)
+	end, {
+		variant = "ghost",
+		Name = "NameReset",
+		LayoutOrder = 1,
+		Size = UDim2.new(0.5, -Kit.space.sm / 2, 1, 0),
+		Parent = nameActions,
+	})
+	Kit.button(Words.NAME_SAVE, function()
+		sendName(nameBox.Text)
+	end, {
+		variant = "secondary",
+		Name = "NameSave",
+		LayoutOrder = 2,
+		Size = UDim2.new(0.5, -Kit.space.sm / 2, 1, 0),
+		Parent = nameActions,
+	})
+
+	openNameSheet = function(current: string?)
+		nameBox.Text = current or ""
+		if not namePending then
+			nameStatus.Text = ""
+			nameStatus:SetAttribute("Warn", nil)
+		end
+		nameSheet:open()
+	end
+
+	local function renderName()
+		local current = payload
+		local naming = if current then current.naming else nil
+		nameRow.Visible = naming ~= nil
+		nameRules.Visible = naming ~= nil and not naming.owned
+		if naming == nil then
+			if nameSheet:isOpen() then
+				nameSheet:close()
+			end
+			return
+		end
+		local id = candidate
+		local own = if id then Candidates.profile(ctx.config, id).name else nil
+		nameLine.Text = Words.nameLine(naming.name or own)
+		nameButton.Text = if naming.owned then Words.NAME_RENAME else Words.NAME_BUY
+		nameBox.PlaceholderText = own or Words.NAME_TITLE
 	end
 
 	-- ------------------------------------------------------------ layout
@@ -864,7 +1050,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			p.archetype.TextTransparency = if taken then TAKEN_FADE else 0
 		end
 		renderColor()
-		renderMonograms()
+		renderPortraits()
+		renderName()
 		local full = #platform >= platformSize
 		for issue, chip in chips do
 			local picked = table.find(platform, issue) ~= nil
@@ -973,6 +1160,22 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					or answer ~= nil
 				then
 					colorPending = nil
+				end
+			end
+			-- A SetName is answered by a new State (the name changed) or a
+			-- rejection (a message): close the sheet, or say why in it.
+			if namePending then
+				local answer = Messages.newestAfter(state, messageAtName)
+				local naming = if current then current.naming else nil
+				if answer ~= nil and answer.rejected then
+					namePending = false
+					nameStatus.Text = answer.text
+					nameStatus.TextColor3 = Kit.colors.loss
+					nameStatus:SetAttribute("Warn", true)
+				elseif naming ~= nil and naming.name == nameWanted then
+					namePending = false
+					nameStatus.Text = ""
+					nameSheet:close()
 				end
 			end
 			-- A rejected lock-in leaves a message and no lock: say why (the global

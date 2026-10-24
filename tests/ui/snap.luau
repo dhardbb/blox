@@ -246,6 +246,56 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- An admin (D-063): the color option free and "Review names (2)".
+		name = "01g-lobby-admin",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			local lobby = Fixtures.lobby("Idle", { colorPass = "owned", color = "Teal" })
+			lobby.review = { count = 2 }
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02k-lobby-review",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			local lobby = Fixtures.lobby("Idle", { colorPass = "owned", color = "Teal" })
+			lobby.review = { count = 2 }
+			local store = Rig.storeOf(world, peer)
+			store.setLobby(lobby)
+			store.setReview({
+				ok = true,
+				entries = {
+					{
+						userId = "101",
+						name = "Big Wave",
+						owner = "MapleFox",
+						count = 3,
+						first = 1792800000,
+						last = 1792972800,
+					},
+					{
+						userId = "102",
+						name = "Sir Zorkalot",
+						owner = "QuietComet",
+						count = 1,
+						first = 1792972800,
+						last = 1792972800,
+					},
+				},
+			})
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			tapIf(world, peer, "Lobby", "ReviewButton", 0.5)
+		end,
+	},
+	{
 		name = "01b-lobby-color",
 		moment = "Lobby",
 		screen = "Lobby",
@@ -430,6 +480,43 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Select", "Candidate_okafor")
 			tapIf(world, peer, "Select", "LockIn", 0.5)
 			tapIf(world, peer, "Select", "Issue_Jobs")
+		end,
+	},
+	{
+		-- A Name Pass owner (D-063): "Captain Zed" against "Big Wave".
+		name = "03d-select-name",
+		moment = "SelectName",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+		end,
+	},
+	{
+		name = "03e-select-name-sheet",
+		moment = "SelectName",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+			tapIf(world, peer, "Select", "NameButton", 0.5)
+		end,
+	},
+	{
+		-- Eligible without the pass: the line offers it.
+		name = "03f-select-name-buy",
+		moment = "SelectNameBuy",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+		end,
+	},
+	{
+		-- Reporting the opponent's custom name from the Help sheet (D-063).
+		name = "03g-select-report",
+		moment = "SelectName",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "HelpButton", 0.5)
+			tapIf(world, peer, "HelpOverlay", "HelpReport", 0.5)
 		end,
 	},
 	{ name = "05-map-reveal", moment = "MapReveal", screen = "Draft" },

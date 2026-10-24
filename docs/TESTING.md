@@ -895,3 +895,50 @@ Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- s
 1. **Campaign map.** States nobody leads are dark slate circles; leaning states are a deep red or blue (not pink or grey-blue); safe states are bright red or blue. The ring around each state is a soft slate, not near-white. Open **Key**: its swatches match the map. *Send back:* a screenshot of week 3 and whether a narrow lead is easy to spot.
 2. **Names in color** (header, state card, election night): Rex's name is a vivid red, Dana's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
 3. **Color Pass colors** (if you have the pass): all six swatches look rich, and Amber still reads as gold, not orange. *Send back:* a screenshot of Select with the swatches.
+## Candidate portraits (unreleased, D-062)
+
+Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `-- debate`, `-- reveal`, `-- election`, `-- results`, `-- howto`); the snapshots always draw the PNGs; 0 audit findings at all three sizes.
+
+### Uploading the portraits (once, for the lead or the humans)
+
+1. Upload the eight PNGs in `assets/portraits/` (okafor, calloway, venkat, hale, alvarado, reyes, strand, begay) as images: Creator Hub → Create → Development items → Images, or Studio's Asset Manager.
+2. Put each number in `src/client/UI/Assets.luau` under `portraits` (`okafor = 1234567890,` and so on). Until then every plate shows the candidate's initials instead of the face; nothing breaks.
+
+### In Studio (after the ids are in the build)
+
+1. **Play (F5) → Play vs Bot.** **Expect:** on Select, eight different faces on the same slate-blue plate, no colored rings. Rex Calloway's card (the bot's) is dimmed with a red ring. *Send back:* an iPad screenshot and a phone screenshot.
+2. Tap **Dana Okafor**. **Expect:** her face gets a ring in your color (blue). Tap another: the ring moves.
+3. **Faces at small sizes:** can you tell all eight apart on the phone cards (about the size of a fingertip)? *Send back:* which ones look alike, if any.
+4. **Map reveal:** the Strongholds card shows both faces, each ringed in its player's color. **A week's results:** "Your week" and "Rex's week" each start with the face. **Debate (week 4):** the two faces face off over the scoreboard with "vs" between. **Header (iPad, Mac):** a small face at each end of the score bar. **Election night:** the winner's face in the spotlight card. **Results:** a big face on each player card. **How to play** (Lobby), page 1: two faces over the race bar.
+5. **No errors** from `Kit`, `Select`, `TopBar`, `Reveal`, `Election`, `Results` or `HowTo` in the Output window. *Send back:* whether the faces feel friendly and fit the front-page look, and anything that looks off (cut-off hats, blurry edges).
+
+## The Name Pass (unreleased, D-063)
+
+A custom candidate name for players Roblox lets chat (the stand-in for 16+), filtered like chat, with reports and an owner review. Agents: `lune run tests "Name Pass"`, `lune run tests "reported names"`, shots `03d`–`03g`, `01g`, `02k`.
+
+### Setting up the Name Pass (once, for the humans)
+
+1. [Creator Dashboard](https://create.roblox.com/dashboard/creations) → the experience of place **133510178057620** → **Monetization → Passes → Create pass.** Name: **Name Your Candidate**. Description, for example: "Give your candidate a name of your own (up to 16 characters). Names must follow Roblox's Community Standards." Square icon (up to 512x512). **Create pass.**
+2. Put it **on sale** and set a price. **Save.**
+3. **⋯ → Copy Asset ID**, send it to Claude (or put it in `src/shared/Net/Products.luau`: `Products.NAME_PASS_ID = <the number>`).
+4. **Admins:** the owner (5618560436) and originalyellowboss (479739965) are in `Config.ADMIN_USER_IDS` in `src/shared/Sim/Config.luau`. To add another admin, add their user id there with a comment naming them. Admins get the color picker and custom names free, and the **Review names** button.
+5. **Communication settings:** names need Roblox's chat permission, so chat must be on for the experience (Experience Settings → Communication).
+
+### In Studio
+
+Studio may not answer the chat-permission check, and its text filter is limited. To try the screens, set `NameEligibility.STUDIO_OVERRIDE = true` in `src/server/NameEligibility.luau` (it only works in Studio; never commit it as true). Purchases are test purchases.
+
+1. As an admin, **Play vs Bot**. **Expect:** under "Your color", a line "Name: Dana Okafor · Rename" (admins have the pass). Without being an admin: **Get the Name Pass** and, under it, "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
+2. **Rename**: the sheet shows the box (stops at 16 characters), the hint, the same rules note, **Use the candidate's name** and **Save name**. Type `  Captain   Zed ` and save. **Expect:** the line reads "Name: Captain Zed"; the header and reveals say "Captain Zed" (still Dana's portrait).
+3. Try `Zed 2024`, `zed.com`, `Zeee`, `A`, `Discord Zed`, `Donald Trump`. **Expect:** each is turned down with a short reason; the name does not change.
+
+### In a live server (two accounts; the filter only fully works live)
+
+1. With a name set on account A, **Find match** with account B (both allowed to chat). **Expect:** B sees A's custom name. With B's chat turned off (Roblox settings), B sees "Dana Okafor".
+2. Try a few names on A that Roblox's chat would hide (a rude word, a phone-number-like name spelled out in words). **Expect:** "That name isn't allowed. Try another."
+3. **Report:** on B, tap **?** → **Report "Captain Zed"** → **Report**. **Expect:** B sees "Dana Okafor" from then on (also in the next match against A); a thank-you message. A still sees their own name. The sheet mentions Roblox's own Report.
+4. **Review (owner or partner):** in the Lobby, **Review names (1)**. **Expect:** "Captain Zed · by <A's username> · 1 report · <date>". Tap **Keep**: the row goes, A keeps the name. Report it again from B, then **Remove**. **Expect:** A's candidate goes back to its own name with "Your custom name was removed after a review. You can pick a new one."; A can no longer use "Captain Zed", "Capta1n Zed" or "Captain Zeb", but can pick another name. On another server, A's saved name is cleared when A next joins.
+5. **Admins' free color:** as the owner or partner, with no Color Pass bought, the Lobby shows **Color** with every swatch open.
+6. Output: lines with `name filter failed`, `name eligibility check failed`, `name review`, `rejected SetName`, `rejected ReportName`, `rejected Review`.
+
+**Send back:** screenshots of the Select name line, the sheet, a refusal, B's view after reporting, and the review panel; and the Output lines from step 6.

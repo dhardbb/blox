@@ -25,7 +25,7 @@
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, Settings (SoundChip,
--- MotionChip), ColorButton, ColorSheet, BotLevel (Level_<level>), HowToSheet,
+-- MotionChip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-063), BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,6 +35,7 @@ local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local BotLevel = require(script.Parent.Parent.UI.BotLevel)
 local ColorPick = require(script.Parent.Parent.UI.ColorPick)
 local HowTo = require(script.Parent.Parent.UI.HowTo)
+local NameReview = require(script.Parent.Parent.UI.NameReview)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
 local Leaderboard = require(script.Parent.Parent.UI.Leaderboard)
@@ -192,6 +193,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	local settings = Settings.row({ LayoutOrder = 5, Parent = idle })
 	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 6, Parent = idle })
+	-- Admins only (D-063): the reported names to review.
+	local review = NameReview.new(parent, ctx, { LayoutOrder = 7, Parent = idle })
 	local board = Leaderboard.new(parent, ctx)
 
 	-- The sheet: make a code, or enter one.
@@ -345,7 +348,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		else
 			content.Position = UDim2.fromScale(0.5, 0)
 			card.Parent = idle
-			card.LayoutOrder = 7
+			card.LayoutOrder = 8
 			card.AnchorPoint = Vector2.new(0, 0)
 			card.Position = UDim2.new()
 			card.Size = UDim2.fromScale(1, 0)
@@ -369,10 +372,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		waiting.Visible = status == "Queued" or status == "Hosting"
 		starting.Visible = status == "InMatch"
 		colorPick.update(lobby)
+		review.update(lobby, state.review)
 		board.update(state.leaderboard)
 		if status ~= "Idle" then
 			friend:close()
 			colorPick.sheet:close()
+			review.sheet:close()
 			howTo.sheet:close()
 		end
 		-- Only the idle Lobby has something to press first (UI audit rule "primary").

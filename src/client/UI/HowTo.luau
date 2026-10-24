@@ -1,7 +1,7 @@
 --!strict
 -- "How to play" for brand-new players (docs/DESIGN.md D-059): the Lobby's
 -- ghost button opens this sheet of five short pages, one idea each: the goal
--- (270 votes), a week (plan, both reveal, the map moves), the actions, debates
+-- (270 votes, over two sample candidates' portraits), a week (plan, both reveal, the map moves), the actions, debates
 -- and events, election night. Each page is a title, a small picture built from
 -- Kit pieces and at most 30 words (Shared/UI/Words/Lobby.howTo). The pictures
 -- for the goal, the actions and the debates are the in-match Help's own
@@ -21,6 +21,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 
@@ -35,6 +36,9 @@ local HEIGHT = 0.7 -- share of the screen height (the tallest page, Actions, fit
 local NUMBER = 28 -- px, a step number's circle
 local ROW = 28 -- px, one row of a picture
 local NAV_W = 0.32 -- share of the row each nav button takes
+local FACE = 40 -- px, the goal page's two candidate portraits (D-062)
+local FACE_YOU = "okafor" -- the goal page's sample candidates: you (blue) and a rival (red)
+local FACE_RIVAL = "calloway"
 
 export type HowTo = {
 	sheet: Sheet.Sheet,
@@ -75,6 +79,25 @@ local function weekArt(art: Frame)
 			Size = UDim2.new(1, -(NUMBER + Kit.space.sm), 1, 0),
 			Parent = line,
 		})
+	end
+end
+
+-- The goal page's face-off over the race bar: a sample candidate for you
+-- (ringed blue) and one for your rival (ringed red), as in a match.
+local function facesArt(art: Frame, config: any)
+	local line = Kit.box({
+		Name = "Faces",
+		LayoutOrder = 0,
+		Size = UDim2.new(1, 0, 0, FACE),
+		Parent = art,
+	})
+	for k, id in { FACE_YOU, FACE_RIVAL } do
+		local face = Kit.portrait(id, Candidates.profile(config, id).name, FACE, {
+			ring = Kit.color(if k == 1 then Colors.player.Cobalt else Colors.player.Crimson),
+		})
+		face.AnchorPoint = Vector2.new(if k == 1 then 0 else 1, 0)
+		face.Position = UDim2.fromScale(if k == 1 then 0 else 1, 0)
+		face.Parent = line
 	end
 end
 
@@ -142,6 +165,7 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 			Parent = frame,
 		})
 		if page.id == "goal" then
+			facesArt(art, ctx.config)
 			Help.art.win(art, ctx.config)
 		elseif page.id == "week" then
 			weekArt(art)

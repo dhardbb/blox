@@ -21,6 +21,11 @@ local OPS: { [string]: boolean } = {
 	Leave = true,
 	PrePick = true,
 	SetColor = true,
+	SetName = true,
+	ReportName = true,
+	ReviewList = true,
+	ReviewKeep = true,
+	ReviewRemove = true,
 	Claim = true,
 	ClaimColor = true,
 	Submit = true,
@@ -114,6 +119,21 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			end
 			request.color = raw.color
 		end
+	elseif op == "SetName" then
+		-- Optional: absent means the candidate's own name. Cleaning, the length
+		-- limit and the text filter are the server's checks (D-063).
+		if raw.name ~= nil then
+			if type(raw.name) ~= "string" then
+				return false, "BadShape", nil
+			end
+			request.name = raw.name
+		end
+	elseif op == "ReportName" or op == "ReviewKeep" or op == "ReviewRemove" then
+		-- A user id as digits; who may do this, and to whom, is the server's check (D-063).
+		if type(raw.userId) ~= "string" or not string.match(raw.userId, "^%d+$") or #raw.userId > 20 then
+			return false, "BadShape", nil
+		end
+		request.userId = raw.userId
 	elseif op == "Forfeit" then
 		-- The match being left: a stale request can never end a newer match.
 		if type(raw.matchId) ~= "string" then

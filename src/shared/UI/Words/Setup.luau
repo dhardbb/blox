@@ -47,6 +47,56 @@ function Setup.colorButton(color: string?): string
 	return if color then `Color: {color}` else "Color: red or blue"
 end
 
+-- ---------------------------------------------------------------- custom names (D-063)
+
+-- Select's name line: "Name: Captain Zed", or the candidate's own name.
+function Setup.nameLine(name: string?): string
+	return if name then `Name: {name}` else "Name: your candidate's own"
+end
+Setup.NAME_RENAME = "Rename" -- the name line's button for a Name Pass owner
+Setup.NAME_BUY = "Get the Name Pass" -- the same for an eligible player without it
+Setup.NAME_TITLE = "Name your candidate" -- the name sheet's title
+-- The sheet's hint under the box: the limit, and who sees the name.
+function Setup.nameHint(max: number): string
+	return `Up to {max} characters. Age-checked players 16+ see it; everyone else sees the candidate's own name.`
+end
+-- Under the Name Pass offer and on the name sheet: names follow Roblox's rules.
+Setup.NAME_RULES = "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
+Setup.NAME_SAVE = "Save name"
+
+-- Reporting a custom name (D-063).
+Setup.REPORT = "Report name" -- the action wherever another player's custom name shows
+Setup.REPORT_TITLE = "Report this name?"
+-- `name` is the custom name, `own` the candidate's own name.
+function Setup.reportText(name: string, own: string): string
+	return `"{name}" will show as {own} for you from now on. The game's owners will review it.`
+end
+Setup.REPORT_ROBLOX = "For anything serious, also use Roblox's own Report in the Roblox menu."
+Setup.REPORT_CONFIRM = "Report"
+Setup.REPORT_CANCEL = "Cancel"
+-- The in-match Help sheet's button: "Report Big Wave".
+function Setup.reportButton(name: string): string
+	return `Report "{name}"`
+end
+
+-- The admins' review panel (D-063).
+Setup.REVIEW_TITLE = "Review names"
+function Setup.reviewButton(count: number): string
+	return `Review names ({count})`
+end
+Setup.REVIEW_EMPTY = "No reported names. All clear!"
+Setup.REVIEW_FAILED = "The list couldn't be loaded. Try again in a minute."
+Setup.REVIEW_KEEP = "Keep"
+Setup.REVIEW_REMOVE = "Remove"
+-- One row's details: "by Builder42 · 3 reports · Oct 20 – Oct 23".
+function Setup.reviewLine(owner: string, count: number, first: string, last: string): string
+	local reports = if count == 1 then "1 report" else `{count} reports`
+	local when = if first == last then first else `{first} – {last}`
+	return `by {owner} · {reports} · {when}`
+end
+Setup.NAME_RESET = "Use the candidate's name"
+Setup.NAME_SAVING = "Checking the name…"
+
 -- ---------------------------------------------------------------- candidates
 
 -- One strength and one weakness per candidate, each short enough for one line

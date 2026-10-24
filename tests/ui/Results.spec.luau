@@ -139,11 +139,14 @@ describe("Results layout", function()
 		Rig.noErrors(world)
 	end)
 
-	it("puts a monogram on each player card", function()
+	it("puts the candidate's portrait on each player card", function()
 		local world, peer = Rig.fixture("Over", nil)
 		for _, name in { "Player_You", "Player_Opponent" } do
 			local card = Rig.need(peer, "Results", name)
-			check(card:FindFirstChild("Monogram") ~= nil, `{name} has no monogram`)
+			local face = card:FindFirstChild("Portrait")
+			check(face ~= nil, `{name} has no portrait`)
+			check((face :: any):GetAttribute("Portrait") ~= "", `{name}'s portrait has no candidate`)
+			check((face :: any):GetAttribute("Ring") == true, `{name}'s portrait has no color ring`)
 		end
 		Rig.noErrors(world)
 	end)

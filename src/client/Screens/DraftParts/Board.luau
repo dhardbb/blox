@@ -38,7 +38,7 @@ local Board = {}
 
 local LINE_H = 20 -- px, one board line (grows if the detail wraps)
 local WHO_W = 64 -- px, "You" / "Rex"
-local DOT = 12 -- px, a player's dot
+local FACE = 24 -- px, a player's candidate portrait on the strongholds card (D-062)
 local SWATCH = 16 -- px, a legend key's dot
 local LEGEND_TINT = 0.6 -- how far a legend dot leans toward the player's color
 
@@ -54,8 +54,13 @@ local function listText(ids: { string }): string
 	return table.concat(ids, " ")
 end
 
--- The candidate's display name, or a fallback before one is known.
+-- The candidate's display name (a custom name when the view carries one,
+-- D-063), or a fallback before one is known.
 function Board.candidateName(config: Config, view: View.View, p: number): string
+	local custom = view.players[p].customName
+	if custom ~= nil then
+		return custom
+	end
 	local id = view.players[p].candidate
 	if id ~= nil and Candidates.exists(id) then
 		return Candidates.profile(config, id).name
@@ -68,7 +73,7 @@ function Board.who(config: Config, view: View.View, p: number): string
 	if p == view.you then
 		return "You"
 	end
-	return Words.firstName(Board.candidateName(config, view, p))
+	return view.players[p].customName or Words.firstName(Board.candidateName(config, view, p))
 end
 
 -- A filled circle in a player's color (data-colored).
@@ -214,8 +219,8 @@ function Board.newLegend(): Legend
 	return legend :: Legend
 end
 
--- The map reveal's card: each player's dot, name and strongholds, and why they
--- are theirs.
+-- The map reveal's card: each player's portrait (ringed in their color), name
+-- and strongholds, and why they are theirs.
 function Board.newStrongholds(): Strongholds
 	local root = Kit.card({ Name = "StrongholdsCard" })
 	Kit.text("Strongholds", {
@@ -224,18 +229,24 @@ function Board.newStrongholds(): Strongholds
 		Font = Kit.font.bold,
 		Parent = root,
 	})
-	local rows: { [number]: { dot: Frame, who: TextLabel, list: TextLabel } } = {}
+	local rows: { [number]: { face: Frame, who: TextLabel, list: TextLabel } } = {}
 	for k = 1, 2 do
 		local line = Kit.box({
 			Name = if k == 1 then "StrongholdsYou" else "StrongholdsThem",
 			LayoutOrder = 1 + k,
-			Size = UDim2.new(1, 0, 0, Kit.size.body + 8),
+			Size = UDim2.new(1, 0, 0, math.max(FACE, Kit.size.body + 8)),
 			Parent = root,
 		})
-		local d = dot(line, "Dot", DOT)
+		local face = Kit.box({
+			Name = "Face",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.fromScale(0, 0.5),
+			Size = UDim2.fromOffset(FACE, FACE),
+			Parent = line,
+		})
 		local who = Kit.text("", {
 			Name = "Who",
-			Position = UDim2.fromOffset(DOT + Kit.space.sm, 0),
+			Position = UDim2.fromOffset(FACE + Kit.space.sm, 0),
 			Size = UDim2.new(0, WHO_W, 1, 0),
 			Font = Kit.font.medium,
 			TextScaled = true,
@@ -244,12 +255,12 @@ function Board.newStrongholds(): Strongholds
 		})
 		local list = Kit.text("", {
 			Name = "List",
-			Position = UDim2.fromOffset(DOT + Kit.space.sm + WHO_W, 0),
-			Size = UDim2.new(1, -(DOT + Kit.space.sm + WHO_W), 1, 0),
+			Position = UDim2.fromOffset(FACE + Kit.space.sm + WHO_W, 0),
+			Size = UDim2.new(1, -(FACE + Kit.space.sm + WHO_W), 1, 0),
 			Font = Kit.font.medium,
 			Parent = line,
 		})
-		rows[k] = { dot = d, who = who, list = list }
+		rows[k] = { face = face, who = who, list = list }
 	end
 	local note = Kit.caption("", { Name = "StrongholdsNote", LayoutOrder = 4, Parent = root })
 
@@ -265,7 +276,19 @@ function Board.newStrongholds(): Strongholds
 		end
 		for k, p in { view.you, them } do
 			local r = rows[k]
-			r.dot.BackgroundColor3 = colors[p] or Kit.colors.neutral
+			local id = view.players[p].candidate
+			local name = Board.candidateName(config, view, p)
+			local portrait = r.face:FindFirstChild("Portrait") :: Frame?
+			if portrait == nil or r.face:GetAttribute("For") ~= `{id}|{name}` then
+				if portrait then
+					portrait:Destroy()
+				end
+				r.face:SetAttribute("For", `{id}|{name}`)
+				portrait = Kit.portrait(id, name, FACE)
+				local built = portrait :: Frame
+				built.Parent = r.face
+			end
+			Kit.paintPortrait(portrait :: Frame, { ring = colors[p] or Kit.colors.neutral })
 			r.who.Text = Board.who(config, view, p)
 			r.list.Text = listText(view.players[p].strongholds)
 		end
