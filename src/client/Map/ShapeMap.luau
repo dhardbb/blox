@@ -1126,7 +1126,8 @@ function ShapeMap.new(): MapInterface.Map
 	-- Spot distances, shares of the gap to the code's edge: marks stay close
 	-- (a short leader at most); pins may go a little farther.
 	local NEAR = { 1, 1.6 }
-	local PIN_REACH = { 1, 1.6, 2.3 }
+	local PIN_REACH = { 1, 1.6, 2.3, 3.2, 4.2 } -- pins go farther rather than cover a code or a value
+	local PIN_GAP = 2 -- px between pins that share a state
 	local occupied: { Box } = {} -- the codes and the marks of the last layout
 	local grid: { [number]: { number } } = {} -- occupied indices by GRID px cell
 	local stamp: { number } = {} -- occupied index -> the last query that saw it
@@ -1321,9 +1322,10 @@ function ShapeMap.new(): MapInterface.Map
 			h: number,
 			dirs: { Dir },
 			reaches: { number }?,
-			optional: boolean?
+			optional: boolean?,
+			hard: number? -- occupied boxes up to this index count as codes (default: the codes)
 		): (number, number, boolean)
-			local x, y, far, covers = bestSpot(c, w, h, dirs, codeCount, reaches)
+			local x, y, far, covers = bestSpot(c, w, h, dirs, hard or codeCount, reaches)
 			local ax, ay = fx * bw, fy * bh
 			if covers and optional then
 				return x - ax, y - ay, true
@@ -1392,23 +1394,44 @@ function ShapeMap.new(): MapInterface.Map
 			end
 		end
 
-		-- Pins: yours last, so it is placed after (and drawn over) the rival's.
+		-- Pins: yours last, so it is drawn over the rival's. Pins that share a
+		-- state stand side by side as one group, placed as one mark. A pin never
+		-- covers a code, a value row or another pin: those count as codes here.
+		local groups: { { state: string, frames: { Frame } } } = {}
+		local groupOf: { [string]: { state: string, frames: { Frame } } } = {}
 		for _, entry in pinFrames do
-			local node = byId[entry.pin.state]
-			local frame = entry.frame
-			local size = frame.Size
-			local w, h = size.X.Offset, size.Y.Offset
-			-- Beside the code (a callout state's pin: beside its real place on the coast).
+			local group = groupOf[entry.pin.state]
+			if group == nil then
+				group = { state = entry.pin.state, frames = {} }
+				groupOf[entry.pin.state] = group
+				table.insert(groups, group)
+			end
+			table.insert(group.frames, entry.frame)
+		end
+		for _, group in groups do
+			local node = byId[group.state]
+			local w, h = 0, 0
+			for k, frame in group.frames do
+				w += frame.Size.X.Offset + (if k > 1 then PIN_GAP else 0)
+				h = math.max(h, frame.Size.Y.Offset)
+			end
+			-- Beside the code (a callout state's pins: beside its real place on the coast).
 			local fx, fy = node.lx, node.ly
 			local c = codes[node.id]
 			if node.ladder then
 				fx, fy = node.shape.lx, node.shape.ly
 				c = { x0 = fx * bw, y0 = fy * bh, x1 = fx * bw, y1 = fy * bh }
 			end
-			local dx, dy = placeAround(c, fx, fy, w, h, BESIDE, PIN_REACH)
-			-- The frame's AnchorPoint is the pointer under the face: move it there.
-			local anchor = frame.AnchorPoint
-			frame.Position = UDim2.new(fx, dx + (anchor.X - 0.5) * w, fy, dy + (anchor.Y - 0.5) * h)
+			local dx, dy = placeAround(c, fx, fy, w, h, BESIDE, PIN_REACH, false, #occupied)
+			-- Left to right in the group; each frame's AnchorPoint is the pointer
+			-- under its face: move it there.
+			local left = dx - w / 2
+			for _, frame in group.frames do
+				local fw, fh = frame.Size.X.Offset, frame.Size.Y.Offset
+				local anchor = frame.AnchorPoint
+				frame.Position = UDim2.new(fx, left + anchor.X * fw, fy, dy + h / 2 - fh + anchor.Y * fh)
+				left += fw + PIN_GAP
+			end
 		end
 
 		-- Tags, plan badges and the plan preview.

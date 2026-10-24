@@ -432,6 +432,62 @@ describe("Campaign screen", function()
 		noErrors(world)
 	end)
 
+	for _, size in { { name = "phone", screen = PHONE }, { name = "iPad", screen = { x = 1024, y = 768 } } } do
+		it(
+			`never lets a pin cover a state's code or value, and shows both pins in one state ({size.name})`,
+			function()
+				local function boxOver(a: any, b: any): boolean
+					local p, q = a.AbsolutePosition, b.AbsolutePosition
+					local u, v = a.AbsoluteSize, b.AbsoluteSize
+					return p.X + 1 < q.X + v.X
+						and q.X + 1 < p.X + u.X
+						and p.Y + 1 < q.Y + v.Y
+						and q.Y + 1 < p.Y + u.Y
+				end
+				local function checkPins(peer: FakeRoblox.Peer, want: number, where: string)
+					local layer = find(peer, "Pins")
+					local pins = layer:GetChildren()
+					local inPins: { [any]: boolean } = {}
+					for _, d in layer:GetDescendants() do
+						inPins[d] = true
+					end
+					check(#pins == want, `{where}: {#pins} pins`)
+					for k, pin in pins do
+						check(pin.Visible, `{where}: a hidden pin`)
+						for _, d in layer.Parent:GetDescendants() do
+							local value = d.Name == "Label" or string.match(d.Name, "^Part%d") ~= nil
+							if
+								d:IsA("TextLabel")
+								and value
+								and d.Text ~= ""
+								and shown(d)
+								and not inPins[d]
+							then
+								check(not boxOver(pin, d), `{where}: {pin.Name} covers {d.Text}`)
+							end
+						end
+						for j = k + 1, #pins do
+							check(not boxOver(pin, pins[j]), `{where}: two pins overlap`)
+						end
+					end
+				end
+				local world, peer = mountsCleanly("Plan", size.screen)
+				checkPins(peer, 2, "Votes")
+				press(world, peer, "LensPolls")
+				FakeRoblox.run(world, 0.5)
+				checkPins(peer, 2, "Polls")
+				local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+				for _, player in payload.view.players do
+					player.location = "OH"
+				end
+				Rig.push(world, peer, payload)
+				FakeRoblox.run(world, 0.5)
+				checkPins(peer, 2, "both in Ohio")
+				noErrors(world)
+			end
+		)
+	end
+
 	it("fits every event in the deck on one line on a phone (D-065)", function()
 		local world, peer = mountsCleanly("Plan", PHONE)
 		local base = Rig.payloadOf(world, peer)
