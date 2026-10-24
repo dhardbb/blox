@@ -55,9 +55,15 @@ export type Record = {
 	noiseSpread: number, -- sd of player 1's EV from election noise alone
 	debateTopicsWon: { number },
 	debateTopicsPlayed: number,
-	focusWon: number, -- debate topics won by a player who focused on them (D-044)
-	focusPlayed: number, -- focuses taken (players x debates)
-	sameFocus: number, -- debates where both players focused on the same topic
+	debateRounds: number, -- debate rounds played (D-062)
+	debateMoves: { [string]: number }, -- moves played, both players, by move ("Canned" for a timeout)
+	debateSplits: number, -- rounds that were a split
+	sameMove: number, -- rounds where both played the same move
+	safeRounds: number, -- (player, round) pairs where the player had a move that could not lose
+	safeTaken: number, -- ... and won or split the round
+	zingerRounds: { number }, -- Zingers staked in rounds 1, 2, 3
+	zingerWins: number, -- staked rounds the staker won
+	ovations: number,
 	draftRounds: number, -- blind draft rounds played
 	draftClashes: number, -- rounds where both players' first choices were the same state
 	homeClash: boolean, -- both players' first choice for home was the same state
@@ -126,7 +132,7 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 			for p = 1, 2 do
 				local view = View.build(config, match, p)
 				local input = Bot.act(config, view, rngs[p], candidates[p], styleOf[p])
-				-- nil: the bot sends nothing (NoFocus), so the default applies.
+				-- nil: the bot sends nothing (NoAnswer), so the default applies.
 				local ok = input == nil or Match.validate(config, match, p, input)
 				if not ok then
 					invalid += 1
@@ -247,7 +253,10 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	end
 
 	local topicsWon, topicsPlayed = { 0, 0 }, 0
-	local focusWon, focusPlayed, sameFocus = 0, 0, 0
+	local debateRounds, debateSplits, sameMove, safeRounds, safeTaken, zingerWins, ovations =
+		0, 0, 0, 0, 0, 0, 0
+	local debateMoves: { [string]: number } = { Defend = 0, Attack = 0, Pivot = 0, Canned = 0 }
+	local zingerRounds = { 0, 0, 0 }
 	for _, debate in match.debates do
 		for _, w in debate.winners do
 			topicsPlayed += 1
@@ -255,16 +264,33 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 				topicsWon[w] += 1
 			end
 		end
-		for p, t in debate.focus do
-			if t > 0 then
-				focusPlayed += 1
-				if debate.winners[t] == p then
-					focusWon += 1
+		if debate.ovation > 0 then
+			ovations += 1
+		end
+		for _, round in debate.rounds do
+			debateRounds += 1
+			if round.winner == 0 then
+				debateSplits += 1
+			end
+			if round.picks[1] == round.picks[2] and not round.canned[1] and not round.canned[2] then
+				sameMove += 1
+			end
+			for p = 1, 2 do
+				local key = if round.canned[p] then "Canned" else round.picks[p]
+				debateMoves[key] += 1
+				if round.safe[p] then
+					safeRounds += 1
+					if round.winner == p or round.split[p] then
+						safeTaken += 1
+					end
+				end
+				if round.zingers[p] then
+					zingerRounds[round.round] += 1
+					if round.winner == p then
+						zingerWins += 1
+					end
 				end
 			end
-		end
-		if debate.focus[1] > 0 and debate.focus[1] == debate.focus[2] then
-			sameFocus += 1
 		end
 	end
 
@@ -333,9 +359,15 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		noiseSpread = spread,
 		debateTopicsWon = topicsWon,
 		debateTopicsPlayed = topicsPlayed,
-		focusWon = focusWon,
-		focusPlayed = focusPlayed,
-		sameFocus = sameFocus,
+		debateRounds = debateRounds,
+		debateMoves = debateMoves,
+		debateSplits = debateSplits,
+		sameMove = sameMove,
+		safeRounds = safeRounds,
+		safeTaken = safeTaken,
+		zingerRounds = zingerRounds,
+		zingerWins = zingerWins,
+		ovations = ovations,
 		draftRounds = draftRounds,
 		draftClashes = draftClashes,
 		homeClash = homeClash,

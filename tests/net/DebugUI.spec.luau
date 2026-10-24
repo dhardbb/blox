@@ -111,11 +111,14 @@ describe("Commands.parse", function()
 		expect(ok):toBe(true)
 	end)
 
-	it("parses a stance and a debate focus, and the validator takes them in their Decision step", function()
+	it("parses a stance and the debate moves, and the validator takes them in their steps", function()
 		expect(Commands.parse("choice b").input):toEqual({ choice = "B" })
 		expect(Commands.parse("choice surrender").kind):toBe("Error")
-		expect(Commands.parse("focus jobs").input):toEqual({ focus = "Jobs" })
-		expect(Commands.parse("focus nothing").kind):toBe("Error")
+		expect(Commands.parse("defend").input):toEqual({ move = "Defend", zinger = false })
+		expect(Commands.parse("attack zinger").input):toEqual({ move = "Attack", zinger = true })
+		expect(Commands.parse("Pivot ZINGER").input):toEqual({ move = "Pivot", zinger = true })
+		expect(Commands.parse("pivot hard").kind):toBe("Error")
+		expect(Commands.parse("focus jobs").kind):toBe("Error") -- the focus is gone (D-062)
 		local match = Match.new(C, 3, { "a", "b" })
 		while not (match.phase == "Plan" and match.week == 2) do
 			match = Match.advance(C, match, {})
@@ -125,13 +128,24 @@ describe("Commands.parse", function()
 		local ok, reason = Match.validate(C, match, 1, Commands.parse("choice A").input)
 		expect(reason):toBe(nil)
 		expect(ok):toBe(true)
-		while not (match.phase == "Decision" and match.decision == "Focus") do
+		while match.phase ~= "Debate" do
 			match = Match.advance(C, match, {})
 		end
-		local topic = match.debateTopics[match.week][2]
-		ok, reason = Match.validate(C, match, 1, Commands.parse(`focus {topic}`).input)
+		ok, reason = Match.validate(C, match, 1, Commands.parse("attack zinger").input)
 		expect(reason):toBe(nil)
 		expect(ok):toBe(true)
+	end)
+
+	it("prints a debate round's board: strengths, result cells and the round so far", function()
+		local match = Match.new(C, 3, { "a", "b" })
+		while match.phase ~= "Debate" do
+			match = Match.advance(C, match, {})
+		end
+		local view = View.build(C, match, 1)
+		local lines = table.concat(Format.debateBoard(view), "\n")
+		expect(string.find(lines, "Debate round 1 of 3", 1, true) ~= nil):toBe(true)
+		expect(string.find(lines, "vs D ", 1, true) ~= nil):toBe(true)
+		expect(string.find(lines, "Their strengths: Defend", 1, true) ~= nil):toBe(true)
 	end)
 
 	it("shows this week's event and last week's revealed stances on the board", function()
@@ -298,21 +312,32 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 		end
 	end)
 
-	it("prints debate national points with one sign each", function()
+	it("prints each debate round's moves, scores and result, and the crowd (D-062)", function()
+		local round = {
+			round = 1,
+			topic = "Transit",
+			picks = { "Defend", "Attack" },
+			canned = { false, false },
+			zingers = { true, false },
+			scores = { 8, 5 },
+			winner = 1,
+			margin = 3,
+			mult = 2,
+		}
 		local text = Format.debate(
 			{
 				week = 9,
-				topics = { "Transit", "Environment", "Safety" },
-				focus = { 1, 3 },
-				prep = { { 2, 0, 0 }, { 0, 0, 2 } },
-				scores = { { 8, 5, 3 }, { 8, 7, 6 } },
-				winners = { 0, 2, 2 },
-				national = { -0.2, 0.4 },
+				rounds = { round, table.clone(round) },
+				crowd = { 6, 0 },
+				ovation = 0,
 			} :: any,
 			1
 		)
 		expect(text):toBe(
-			"Debate week 9: Transit tie (your focus), Environment them, Safety them (their focus); national -0.2 you, +0.4 them"
+			"Debate week 9: R1 Transit: you Defend+Zinger 8, them Attack 5: you win by 3 (x2); R1 Transit: you Defend+Zinger 8, them Attack 5: you win by 3 (x2); crowd you 6, them 0"
+		)
+		expect(Format.debateRound(round :: any, 2)):toBe(
+			"R1 Transit: you Attack 5, them Defend+Zinger 8: they win by 3 (x2)"
 		)
 	end)
 end)

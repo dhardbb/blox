@@ -106,7 +106,10 @@ local raisedEarly, raisedLate = 0, 0 -- weeks 1-3 and 10-12, both players
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
 local gotvDecided, debateDecided, debateShiftEV, projectionWrong = 0, 0, 0, 0
 local stanceDecided, stanceShiftEV, choiceWeeks, sameStance = 0, 0, 0, 0
-local focusWon, focusPlayed, sameFocus, debatesPlayed = 0, 0, 0, 0
+local debateRounds, debateSplits, sameMove, safeRounds, safeTaken, zingerWins, zingersStaked, ovations =
+	0, 0, 0, 0, 0, 0, 0, 0
+local debateMoves: { [string]: number } = { Defend = 0, Attack = 0, Pivot = 0, Canned = 0 }
+local zingerRounds = { 0, 0, 0 }
 local stanceTaken: { [string]: number } = {}
 local tossupDraft, tossupElection, spread = 0, 0, 0
 local leaned, flipped = 0, 0
@@ -178,10 +181,20 @@ for seed = 1, N do
 		stanceDecided += 1
 	end
 	stanceShiftEV += r.stanceShiftEV
-	focusWon += r.focusWon
-	focusPlayed += r.focusPlayed
-	sameFocus += r.sameFocus
-	debatesPlayed += #r.match.debates
+	debateRounds += r.debateRounds
+	debateSplits += r.debateSplits
+	sameMove += r.sameMove
+	safeRounds += r.safeRounds
+	safeTaken += r.safeTaken
+	zingerWins += r.zingerWins
+	ovations += r.ovations
+	for move, count in r.debateMoves do
+		debateMoves[move] += count
+	end
+	for k = 1, 3 do
+		zingerRounds[k] += r.zingerRounds[k]
+		zingersStaked += r.zingerRounds[k]
+	end
 	choiceWeeks += r.choiceWeeks
 	sameStance += r.sameStance
 	for id, count in r.stances do
@@ -450,18 +463,44 @@ line("Week-12 projected leader loses", pct(projectionWrong / N))
 -- (same election noise), like the GOTV check. A paired replay with debates off
 -- was tried first and rejected: the bots react to a different board, so the two
 -- matches diverge and the number mostly measures chaos (D-017 finding 6).
-line("Debates change the winner (counterfactual)", pct(debateDecided / N), ">= 10%", debateDecided / N >= 0.1)
+local decidedRate = debateDecided / N
+line(
+	"Debates change the winner (counterfactual)",
+	pct(decidedRate),
+	"15-25%",
+	decidedRate >= 0.15 and decidedRate <= 0.25
+)
 line("Average EV the debates swing", string.format("%.1f EV", debateShiftEV / N))
 for _, id in ids do
 	local rate = topicWins[id] / math.max(1, topicGames[id])
-	line(`Debate topic win rate: {id}`, pct(rate))
+	line(`Debate round win rate: {id}`, pct(rate), "<= 60%", rate <= 0.6)
 end
--- The focus (D-044). Informational: an uncontested focus wins its topic 81% of
--- the time (Config.spec pins the odds), but two bots that need the same states
--- focus on the same topic nearly always, and then the focuses cancel.
-local focusRate = focusWon / math.max(1, focusPlayed)
-line("Focused topic won by its focuser", pct(focusRate))
-line("Both focused on the same topic", pct(sameFocus / math.max(1, debatesPlayed)))
+-- Live rounds (D-062): which moves the standard bot plays (no move may be the
+-- whole game), how often a round is a split, how often a can't-lose move was on
+-- the board and taken, and where the Zinger goes.
+local played = math.max(1, debateMoves.Defend + debateMoves.Attack + debateMoves.Pivot + debateMoves.Canned)
+local moveOk = true
+local moveShares: { string } = {}
+for _, move in { "Defend", "Attack", "Pivot" } do
+	local share = debateMoves[move] / played
+	moveOk = moveOk and share >= 0.2 and share <= 0.5
+	table.insert(moveShares, `{string.sub(move, 1, 1)} {pct(share)}`)
+end
+line("Debate moves played (D / A / P)", table.concat(moveShares, " / "), "each 20-50%", moveOk)
+-- Two standard bots both take a can't-lose move when there is one, so splits
+-- run higher between bots than between people (D-062).
+local splitRate = debateSplits / math.max(1, debateRounds)
+line("Debate rounds that split", pct(splitRate), "<= 35%", splitRate <= 0.35)
+line("Both played the same move", pct(sameMove / math.max(1, debateRounds)))
+line("Rounds with a can't-lose move (per player)", pct(safeRounds / math.max(1, 2 * debateRounds)))
+line("... and that player did not lose the round", pct(safeTaken / math.max(1, safeRounds)))
+local zingerShares: { string } = {}
+for k = 1, 3 do
+	table.insert(zingerShares, `R{k} {pct(zingerRounds[k] / math.max(1, zingersStaked))}`)
+end
+line("Zinger staked in (rounds 1 / 2 / 3)", table.concat(zingerShares, " / "))
+line("Staked rounds the staker won", pct(zingerWins / math.max(1, zingersStaked)))
+line("Standing ovations per match", string.format("%.2f", ovations / N))
 
 -- Choice stances (D-039): the same counterfactual recount with the stances'
 -- shifts subtracted, plus how often the bot takes each slot. Informational: two
@@ -513,14 +552,16 @@ line("Sandbag win rate", pct(sandbag), "<= 50%", sandbag <= 0.5)
 -- bot that reads the map, measurably.
 local randomStance = versus("RandomStance", sideN * 2)
 line("RandomStance win rate", pct(randomStance), "<= 45%", randomStance <= 0.45)
--- The same for the debate focus (D-044): the topic that covers the EV you need beats a random one.
--- Informational: two bots that need the same states focus on the same topic
--- nearly every time, and the focuses cancel, so a random pick does about as
--- well (D-044). The NoFocus check below is what shows the focus is worth taking.
-local randomFocus = versus("RandomFocus", sideN * 2)
-line("RandomFocus win rate", pct(randomFocus))
-local noFocus = versus("NoFocus", sideN * 2)
-line("NoFocus win rate (the timeout default)", pct(noFocus), "<= 45%", noFocus <= 0.45)
+-- Live debate rounds (D-062): reading the board must beat random moves, the
+-- timeout must cost something, and no single move may be the whole game.
+local randomMove = versus("RandomMove", sideN * 2)
+line("RandomMove win rate", pct(randomMove), "<= 42%", randomMove <= 0.42)
+local noAnswer = versus("NoAnswer", sideN * 2)
+line("NoAnswer win rate (the timeout default)", pct(noAnswer), "<= 35%", noAnswer <= 0.35)
+for _, style in { "AlwaysDefend", "AlwaysAttack", "AlwaysPivot" } do
+	local rate = versus(style, sideN * 2)
+	line(`{style} win rate`, pct(rate), "<= 45%", rate <= 0.45)
+end
 
 -- Niche issues hit harder (D-047): running on the biggest or the smallest issues
 -- of the match must not beat the standard bot's mixed platform.

@@ -13,7 +13,7 @@
 --     rpoll REGION | gotv ST UNITS | pivot DROP ADD
 --     (aliases: fundraise = fund; media = ad; attack = attackad = attack ad,
 --     so the player-facing names of D-030 work as typed)
---   focus TOPIC                                (the debate's Decision step, D-044)
+--   defend|attack|pivot [zinger]               (a debate round, D-062: zinger stakes the Zinger)
 --   choice a|b|c                               (a Choice week's Decision step, D-044)
 --   pass                                       (submit an empty plan)
 --   auto | autoplay on|off | show ST | rules  (rules: the "How it works" text)
@@ -246,12 +246,15 @@ function Commands.parse(text: string): Parsed
 			return err('draft needs one or two state codes, e.g. "draft OH PA"')
 		end
 		return { kind = "Request", op = "Submit", input = { choices = choices } }
-	elseif head == "focus" then
-		local topic = Commands.issue(w[2])
-		if topic == nil then
-			return err('focus needs one of the debate\'s topics, e.g. "focus Jobs"')
+	elseif head == "defend" or head == "attack" or head == "pivot" then
+		local extra = string.lower(w[2] or "")
+		if extra ~= "" and extra ~= "zinger" then
+			return err(`{head} takes only "zinger", e.g. "{head} zinger"`)
 		end
-		return { kind = "Request", op = "Submit", input = { focus = topic } }
+		local move = string.upper(string.sub(head, 1, 1)) .. string.sub(head, 2)
+		return { kind = "Request", op = "Submit", input = { move = move, zinger = extra == "zinger" } }
+	elseif head == "focus" then
+		return err('debates are live rounds now: "defend", "attack" or "pivot", add "zinger" to stake it')
 	elseif head == "choice" then
 		local word = string.upper(w[2] or "")
 		if word ~= "A" and word ~= "B" and word ~= "C" then
@@ -298,7 +301,8 @@ Commands.HELP = table.concat({
 	"        color Teal (Color Pass owners pick a color, first come, first served)",
 	"Plan: plan rally OH Jobs; fund PA; ad MI Jobs; attack ad IA Farms; poll OH; rpoll Pacific;",
 	"      gotv OH 2; pivot Schools Farms      pass = empty plan",
-	"Decision (before the plan): focus Jobs (debate weeks) | choice b (Choice weeks)",
+	"Debate round: defend | attack | pivot (add zinger to stake it, e.g. attack zinger)",
+	"Decision (before the plan): choice b (Choice weeks)",
 	"Any time: auto (bot fills this step) | autoplay on/off | bank | skip | show OH | rules | resync",
 	"  show OH = a state's numbers and what each action does there; rules = how everything works",
 }, "\n")

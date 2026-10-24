@@ -284,7 +284,11 @@ local function stageLabel(view: any): string
 		return `Draft round {view.draftRound + 1}/{Draft.rounds(Config.defaults)} ({view.draftKind})`
 	end
 	if view.phase == "Decision" then
-		return `Week {view.week} Decision: {if view.decision == "Focus" then "debate focus" else "stance"}`
+		return `Week {view.week} Decision: stance`
+	end
+	if view.phase == "Debate" and view.debate then
+		local live = view.debate
+		return `Week {view.week} Debate round {live.round} of {#live.topics}: {live.topics[live.round]}`
 	end
 	return `Week {view.week} {view.phase}`
 end
@@ -436,7 +440,7 @@ local function selectGuide(payload: any): { string }
 		table.insert(
 			out,
 			string.format(
-				"  %-9s %s%s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, ad $%g, debate focus +%d]",
+				"  %-9s %s%s, %s. Perk: %s. Drawback: %s. [AP %d, start $%g, income $%g, rally %g, ad $%g, debate Zinger x%d]",
 				id,
 				tag,
 				p.name,
@@ -448,7 +452,7 @@ local function selectGuide(payload: any): { string }
 				p.passiveIncome,
 				p.rallySupport,
 				p.mediaCost,
-				p.focusEdge
+				p.zingerMult
 			)
 		)
 	end
@@ -681,44 +685,46 @@ local function planGuide(payload: any, turn: Turn): { string }
 	return out
 end
 
--- The Decision step (D-044): the debate focus right before a debate, or a
--- Choice event's stance, on its own screen before the plan.
+-- A debate round (D-062): three live rounds, one per topic, each its own step.
+local function debateGuide(payload: any): { string }
+	local view = payload.view
+	local C = Config.defaults
+	local live = view.debate
+	local out = {}
+	if live == nil then
+		return out
+	end
+	table.insert(
+		out,
+		`STAGE: Week {view.week} Debate, round {live.round} of {#live.topics}: {live.topics[live.round]}. Both players pick Defend, Attack or Pivot at the same time, in secret. Defend beats Attack, Attack beats Pivot, Pivot beats Defend: the counter adds +{C.DEBATE_COUNTER[live.round] or 0} this round. Higher score wins the round; equal is a split.`
+	)
+	table.insert(
+		out,
+		`A win: {Numbers.signed(C.DEBATE_ROUND_WIN)} in every state of the topic (Defend, Attack) or of your pivot issue (Pivot); a split {Numbers.signed(
+			C.DEBATE_ROUND_SPLIT
+		)} each; losing to a counter {Numbers.signed(-C.DEBATE_BACKFIRE)} where your move aimed. Stake your one Zinger with "zinger": a round you win then counts x{Config.defaults.DEBATE_ZINGER_MULT} (Hale x3). The same move as last round is -{C.DEBATE_REPEAT}. No answer in time: a weak Defend ({C.DEBATE_CANNED}).`
+	)
+	table.insert(
+		out,
+		'The BOARD below has both sides\' strengths with their parts and, for each of your moves, your score minus theirs against their Defend, Attack and Pivot ("vs D +4" = you win by 4 if they Defend). A move with no minus cannot lose this round.'
+	)
+	table.insert(out, "")
+	table.insert(out, "COMMANDS:")
+	table.insert(out, "  defend | attack | pivot         lock in your move")
+	table.insert(out, "  defend zinger (etc.)            the same, staking your Zinger on this round")
+	table.insert(out, "  show ST | rules | help          free info")
+	table.insert(out, "  auto                            the built-in bot picks for you (locks you in)")
+	table.insert(out, "Example:   defend")
+	table.insert(out, "Example:   pivot zinger")
+	return out
+end
+
+-- A Choice event's stance (D-044), on its own screen before the plan.
 local function decisionGuide(payload: any): { string }
 	local view = payload.view
 	local me = view.players[payload.you]
 	local C = Config.defaults
 	local out = {}
-	if view.decision == "Focus" then
-		local topics = if view.nextDebate then view.nextDebate.topics else {}
-		local edge = if #topics > 0 then Swing.focus(C, view, topics[1]).edge else C.DEBATE_FOCUS
-		table.insert(
-			out,
-			`STAGE: Week {view.week} Decision: debate focus. The debate runs right after this step. Pick ONE of its topics to focus on: +{edge} on that topic's score. Each topic: focus + {C.DEBATE_PLATFORM_BONUS} if on your platform + debate stat + a roll 0 to {C.DEBATE_ROLL_MAX}; higher total wins it. A win: {Numbers.signed(
-				C.DEBATE_TOPIC_WIN
-			)} in every state where it is a top issue (+{C.DEBATE_TOPIC_NATIONAL} everywhere). The opponent picks at the same time, in secret. No focus in time: every topic you lose is a gaffe ({Numbers.signed(
-				-C.DEBATE_GAFFE
-			)} in its states).`
-		)
-		table.insert(
-			out,
-			"The BOARD below lists each topic as the focus screen does: its states and EV, the ones you need, your odds. What a win would flip on today's polls:"
-		)
-		for _, topic in topics do
-			table.insert(out, `  {topic}: {Swing.focus(C, view, topic).winLine}`)
-		end
-		table.insert(out, "")
-		table.insert(out, "COMMANDS:")
-		table.insert(
-			out,
-			"  focus TOPIC                   lock in your focus (one of the three topics above)"
-		)
-		table.insert(out, "  show ST | rules | help        free info")
-		table.insert(out, "  auto                          the built-in bot picks for you (locks you in)")
-		for _, topic in topics do
-			table.insert(out, `Example:   focus {string.lower(topic)}`)
-		end
-		return out
-	end
 	local event = view.event
 	table.insert(
 		out,
@@ -758,7 +764,7 @@ local function recapLines(payload: any): { string }
 	for _, debate in view.debates do
 		table.insert(out, Format.debate(debate, you))
 		if debate.week == view.week then
-			-- This week's: the score breakdown (what each topic swung is on the board).
+			-- This week's: each round's moves and scores (what it swung is on the board).
 			for t, topic in debate.topics do
 				table.insert(out, `  {topic}: {Explain.debateLine(Config.defaults, view, debate, t)}`)
 			end
@@ -776,7 +782,7 @@ local function recapLines(payload: any): { string }
 				table.insert(other, Swing.flipPhrase(view, flip))
 			end
 			if #other > 0 then
-				table.insert(out, `  And from the points every state got: {table.concat(other, ", ")}`)
+				table.insert(out, `  Across the whole debate: {table.concat(other, ", ")}`)
 			end
 		end
 	end
@@ -797,7 +803,7 @@ end
 
 -- The harness default for this turn: "pass" in a plan week, the hedge on a
 -- stance (both what the game does when the timer runs out), else "auto" (a
--- debate focus has no command for "none": the bot picks).
+-- debate round has no command for the canned answer: the bot picks).
 local function defaultMove(turn: Turn): string
 	if turn.phase == "Plan" then
 		return "pass"
@@ -850,6 +856,8 @@ local function buildScreen(slot: Slot, extraOutput: { string }): string
 		guide = draftGuide(payload)
 	elseif view.phase == "Decision" then
 		guide = decisionGuide(payload)
+	elseif view.phase == "Debate" then
+		guide = debateGuide(payload)
 	else
 		guide = planGuide(payload, turn)
 	end
@@ -917,7 +925,7 @@ end
 
 -- What the server's reason codes mean, for the agent reading the verdict.
 local GLOSS: { [string]: string } = {
-	WrongPhase = "this command is for a different stage (select, draft, focus/choice and plan only work in their own stage)",
+	WrongPhase = "this command is for a different stage (select, draft, defend/attack/pivot, choice and plan only work in their own stage)",
 	BadShape = "malformed input",
 	TooManyActions = "too many actions in one plan",
 	UnknownState = "no such state code",
@@ -938,8 +946,11 @@ local GLOSS: { [string]: string } = {
 	BadPivot = "pivot DROP must be in your platform and ADD must not be",
 	NotEnoughAP = "the plan uses more AP than you have",
 	NotEnoughMoney = "the plan costs more than your cash (ads, attack ads, polls, ground game (gotv) and flights cost money)",
-	BadFocus = 'this step wants "focus TOPIC" with one of the debate\'s three topics',
-	UnexpectedFocus = "focus is only accepted on the debate's own Decision step, not in a plan",
+	BadFocus = 'debates have no focus any more: in a debate round send "defend", "attack" or "pivot"',
+	UnexpectedFocus = 'debates have no focus any more: in a debate round send "defend", "attack" or "pivot"',
+	BadMove = 'this step wants "defend", "attack" or "pivot" (add "zinger" to stake it)',
+	ZingerSpent = "your Zinger is already spent this debate",
+	UnexpectedMove = "debate moves are only accepted in a debate round, not in a plan",
 	BadChoice = 'this step wants "choice a", "choice b" or "choice c" (c is the hedge)',
 	UnexpectedChoice = "choice is only accepted on a Choice week's own Decision step, not in a plan",
 	StaleStep = "the stage moved on",
