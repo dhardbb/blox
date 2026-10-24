@@ -4,7 +4,7 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
-### The end screen: final polls vs the result, and votes week by week (D-066)
+### The end screen: final polls vs the result, and votes week by week (D-073)
 
 Results only; no rule or Config changes. Studio checklist: `docs/TESTING.md`, "End screen: Map and Graph".
 
@@ -24,7 +24,7 @@ The game is now called **Landslide** ("Race to 270"), a landslide win gets its o
 
 ## Unreleased
 
-### The week's results tally up move by move (D-063)
+### The week's results tally up move by move (D-066)
 
 Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING.md`, "The week's results, move by move".
 
@@ -36,7 +36,7 @@ Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING
 
 ## Unreleased
 
-### A deeper, richer palette (D-064)
+### A deeper, richer palette (D-067)
 
 Client colors only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Richer colors".
 
@@ -47,7 +47,7 @@ Client colors only: no rule, sim, server, payload or Config changes. Studio chec
 
 ## Unreleased
 
-### Candidate portraits (D-062)
+### Candidate portraits (D-068)
 
 Client and assets only: no rule, sim, server or Config changes. Studio checklist: `docs/TESTING.md`, "Candidate portraits". Needed from the humans: upload the eight PNGs in `assets/portraits/` and send the ids (until then the game shows initials on the plates).
 
@@ -56,7 +56,7 @@ Client and assets only: no rule, sim, server or Config changes. Studio checklist
 - Portraits also on the map reveal's strongholds card, the Campaign header (wide screens), the week reveal, a new face-off over the debate scoreboard, the election spotlight, Results and How to play.
 - New `Kit.portrait`; `Kit.monogram` is unchanged. The headless snapshots draw the PNGs.
 
-### The Name Pass: a custom name for your candidate (D-063)
+### The Name Pass: a custom name for your candidate (D-069)
 
 Server, payload, Select, Help, Results and the Lobby. New Config values (name limits, reports, review, admins; no rule changes). Studio checklist: `docs/TESTING.md`, "The Name Pass". Needed from the humans: the pass and its id.
 
@@ -71,7 +71,7 @@ Server, payload, Select, Help, Results and the Lobby. New Config values (name li
 
 ## Unreleased
 
-### Plan preview on the map (D-063)
+### Plan preview on the map (D-071)
 
 Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Plan preview".
 
@@ -79,7 +79,7 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - **A tidier map:** marks (values, tags, plan numbers, pins) are placed beside each state's code and never cover any code; far ones get a thin line back to their state. Pins are smaller (face and a "You" tab) and never overlap each other; the planned route is thinner and fainter.
 - It updates as you add or remove actions, shows in every map tab, and disappears when you lock in. It is your own estimate: the opponent's plan is unknown.
 
-### The real US map (D-062)
+### The real US map (D-070)
 
 Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Real US map". The three map images are uploaded and their ids are in `Assets.luau` (if one is ever emptied, the game falls back to the circle map).
 
@@ -89,7 +89,7 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
 - **Candidate pins:** your candidate stands on the state you are in, with your initials and a "You" flag; the opponent's pin has their first name. On every tab, on the plan and stance screens.
 - The map's images and their data are made by `scripts/mapgen/make.py` from public-domain Census boundaries (us-atlas, ISC).
 
-## Unreleased: debates are live rounds (D-062)
+## Unreleased: debates are live rounds (D-072)
 
 Debates were "glorified stance questions". Now each debate is its own event: a stage, three quick rounds, a clash after each. Sim, server, payloads, bots, the debug and duel harnesses, and a new Debate screen. Studio checklist: `docs/TESTING.md`, "Debates as live rounds".
 

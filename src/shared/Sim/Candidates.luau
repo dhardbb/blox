@@ -34,8 +34,8 @@ export type Profile = {
 	frontrunnerEV: number?, -- when leading by this much projected EV, the frontrunner mults apply
 	frontrunnerRallyMult: number,
 	frontrunnerFundMult: number,
-	zingerMult: number, -- a debate round won with the Zinger staked moves the map and crowd this many times as much (D-062)
-	zingers: number, -- Zingers per debate (D-062)
+	zingerMult: number, -- a debate round won with the Zinger staked moves the map and crowd this many times as much (D-072)
+	zingers: number, -- Zingers per debate (D-072)
 }
 
 type Entry = {

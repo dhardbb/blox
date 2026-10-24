@@ -2,7 +2,7 @@
 -- The match state machine: Select -> MapReveal (strongholds assigned, D-045) -> Draft
 -- (home, then nominations) -> week n -> ... -> Election -> Done, where a week is
 --   [Debate round 1 -> 2 -> 3] -> [Decision "Stance"] -> Plan
--- (the debate's live rounds only in debate weeks, D-062, Sim/Debate; the stance
+-- (the debate's live rounds only in debate weeks, D-072, Sim/Debate; the stance
 -- only in Choice weeks, D-044, Sim/Decision).
 --
 -- Pure: Match.new(config, seed, playerIds, colorPass?) builds a match; Match.advance(config,
@@ -559,7 +559,7 @@ local function decideOrPlan(match: MatchState, kind: Decision.Kind?)
 	match.phase = if kind ~= nil then "Decision" else "Plan"
 end
 
--- Keeps the projected votes on the polls just published (D-066): the end-of-match
+-- Keeps the projected votes on the polls just published (D-073): the end-of-match
 -- chart's week-by-week line. Reads public numbers only; draws nothing from the seed.
 local function recordPolls(match: MatchState)
 	table.insert(match.pollHistory, { week = match.week, ev = Polls.projectedEV(match) })
@@ -572,7 +572,7 @@ local function enterWeek(config: Config, match: MatchState, week: number)
 		match.phase = "Election"
 		match.election = Election.count(config, match)
 	elseif match.debateTopics[week] ~= nil then
-		-- A debate week opens with the debate's live rounds (D-062).
+		-- A debate week opens with the debate's live rounds (D-072).
 		match.decision = nil
 		match.phase = "Debate"
 		Debate.start(config, match)
@@ -639,7 +639,7 @@ function Match.advance(
 			issue = round.topic :: string,
 			amount = round.margin,
 		})
-		-- The polls were republished after the round (D-040, D-062): say which
+		-- The polls were republished after the round (D-040, D-072): say which
 		-- states changed public leader, with their EV.
 		for _, flip in round.flips do
 			table.insert(events, {

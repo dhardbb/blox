@@ -491,7 +491,7 @@ for _, id in ids do
 	local rate = topicWins[id] / math.max(1, topicGames[id])
 	line(`Debate round win rate: {id}`, pct(rate), "<= 60%", rate <= 0.6)
 end
--- Live rounds (D-062): which moves the standard bot plays (no move may be the
+-- Live rounds (D-072): which moves the standard bot plays (no move may be the
 -- whole game), how often a round is a split, how often a can't-lose move was on
 -- the board and taken, and where the Zinger goes.
 local played = math.max(1, debateMoves.Defend + debateMoves.Attack + debateMoves.Pivot + debateMoves.Canned)
@@ -504,7 +504,7 @@ for _, move in { "Defend", "Attack", "Pivot" } do
 end
 line("Debate moves played (D / A / P)", table.concat(moveShares, " / "), "each 20-50%", moveOk)
 -- Two standard bots both take a can't-lose move when there is one, so splits
--- run higher between bots than between people (D-062).
+-- run higher between bots than between people (D-072).
 local splitRate = debateSplits / math.max(1, debateRounds)
 line("Debate rounds that split", pct(splitRate), "<= 35%", splitRate <= 0.35)
 line("Both played the same move", pct(sameMove / math.max(1, debateRounds)))
@@ -568,7 +568,7 @@ line("Sandbag win rate", pct(sandbag), "<= 50%", sandbag <= 0.5)
 -- bot that reads the map, measurably.
 local randomStance = versus("RandomStance", sideN * 2)
 line("RandomStance win rate", pct(randomStance), "<= 45%", randomStance <= 0.45)
--- Live debate rounds (D-062): reading the board must beat random moves, the
+-- Live debate rounds (D-072): reading the board must beat random moves, the
 -- timeout must cost something, and no single move may be the whole game.
 local randomMove = versus("RandomMove", sideN * 2)
 line("RandomMove win rate", pct(randomMove), "<= 42%", randomMove <= 0.42)

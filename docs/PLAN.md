@@ -47,14 +47,14 @@ Non-goals: tutorials, quizzes, glossary, the original game's primary season, rea
 
 ## Match flow
 
-A full match runs about 12 to 13 minutes typical. With every timer run out it is at most 17½ minutes on the D-005 steps, and 20 min 10 s with every stance and debate step too (budget in `DESIGN.md` D-005, D-044, D-062). Every timed step auto-locks when the timer ends; a player can lock early, and the step ends when both have locked.
+A full match runs about 12 to 13 minutes typical. With every timer run out it is at most 17½ minutes on the D-005 steps, and 20 min 10 s with every stance and debate step too (budget in `DESIGN.md` D-005, D-044, D-072). Every timed step auto-locks when the timer ends; a player can lock early, and the step ends when both have locked.
 
 1. **Lobby.** Public queue, private match code, or practice vs the bot. Two players matched → a match instance starts in the same server (no teleport). Candidate and platform can be pre-picked in the lobby; rematch remembers them (colors are drawn, D-047).
 2. **Character and platform select (38s, two steps, simultaneous, hidden until both lock; D-048).** Step 1: claim a candidate; two players never share one (first claim wins, a same-moment clash goes to a seeded coin flip). Step 2: pick 3 of the 8 issues, each shown with the EV it covers this match and its platform multiplier. Player colors (six options, none of them a party color pairing) are drawn from the seed (D-047). Reveal both.
 3. **Map reveal (5s).** The match's seeded state leans are shown, and with them each player's five strongholds: their strongest-leaning states (see Core mechanics → Draft; `DESIGN.md` D-045).
 4. **State draft (3 blind rounds, 20s each, 2s reveal after each).** Round 0: home state. Rounds 1–2: one battleground nomination each. Each round both players secretly submit a ranked top 2; picks are revealed together after every round. Full rules in Core mechanics.
 5. **Campaign, weeks 1–12.** Each week: *Plan* (50s, simultaneous, hidden: spend action points and money; the week card, meaning what the opponent did publicly, this week's event, and next debate's topics, sits in a side panel of the plan screen) → *Resolve* (8s animation: rallies, ads, fundraisers, momentum drift, new public polls; skips to 3s if both tap).
-6. **Debates in weeks 4 and 9: three live rounds** (`DESIGN.md` D-062). A 3 s intro, then for each of the debate's three topics a 15 s round (both pick Defend, Attack or Pivot in secret; it ends early once both lock in) and a 4 s clash, then a 5 s verdict (skippable). A Choice week's stance is taken on its own screen before the plan (`DESIGN.md` D-044).
+6. **Debates in weeks 4 and 9: three live rounds** (`DESIGN.md` D-072). A 3 s intro, then for each of the debate's three topics a 15 s round (both pick Defend, Attack or Pivot in secret; it ends early once both lock in) and a 4 s clash, then a 5 s verdict (skippable). A Choice week's stance is taken on its own screen before the plan (`DESIGN.md` D-044).
 7. **Election night (45s, skippable if both skip).** Safe states called first, closest states last, EV counter ticking. 270 wins. Stats screen (flipped states, money raised, debate results, biggest swing), rating change, rematch and requeue buttons.
 
 **Time bank.** Each player has 30s of extra plan time per match, taken in explicit 15s taps, visible to the opponent.
@@ -157,7 +157,7 @@ This keeps the original game's "match the message to the state" skill without an
 
 ### Debates (weeks 4 and 9)
 
-Three topics are drawn from the eight issues (seeded) and announced weeks ahead. A debate is **three live rounds**, one per topic (`DESIGN.md` D-062, which replaced the focus and the dice roll of D-044). Each round both players pick, at once and in secret, **Defend**, **Attack** or **Pivot**, and may stake their one **Zinger** on it. Every strength is public arithmetic, shown on the move's button with its result against each of the opponent's moves:
+Three topics are drawn from the eight issues (seeded) and announced weeks ahead. A debate is **three live rounds**, one per topic (`DESIGN.md` D-072, which replaced the focus and the dice roll of D-044). Each round both players pick, at once and in secret, **Defend**, **Attack** or **Pivot**, and may stake their one **Zinger** on it. Every strength is public arithmetic, shown on the move's button with its result against each of the opponent's moves:
 
 ```
 Defend = 2 + 3 if the topic is on your platform + 1 if you lead the topic's states
@@ -192,13 +192,13 @@ The character select replaces the original's primary. Eight fictional candidates
 | Dana Okafor | The Fundraiser | Fundraisers yield +25% (applied after the pool cap; the bonus does not drain the pool; D-023, D-037) | None (D-023) |
 | Rex Calloway | The Barnstormer | 4 AP per week | Rallies +2.2 base instead of +3.0 ("more stops, smaller crowds"); media buys cost $4 |
 | Priya Venkat | The Ad Wizard | Media buys cost $2; saturation steps are 65% / 42% (D-037) | Income $2 instead of $4 (D-023, D-037) |
-| Marcus Hale | The Debater | A debate win with his Zinger counts ×4, not ×2 (D-023, D-037, D-062) | Starts with no money |
+| Marcus Hale | The Debater | A debate win with his Zinger counts ×4, not ×2 (D-023, D-037, D-072) | Starts with no money |
 | June Alvarado | The Insider | Starts with $18 | Passive income $3 instead of $4 |
 | Tomas Reyes | The Insurgent | Underdog multipliers doubled; momentum gained +50% | Momentum keeps 25% per week instead of 50%; while leading by 40+ projected EV, rallies ×0.9 and fundraisers ×0.85 |
 | Helen Strand | The Pollster | Sees next week's event a week early (her View alone carries it, D-035); two free internal polls per week | Media buys −10% (D-037) |
 | Walt Begay | The Organizer | GOTV units cost $1 and cap at 6 per state | Rallies +2.4 base instead of +3.0 |
 
-All eight stake one Zinger per debate at ×2 unless the table says otherwise (the debate stat is gone, D-062). These are revision-2 values from a paper review (`DESIGN.md` D-011), except where a later entry is cited; `Candidates.luau` with `DESIGN.md` D-022, D-023 and D-035 has the current numbers, and the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
+All eight stake one Zinger per debate at ×2 unless the table says otherwise (the debate stat is gone, D-072). These are revision-2 values from a paper review (`DESIGN.md` D-011), except where a later entry is cited; `Candidates.luau` with `DESIGN.md` D-022, D-023 and D-035 has the current numbers, and the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
 
 Presentation: each candidate is a Roblox avatar-style portrait built from a humanoid rig with a fixed outfit and color palette rendered to a ViewportFrame, so no uploaded images are required for MVP. Player color (six options: Crimson, Cobalt, Emerald, Amber, Violet, Teal) is drawn per match (D-047) so the two sides never read as real parties.
 
@@ -213,7 +213,7 @@ The design has five anti-snowball levers and one rubber band; keep all of them t
 5. **Closing argument.** Rallies and media in weeks 10–12 get ×1.15. Late game must matter at least as much as early game.
 6. **Underdog rubber band (the only one).** Trailing by 40+ projected EV: fundraisers ×1.15, rallies ×1.10. Trailing by 100+: ×1.25 and ×1.20. Measured from public polls, so it is visible to both, but smoothed: the gap is an exponential average with weight 0.5 on the newest week, and a tier switches on at its threshold and only switches off once the smoothed gap falls 20 EV below it. One noisy poll cannot toggle it. There is no underdog cash bonus.
 
-Variance budget. The only sources of randomness, all drawn from the per-match seed: draft priority (who is A), state leans, public poll noise, the event deck order, and election-day noise (debates have no dice since D-062). Nothing else rolls dice. The same seed plus the same inputs must replay the same match exactly; this is also how replays, spectating, and regression tests work.
+Variance budget. The only sources of randomness, all drawn from the per-match seed: draft priority (who is A), state leans, public poll noise, the event deck order, and election-day noise (debates have no dice since D-072). Nothing else rolls dice. The same seed plus the same inputs must replay the same match exactly; this is also how replays, spectating, and regression tests work.
 
 Required balance harness (`tests/harness/balance.luau`, run with Lune): play N bot-vs-bot matches (N = 2,000 should finish in under two minutes) and report per candidate win rate, the full 8×8 candidate matchup matrix, win rate by draft priority (A vs B), mean and median final EV margin, comeback rate (winner was trailing in true EV at week 8), average money unspent at the end, and distribution of game-deciding margins. Red flags that block a release: any candidate outside 45–55%, any matchup outside 40–60%, priority win rate outside 47–53%, comeback rate below 20% or above 40%, or more than 65% of matches decided by 40+ EV, a median margin over 60 EV, or more than 25% decided by 100+ EV (revised from "15% by 40+ EV", `DESIGN.md` D-024).
 
@@ -268,7 +268,7 @@ One Rojo project, one Roblox place, many concurrent matches per server. The simu
   src/client/
     App.client.luau       -- screen router
     Screens/              -- Lobby, Select (candidate + platform), Draft, Campaign, Debate, ElectionNight, Results
-    Map/                  -- MapInterface.luau, ShapeMap.luau (real shapes, D-062), NodeMap.luau (circles until the upload)
+    Map/                  -- MapInterface.luau, ShapeMap.luau (real shapes, D-070), NodeMap.luau (circles until the upload)
     Components/           -- Button, Panel, Timer, Tooltip, StateCard, ActionTray
     Store.luau            -- client-side copy of the latest View + pending plan
   tests/
@@ -352,10 +352,10 @@ Every value here goes in `Config.luau` with a one-line comment. They are first g
 | MOMENTUM\_DECAY / MOMENTUM\_CAP / DRIFT\_RATE / DRIFT\_CAP | 0.5 / 6 / 0.6 / 3 |  |
 | POLL\_SIGMA / POLL\_RHO / ELECTION\_SIGMA | 3 / 0.7 / 2 | Poll error is AR(1) |
 | ISSUE\_MULT | 1.5 / 1.2 / 1.0 / 0.8 | Platform+state / state only / platform only / neither |
-| DEBATE\_DEFEND / ATTACK / PIVOT\_BASE | 2 / 2 / 4 | Debate move strengths before bonuses (D-062) |
-| DEBATE\_OWN / THEIR / OFF\_ISSUE, DEBATE\_GROUND, DEBATE\_CROWD\_TRAIL | 3 / 2 / 1, 1, 2 | Strength bonuses (D-062) |
-| DEBATE\_COUNTER / DEBATE\_REPEAT | 2, 3, 3 / 2 | Counter bonus by round; last round's move again (D-062) |
-| DEBATE\_ROUND\_WIN / SPLIT / BACKFIRE | 0.8 / 0.5 / 0.5 | Support points in a round's landing states (D-062) |
+| DEBATE\_DEFEND / ATTACK / PIVOT\_BASE | 2 / 2 / 4 | Debate move strengths before bonuses (D-072) |
+| DEBATE\_OWN / THEIR / OFF\_ISSUE, DEBATE\_GROUND, DEBATE\_CROWD\_TRAIL | 3 / 2 / 1, 1, 2 | Strength bonuses (D-072) |
+| DEBATE\_COUNTER / DEBATE\_REPEAT | 2, 3, 3 / 2 | Counter bonus by round; last round's move again (D-072) |
+| DEBATE\_ROUND\_WIN / SPLIT / BACKFIRE | 0.8 / 0.5 / 0.5 | Support points in a round's landing states (D-072) |
 | DEBATE\_ZINGERS / DEBATE\_ZINGER\_MULT | 1 / 2 | A staked round you win counts ×2 (Hale ×4) |
 | DEBATE\_OVATION / DEBATE\_OVATION\_MOMENTUM | 8 / 2 | Crowd lead for a standing ovation; its battleground momentum |
 | STANCE\_POINTS / STANCE\_HEDGE / STANCE\_SPILL / STANCE\_PLATFORM\_MULT | 1.5 / 0.5 / 0.5 / 1.5 | Choice stances: liked or disliked state / hedge or indifferent state / other states per liked or disliked issue / heard harder on your platform (D-039, D-041) |
@@ -372,7 +372,7 @@ Every value here goes in `Config.luau` with a one-line comment. They are first g
 | TIMER\_PLAN / TIME\_BANK / TIME\_BANK\_CHUNK | 50 / 30 / 15 | Seconds; bank is per player per match |
 | TIMER\_DECISION | 20 | A Choice stance, its own screen before the plan (D-044); no time bank |
 | TIMER\_RESOLVE / TIMER\_RESOLVE\_SKIPPED | 8 / 3 | Both players tap to skip |
-| TIMER\_DEBATE\_INTRO / ROUND / CLASH / VERDICT | 3 / 15 / 4 / 5 | Debate stages (D-062); the verdict is skippable |
+| TIMER\_DEBATE\_INTRO / ROUND / CLASH / VERDICT | 3 / 15 / 4 / 5 | Debate stages (D-072); the verdict is skippable |
 | TIMER\_ELECTION | 45 | Election skippable if both skip |
 | DISCONNECT\_GRACE / GRACE\_USES / FORFEIT\_MISSED\_WEEKS | 30 / 2 / 2 |  |
 | ELO\_K / ELO\_START | 32 / 1000 |  |
@@ -384,7 +384,7 @@ None of these are in scope until the 1v1 game is balanced and finished, but seve
 
 - **4-player free-for-all with elimination.** Four candidates run at once; anyone under 5% national true support at the end of a week drops out and their voters return to undecided; play continues until two remain, then the normal election. Prepare now: support is keyed by player id, the draft and `View` take a player list, and nothing assumes two sides.
 - **Spoiler seat.** A third player who cannot win the presidency but wins their own objective (for example, finish above 5% nationally or deny either major candidate 270). Prepare now: win conditions are per-player objects, not a single global check.
-- **Real state shapes.** Done in D-062: generated atlases the humans upload, `ShapeMap.luau` behind `MapInterface`. Maine and Nebraska district splits are still open.
+- **Real state shapes.** Done in D-070: generated atlases the humans upload, `ShapeMap.luau` behind `MapInterface`. Maine and Nebraska district splits are still open.
 - **Running mate.** A second pick at character select that adds a second home state and a minor perk.
 - **Replays and spectating.** Seed + input log replays a match exactly; a spectator `View` with no fog after the match ends.
 - **Ranked seasons and cosmetics.** Seasonal rating resets, candidate skins, map themes, a daily seeded challenge against the bot with a leaderboard.

@@ -1,6 +1,6 @@
 --!strict
 -- The Decision phase (D-044): Choice stances on their own step before the plan
--- (the debate focus it used to hold is gone: debates are live rounds, D-062).
+-- (the debate focus it used to hold is gone: debates are live rounds, D-072).
 -- Ordering inside a week, validation and reason codes, timeout defaults,
 -- never-partial application, determinism, and no leaks.
 
@@ -76,7 +76,7 @@ local function stanceDecision(): State.MatchState
 end
 
 describe("Decision: order inside a week", function()
-	it("a debate week plays its three rounds, then plans (no focus step, D-062)", function()
+	it("a debate week plays its three rounds, then plans (no focus step, D-072)", function()
 		expect(weekTrail(before4("expo", nil), 4)):toEqual({ "Debate", "Debate", "Debate", "Plan" })
 	end)
 

@@ -478,7 +478,7 @@ describe("Colors bands and the audit's motion rules", function()
 		check(same3(Colors.bandFill({ 40, 60 }, colors), blue), "a safe state is not the full color")
 		check(
 			same3(Colors.bandFill({ 52, 47 }, colors), Colors.tint(Colors.neutral, red, 0.6)),
-			"lean is not 60% (D-064)"
+			"lean is not 60% (D-067)"
 		)
 		check(same3(Colors.bandFill(nil, colors), Colors.neutral), "no poll is not neutral")
 		expect(c.Kit.colors.surfaceTop ~= nil):toBe(true)

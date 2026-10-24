@@ -1,5 +1,5 @@
 --!strict
--- MatchState.pollHistory (D-066): the projected votes each time the weekly
+-- MatchState.pollHistory (D-073): the projected votes each time the weekly
 -- public polls came out (week 0 after the draft, week w at the end of week w),
 -- kept for the end screen's week-by-week chart and shown in the View only from
 -- election night on.

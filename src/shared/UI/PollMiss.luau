@@ -1,5 +1,5 @@
 --!strict
--- The end screen's map (docs/DESIGN.md D-066): the final public polls against
+-- The end screen's map (docs/DESIGN.md D-073): the final public polls against
 -- election night, state by state, and the states the polls called wrong. Pure;
 -- reads only the player's own View once the election is in (`view.election`).
 --

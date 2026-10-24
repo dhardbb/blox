@@ -10,10 +10,10 @@
 -- current week (next week's event only for a candidate whose perk previews it,
 -- D-035), anyone's Choice stance but your own before the week resolves (taken in
 -- the Decision phase, D-044), or anyone's debate move but your own before its
--- round resolves (D-062); both live in the hidden player state until then.
+-- round resolves (D-072); both live in the hidden player state until then.
 -- tests/sim/View.spec enforces it.
 --
--- Custom candidate names (the Name Pass, D-063) are not match state: the server
+-- Custom candidate names (the Name Pass, D-069) are not match state: the server
 -- keeps them, already filtered, and passes `names` (player index -> name) only
 -- when building the view of a player who may see them (a Roblox-verified 16+
 -- account). Every other view shows each candidate's own name.
@@ -61,7 +61,7 @@ export type PlayerView = {
 	frontrunner: boolean,
 	pivotUsed: boolean,
 	card: State.WeekCard?,
-	customName: string?, -- the player's custom candidate name, only in a view the server lets see it (D-063)
+	customName: string?, -- the player's custom candidate name, only in a view the server lets see it (D-069)
 }
 
 -- One stance of a Choice event, as shown on its button (D-039). The per-state
@@ -84,7 +84,7 @@ export type EventView = {
 	stances: { StanceView }?, -- Choice: the three stances in Events.CHOICES order
 }
 
--- The debate in progress (D-062), during its Debate phase. Everything here is
+-- The debate in progress (D-072), during its Debate phase. Everything here is
 -- public except `yourMove`, which is only ever your own.
 export type DebateView = {
 	week: number,
@@ -116,7 +116,7 @@ export type View = {
 	projectedEV: { number },
 	draftLog: { State.DraftPick },
 	nextDebate: { week: number, topics: { Types.Issue } }?,
-	debate: DebateView?, -- the debate in progress (phase Debate, D-062)
+	debate: DebateView?, -- the debate in progress (phase Debate, D-072)
 	debates: { State.DebateResult },
 	event: EventView?, -- this week's event, during its Decision, Debate and Plan phases
 	nextEvent: EventView?, -- next week's event, only for a candidate with eventPreview (D-035)
@@ -126,7 +126,7 @@ export type View = {
 	raised: number, -- what your fundraisers raised last week
 	stance: Types.Choice?, -- your stance on this week's Choice event, from its Decision until the week resolves
 	election: State.ElectionResult?, -- from election night on
-	pollHistory: { State.PollPoint }?, -- from election night on: the projected votes each week's polls showed (D-066)
+	pollHistory: { State.PollPoint }?, -- from election night on: the projected votes each week's polls showed (D-073)
 }
 
 local View = {}
@@ -143,7 +143,7 @@ end
 local copy = State.deepCopy
 
 -- The view for player `you`. `names`: custom candidate names this viewer may see
--- (D-063), by player index; nil = none.
+-- (D-069), by player index; nil = none.
 function View.build(config: Config, match: MatchState, you: number, names: { [number]: string }?): View
 	assert(match.players[you], `unknown player {you}`)
 	local selected = match.phase ~= "Select"

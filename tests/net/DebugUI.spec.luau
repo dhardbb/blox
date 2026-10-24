@@ -118,7 +118,7 @@ describe("Commands.parse", function()
 		expect(Commands.parse("attack zinger").input):toEqual({ move = "Attack", zinger = true })
 		expect(Commands.parse("Pivot ZINGER").input):toEqual({ move = "Pivot", zinger = true })
 		expect(Commands.parse("pivot hard").kind):toBe("Error")
-		expect(Commands.parse("focus jobs").kind):toBe("Error") -- the focus is gone (D-062)
+		expect(Commands.parse("focus jobs").kind):toBe("Error") -- the focus is gone (D-072)
 		local match = Match.new(C, 3, { "a", "b" })
 		while not (match.phase == "Plan" and match.week == 2) do
 			match = Match.advance(C, match, {})
@@ -312,7 +312,7 @@ describe("Format.events and Format.debate (playtest 1, bugs 3 to 5)", function()
 		end
 	end)
 
-	it("prints each debate round's moves, scores and result, and the crowd (D-062)", function()
+	it("prints each debate round's moves, scores and result, and the crowd (D-072)", function()
 		local round = {
 			round = 1,
 			topic = "Transit",

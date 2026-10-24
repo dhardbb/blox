@@ -23,7 +23,7 @@
 --   Words.nextTime(config, view, winner, names) -> string?  the loser's one "Try next time" line
 --   Words.revealFirst(view) -> (player, trails)         whose actions land first in a week's reveal
 --   Words.orderLine(view, first, trails, them) -> string "Rex trails, so Rex's actions land first"
---   Words.SETTLE · ESTIMATE_NOTE · pollShift(flips) · leaderArrow(view, flip, them)  the running tally (D-063)
+--   Words.SETTLE · ESTIMATE_NOTE · pollShift(flips) · leaderArrow(view, flip, them)  the running tally (D-066)
 --   Words.help(config) -> { Tab }                       the five Help tabs
 --
 -- `them` is the opponent's display name ("Rex"); `names` is display names by
@@ -626,7 +626,7 @@ function Words.revealFirst(view: View): (number, boolean)
 	return view.you, false
 end
 
--- The running tally (D-063, Shared/UI/RevealSteps): the last step's name, the
+-- The running tally (D-066, Shared/UI/RevealSteps): the last step's name, the
 -- line behind "Why?" on the per-move numbers, what the new polls changed, and
 -- a leader change at a glance.
 Words.SETTLE = "New polls are in"

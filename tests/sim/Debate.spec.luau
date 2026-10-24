@@ -1,5 +1,5 @@
 --!strict
--- Debates as live rounds (D-062): the phase order, the board's arithmetic, the
+-- Debates as live rounds (D-072): the phase order, the board's arithmetic, the
 -- clash (counters, splits, backfires, canned answers), the stakes Zinger, the
 -- crowd and the ovation, validation, seat symmetry, determinism and N players.
 
@@ -81,7 +81,7 @@ local function jobsBoard(overrides: { [string]: any }?): Debate.Board
 	return Debate.boardFrom(C, base)
 end
 
-describe("Debate phase order (D-062)", function()
+describe("Debate phase order (D-072)", function()
 	it("a debate week opens on three rounds, then the plan; no focus decision", function()
 		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 8 }), "Plan", 3)
 		match.eventDeck[4] = nil

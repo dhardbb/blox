@@ -16,7 +16,7 @@
 --   Swing.margin(view, id) -> number?                  you minus best rival, public poll
 --   Swing.inPlay(view) -> { InPlay }                   states within CLOSE, biggest EV first
 --   Swing.needText(config, view) -> string             the "States you need" line
---   Swing.debateBoard(config, view) -> DebateBoard?    this debate round's moves as the debate screen shows them (D-062)
+--   Swing.debateBoard(config, view) -> DebateBoard?    this debate round's moves as the debate screen shows them (D-072)
 --   Swing.partName(kind) -> string                     "your issue", "you trail the crowd"...
 --   Swing.debateRound(config, view, round) -> Topic     one finished round: what it swung, backfires, flips
 --   Swing.stance(config, view, id) -> Preview          one stance on the map, your side only
@@ -70,7 +70,7 @@ export type Preview = {
 	flips: { Flip }, -- leader changes on today's polls from your stance alone
 }
 
--- One move on this debate round's board (D-062), as its button shows it.
+-- One move on this debate round's board (D-072), as its button shows it.
 export type MoveRow = {
 	move: Types.DebateMove,
 	strength: number,
@@ -85,7 +85,7 @@ export type MoveRow = {
 	winLine: string, -- "A win: +1.0 in OH, PA, MI +5 more; could flip PA (+19 EV)"
 }
 
--- This debate round for you (D-062): your three moves against your best rival's.
+-- This debate round for you (D-072): your three moves against your best rival's.
 export type DebateBoard = {
 	round: number,
 	rounds: number,
@@ -105,7 +105,7 @@ export type DebateBoard = {
 	topicStates: { string }, -- biggest EV first
 }
 
--- One finished debate round (D-062), for the clash, the verdict and the logs.
+-- One finished debate round (D-072), for the clash, the verdict and the logs.
 export type Topic = {
 	topic: Types.Issue,
 	winner: number, -- 0 = a split

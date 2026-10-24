@@ -1,4 +1,4 @@
-"""Generates the real-shape US map (docs/DESIGN.md D-062).
+"""Generates the real-shape US map (docs/DESIGN.md D-070).
 
 Run from the repository root:  python3 scripts/mapgen/make.py
 Needs Pillow (PIL 11; a user install is fine). Reads

@@ -32,7 +32,7 @@ type Issue = SharedTypes.Issue
 export type Payload = Session.StatePayload
 export type PivotStage = "drop" | "add"
 -- What a reveal asks the map to show: net points toward you per state, and flips.
--- `step`: one move of the week's reveal (every touched state badged, D-063).
+-- `step`: one move of the week's reveal (every touched state badged, D-066).
 export type RevealSwing = { net: { [string]: number }, flips: { Swing.Flip }, step: boolean? }
 
 export type Model = {
@@ -51,14 +51,14 @@ export type Model = {
 	sortMode: StateOrder.Mode,
 	portrait: boolean,
 	choice: SharedTypes.Choice?, -- Decision screen: the stance selected (nil until one is tapped; the server's default is C)
-	focus: Issue?, -- unused since debates are live rounds (D-062); kept so older screens' models still type-check
+	focus: Issue?, -- unused since debates are live rounds (D-072); kept so older screens' models still type-check
 	peekChoice: SharedTypes.Choice?, -- a stance chip being held: previewed, not selected
-	peekFocus: Issue?, -- unused since D-062 (see focus)
+	peekFocus: Issue?, -- unused since D-072 (see focus)
 	stanceMap: boolean, -- the stance chips are showing, so the map previews a stance
 	revealSwing: RevealSwing?, -- what a reveal shows moved on the map, else nil
-	revealEV: { number }?, -- the projected votes the header shows during a reveal (the running tally, D-063), else nil
+	revealEV: { number }?, -- the projected votes the header shows during a reveal (the running tally, D-066), else nil
 	caption: string?, -- the reveal's latest line, shown as the header's now line
-	captionPolls: boolean?, -- the caption is the reveal's "New polls are in" step (its own header look, D-063)
+	captionPolls: boolean?, -- the caption is the reveal's "New polls are in" step (its own header look, D-066)
 	moreActions: boolean, -- the state card shows every action, not just the main ones
 	details: boolean, -- the state card's Details are open
 	messages: { Types.Message },
@@ -105,12 +105,12 @@ function Part.deciding(p: Payload): "Stance"?
 	return nil
 end
 
--- A debate round is asking for a move (D-062).
+-- A debate round is asking for a move (D-072).
 function Part.debating(p: Payload): boolean
 	return p.stage == "Input" and p.view.phase == "Debate" and p.reveal == nil and p.view.debate ~= nil
 end
 
--- The debate's own reveals (D-062): its intro, a round's clash, the verdict.
+-- The debate's own reveals (D-072): its intro, a round's clash, the verdict.
 function Part.debateReveal(p: Payload): ("DebateIntro" | "Clash" | "Verdict")?
 	local reveal = p.reveal
 	if reveal == "DebateIntro" or reveal == "Clash" or reveal == "Verdict" then
@@ -169,7 +169,7 @@ function Part.opponentOf(view: View): number
 end
 
 -- A player's candidate name: their custom name when this view carries one
--- (the Name Pass, D-063), else the candidate's own.
+-- (the Name Pass, D-069), else the candidate's own.
 function Part.candidateName(config: Config, view: View, p: number): string
 	local player = view.players[p]
 	if player ~= nil and player.customName ~= nil then

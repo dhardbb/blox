@@ -53,7 +53,7 @@ local NOTICE_H = 24 -- px, the disconnected notice
 local NAMES_H = 22 -- px, the names line in the score strip (votes in Fredoka at heading size)
 local BAR_H = 10 -- px, the race bar under the names (Kit.raceBar; it overhangs 4 px each way)
 local SCORE_GAP = 2 -- px between the names line and the race bar's box
-local FACE = NAMES_H -- px, each side's candidate portrait at the outer end of the names line (D-062)
+local FACE = NAMES_H -- px, each side's candidate portrait at the outer end of the names line (D-068)
 local SCORE_START = 0.24 -- share of the row where the score strip starts (wide)
 local PORTRAIT_SCORE_START = 0.25 -- ... on a phone, after the short "Week 3"
 local BUDGET_SHARE = 0.44 -- share of the now line the actions and money take
@@ -250,7 +250,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	local shownMine: number?, shownTheirs: number? = nil, nil
 	local shownCash: number? = nil
 	local namesShown = ""
-	local pollsShown = false -- the now line is the reveal's "New polls are in" (D-063)
+	local pollsShown = false -- the now line is the reveal's "New polls are in" (D-066)
 
 	-- Shows `value` on `label` as format(value): counts there from `before`
 	-- (with a delta chip) when the value changed, else sets it.
@@ -430,7 +430,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 				scoreShown = wantScore
 				layout()
 			end
-			-- During a reveal the score follows what the map shows (the running tally, D-063).
+			-- During a reveal the score follows what the map shows (the running tally, D-066).
 			local ev = if p.reveal ~= nil and model.revealEV then model.revealEV else view.projectedEV
 			local mine, theirs = ev[me] or 0, ev[rival] or 0
 			local myName = Model.candidateName(config, view, me)

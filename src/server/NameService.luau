@@ -1,5 +1,5 @@
 --!strict
--- Checks custom candidate names (the Name Pass, D-063) the way Roblox checks
+-- Checks custom candidate names (the Name Pass, D-069) the way Roblox checks
 -- chat, before anyone sees them, and fails closed: if anything cannot be
 -- checked, the name is turned down and the candidate keeps its own.
 --

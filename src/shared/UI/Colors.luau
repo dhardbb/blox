@@ -16,7 +16,7 @@ local function rgb(r: number, g: number, b: number): RGB
 end
 
 Colors.player = table.freeze({
-	-- Deep, saturated picks (D-064, were lighter and greyer in D-056). Every pair
+	-- Deep, saturated picks (D-067, were lighter and greyer in D-056). Every pair
 	-- is at least 19 CIEDE2000 (39 CIE76) apart and each is at least 27 (45) from
 	-- the loss orange; red and blue stay 42 (107) apart.
 	Crimson = rgb(212, 28, 66), -- hue 348: a cherry red, a little cooler than the loss orange
@@ -28,7 +28,7 @@ Colors.player = table.freeze({
 } :: { [string]: RGB })
 
 -- Neutrals (D-056): a navy stage, each step about 4 L* lighter than the last.
--- D-064 deepened the blue in every step (same lightness, about a third more
+-- D-067 deepened the blue in every step (same lightness, about a third more
 -- chroma), so the stage reads navy rather than grey.
 Colors.background = rgb(11, 16, 34) -- the stage behind everything (was 13, 17, 30)
 Colors.field = rgb(16, 23, 44) -- text boxes and read-only wells (between background and surface)
@@ -41,8 +41,8 @@ Colors.raisedLip = rgb(8, 12, 26) -- the lip under a secondary button: darker th
 Colors.line = rgb(68, 81, 124) -- hairlines (at 0.5 transparency), map adjacency lines, dividers
 Colors.text = rgb(240, 243, 250) -- 14.8:1 on surface
 Colors.muted = rgb(156, 168, 204) -- 7.0:1 on surface, 5.6:1 on raised
-Colors.neutral = rgb(70, 78, 104) -- a state nobody leads: a dark slate, so a lead blends to a deep color, not a pastel (D-064, was 118, 124, 142)
-Colors.undecided = rgb(164, 174, 204) -- the undecided ring: a slate that frames a fill without washing it (D-064, was 190, 196, 210)
+Colors.neutral = rgb(70, 78, 104) -- a state nobody leads: a dark slate, so a lead blends to a deep color, not a pastel (D-067, was 118, 124, 142)
+Colors.undecided = rgb(164, 174, 204) -- the undecided ring: a slate that frames a fill without washing it (D-067, was 190, 196, 210)
 
 -- Accent (D-058, was pink in D-051): white, "press here / selected". Color is
 -- kept for meaning (players, gains, losses); the accent is a near-white, lighter
@@ -54,7 +54,7 @@ Colors.onAccent = Colors.background -- text on an accent fill (17.5:1)
 
 -- Status (D-056): green is a gain; orange is anything against you. Red is a
 -- player color, so it never means "bad".
-Colors.good = rgb(80, 212, 96) -- a gain (8.6:1 on surface; D-064, was a minty 92, 200, 128)
+Colors.good = rgb(80, 212, 96) -- a gain (8.6:1 on surface; D-067, was a minty 92, 200, 128)
 Colors.goodEdge = rgb(50, 140, 66) -- the stroke of a good fill (a filled "You win" pill)
 Colors.loss = rgb(255, 122, 40) -- a loss, a warning, an error (6.3:1 on surface); always with a sign or a word
 Colors.lossEdge = rgb(196, 84, 20) -- the stroke or lip of a loss fill
@@ -107,7 +107,7 @@ end
 Colors.TEXT_CONTRAST = 4.5 -- what textOn guarantees on a card's lit top (surfaceTop)
 local LIFT_STEP = 0.05 -- textOn's search step, for brightening and for the tint toward text
 
--- The readable variant of a player color for text on a dark surface (D-064, was
+-- The readable variant of a player color for text on a dark surface (D-067, was
 -- a fixed quarter toward `text` in D-056): the color itself when it already reads
 -- at TEXT_CONTRAST on surfaceTop; else the same color brightened (channels scaled
 -- up, so the hue and saturation stay); and only if full brightness is not enough,
@@ -152,7 +152,7 @@ function Colors.of(name: string?): RGB
 end
 
 Colors.FULL_MARGIN = 12 -- poll margin (points) at which a state shows its leader's full color
-Colors.FILL_CURVE = 0.6 -- stateFill's share is (margin / FULL_MARGIN) ^ this: a small lead already reads as its color (D-064)
+Colors.FILL_CURVE = 0.6 -- stateFill's share is (margin / FULL_MARGIN) ^ this: a small lead already reads as its color (D-067)
 
 -- Fill for a state from its public poll: neutral at a tie, moving to the leader's
 -- color as the margin grows to FULL_MARGIN, quickly at first (FILL_CURVE): a
@@ -187,7 +187,7 @@ export type Band = {
 
 Colors.BANDS = table.freeze({
 	table.freeze({ name = "tossup", below = 3, share = 0 }),
-	table.freeze({ name = "lean", below = 8, share = 0.6 }), -- was 0.45: a lean reads as the color, deep (D-064)
+	table.freeze({ name = "lean", below = 8, share = 0.6 }), -- was 0.45: a lean reads as the color, deep (D-067)
 	table.freeze({ name = "likely", below = 15, share = 0.82 }), -- was 0.75
 	table.freeze({ name = "safe", below = math.huge, share = 1 }),
 } :: { Band })

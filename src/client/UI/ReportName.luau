@@ -1,5 +1,5 @@
 --!strict
--- "Report name" (docs/DESIGN.md D-063): the confirmation before a player
+-- "Report name" (docs/DESIGN.md D-069): the confirmation before a player
 -- reports another player's custom candidate name. Opened from the in-match
 -- Help sheet ("Report "Big Wave"") and from the Results screen's opponent
 -- card, only while that player's custom name is showing. Confirming sends

@@ -1,5 +1,5 @@
 --!strict
--- Results' Map tab (docs/DESIGN.md D-066): the final polls against the real
+-- Results' Map tab (docs/DESIGN.md D-073): the final polls against the real
 -- result, on the map. Everything comes from the player's own end-of-match View
 -- through Shared/UI/PollMiss; the map is driven only through MapInterface
 -- (setView, setMarks, setLens, select, onSelect).

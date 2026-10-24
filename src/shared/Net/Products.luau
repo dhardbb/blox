@@ -17,7 +17,7 @@ local Products = {}
 -- ID gives the number; docs/TESTING.md, "Setting up the Color Pass").
 Products.COLOR_PASS_ID = 0
 
--- The "Name Your Candidate" pass (permanent, D-063): its owners give their
+-- The "Name Your Candidate" pass (permanent, D-069): its owners give their
 -- candidate a custom name for their matches. Only a Roblox-verified 16+ account
 -- may buy or use it, and only such accounts see custom names
 -- (server/NameEligibility). 0 = not set up yet: the name option is hidden

@@ -181,7 +181,7 @@ describe("Swing: stance previews", function()
 end)
 
 describe("Swing: debates", function()
-	it("says what each round swung, where, and every flip it made (D-062)", function()
+	it("says what each round swung, where, and every flip it made (D-072)", function()
 		local view = viewAt("Debate")
 		local result = view.debates[#view.debates]
 		expect(#result.rounds):toBe(C.DEBATE_TOPICS)

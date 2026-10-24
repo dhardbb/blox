@@ -392,7 +392,7 @@ describe("Bot", function()
 		return match
 	end
 
-	it("plays the debate move that wins against every reply (D-062)", function()
+	it("plays the debate move that wins against every reply (D-072)", function()
 		local match = sureDefend()
 		local view = View.build(C, match, 1)
 		local board = (view.debate :: View.DebateView).board
@@ -418,7 +418,7 @@ describe("Bot", function()
 		expect((Match.validate(C, match, 1, again))):toBe(true)
 	end)
 
-	it("the harness styles play what they say (D-062)", function()
+	it("the harness styles play what they say (D-072)", function()
 		local match = sureDefend()
 		local view = View.build(C, match, 1)
 		expect(Bot.act(C, view, Rng.new(1), "okafor", "AlwaysAttack").move):toBe("Attack")

@@ -136,7 +136,7 @@ describe("Debates", function()
 		expect(Match.new(C, 77, { "a", "b" }).debateTopics):toEqual(match.debateTopics)
 	end)
 
-	it("a round's points land in its landing states and apply from one snapshot (D-001, D-062)", function()
+	it("a round's points land in its landing states and apply from one snapshot (D-001, D-072)", function()
 		local pairs =
 			{ { "Defend", "Attack" }, { "Pivot", "Defend" }, { "Attack", "Pivot" }, { "Pivot", "Pivot" } }
 		for seed = 1, 30 do

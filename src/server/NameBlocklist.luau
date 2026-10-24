@@ -1,6 +1,6 @@
 --!strict
 -- The server's own list of names custom candidate names may not use (the Name
--- Pass, docs/DESIGN.md D-063). SERVER ONLY: never sent to clients and never
+-- Pass, docs/DESIGN.md D-069). SERVER ONLY: never sent to clients and never
 -- shown to players (a refusal just says "That name isn't allowed. Try
 -- another."). It complements Roblox's text filter, which every name still
 -- goes through; it never replaces it. Names a reviewer removes are added at

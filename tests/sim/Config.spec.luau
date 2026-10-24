@@ -30,7 +30,7 @@ describe("Config", function()
 		end
 	end)
 
-	it("a debate round is felt in its states; splits and backfires are smaller (D-062)", function()
+	it("a debate round is felt in its states; splits and backfires are smaller (D-072)", function()
 		-- A round win moves every landing state by a visible amount, never more than
 		-- the event cap even with a staked Zinger; a split and a backfire are half.
 		expect(C.DEBATE_ROUND_WIN >= 0.5 and C.DEBATE_ROUND_WIN * C.DEBATE_ZINGER_MULT <= C.EVENT_CAP):toBe(
@@ -51,7 +51,7 @@ describe("Config", function()
 		expect(C.DEBATE_TOPICS * C.DEBATE_CROWD_ROUND_MAX >= C.DEBATE_OVATION):toBe(true)
 	end)
 
-	it("every move is the strongest in some situation (D-062)", function()
+	it("every move is the strongest in some situation (D-072)", function()
 		-- Owning the topic makes Defend strongest; their issue while trailing makes
 		-- Attack strongest; nobody's issue makes Pivot strongest.
 		local defend = C.DEBATE_DEFEND_BASE + C.DEBATE_OWN_ISSUE
@@ -122,7 +122,7 @@ describe("Config", function()
 		expect(gotvPerDollar < bestMedia / C.MEDIA_COST):toBe(true)
 	end)
 
-	-- Every timer run out on the D-005 steps, a debate's live rounds counted in full (D-062).
+	-- Every timer run out on the D-005 steps, a debate's live rounds counted in full (D-072).
 	local function debateWorst(): number
 		return C.TIMER_DEBATE_INTRO
 			+ C.DEBATE_TOPICS * (C.TIMER_DEBATE_ROUND + C.TIMER_DEBATE_CLASH)
@@ -152,11 +152,11 @@ describe("Config", function()
 	end)
 
 	it(
-		"the Decision steps add at most a stance per Choice week; the true worst case (D-044, D-062)",
+		"the Decision steps add at most a stance per Choice week; the true worst case (D-044, D-072)",
 		function()
 			-- Every timer run out: with the worst deck, a stance in every event week
 			-- (the deck holds 8 Choice events for 10 event weeks). The debate focus
-			-- step is gone (D-062).
+			-- step is gone (D-072).
 			local eventWeeks = C.EVENT_LAST_WEEK - C.EVENT_FIRST_WEEK + 1
 			local choiceEvents = 0
 			for _, event in Events.deck do
@@ -220,7 +220,7 @@ describe("Candidates", function()
 		end
 	end)
 
-	it("everyone stakes a Zinger at the default multiplier except Hale (D-062)", function()
+	it("everyone stakes a Zinger at the default multiplier except Hale (D-072)", function()
 		for _, id in Candidates.ids do
 			local mult = Candidates.profile(C, id).zingerMult
 			expect(mult):toBe(if id == "hale" then 4 else C.DEBATE_ZINGER_MULT)
@@ -230,7 +230,7 @@ describe("Candidates", function()
 	it("applies the roster overrides (revision 2 as retuned in D-022, D-023, D-037)", function()
 		expect(Candidates.profile(C, "calloway").apPerWeek):toBe(4)
 		expect(Candidates.profile(C, "calloway").rallySupport):toBe(2.3)
-		expect(Candidates.profile(C, "hale").zingerMult):toBe(4) -- D-062: was focus +3 (D-044); x3 measured 44%, x4 49%
+		expect(Candidates.profile(C, "hale").zingerMult):toBe(4) -- D-072: was focus +3 (D-044); x3 measured 44%, x4 49%
 		expect(Candidates.profile(C, "hale").startCash):toBe(0)
 		expect(Candidates.profile(C, "venkat").passiveIncome):toBe(2) -- 3 -> 2 in D-037
 		expect(Candidates.profile(C, "venkat").mediaSaturation):toBe(0.65)

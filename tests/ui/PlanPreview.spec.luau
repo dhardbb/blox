@@ -1,5 +1,5 @@
 --!strict
--- The plan preview (src/shared/UI/PlanPreview.luau, D-063): per state, the
+-- The plan preview (src/shared/UI/PlanPreview.luau, D-071): per state, the
 -- plan's expected margin change summed over its actions, each from Explain's
 -- estimate with the actions before it queued; the projected votes; and, on the
 -- Campaign screen, faint tags on the map and the votes line under it while you
@@ -44,7 +44,7 @@ local function margin(v: any, before: { any }, action: any): number
 	return (p.you or 0) - (p.them or 0)
 end
 
-describe("PlanPreview (D-063)", function()
+describe("PlanPreview (D-071)", function()
 	it("shows nothing for an empty plan, and the header's votes either way", function()
 		local v = view()
 		local draft = PlanDraft.new()

@@ -15,7 +15,7 @@ export type Phase = "Select" | "MapReveal" | "Draft" | "Decision" | "Plan" | "De
 
 -- What a Decision phase asks for (D-044): a stance on this week's Choice event,
 -- right before the plan. (The debate focus it also asked for is gone: debates are
--- live rounds now, D-062.)
+-- live rounds now, D-072.)
 export type DecisionKind = "Stance"
 
 -- A public poll as shown to everyone: whole-number shares that sum to 100.
@@ -103,7 +103,7 @@ export type PlayerState = {
 	lead: number?, -- smoothed projected-EV lead over the best opponent (negative = trailing)
 	underdogTier: number, -- 0, 1 or 2
 	frontrunner: boolean, -- the candidate's frontrunner drawback is active
-	debateMove: DebateInput?, -- this debate round's move (hidden until the round resolves, D-062)
+	debateMove: DebateInput?, -- this debate round's move (hidden until the round resolves, D-072)
 	stance: Types.Choice?, -- stance on this week's Choice event, set in its Decision phase (hidden until the week resolves)
 	internalPolls: { InternalPoll }, -- results from last week's plan (private)
 	scouted: { Scout }, -- latest ground game each own internal poll saw, one per state, StateData order (private)
@@ -118,7 +118,7 @@ export type DraftPick = {
 	kind: "Home" | "Nominate",
 }
 
--- One player's answer in a debate round (D-062). `canned` marks the timeout
+-- One player's answer in a debate round (D-072). `canned` marks the timeout
 -- default, which only the server sets.
 export type DebateInput = {
 	move: Types.DebateMove,
@@ -126,7 +126,7 @@ export type DebateInput = {
 	canned: boolean,
 }
 
--- One finished debate round (D-062): public from its clash on. Every list is by
+-- One finished debate round (D-072): public from its clash on. Every list is by
 -- player index.
 export type DebateRound = {
 	round: number, -- 1-based
@@ -149,7 +149,7 @@ export type DebateRound = {
 	flips: { PollFlip }, -- public-poll leader changes when the polls were republished after the round
 }
 
--- The debate in progress (D-062), during its week's Debate phase. Public except
+-- The debate in progress (D-072), during its week's Debate phase. Public except
 -- each player's pending move, which lives in PlayerState.debateMove.
 export type LiveDebate = {
 	week: number,
@@ -167,12 +167,12 @@ export type LiveDebate = {
 export type DebateResult = {
 	week: number,
 	topics: { Types.Issue },
-	focus: { number }, -- by player: always 0 since live rounds (D-062; kept for older readers)
+	focus: { number }, -- by player: always 0 since live rounds (D-072; kept for older readers)
 	prep: { { number } }, -- [player][topic]: always 0 since live rounds (kept for older readers)
 	scores: { { number } }, -- [player][round]: the round's score
 	winners: { number }, -- by round; 0 = a split
 	gaffes: { { boolean } }, -- [player][round]: lost to a counter (a backfire)
-	national: { number }, -- by player: always 0 since live rounds (no flat national part, D-062)
+	national: { number }, -- by player: always 0 since live rounds (no flat national part, D-072)
 	moves: { StateMove }, -- every round's support points summed, per state and player, in StateData order
 	flips: { PollFlip }, -- states whose public-poll leader differs from before the debate
 	rounds: { DebateRound }, -- the three rounds in full
@@ -197,7 +197,7 @@ export type StateResult = {
 
 -- The projected electoral votes on the public polls of one week (Polls.projectedEV,
 -- the header's numbers), taken as that week's new polls come out: week 0 is the
--- first polls after the draft, week w the polls at the end of week w (D-066).
+-- first polls after the draft, week w the polls at the end of week w (D-073).
 -- Public: everyone saw these numbers when they were published.
 export type PollPoint = {
 	week: number,
@@ -235,7 +235,7 @@ export type MatchState = {
 	debates: { DebateResult },
 	eventDeck: { [number]: string }, -- week -> event id (hidden: only the current week's is shown)
 	eventLog: { EventResult }, -- resolved events, oldest first
-	pollHistory: { PollPoint }, -- projected EV each time the weekly polls came out, oldest first (public, D-066)
+	pollHistory: { PollPoint }, -- projected EV each time the weekly polls came out, oldest first (public, D-073)
 	election: ElectionResult?,
 }
 

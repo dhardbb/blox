@@ -17,7 +17,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local C = Config.defaults
 local WIDE = { x = 1280, y = 720 }
 local SIZES = { { name = "16:9", screen = WIDE }, { name = "phone", screen = Rig.PHONE } }
-local MOMENTS = { "Plan", "ChoiceWeek", "Resolve" } -- debates have their own screen (D-062)
+local MOMENTS = { "Plan", "ChoiceWeek", "Resolve" } -- debates have their own screen (D-072)
 
 local check = Rig.check
 local need = function(peer: FakeRoblox.Peer, name: string): any

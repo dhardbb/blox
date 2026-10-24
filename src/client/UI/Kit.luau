@@ -143,7 +143,7 @@
 --   Kit.monogram(name, color, px) -> Frame "Monogram"   a candidate's initials in
 --     a lit circle of `color` (dataColor); the label is "Initials"
 --   Kit.portrait(id, name, px, opts?) -> Frame "Portrait"   a candidate's illustrated
---     bust on a round neutral plate (D-062); opts { ring = player color?, fade? };
+--     bust on a round neutral plate (D-068); opts { ring = player color?, fade? };
 --     the initials of `name` while the asset id is 0. Kit.paintPortrait(root, opts)
 --     repaints the ring and fade; Kit.portraitImage(id) -> "rbxassetid://…" or ""
 --   Kit.raceBar(parent, opts) -> RaceBar   the two-sided vote bar with the 270 tick
@@ -1663,7 +1663,7 @@ function Kit.paintPortrait(root: Frame, opts: PortraitOptions?)
 	end
 end
 
--- A candidate's face (D-062): the bust from assets/portraits (UI/Assets
+-- A candidate's face (D-068): the bust from assets/portraits (UI/Assets
 -- .portraits) on a round neutral plate, `px` wide, the image clipped to the
 -- circle. opts.ring draws a ring in a player color (yours, a pick, a taken
 -- one); without it the plate has a plain dark edge, so free candidates look

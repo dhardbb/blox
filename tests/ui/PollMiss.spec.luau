@@ -1,5 +1,5 @@
 --!strict
--- Shared/UI/PollMiss (D-066): the end screen's map, final polls against the
+-- Shared/UI/PollMiss (D-073): the end screen's map, final polls against the
 -- real result, and the states the polls called wrong.
 
 local Config = require("@sim/Config")

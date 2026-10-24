@@ -685,7 +685,7 @@ local function planGuide(payload: any, turn: Turn): { string }
 	return out
 end
 
--- A debate round (D-062): three live rounds, one per topic, each its own step.
+-- A debate round (D-072): three live rounds, one per topic, each its own step.
 local function debateGuide(payload: any): { string }
 	local view = payload.view
 	local C = Config.defaults

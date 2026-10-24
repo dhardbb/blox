@@ -428,7 +428,7 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		Visible = false,
 		Parent = sheet.body,
 	})
-	-- Reporting the opponent's custom name (D-063), when one is showing.
+	-- Reporting the opponent's custom name (D-069), when one is showing.
 	local reportSeat: number? = nil
 	local report = Kit.button(
 		"",

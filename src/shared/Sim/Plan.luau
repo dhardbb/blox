@@ -9,7 +9,7 @@
 --
 -- Choice stances and debate moves are not part of a plan: a stance has its own
 -- Decision phase before it (Sim/Decision, D-044) and a debate its own rounds
--- (Sim/Debate, D-062). A plan that carries `focus`, `choice` or `move` is
+-- (Sim/Debate, D-072). A plan that carries `focus`, `choice` or `move` is
 -- rejected (UnexpectedFocus, UnexpectedChoice, UnexpectedMove).
 
 local ConfigModule = require("./Config")
@@ -64,11 +64,11 @@ Plan.Reason = table.freeze({
 	NotEnoughAP = "NotEnoughAP",
 	NotEnoughMoney = "NotEnoughMoney",
 	-- Decision phase codes (Sim/Decision), and a plan that carries a focus or a stance.
-	BadFocus = "BadFocus", -- no longer sent: the debate focus is gone (D-062); kept so old clients' messages still map
+	BadFocus = "BadFocus", -- no longer sent: the debate focus is gone (D-072); kept so old clients' messages still map
 	UnexpectedFocus = "UnexpectedFocus",
 	BadChoice = "BadChoice",
 	UnexpectedChoice = "UnexpectedChoice",
-	-- Debate round codes (Sim/Debate, D-062), and a plan that carries a move.
+	-- Debate round codes (Sim/Debate, D-072), and a plan that carries a move.
 	BadMove = "BadMove",
 	ZingerSpent = "ZingerSpent",
 	UnexpectedMove = "UnexpectedMove",

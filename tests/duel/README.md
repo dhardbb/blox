@@ -38,7 +38,7 @@ Header (TURN, REFRESH, player, attempt), the output of your last command file (a
 
 ## Debate rounds and Choice stances
 
-**Debates (D-062)** are three live rounds in weeks 4 and 9, one per topic, each its own turn: `ACTION NEEDED: Week 4 Debate round 1 of 3: Jobs`. Both players pick at once, in secret:
+**Debates (D-072)** are three live rounds in weeks 4 and 9, one per topic, each its own turn: `ACTION NEEDED: Week 4 Debate round 1 of 3: Jobs`. Both players pick at once, in secret:
 
 - `defend`, `attack` or `pivot`; add `zinger` to stake your one Zinger on this round (`attack zinger`): a round you win then counts ×2 on the map and the crowd (Hale ×3). Win or lose, it is spent.
 - Defend beats Attack, Attack beats Pivot, Pivot beats Defend: the counter adds +2 in round 1, +3 after. Higher score wins the round; equal is a split. The same move as last round is −2.

@@ -1,5 +1,5 @@
 --!strict
--- Who is an admin (D-063), checked on the server only, never on the client's
+-- Who is an admin (D-069), checked on the server only, never on the client's
 -- word: the experience owner (game.CreatorId when game.CreatorType is User;
 -- for a group-owned game, a member of that group at Config.ADMIN_GROUP_RANK or
 -- above, read with GroupService:GetRolesInGroupAsync, which the docs say

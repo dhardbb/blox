@@ -1,5 +1,5 @@
 --!strict
--- Reported custom names and the owners' review (the Name Pass, D-063). Nothing
+-- Reported custom names and the owners' review (the Name Pass, D-069). Nothing
 -- is removed automatically: a report puts the name in a review queue, and an
 -- admin (server/Admins) keeps it or removes it. A removed name goes on the
 -- reviewed blocklist, which blocks it and names like it (CustomName.blocked:

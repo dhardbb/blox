@@ -4,7 +4,7 @@
 -- is Shared/UI/Words/Reveal. Debates have their own screen (Screens/Debate, D-072).
 --
 -- Resolve, in three beats (docs/UI-STYLE.md §2.7, D-053), as a running tally
--- (D-063, Shared/UI/RevealSteps). One: "Both plans are in" (RevealIntro) and
+-- (D-066, Shared/UI/RevealSteps). One: "Both plans are in" (RevealIntro) and
 -- who goes first, for REVEAL_INTRO seconds; the map and the score still show
 -- the week's start. Two: the moves land one step at a time, the trailing
 -- player's first (Words.revealFirst on the polls before the week, so the leader
@@ -264,7 +264,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 
 	-- ------------------------------------------------------------ summary and Why?
 
-	-- The last step (D-063): a "New polls are in" stamp and what the polls
+	-- The last step (D-066): a "New polls are in" stamp and what the polls
 	-- shifted, right under the title (above the groups, so a phone sees it).
 	local pollsBox = Kit.stack(
 		{ Name = "RevealPolls", LayoutOrder = 2, Visible = false, Parent = root },
@@ -310,7 +310,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		Visible = false,
 		Parent = root,
 	})
-	-- The per-move numbers are estimates: said once, behind Why? (D-063).
+	-- The per-move numbers are estimates: said once, behind Why? (D-066).
 	local estimateText = Kit.caption("", { Name = "RevealEstimate", LayoutOrder = 0, Parent = why })
 	local choiceText = Kit.caption(
 		"",

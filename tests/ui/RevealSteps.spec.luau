@@ -1,5 +1,5 @@
 --!strict
--- Shared/UI/RevealSteps (D-063): the end-of-week reveal as a running tally.
+-- Shared/UI/RevealSteps (D-066): the end-of-week reveal as a running tally.
 -- Each move's step must be the sim's own arithmetic (with true support in
 -- place of the polls and no drift it adds up to exactly what Resolve did), the
 -- last step must land on the real new polls and projected votes, the numbers
@@ -183,7 +183,7 @@ describe("RevealSteps: the steps", function()
 			end
 			expect(#RevealSteps.eventsUpTo(tally, #tally.steps)):toBe(shown)
 			check(#tally.steps <= shown + 1, "more steps than events")
-			-- The server's reveal time counts at least as many steps as any screen shows (D-063).
+			-- The server's reveal time counts at least as many steps as any screen shows (D-066).
 			check(
 				#tally.steps <= Resolve.revealSteps(week.events),
 				`{#tally.steps} steps on screen, the server timed {Resolve.revealSteps(week.events)}`

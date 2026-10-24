@@ -1,5 +1,5 @@
 --!strict
--- Custom candidate names (D-063), the pure part: the character rules, the
+-- Custom candidate names (D-069), the pure part: the character rules, the
 -- length limit, folding, the filter check, the blocklist match, the profile
 -- field and Session's per-viewer names.
 
@@ -193,7 +193,7 @@ describe("Profile.customName", function()
 	end)
 end)
 
-describe("Session custom names (D-063)", function()
+describe("Session custom names (D-069)", function()
 	local Session = require("@net/Session")
 	local View = require("@sim/View")
 
@@ -254,7 +254,7 @@ describe("Session custom names (D-063)", function()
 	end)
 end)
 
-describe("NameBlocklist (server-only, D-063)", function()
+describe("NameBlocklist (server-only, D-069)", function()
 	local NameBlocklist = require("../../src/server/NameBlocklist")
 
 	it("lets fictional names through", function()

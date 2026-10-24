@@ -1,5 +1,5 @@
 --!strict
--- The real-shape map's geometry (docs/DESIGN.md D-062), pure: the generated
+-- The real-shape map's geometry (docs/DESIGN.md D-070), pure: the generated
 -- MapShapeData (scripts/mapgen/make.py) plus lookups and tap hit tests, so the
 -- client map (Map/ShapeMap), the headless snapshots and the specs all agree.
 --

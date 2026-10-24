@@ -1,5 +1,5 @@
 --!strict
--- Short copy for the debate stage (docs/DESIGN.md D-062): the moderator's
+-- Short copy for the debate stage (docs/DESIGN.md D-072): the moderator's
 -- questions, the result cells, the clash's stamp and the verdict. Plain words,
 -- fictional and generic: no real politicians, parties, slogans or positions.
 -- Pure: reads only Config, the player's own View and Shared/UI/Swing.

@@ -106,7 +106,7 @@ local Config = {
 	POLL_RHO = 0.7, -- share of last week's poll error that carries over (D-002)
 	ELECTION_SIGMA = 2, -- election-day noise on each state's margin
 
-	-- Debates: three live rounds, one per topic (D-062). Each player picks Defend,
+	-- Debates: three live rounds, one per topic (D-072). Each player picks Defend,
 	-- Attack or Pivot; a move's strength is public arithmetic (Debate.board), the
 	-- move that counters the other's gets DEBATE_COUNTER, the higher score wins.
 	DEBATE_TOPICS = 3, -- topics per debate, one round each
@@ -175,13 +175,13 @@ local Config = {
 	TIMER_DECISION = 20, -- the debate focus or a Choice stance, each on its own screen before the plan (D-044: one pick, so well under TIMER_PLAN)
 	TIME_BANK = 30, -- extra plan time per player per match
 	TIME_BANK_CHUNK = 15, -- bank is taken in chunks of this size
-	TIMER_RESOLVE = 8, -- resolve animation, the shortest (D-063: longer on weeks with more moves to show)
-	TIMER_RESOLVE_BASE = 4.5, -- resolve animation: fixed part (intro, the new polls, What changed) before the per-step time (D-063)
-	TIMER_RESOLVE_PER_STEP = 0.55, -- resolve animation: seconds per reveal step, so each move is seen to land (D-063)
-	TIMER_RESOLVE_MAX = 14, -- resolve animation, the longest (D-063)
+	TIMER_RESOLVE = 8, -- resolve animation, the shortest (D-066: longer on weeks with more moves to show)
+	TIMER_RESOLVE_BASE = 4.5, -- resolve animation: fixed part (intro, the new polls, What changed) before the per-step time (D-066)
+	TIMER_RESOLVE_PER_STEP = 0.55, -- resolve animation: seconds per reveal step, so each move is seen to land (D-066)
+	TIMER_RESOLVE_MAX = 14, -- resolve animation, the longest (D-066)
 	TIMER_RESOLVE_SKIPPED = 3, -- resolve when both players tap skip
-	TIMER_DEBATE_INTRO = 3, -- the debate stage before round 1 (D-062)
-	TIMER_DEBATE_ROUND = 15, -- one debate round: pick a move (D-062; both locked in ends it)
+	TIMER_DEBATE_INTRO = 3, -- the debate stage before round 1 (D-072)
+	TIMER_DEBATE_ROUND = 15, -- one debate round: pick a move (D-072; both locked in ends it)
 	TIMER_DEBATE_CLASH = 4, -- the clash after each debate round
 	TIMER_DEBATE_VERDICT = 5, -- the debate's verdict after round 3 (skippable)
 	TIMER_ELECTION = 45, -- election night
@@ -203,13 +203,13 @@ local Config = {
 	BOT_DEBATE_READ = 0.15, -- Hard and up: weight on the opponent playing the debate move the standard bot would (rest spread evenly); 0.5 read Medium so well that Hard won 86%
 	BOT_EXTREME_HISTORY = 0.5, -- Extreme: share of that prediction taken from the opponent's own past debate moves this match
 
-	-- Custom candidate names (the Name Pass, D-063). Not rules: who may name a
+	-- Custom candidate names (the Name Pass, D-069). Not rules: who may name a
 	-- candidate, and how long a name may be.
 	NAME_MAX_LENGTH = 16, -- characters in a custom name, after trimming (the "16" the designers asked for)
-	NAME_SIMILAR_DISTANCE = 1, -- a name within this many letter edits of a blocklist entry counts as that entry (D-063)
+	NAME_SIMILAR_DISTANCE = 1, -- a name within this many letter edits of a blocklist entry counts as that entry (D-069)
 	NAME_SIMILAR_MIN_LETTERS = 5, -- shorter blocklist entries must match exactly (one edit away from a short word is too many names)
 
-	-- Reporting and reviewing custom names (D-063).
+	-- Reporting and reviewing custom names (D-069).
 	NAME_REPORT_WAIT = 10, -- seconds one player waits between reports (rate limit)
 	NAME_REPORTS_PER_VISIT = 10, -- most reports one player sends per visit to a server
 	NAME_HIDDEN_MAX = 30, -- names a player reported and no longer sees, kept in their profile (oldest dropped)
@@ -218,7 +218,7 @@ local Config = {
 	NAME_BLOCKLIST_MAX = 2000, -- names reviewers removed, kept as blocklist entries
 	NAME_BLOCKLIST_REFRESH = 300, -- seconds between reloads of the reviewed blocklist on each server
 
-	-- Admins (D-063): free Color and Name Passes and the name review panel. The
+	-- Admins (D-069): free Color and Name Passes and the name review panel. The
 	-- experience owner (game.CreatorId, or for a group-owned game its members of
 	-- at least ADMIN_GROUP_RANK) always counts; these user ids count too.
 	ADMIN_USER_IDS = {

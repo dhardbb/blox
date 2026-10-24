@@ -1,5 +1,5 @@
 --!strict
--- The debate stage (docs/DESIGN.md D-062): both candidates' faces with their
+-- The debate stage (docs/DESIGN.md D-072): both candidates' faces with their
 -- Zinger, the crowd meter between them, and the moderator's question for this
 -- round with the facts that set its strengths.
 --

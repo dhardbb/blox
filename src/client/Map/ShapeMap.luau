@@ -1,5 +1,5 @@
 --!strict
--- The real map (docs/DESIGN.md D-062): every state's true shape from the
+-- The real map (docs/DESIGN.md D-070): every state's true shape from the
 -- generated atlases (Shared/UI/MapShape, scripts/mapgen/make.py), tinted by
 -- the same rules as the circles (Colors.bandFill toward the public-poll leader,
 -- the lean before the first poll), thin dark borders from one overlay image,
@@ -147,7 +147,7 @@ type Node = {
 	outline: Frame?,
 	outlineParts: { Frame },
 	stackH: number, -- px, the label stack's height at the last paint
-	preview: TextLabel?, -- the plan preview's tag (D-063), made on first use
+	preview: TextLabel?, -- the plan preview's tag (D-071), made on first use
 	bloom: ImageLabel?,
 }
 
@@ -294,7 +294,7 @@ function ShapeMap.new(): MapInterface.Map
 	local tagLayer = Kit.box({ Name = "Tags", ZIndex = 7, Parent = root })
 	local pinLayer = Kit.box({ Name = "Pins", ZIndex = 8, Parent = root })
 	local legendLayer = Legend.new(root, data.legend)
-	-- The plan preview (D-063) on top of everything, so it reads in every lens.
+	-- The plan preview (D-071) on top of everything, so it reads in every lens.
 	local previewLayer = Kit.box({ Name = "Preview", ZIndex = 9, Parent = root })
 
 	local selectGlow =

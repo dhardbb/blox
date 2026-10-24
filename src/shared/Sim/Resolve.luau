@@ -472,7 +472,7 @@ end
 
 -- Event kinds the week's reveal shows as a move (each its own step) and as
 -- still events (shown along with a move; a player with only these gets one
--- step). The client's Shared/UI/RevealSteps groups the same way (D-063).
+-- step). The client's Shared/UI/RevealSteps groups the same way (D-066).
 Resolve.REVEAL_MOVES = table.freeze({
 	Rally = true,
 	Media = true,
@@ -515,7 +515,7 @@ function Resolve.revealSteps(events: { Event }): number
 	return steps
 end
 
--- Seconds the server gives the week's reveal (D-063): clamp(BASE + PER_STEP x
+-- Seconds the server gives the week's reveal (D-066): clamp(BASE + PER_STEP x
 -- steps, TIMER_RESOLVE, TIMER_RESOLVE_MAX).
 function Resolve.revealTime(config: Config, events: { Event }): number
 	local seconds = config.TIMER_RESOLVE_BASE + config.TIMER_RESOLVE_PER_STEP * Resolve.revealSteps(events)

@@ -24,9 +24,9 @@ export type Op =
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
 	| "PrePick" -- remember a candidate and platform for Select: { pick }
 	| "SetColor" -- save a chosen color (Color Pass owners, D-055): { color? } (absent = auto)
-	| "SetName" -- name your candidate (Name Pass owners, eligible players, D-063): { name? } (absent = its own name)
-	| "ReportName" -- report a custom name you were shown (D-063): { userId } (the setter's, as a string)
-	| "ReviewList" -- admins: ask for the reported names (D-063); answered with a "Review" message
+	| "SetName" -- name your candidate (Name Pass owners, eligible players, D-069): { name? } (absent = its own name)
+	| "ReportName" -- report a custom name you were shown (D-069): { userId } (the setter's, as a string)
+	| "ReviewList" -- admins: ask for the reported names (D-069); answered with a "Review" message
 	| "ReviewKeep" -- admins: keep a reported name, dismissing its reports: { userId }
 	| "ReviewRemove" -- admins: remove a reported name and block it and names like it: { userId }
 	| "Claim" -- Select step 1: claim a candidate (D-048): { matchId, step, input = candidate id }
@@ -68,10 +68,10 @@ export type LobbyStatus = {
 	profile: Profile.Summary?, -- the player's saved rating and record; absent until it has loaded
 	color: string?, -- the saved color pick; absent = auto (red or blue)
 	colorPass: ColorPass?, -- absent while the pass is not set up
-	review: { count: number }?, -- admins only (D-063): reported names waiting for review
+	review: { count: number }?, -- admins only (D-069): reported names waiting for review
 }
 
--- One reported name in the admins' review panel (D-063).
+-- One reported name in the admins' review panel (D-069).
 export type ReviewEntry = {
 	userId: string, -- the setter
 	name: string, -- the reported name
@@ -102,7 +102,7 @@ export type Message = {
 	notice: string?, -- e.g. "OpponentDisconnected"
 	rating: RatingChange?, -- Rating: sent once when a rated match ends
 	leaderboard: Leaderboard.Board?, -- Leaderboard: the top list and where this player stands
-	review: ReviewBoard?, -- Review: the reported names (admins only, D-063)
+	review: ReviewBoard?, -- Review: the reported names (admins only, D-069)
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

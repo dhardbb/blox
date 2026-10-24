@@ -13,7 +13,7 @@
 --   Explain.leanText(view, s) · momentumNote · backlashNote · underdogText
 --   Explain.scoutOf(view, id) · scoutNote(config, view, id) (their ground game, as your polls saw it, D-049)
 --   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
---   Explain.debateParts / debateLine (a resolved debate round: the move, its strength, the counter, D-062)
+--   Explain.debateParts / debateLine (a resolved debate round: the move, its strength, the counter, D-072)
 --   Explain.choiceLines(config, issueMap?, event?, platform?, base?) (each stance of a Choice event and the states it moves)
 --   Explain.leadWinChance(config, pollLead)
 --   Explain.help(config, view?) -> { Section } (the "How it works" screen)
@@ -676,7 +676,7 @@ export type TopicParts = {
 	score: number,
 }
 
--- Player p's score in round t of a resolved debate (D-062), split into the
+-- Player p's score in round t of a resolved debate (D-072), split into the
 -- move's strength and the counter bonus.
 function Explain.debateParts(
 	_config: Config,

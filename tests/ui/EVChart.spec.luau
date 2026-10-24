@@ -1,5 +1,5 @@
 --!strict
--- Shared/UI/EVChart (D-066): the end screen's week-by-week chart of projected
+-- Shared/UI/EVChart (D-073): the end screen's week-by-week chart of projected
 -- votes: the series, the y scale, the x positions, the line pieces as rotated
 -- Frames, the x labels that fit and the debate and stance markers.
 

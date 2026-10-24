@@ -1,5 +1,5 @@
 --!strict
--- The owners' name review (docs/DESIGN.md D-063). Admins only: the Lobby
+-- The owners' name review (docs/DESIGN.md D-069). Admins only: the Lobby
 -- shows "Review names (N)" when the lobby status carries `review` (the server
 -- decides who is an admin, and checks again on every request). The sheet asks
 -- the server for the queue (ReviewList) and lists each reported name: the

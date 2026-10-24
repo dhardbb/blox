@@ -3,12 +3,12 @@
 -- week's plan, in any week that asks for a Choice stance.
 --
 -- Order inside a week:
---   debate week:  Debate (three live rounds, Sim/Debate, D-062) -> [Decision "Stance"] -> Plan
+--   debate week:  Debate (three live rounds, Sim/Debate, D-072) -> [Decision "Stance"] -> Plan
 --   Choice week:  Decision "Stance" -> Plan
 --   other weeks:  Plan
 -- A stance is chosen after any debate of the same week, so the republished
 -- polls are on the table. (A debate used to open with a "Focus" decision; live
--- rounds replaced it, D-062.)
+-- rounds replaced it, D-072.)
 --
 -- Payload: { choice = "A"|"B"|"C" }. Like plans, a payload is rejected whole
 -- with a reason code (Plan.Reason) and never throws; a valid one comes back

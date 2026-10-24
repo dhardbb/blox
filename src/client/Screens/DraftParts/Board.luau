@@ -38,7 +38,7 @@ local Board = {}
 
 local LINE_H = 20 -- px, one board line (grows if the detail wraps)
 local WHO_W = 64 -- px, "You" / "Rex"
-local FACE = 24 -- px, a player's candidate portrait on the strongholds card (D-062)
+local FACE = 24 -- px, a player's candidate portrait on the strongholds card (D-068)
 local SWATCH = 16 -- px, a legend key's dot
 local LEGEND_TINT = 0.6 -- how far a legend dot leans toward the player's color
 
@@ -55,7 +55,7 @@ local function listText(ids: { string }): string
 end
 
 -- The candidate's display name (a custom name when the view carries one,
--- D-063), or a fallback before one is known.
+-- D-069), or a fallback before one is known.
 function Board.candidateName(config: Config, view: View.View, p: number): string
 	local custom = view.players[p].customName
 	if custom ~= nil then

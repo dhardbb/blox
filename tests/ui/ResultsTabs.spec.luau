@@ -1,5 +1,5 @@
 --!strict
--- The end screen's tabs (D-066): Summary stays the first view; Map compares the
+-- The end screen's tabs (D-073): Summary stays the first view; Map compares the
 -- final polls with the real result and marks the states the polls missed;
 -- Graph draws both players' projected votes week by week, then the result.
 

@@ -1024,7 +1024,7 @@ WP-2 of the front-page pass (art direction §4), on the white accent (D-058). Cl
 
 ## The week's results as a running tally (client only)
 
-### D-063 — Each move is followed by its effect; "New polls are in" lands on the real polls (no rule, payload or Config changes, Oct 24, 2026)
+### D-066 — Each move is followed by its effect; "New polls are in" lands on the real polls (no rule, payload or Config changes, Oct 24, 2026)
 
 **Ask.** "For the end of week results, it currently shows every action first, then the total change, but I want it to update the map and values after each shown move, rather than waiting until the end to tally up." The reveal listed both players' actions while the map stayed on last week's polls, then jumped to the new ones; the header's score had already jumped to the result when the reveal opened.
 
@@ -1039,7 +1039,7 @@ WP-2 of the front-page pass (art direction §4), on the white accent (D-058). Cl
 **Follow-up (user feedback, same day): make each move's effect obvious, and the last step read as news.** "I want it to be obvious what effects the moves are having." Each move step now badges **every** state it touched with its signed points toward you (`SwingMarks.step`: "+1.5" in your color when it helps you, "−1.5" in orange when it hurts you; no "biggest 3" cut), a leader change says FLIP in the new leader's color, rings, and bumps in that color, and the header's line carries it at a glance ("Rex: Rally · NY → Rex +28", `Words.leaderArrow`) while the projected votes count to the new total. The last step is renamed **"New polls are in"** (it read as moves being undone) and has its own look: a raised stamp in the panel, "Polls shifted 4 states" under it (`Words.pollShift`: the leader changes the new polls made on top of the moves), a pulse sweeping the map west to east (0.6 s, decorative), and the header's line in the round display font, popped in. The estimates note left the screen: one line behind "Why?" ("≈ Each move's points are estimated from the polls you both saw…").
 
 **Pace: the reveal grows with its steps (approved timer tuning).** The fixed 8 s left 5.5 s for the moves: 0.64 s a step on an average week, only 0.32 s on the biggest (17 steps), where a count-up and a badge barely land. The server now gives the week's reveal `Resolve.revealTime` = clamp(`TIMER_RESOLVE_BASE` 4.5 + `TIMER_RESOLVE_PER_STEP` 0.55 × steps, `TIMER_RESOLVE` 8, `TIMER_RESOLVE_MAX` 14) s. `Resolve.revealSteps` counts from the week's events, private ones included, so both seats get the same deadline (D-001): one step per move (rally, ad, attack, backlash, pivot, stance), one for a player with only still events, one for the new polls; it is never fewer than any screen shows (spec). The deadline stays absolute (`setStage`), the client already paces from `deadline − stageStart`, so each step now gets at least about 0.55 s plus its share of 2 s; both skipping still cuts it to `TIMER_RESOLVE_SKIPPED` (3 s). *Match time (D-005), 60 bot matches, 720 weeks:* the reveal averages 9.4 s (was 8; half the weeks stay at 8, the longest seen 13.3 s), adding 16 s a match on average (median 17, p90 21, max 24 s). Worst case (every week at 14 s) adds 12 × 6 = 72 s: the old steps' pinned worst case goes from 940 s to 1,012 s (`Config.spec`), still under the 17.5-minute line, and typical matches stay well inside 15 minutes.
-### D-064 — A deeper, richer palette (no rule changes, Oct 24, 2026)
+### D-067 — A deeper, richer palette (no rule changes, Oct 24, 2026)
 
 **Ask.** The designers: "for the campaign colors make them less pastel and light", then "the color scheme in general". Kept: the navy-and-white system, what each color means (red and blue are the default players; orange `loss` is anything against you; white is press here / selected; Amber stays gold, clear of the orange) and every contrast floor. Everything goes through `Shared/UI/Colors` (names and functions unchanged), so the map and screens being rebuilt in parallel pick it up.
 
@@ -1075,7 +1075,7 @@ Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, a
 
 ## Candidate portraits and custom names
 
-### D-062 — Illustrated candidate portraits; neutral plates on Select (no rule changes, Oct 24, 2026)
+### D-068 — Illustrated candidate portraits; neutral plates on Select (no rule changes, Oct 24, 2026)
 
 **Ask.** The designers: "work on the candidate portraits". Candidates were initials monograms, and on Select every free card's circle was in your color (D-060), so the eight cards looked alike.
 
@@ -1091,7 +1091,7 @@ Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, a
 
 **Renderer.** The headless snapshots draw the local PNG for any ImageLabel with attribute Portrait (a base64 data URI, defined once per shot, clipped to the image's corner radius) whether or not the game has the asset id yet, and skip the stand-in initials (attribute PortraitFallback). 0 audit findings on every shot at phone, iPad and desktop.
 
-### D-063 — The Name Pass: a custom candidate name, chat-grade filtering, reports and owner review (Oct 24, 2026)
+### D-069 — The Name Pass: a custom candidate name, chat-grade filtering, reports and owner review (Oct 24, 2026)
 
 **Ask.** The designers: "a way to pay to get the ability to make a custom name (censor not allowed content and limit to 16+)". The user's follow-ups: only for (and only shown to) 16+ accounts, using Roblox's chat permission as the stand-in; "give the names the same filters as chat and filter any other stuff that could be against TOS"; a note that names breaking Roblox's rules are not allowed; "add a report name button that works", then "owners should review instead of automatic ban. that name and similar names will then be added to blacklist"; and "give me and him free color and name selection".
 
@@ -1123,7 +1123,7 @@ Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, a
 
 ## The real map (client only)
 
-### D-062 — Real state shapes, Polls marks for momentum and ground game, candidate pins (no rule changes, Oct 24, 2026)
+### D-070 — Real state shapes, Polls marks for momentum and ground game, candidate pins (no rule changes, Oct 24, 2026)
 
 **Ask.** The designers: "Make the map be an actual map of America rather than just circles", "Add a way to see momentum and placed/revealed ground game on the poll map view" (only under the Polls tab; the pins in every tab), and "Make it easier to identify which [state] your candidate is in by just looking at the map".
 
@@ -1145,7 +1145,7 @@ Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, a
 
 **Tests.** `tests/sim/MapShape.spec` (every state, anchors inside their own outline, sprites inside the box and atlases, PNG sizes on disk at most 1024, chips east of all land, taps by outline over every square's neighborhood), `tests/ui/ShapeMap.spec` (atlas rects and fills, 36 px targets at 390 and 340 px, tap resolution through the real buttons with and without the inset, outlines, the Polls row, pins, legend, strict audit at four sizes), `Lens.spec` (momentum and pips from the View only, Polls only, the legend), `NodeMap.spec` (the circles, now `NodeMap.circles()`, and the choice between the maps), the motion specs for both maps. Shot `13b-lens-polls-ground` shows the Polls marks; every shot reports 0 audit findings at phone, iPad and desktop.
 
-### D-063 — Plan preview on the map (no rule changes, Oct 24, 2026)
+### D-071 — Plan preview on the map (no rule changes, Oct 24, 2026)
 
 **Ask.** The designers: "plan preview on the map".
 
@@ -1161,7 +1161,7 @@ Unchanged: `text`, `accent`, `accentEdge`, `accentLip`, `loss` and `lossEdge`, a
 
 ## Debates as live rounds
 
-### D-062 — Debates are three live rounds: Defend, Attack or Pivot, with visible counters and a stakes Zinger (approved reshape, Oct 24, 2026, branch `debates`)
+### D-072 — Debates are three live rounds: Defend, Attack or Pivot, with visible counters and a stakes Zinger (approved reshape, Oct 24, 2026, branch `debates`)
 
 **Feedback.** The designers: debates "kinda feel like glorified stance questions rather than their own thing". They chose "Live rounds: short back-and-forth rounds: attack, defend or pivot to your platform, with visible counters. More drama, more reading the opponent", within their standing rules: skill-based and learnable (no blind rock-paper-scissors), tied to the states you need, visible on the map, deciding about 1 match in 5. The proposal and its paper model are in `docs/proposals/debates-live-rounds.md` (revision 2 after the lead's audit). This replaces the focus decision, the roll and the gaffe of D-040 and D-044.
 
@@ -1225,7 +1225,7 @@ New harness styles: `RandomMove`, `NoAnswer`, `AlwaysDefend`, `AlwaysAttack`, `A
 
 ## The end screen: polls against the result, votes week by week
 
-### D-066 — Results gets Map and Graph tabs; the match keeps its weekly projected votes (no rule or Config changes, Oct 24, 2026)
+### D-073 — Results gets Map and Graph tabs; the match keeps its weekly projected votes (no rule or Config changes, Oct 24, 2026)
 
 **Ask.** The designers: "an option at the end screen to switch between the final polls vs the real results", and "another screen on the end screen where you could see the EV polls week by week on a graph".
 

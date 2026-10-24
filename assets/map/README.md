@@ -1,6 +1,6 @@
 # Real map images
 
-Made by `scripts/mapgen/make.py` (Pillow) from `scripts/mapgen/data/states-albers-10m.json` (us-atlas 3.0.1, ISC license in `scripts/mapgen/data/LICENSE-us-atlas`; US Census Bureau boundaries, public domain). Run from the repository root: `python3 scripts/mapgen/make.py`. It also writes `src/shared/UI/MapShapeData.luau`. See `docs/DESIGN.md` D-062.
+Made by `scripts/mapgen/make.py` (Pillow) from `scripts/mapgen/data/states-albers-10m.json` (us-atlas 3.0.1, ISC license in `scripts/mapgen/data/LICENSE-us-atlas`; US Census Bureau boundaries, public domain). Run from the repository root: `python3 scripts/mapgen/make.py`. It also writes `src/shared/UI/MapShapeData.luau`. See `docs/DESIGN.md` D-070.
 
 | File | Size | What | `Assets.luau` key |
 |---|---|---|---|

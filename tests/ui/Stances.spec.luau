@@ -30,7 +30,7 @@ local RESOLVE_DONE = 30 -- s, the resolve reveal has listed every event by then
 local check = Rig.check
 
 -- The screen the helpers look in: the stance is taken on the Decision screen
--- (D-044), a debate on the Debate screen (D-062), everything else here is on
+-- (D-044), a debate on the Debate screen (D-072), everything else here is on
 -- Campaign. `open` sets it.
 local SCREEN = "Campaign"
 
@@ -237,7 +237,7 @@ describe("Stances: the Choice week", function()
 	end)
 end)
 
-describe("Stances: the debate on the map (D-062)", function()
+describe("Stances: the debate on the map (D-072)", function()
 	it("the clash badges what the round moved, and every flip says FLIP", function()
 		local world, peer = open("Clash", nil)
 		local view = viewOf(world, peer)

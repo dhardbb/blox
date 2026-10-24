@@ -420,7 +420,7 @@ describe("Resolve: pivots and upkeep", function()
 	end)
 end)
 
-describe("Resolve: reveal pacing (D-063)", function()
+describe("Resolve: reveal pacing (D-066)", function()
 	local function ev(kind: string, player: number?, private: boolean?): State.Event
 		return { kind = kind, player = player, state = "OH", private = private }
 	end

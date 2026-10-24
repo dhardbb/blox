@@ -45,7 +45,7 @@ describe("Match", function()
 			end
 		end
 		expect(weeks):toBe(C.WEEKS)
-		-- Three live rounds per debate (D-062), each its own step.
+		-- Three live rounds per debate (D-072), each its own step.
 		expect(debates):toEqual({
 			"Debate:4:2",
 			"Debate:4:2",

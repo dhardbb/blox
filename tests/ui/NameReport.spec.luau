@@ -1,5 +1,5 @@
 --!strict
--- Reporting custom names and the owners' review (docs/DESIGN.md D-063), end to
+-- Reporting custom names and the owners' review (docs/DESIGN.md D-069), end to
 -- end on the fake engine with the real server and clients: a report hides the
 -- name from the reporter at once and for later matches and queues it for
 -- review (NameReports_v1); admins (and only admins) keep or remove it; a
@@ -87,7 +87,7 @@ local function queueEntry(t: Trio): any
 	return if record then record[tostring(t.ids[1])] else nil
 end
 
-describe("Reporting a custom name (D-063)", function()
+describe("Reporting a custom name (D-069)", function()
 	it("hides it from the reporter at once, queues it, and A keeps it", function()
 		local t = trio(1)
 		expect(nameOfA(t, t.b)):toBe("Captain Zed")
@@ -163,7 +163,7 @@ describe("Reporting a custom name (D-063)", function()
 	end)
 end)
 
-describe("Reviewing reported names (D-063)", function()
+describe("Reviewing reported names (D-069)", function()
 	local function board(t: Trio): any
 		return Rig.storeOf(t.world, t.r :: FakeRoblox.Peer).get().review
 	end

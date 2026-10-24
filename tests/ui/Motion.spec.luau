@@ -394,7 +394,7 @@ describe("NodeMap motion API (circles)", function()
 	end)
 end)
 
-describe("NodeMap motion API (real map, D-062)", function()
+describe("NodeMap motion API (real map, D-070)", function()
 	it("pulses, rings, badges and wipes a state without touching the others", function()
 		local c = client()
 		local NodeMap = FakeRoblox.require(c.world, c.peer, "src/client/Map/NodeMap.luau")

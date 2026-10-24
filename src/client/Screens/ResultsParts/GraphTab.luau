@@ -1,5 +1,5 @@
 --!strict
--- Results' Graph tab (docs/DESIGN.md D-066): both players' projected votes week
+-- Results' Graph tab (docs/DESIGN.md D-073): both players' projected votes week
 -- by week, from the public polls (the header's numbers), then election night's
 -- real count. Roblox has no chart widget, so the chart is plain Frames placed
 -- where Shared/UI/EVChart says: each line piece a thin Frame turned about its

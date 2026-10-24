@@ -87,7 +87,7 @@ local function withEvent(id: string, upcoming: boolean?): (World, Peer) -> ()
 	end
 end
 
--- The Polls lens with ground game (D-062): your units in PA, WI and GA, and
+-- The Polls lens with ground game (D-070): your units in PA, WI and GA, and
 -- what your polls saw of theirs in PA and AZ.
 local function pollsGround(world: World, peer: Peer)
 	local payload = Fixtures.payload(Config.defaults, "Plan")
@@ -279,7 +279,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- An admin (D-063): the color option free and "Review names (2)".
+		-- An admin (D-069): the color option free and "Review names (2)".
 		name = "01g-lobby-admin",
 		moment = "Lobby",
 		screen = "Lobby",
@@ -516,7 +516,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- A Name Pass owner (D-063): "Captain Zed" against "Big Wave".
+		-- A Name Pass owner (D-069): "Captain Zed" against "Big Wave".
 		name = "03d-select-name",
 		moment = "SelectName",
 		screen = "Select",
@@ -543,7 +543,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- Reporting the opponent's custom name from the Help sheet (D-063).
+		-- Reporting the opponent's custom name from the Help sheet (D-069).
 		name = "03g-select-report",
 		moment = "SelectName",
 		screen = "Select",
@@ -650,7 +650,7 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Campaign", "Fundraise")
 		end,
 	},
-	-- The plan preview (D-063): an empty plan, then a rally in PA twice and one in OH.
+	-- The plan preview (D-071): an empty plan, then a rally in PA twice and one in OH.
 	{ name = "10c-plan-preview-empty", moment = "Plan", screen = "Campaign" },
 	{
 		name = "10d-plan-preview",
@@ -703,7 +703,7 @@ local SHOTS: { Shot } = {
 	{ name = "12-lens-issues", moment = "Plan", screen = "Campaign", steps = lens("Issues") },
 	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
 	{
-		-- The Polls lens with ground game on the map (D-062): your units in PA, WI
+		-- The Polls lens with ground game on the map (D-070): your units in PA, WI
 		-- and GA, and what your polls saw of theirs in PA and AZ.
 		name = "13b-lens-polls-ground",
 		moment = "Plan",
@@ -731,7 +731,7 @@ local SHOTS: { Shot } = {
 	},
 	{ name = "16-resolve-start", moment = "Resolve", screen = "Campaign" },
 	{
-		-- The running tally (D-063): the first step has landed (shot 0.7 s into
+		-- The running tally (D-066): the first step has landed (shot 0.7 s into
 		-- the stage: the 0.5 s intro, then step 1), map and score moved with it.
 		name = "16b-resolve-step1",
 		moment = "Plan",
@@ -785,7 +785,7 @@ local SHOTS: { Shot } = {
 			payload.stageStart += shift
 			payload.deadline += shift
 			Rig.push(world, peer, payload)
-			FakeRoblox.run(world, payload.deadline - payload.stageStart - 0.9) -- the end of the reveal (it grows with its steps, D-063)
+			FakeRoblox.run(world, payload.deadline - payload.stageStart - 0.9) -- the end of the reveal (it grows with its steps, D-066)
 		end,
 	},
 	{ name = "18-choice-resolve", moment = "ChoiceResolve", screen = "Campaign" },
@@ -862,7 +862,7 @@ local SHOTS: { Shot } = {
 	-- (23-results is the ordinary win: no stamp).
 	{ name = "23b-results-landslide", moment = "Landslide", screen = "Results" },
 	{ name = "23c-results-landslide-loss", moment = "LandslideLoss", screen = "Results" },
-	-- D-066: the end screen's Map tab (final polls, then the real results with a
+	-- D-073: the end screen's Map tab (final polls, then the real results with a
 	-- missed state tapped) and Graph tab (then a debate or stance marker tapped).
 	{
 		name = "23d-results-map",

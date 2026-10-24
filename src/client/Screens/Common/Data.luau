@@ -37,7 +37,7 @@ function Data.candidateName(config: ConfigModule.Config, id: string?): string
 end
 
 -- Player `p`'s candidate name in `view`: their custom name when the view
--- carries one (the Name Pass, D-063), else the candidate's own.
+-- carries one (the Name Pass, D-069), else the candidate's own.
 function Data.playerName(config: ConfigModule.Config, view: any, p: number): string
 	local player = view.players[p]
 	if player and player.customName then

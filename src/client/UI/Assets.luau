@@ -1,5 +1,5 @@
 --!strict
--- The UI's images (docs/DESIGN.md D-056, D-062), uploaded as Roblox images like
+-- The UI's images (docs/DESIGN.md D-056, D-068), uploaded as Roblox images like
 -- the icons (assets/ui/README.md, assets/portraits/README.md).
 --
 -- Decorations: name -> { id, kind }, the same shape as UI/Icons; made by
@@ -8,7 +8,7 @@
 --   glow    ui-glow.png, 256x256: a white radial glow, tinted (Kit.glow)
 --   dots    ui-dots.png, 64x64: one dot, tiled (optional, unused for now)
 --   mapStates1, mapStates2   assets/map/map-states-<k>.png: the real map's state
---           fill atlases (D-062, scripts/mapgen/make.py), tinted per state
+--           fill atlases (D-070, scripts/mapgen/make.py), tinted per state
 --   mapBorders  assets/map/map-borders.png: the state border lines, tinted dark
 --
 -- If a map id is ever emptied again, the game falls back to the circle map
@@ -18,7 +18,7 @@
 -- names it, so the headless snapshots draw a stand-in) but it shows nothing in
 -- the game. After the upload, put each "rbxassetid://<number>" here.
 --
--- Portraits (D-062): candidate id -> the image's asset id (a number), made by
+-- Portraits (D-068): candidate id -> the image's asset id (a number), made by
 -- assets/portraits/make.py (assets/portraits/<id>.png, 512x512). 0 = not
 -- uploaded yet: Kit.portrait shows the candidate's initials on the plate
 -- instead. The headless snapshots always draw the local PNG.

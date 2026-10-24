@@ -2,7 +2,7 @@
 -- Map lenses (D-046, docs/UI-STYLE.md §4.6): what the map shows at each
 -- state's label, one layer at a time, so the map stays quiet (who leads by fill
 -- color) and the details live in the state card. One mark per state, except
--- Polls (D-062). The fill by public-poll leader is the same in every lens;
+-- Polls (D-070). The fill by public-poll leader is the same in every lens;
 -- screens keep their event and stance badges (the Tags layer) and the
 -- candidate pins in every lens.
 --
@@ -14,7 +14,7 @@
 --   Polls   the public-poll lead ("+3") on a plate filled in the leader's
 --           color, "tie", or the lean before the first poll ("~+2", the
 --           leader's readable text color: a lean, not a poll). Under it, a
---           small row (D-062): ▲ in the momentum leader's color (▲▲ for a
+--           small row (D-070): ▲ in the momentum leader's color (▲▲ for a
 --           lead of Lens.STRONG or more: their support drifts up each week),
 --           your ground-game units as filled dots in your color, and the
 --           opponent's as hollow dots, only as your internal polls saw them
@@ -258,7 +258,7 @@ local LINES: { [Id]: (Context, StateView) -> Line } = {
 	Money = moneyLine,
 }
 
--- The map's legend row for lens `id` (D-062): Polls explains its extra marks;
+-- The map's legend row for lens `id` (D-070): Polls explains its extra marks;
 -- the other lenses need none (their one mark is in Lens.legend and the Map key).
 function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
 	if id ~= "Polls" then

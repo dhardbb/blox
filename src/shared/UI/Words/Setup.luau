@@ -47,7 +47,7 @@ function Setup.colorButton(color: string?): string
 	return if color then `Color: {color}` else "Color: red or blue"
 end
 
--- ---------------------------------------------------------------- custom names (D-063)
+-- ---------------------------------------------------------------- custom names (D-069)
 
 -- Select's name line: "Name: Captain Zed", or the candidate's own name.
 function Setup.nameLine(name: string?): string
@@ -64,7 +64,7 @@ end
 Setup.NAME_RULES = "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
 Setup.NAME_SAVE = "Save name"
 
--- Reporting a custom name (D-063).
+-- Reporting a custom name (D-069).
 Setup.REPORT = "Report name" -- the action wherever another player's custom name shows
 Setup.REPORT_TITLE = "Report this name?"
 -- `name` is the custom name, `own` the candidate's own name.
@@ -79,7 +79,7 @@ function Setup.reportButton(name: string): string
 	return `Report "{name}"`
 end
 
--- The admins' review panel (D-063).
+-- The admins' review panel (D-069).
 Setup.REVIEW_TITLE = "Review names"
 function Setup.reviewButton(count: number): string
 	return `Review names ({count})`

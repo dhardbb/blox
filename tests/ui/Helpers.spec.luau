@@ -41,12 +41,12 @@ describe("Colors", function()
 		expect(Colors.stateFill(nil, colors)):toEqual(Colors.neutral)
 		local full = Colors.stateFill({ 55, 40 }, colors)
 		expect(full):toEqual(Colors.mix(Colors.neutral, Colors.player.Crimson, 1))
-		-- Half the full margin is past half the color (FILL_CURVE, D-064).
+		-- Half the full margin is past half the color (FILL_CURVE, D-067).
 		local half = Colors.stateFill({ 40, 46 }, colors)
 		expect(half):toEqual(Colors.mix(Colors.neutral, Colors.player.Cobalt, 0.5 ^ Colors.FILL_CURVE))
 	end)
 
-	it("keeps player text readable and as saturated as it can (D-064)", function()
+	it("keeps player text readable and as saturated as it can (D-067)", function()
 		for name, c in Colors.player do
 			local t = Colors.textOn(c)
 			local ratio = Colors.contrast(t, Colors.surfaceTop)
@@ -67,7 +67,7 @@ describe("Colors", function()
 		expect(Colors.contrast(Colors.text, Colors.text)):toBe(1)
 	end)
 
-	it("keeps the player colors apart from each other and from the loss orange (D-056, D-064)", function()
+	it("keeps the player colors apart from each other and from the loss orange (D-056, D-067)", function()
 		-- CIE76 distance in L*a*b* (D65); D-056's "about 30" floor.
 		local function lab(c: Colors.RGB): (number, number, number)
 			local function lin(v: number): number

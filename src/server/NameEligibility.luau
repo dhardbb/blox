@@ -1,5 +1,5 @@
 --!strict
--- Who may buy, set and see custom candidate names (the Name Pass, D-063).
+-- Who may buy, set and see custom candidate names (the Name Pass, D-069).
 --
 -- The designers asked for "16+". Roblox exposes no age to scripts, so the
 -- user chose a stand-in: Roblox's own chat permission. Text chat now needs an

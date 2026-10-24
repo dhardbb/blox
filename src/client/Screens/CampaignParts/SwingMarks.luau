@@ -20,7 +20,7 @@
 -- or toward them, in theirs: ownership, not a loss); a flip says just FLIP,
 -- edged in the new leader's color (grey for a tie: white means "selected").
 --
--- Step (one move of the week's reveal, D-063): every state the move touched
+-- Step (one move of the week's reveal, D-066): every state the move touched
 -- carries its signed points toward you: "+1.5" in your color when it helps you,
 -- "−1.5" in orange when it hurts you; a state whose leader changed also says
 -- FLIP, edged in the new leader's color, with a strong glow.

@@ -1,5 +1,5 @@
 --!strict
--- The end screen's graph (docs/DESIGN.md D-066): both players' projected votes
+-- The end screen's graph (docs/DESIGN.md D-073): both players' projected votes
 -- week by week, from the public polls (the header's numbers), then election
 -- night's real count as the last point. Pure: the series, the scale and every
 -- pixel position, so Results only draws Frames where this says.

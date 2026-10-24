@@ -1,5 +1,5 @@
 --!strict
--- What every map implementation offers: ShapeMap (real state shapes, D-062)
+-- What every map implementation offers: ShapeMap (real state shapes, D-070)
 -- and NodeMap's circles (the fallback until the shape images are uploaded).
 -- NodeMap.new() picks one. setPins and setLegend came with the real map; the
 -- rest is unchanged, so screens drive either map the same way.
@@ -49,7 +49,7 @@ export type Pips = {
 export type LensLine = {
 	parts: { LensPart },
 	dim: boolean?, -- fade the node (e.g. a pool your plan already empties)
-	-- Polls lens only (D-062): a small row under the parts. `momentum` is the
+	-- Polls lens only (D-070): a small row under the parts. `momentum` is the
 	-- momentum leader's color (a chevron: their support drifts up each week;
 	-- `momentumStrong` doubles it); `pips` are ground-game units.
 	momentum: Color3?,
@@ -57,7 +57,7 @@ export type LensLine = {
 	pips: { Pips }?,
 }
 
--- A candidate's pin on the state they are in (D-062).
+-- A candidate's pin on the state they are in (D-070).
 export type Pin = {
 	state: string,
 	name: string, -- the candidate's name (a custom one if the viewer may see it): the face's initials until its portrait is uploaded
@@ -67,7 +67,7 @@ export type Pin = {
 	you: boolean?, -- your own pin (drawn on top)
 }
 
--- One item of the map's small legend row (D-062): a mark and a word or two.
+-- One item of the map's small legend row (D-070): a mark and a word or two.
 -- "none": the text alone. When the row is too narrow (a phone), items with
 -- the highest `drop` go first, a whole level at a time (nil: always shown).
 export type LegendItem = {
@@ -77,7 +77,7 @@ export type LegendItem = {
 	drop: number?,
 }
 
--- The plan preview's number on a state (D-063): a faint signed tag, orange
+-- The plan preview's number on a state (D-071): a faint signed tag, orange
 -- when `negative` (the plan would cost you margin there).
 export type PreviewTag = {
 	text: string,

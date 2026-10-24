@@ -121,7 +121,7 @@ local help = Help.mount(background, ctx)
 ctx.help = help.open
 -- "Leave match" (D-059): above Help, below the toast (ZIndex 45).
 ctx.leave = LeaveMatch.mount(background, ctx).open
--- "Report name" (D-063): the same layer as Leave.
+-- "Report name" (D-069): the same layer as Leave.
 ctx.report = ReportName.mount(background, ctx).open
 
 local fixture = workspace:GetAttribute("DebugScreen")

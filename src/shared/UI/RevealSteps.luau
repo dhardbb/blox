@@ -1,5 +1,5 @@
 --!strict
--- The end-of-week reveal as a running tally (D-063): each shown move is followed
+-- The end-of-week reveal as a running tally (D-066): each shown move is followed
 -- by its effect on the map and the projected votes, and the last step lands on
 -- the real new polls. Pure: works from Config, fixed state data, the player's
 -- own Views (the plan-stage one from before the week and the one after) and the

@@ -738,7 +738,7 @@ describe("Kit foundation: orange losses and chunky buttons", function()
 		expect(mono:FindFirstChild("Initials").Text):toBe("DO")
 		expect(mono:GetAttribute("DataColor")):toBe(true)
 		expect(mono.AbsoluteSize.X):toBe(56)
-		-- A portrait (D-062): the bust on a plate; the initials while the id is 0.
+		-- A portrait (D-068): the bust on a plate; the initials while the id is 0.
 		local face = Kit.portrait("okafor", "Dana Okafor", 48)
 		face.Parent = c.stage
 		expect(face.Name):toBe("Portrait")

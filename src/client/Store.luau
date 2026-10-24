@@ -27,7 +27,7 @@ export type State = {
 	rating: Remotes.RatingChange?, -- the rating change after the last rated match
 	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
-	review: Remotes.ReviewBoard?, -- admins: the reported names, as last sent (D-063)
+	review: Remotes.ReviewBoard?, -- admins: the reported names, as last sent (D-069)
 }
 
 local Store = {}

@@ -1,6 +1,6 @@
 # Proposal: debates as live rounds (revision 2, Oct 24, 2026, branch `debates`)
 
-Status: **built (D-062).** The harness changed three numbers after this revision: Pivot base 3 → 4 (at 3, always Defending beat the standard bot), a round win 1.0 → 0.8 (debates decided 26%), Hale's Zinger ×3 → ×4 (×3 measured 44%); and Hard's debate read 0.5 → 0.15. `DESIGN.md` D-062 has the final numbers. The `DESIGN.md` entry is the record once it lands; this file keeps the reasoning.
+Status: **built (D-072).** The harness changed three numbers after this revision: Pivot base 3 → 4 (at 3, always Defending beat the standard bot), a round win 1.0 → 0.8 (debates decided 26%), Hale's Zinger ×3 → ×4 (×3 measured 44%); and Hard's debate read 0.5 → 0.15. `DESIGN.md` D-072 has the final numbers. The `DESIGN.md` entry is the record once it lands; this file keeps the reasoning.
 
 **Feedback.** Debates "kinda feel like glorified stance questions rather than their own thing". The designers chose: "Live rounds: short back-and-forth rounds: attack, defend or pivot to your platform, with visible counters. More drama, more reading the opponent." Standing priorities: fun first. Choices are skill-based and learnable, and tied to the states you need. No blind rock-paper-scissors ("removed the learning component"). Effects show on the map. Debates deciding about 1 match in 5 is fine. Humans make more mistakes than bots.
 

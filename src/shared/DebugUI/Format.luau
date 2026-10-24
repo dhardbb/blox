@@ -273,7 +273,7 @@ function Format.stateTags(s: View.StateView, you: number): { string }
 	return tags
 end
 
--- The debate round now asking for moves (D-062), as lines: the facts, both
+-- The debate round now asking for moves (D-072), as lines: the facts, both
 -- sides' strengths, and what each of your moves does against each of theirs.
 function Format.debateBoard(view: View.View): { string }
 	local board = Swing.debateBoard(Config.defaults, view)
@@ -438,7 +438,7 @@ function Format.board(payload: Session.StatePayload, now: number, rating: Remote
 			add("  " .. line)
 		end
 	end
-	-- A debate round: both sides' strengths, every result cell, crowd and Zingers (D-062).
+	-- A debate round: both sides' strengths, every result cell, crowd and Zingers (D-072).
 	for _, line in Format.debateBoard(view) do
 		add(line)
 	end

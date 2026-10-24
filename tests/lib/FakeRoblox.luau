@@ -28,7 +28,7 @@
 -- PromptGamePassPurchaseFinished). FakeRoblox.setModuleField changes a constant
 -- in a shared module on every peer (FakeRoblox.setColorPass: Net/Products).
 --
--- TextService (custom names, docs/DESIGN.md D-063): FilterStringAsync(text,
+-- TextService (custom names, docs/DESIGN.md D-069): FilterStringAsync(text,
 -- fromUserId, context) waits the DataStore latency, fails while
 -- world.text.failures > 0, and returns a result whose
 -- GetNonChatStringForBroadcastAsync() writes "#" over every word in
@@ -36,7 +36,7 @@
 -- GetNonChatStringForUserAsync(viewer) also hides world.text.hiddenFor[viewer]
 -- (failing while world.text.userFailures > 0); world.text.calls
 -- counts the calls. FakeRoblox.setNamePass sets Net/Products.NAME_PASS_ID and
--- TextChatService (name eligibility, D-063): CanUserChatAsync(userId) answers
+-- TextChatService (name eligibility, D-069): CanUserChatAsync(userId) answers
 -- world.chat.allowed[userId] (default false), CanUsersChatAsync(from, to) is
 -- true unless world.chat.blocked["from:to"]; both wait the DataStore latency
 -- and fail while world.chat.failures > 0 (FakeRoblox.setCanChat, blockChat).
@@ -120,7 +120,7 @@ export type World = {
 	market: MarketState,
 	text: TextState,
 	chat: ChatState,
-	published: { { topic: string, data: any } }, -- MessagingService:PublishAsync calls (D-063)
+	published: { { topic: string, data: any } }, -- MessagingService:PublishAsync calls (D-069)
 	overrides: { [string]: { [string]: any } }, -- module path (from the root) -> fields set after it loads
 	userNames: { [number]: string }, -- usernames GetNameFromUserIdAsync knows besides joined players
 	nameFailures: number, -- the next N GetNameFromUserIdAsync calls fail
@@ -135,7 +135,7 @@ export type MarketState = {
 	prompts: { { userId: number, passId: number } }, -- PromptGamePassPurchase calls, in order
 }
 
--- The fake TextService's world-level state (D-063). Tests flip the switches.
+-- The fake TextService's world-level state (D-069). Tests flip the switches.
 export type TextState = {
 	hidden: { string }, -- words the filter hides ("#" for each character)
 	hiddenFor: { [number]: { string } }, -- more words hidden from one viewer (GetNonChatStringForUserAsync)
@@ -145,7 +145,7 @@ export type TextState = {
 	contexts: { string }, -- the TextFilterContext name of each call, in order
 }
 
--- The fake TextChatService's world-level state (D-063).
+-- The fake TextChatService's world-level state (D-069).
 export type ChatState = {
 	allowed: { [number]: boolean }, -- user id -> CanUserChatAsync's answer (absent: false)
 	blocked: { [string]: boolean }, -- "from:to" -> CanUsersChatAsync answers false
@@ -555,7 +555,7 @@ local function newTextChatService(world: World): any
 	}
 end
 
--- MessagingService for the server (D-063): one world is one game server, so a
+-- MessagingService for the server (D-069): one world is one game server, so a
 -- publish reaches this server's own subscribers (as Roblox delivers to every
 -- server, the sender too), at once. world.published logs every message.
 local function newMessagingService(world: World): any
@@ -1794,7 +1794,7 @@ function FakeRoblox.setNamePass(world: World, passId: number)
 	FakeRoblox.setModuleField(world, "src/shared/Net/Products.luau", "NAME_PASS_ID", passId)
 end
 
--- Sets what TextChatService:CanUserChatAsync answers for a user (D-063: the
+-- Sets what TextChatService:CanUserChatAsync answers for a user (D-069: the
 -- Name Pass's eligibility stand-in).
 function FakeRoblox.setCanChat(world: World, userId: number, allowed: boolean)
 	world.chat.allowed[userId] = allowed

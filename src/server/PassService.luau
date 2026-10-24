@@ -1,7 +1,7 @@
 --!strict
 -- Who owns the game's passes, checked here and only here: the server never
 -- takes a client's word for it. Two passes (Net/Products): the Color Pass
--- (D-055) and the Name Pass (D-063). Each player is checked once per pass when
+-- (D-055) and the Name Pass (D-069). Each player is checked once per pass when
 -- they join (MarketplaceService:UserOwnsGamePassAsync, pcall'd and retried with
 -- backoff) and the answer is cached for their visit. A purchase made in the
 -- game marks them as owners at once (PromptGamePassPurchaseFinished on the
@@ -13,7 +13,7 @@
 --
 -- While a pass id is 0 nothing is checked for it and nobody owns it, except
 -- admins (server/Admins: the owner and Config.ADMIN_USER_IDS), who own both
--- passes for free, always, without asking MarketplaceService (D-063).
+-- passes for free, always, without asking MarketplaceService (D-069).
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")

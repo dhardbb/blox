@@ -36,12 +36,12 @@ local lobby = Lobby.new(config)
 local sessions: { [string]: Session.Session } = {}
 local matchOf: { [string]: string } = {} -- player id -> match id
 local prePicks: { [string]: any } = {}
-local approvedNames: { [string]: string } = {} -- player id -> their saved custom name, filtered this visit (D-063)
+local approvedNames: { [string]: string } = {} -- player id -> their saved custom name, filtered this visit (D-069)
 local shownTo: { [string]: { [string]: string } } = {} -- viewer id -> setter id -> the custom name they were shown
 local reports: { [string]: { last: number, count: number } } = {} -- reporter id -> rate-limit state, this visit
 local ownerNames: { [number]: string } = {} -- user id -> username, for the review panel
 
--- Reasons a report or a review request is turned down (D-063).
+-- Reasons a report or a review request is turned down (D-069).
 local ReportReason = table.freeze({
 	Self = "ReportSelf", -- your own name
 	NoName = "ReportNoName", -- you were not shown a custom name from that player
@@ -74,11 +74,11 @@ local function sendLobby(id: string)
 		profile = DataService.summary(id),
 		color = if profile then profile.color else nil,
 		-- Absent while the pass is not set up: the client then shows no color option.
-		-- Admins have it free even while the id is 0 (D-063).
+		-- Admins have it free even while the id is 0 (D-069).
 		colorPass = if PassService.offered("Color", id)
 			then { id = passId or 0, owned = PassService.ownsColorPass(id) }
 			else nil,
-		-- Admins only: the review button's count (D-063).
+		-- Admins only: the review button's count (D-069).
 		review = if Admins.isAdminId(tonumber(id) or 0) then { count = NameReview.pendingCount() } else nil,
 	}
 	Replication.send(id, { kind = "Lobby", lobby = status })
@@ -89,7 +89,7 @@ local function playerOf(id: string): Player?
 	return if userId then Players:GetPlayerByUserId(userId) else nil
 end
 
--- Whether this player may buy, set and see custom names (D-063): Roblox lets
+-- Whether this player may buy, set and see custom names (D-069): Roblox lets
 -- them chat (server/NameEligibility, the stand-in for 16+; cached, checked on join).
 local function eligible(id: string): boolean
 	local player = playerOf(id)
@@ -141,7 +141,7 @@ end
 -- it knows it now (no waiting, D-055): an owner may claim colors during Select
 -- and their saved color is claimed for them as Select opens (D-061). Anyone
 -- else, or an owner whose check failed, is dealt red or blue. The Name Pass
--- (D-063): an eligible player gets the pass's state; an owner's saved name,
+-- (D-069): an eligible player gets the pass's state; an owner's saved name,
 -- already filtered, names their candidate; only eligible players see names,
 -- and another player's only once it is filtered for them (shareNames).
 local function humanSpec(id: string): Session.SeatSpec
@@ -318,7 +318,7 @@ local function guard(session: Session.Session, call: () -> ()): boolean
 end
 
 -- Shows each custom name in a match to every other player allowed to see it
--- (D-063): an eligible viewer whom Roblox lets receive the setter's messages
+-- (D-069): an eligible viewer whom Roblox lets receive the setter's messages
 -- (NameEligibility.canSee), as the filter shows it to that viewer
 -- (NameService.forViewer). Everyone else keeps the candidate's own name.
 -- Yields (the checks); a match that ended meanwhile is left alone.
@@ -361,7 +361,7 @@ local function shareNames(session: Session.Session)
 	end
 end
 
--- SetName (D-063): names the player's candidate (nil = its own name). Needs the
+-- SetName (D-069): names the player's candidate (nil = its own name). Needs the
 -- Name Pass and an eligible account (Roblox lets them chat); the name is checked and
 -- filtered (server/NameService), saved in the profile, and, during Select,
 -- used in the player's match at once. Returns a reason code when it is turned
@@ -415,7 +415,7 @@ local function setName(player: Player, text: string?): string?
 	return nil
 end
 
--- Clears player `id`'s custom name after a review (D-063): their profile, this
+-- Clears player `id`'s custom name after a review (D-069): their profile, this
 -- visit's copy, their match (any phase), and a friendly notice. Yields.
 local function clearRemovedName(id: string)
 	approvedNames[id] = nil
@@ -446,7 +446,7 @@ local function onBlocklist(_added: { string })
 	end
 end
 
--- ReportName (D-063): `player` reports the custom name they were shown for
+-- ReportName (D-069): `player` reports the custom name they were shown for
 -- `setterId`. They stop seeing it at once (this match and, through their
 -- profile, every later one); the report waits in the review queue for an
 -- admin. Rate-limited per reporter. Returns a reason code when turned down.
@@ -529,7 +529,7 @@ local function sendReview(id: string)
 	Replication.send(id, { kind = "Review", review = { ok = list ~= nil, entries = entries } })
 end
 
--- ReviewList, ReviewKeep, ReviewRemove (D-063): admins only, checked here on
+-- ReviewList, ReviewKeep, ReviewRemove (D-069): admins only, checked here on
 -- every request. Returns a reason code when turned down. Yields.
 local function review(player: Player, request: Remotes.Request): string?
 	local id = idOf(player)
@@ -806,7 +806,7 @@ function MatchService.start()
 			task.spawn(approveSavedName, id)
 		end
 	end)
-	-- Name eligibility (D-063) is asked once per visit, then the saved name is
+	-- Name eligibility (D-069) is asked once per visit, then the saved name is
 	-- filtered for it.
 	local function checkNames(player: Player)
 		Admins.refresh(player)

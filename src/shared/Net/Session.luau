@@ -12,7 +12,7 @@
 -- Plan phase; a Decision has its own TIMER_DECISION and no reveal after it,
 -- D-044), "Show" (map reveal, the debate's intro, election night), "Reveal"
 -- (draft reveal, resolve animation, a debate round's clash and the debate's
--- verdict, D-062), "Over". A debate week runs: intro (Show) -> three times
+-- verdict, D-072), "Over". A debate week runs: intro (Show) -> three times
 -- [round (Input, TIMER_DEBATE_ROUND) -> clash (Reveal)] -> verdict (Reveal). Every stage change bumps `step`; clients stamp each
 -- request with the step they saw, and stale requests are rejected.
 
@@ -30,7 +30,7 @@ type Config = ConfigModule.Config
 
 export type SeatKind = "Human" | "Bot"
 export type Stage = "Input" | "Show" | "Reveal" | "Over"
-export type RevealKind = "Draft" | "Resolve" | "Debate" | "DebateIntro" | "Clash" | "Verdict" -- "Debate" is no longer sent (D-062)
+export type RevealKind = "Draft" | "Resolve" | "Debate" | "DebateIntro" | "Clash" | "Verdict" -- "Debate" is no longer sent (D-072)
 export type Reason = "Election" | "Forfeit" | "Abandoned"
 
 export type Seat = {
@@ -45,13 +45,13 @@ export type Seat = {
 	input: any?, -- normalized submission for the current Input stage
 	skip: boolean, -- wants to skip the current Reveal/Show
 	missed: number, -- consecutive Plan stages missed while disconnected
-	debateGraceWeek: number?, -- the debate week this seat already spent a grace use in (one per debate, D-062)
+	debateGraceWeek: number?, -- the debate week this seat already spent a grace use in (one per debate, D-072)
 	prePick: any?, -- lobby pre-pick, used if Select times out
 	botCandidate: string?,
 	botStyle: Bot.Style?,
 	botDifficulty: Bot.Difficulty?, -- practice difficulty (D-057); nil for a harness bot with an explicit style
 	botRng: Rng.Rng?,
-	-- Custom names (the Name Pass, D-063). The server fills these from its own
+	-- Custom names (the Name Pass, D-069). The server fills these from its own
 	-- checks; a bot seat never has any.
 	customName: string?, -- this player's candidate name for the match, already filtered
 	seesNames: boolean, -- this player may see custom names (eligible: Roblox lets them chat)
@@ -60,7 +60,7 @@ export type Seat = {
 	hiddenNames: { [number]: string }, -- names this viewer reported: never shown to them again
 }
 
--- The Name Pass as one seat sees it (D-063): present only for a player who is
+-- The Name Pass as one seat sees it (D-069): present only for a player who is
 -- eligible while the pass is set up.
 export type NamePass = {
 	id: number, -- the pass id, for MarketplaceService:PromptGamePassPurchase
@@ -102,7 +102,7 @@ export type StatePayload = {
 	events: { State.Event },
 	seats: { SeatInfo },
 	result: Result?,
-	naming: Naming?, -- the Name Pass for this seat (D-063); absent unless they may use it
+	naming: Naming?, -- the Name Pass for this seat (D-069); absent unless they may use it
 }
 
 export type Message = {
@@ -128,7 +128,7 @@ export type Session = {
 	outbox: { Message },
 	pendingClaims: { [number]: string }, -- Select: candidate claims waiting for the next update (one batch, D-048)
 	pendingColorClaims: { [number]: string }, -- Select: color claims waiting for the next update (one batch, D-061)
-	introWeek: number?, -- the debate week whose intro has been shown (D-062)
+	introWeek: number?, -- the debate week whose intro has been shown (D-072)
 	verdictNext: boolean, -- the last round's clash is on: the debate's verdict follows it
 }
 
@@ -143,9 +143,9 @@ export type SeatSpec = {
 	prePick: any?, -- Human: optional lobby pre-pick
 	colorPass: boolean?, -- Human: owns the Color Pass (the server's check, D-055): may claim colors in Select (D-061)
 	color: string?, -- Human: a Color Pass owner's saved favorite, claimed as Select opens (D-061); ignored without colorPass
-	customName: string?, -- Human: a Name Pass owner's saved name, filtered for this match (D-063)
-	seesNames: boolean?, -- Human: may see custom names (D-063); default false
-	namePass: NamePass?, -- Human: may use the Name Pass (D-063)
+	customName: string?, -- Human: a Name Pass owner's saved name, filtered for this match (D-069)
+	seesNames: boolean?, -- Human: may see custom names (D-069); default false
+	namePass: NamePass?, -- Human: may use the Name Pass (D-069)
 	candidate: string?, -- Bot: candidate to play
 	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
 	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
@@ -217,7 +217,7 @@ function Session.payload(session: Session, p: number): StatePayload
 	local deadline = if session.stage == "Input"
 		then seatDeadline(session, session.seats[p])
 		else session.skippedTo or session.deadline
-	-- Custom names reach only a viewer who may see them (D-063): their own,
+	-- Custom names reach only a viewer who may see them (D-069): their own,
 	-- and each other seat's as the server filtered it for this viewer.
 	local seat = session.seats[p]
 	local names: { [number]: string }? = nil
@@ -387,7 +387,7 @@ enterPhase = function(session: Session, now: number)
 	local config = session.config
 	local phase = session.match.phase
 	if session.verdictNext then
-		-- The last round's clash is over: the debate's verdict (D-062).
+		-- The last round's clash is over: the debate's verdict (D-072).
 		session.verdictNext = false
 		setStage(session, "Reveal", now, config.TIMER_DEBATE_VERDICT)
 		session.reveal = "Verdict"
@@ -395,7 +395,7 @@ enterPhase = function(session: Session, now: number)
 		return
 	end
 	if phase == "Debate" and session.introWeek ~= session.match.week then
-		-- The debate stage before round 1 (D-062).
+		-- The debate stage before round 1 (D-072).
 		session.introWeek = session.match.week
 		session.events = {}
 		setStage(session, "Show", now, config.TIMER_DEBATE_INTRO)
@@ -786,7 +786,7 @@ function Session.claimColor(
 	return true, nil
 end
 
--- A Name Pass owner names their candidate for this match (D-063); nil goes back
+-- A Name Pass owner names their candidate for this match (D-069); nil goes back
 -- to the candidate's own name. The server has already checked the pass and
 -- filtered the name (server/NameService): this only stores it. Allowed only
 -- during Select (the name is part of who you are this match), also after
@@ -817,7 +817,7 @@ end
 
 -- Shows seat `setter`'s name `name` to seat `viewer` as `text`: the name as the
 -- server filtered it for that viewer, or nil to show them the candidate's own
--- name (D-063). Ignored when the setter's name has changed since (`name` is
+-- name (D-069). Ignored when the setter's name has changed since (`name` is
 -- what the server filtered). Sends the viewer a fresh State when it changes.
 function Session.showName(session: Session, viewer: number, setter: number, name: string, text: string?)
 	local seat = session.seats[viewer]
@@ -855,7 +855,7 @@ function Session.setNamePass(session: Session, p: number, pass: NamePass?)
 	end
 end
 
--- Seat `viewer` reported seat `setter`'s name `name` (D-063): they see the
+-- Seat `viewer` reported seat `setter`'s name `name` (D-069): they see the
 -- candidate's own name from now on, whatever the server shares later. Sends
 -- them a fresh State.
 function Session.hideName(session: Session, viewer: number, setter: number, name: string)
@@ -873,7 +873,7 @@ function Session.hideName(session: Session, viewer: number, setter: number, name
 	end
 end
 
--- A reviewer removed seat `p`'s name (D-063): their candidate goes back to its
+-- A reviewer removed seat `p`'s name (D-069): their candidate goes back to its
 -- own name for everyone, in any phase. Everyone gets a fresh State.
 function Session.clearName(session: Session, p: number)
 	local seat = session.seats[p]
@@ -918,7 +918,7 @@ function Session.skip(session: Session, p: number, step: any, now: number): (boo
 	end
 	local config = session.config
 	-- Draft reveals, the debate's intro and its clashes are short and not
-	-- skippable; its verdict is (D-062).
+	-- skippable; its verdict is (D-072).
 	local resolving = session.stage == "Reveal" and session.reveal == "Resolve"
 	local verdict = session.stage == "Reveal" and session.reveal == "Verdict"
 	local election = session.stage == "Show" and session.match.phase == "Election"
@@ -952,7 +952,7 @@ function Session.disconnect(session: Session, p: number, now: number)
 		return
 	end
 	seat.connected = false
-	-- A debate spends at most one grace use (D-062): a second drop in the same
+	-- A debate spends at most one grace use (D-072): a second drop in the same
 	-- debate gets canned answers straight away.
 	local debating = session.match.phase == "Debate"
 	local week = session.match.week

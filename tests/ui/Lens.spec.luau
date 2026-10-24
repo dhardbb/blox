@@ -304,7 +304,7 @@ describe("Map lenses", function()
 		Rig.noErrors(world)
 	end)
 
-	it("Polls also marks momentum and ground game, from your own View only (D-062)", function()
+	it("Polls also marks momentum and ground game, from your own View only (D-070)", function()
 		local world, peer = Rig.fixture("Plan")
 		local Lens, Kit = modules(world, peer)
 		local view = Rig.deepCopy(Fixtures.payload(C, "Plan").view)
@@ -435,7 +435,7 @@ describe("Map lenses", function()
 		expect(label.Position.Y.Scale):toBe(y0)
 	end)
 
-	it("dims a drained state on the real map and shows its value beside the code (D-062)", function()
+	it("dims a drained state on the real map and shows its value beside the code (D-070)", function()
 		local world, peer = Rig.fixture("Plan")
 		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 		local NodeMap = FakeRoblox.require(world, peer, "src/client/Map/NodeMap.luau")
@@ -451,7 +451,7 @@ describe("Map lenses", function()
 		check(shape.ImageTransparency > 0, "a drained state is not dimmed")
 		expect(node.Lens.Visible):toBe(true)
 		local label, row = node.Label, node.Lens
-		-- Beside or under the code, never on it (D-062's mark layout).
+		-- Beside or under the code, never on it (D-070's mark layout).
 		local lp, ls, rp, rs =
 			label.AbsolutePosition, label.AbsoluteSize, row.AbsolutePosition, row.AbsoluteSize
 		check(

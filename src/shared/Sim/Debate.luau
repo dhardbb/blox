@@ -1,5 +1,5 @@
 --!strict
--- Debates as live rounds (docs/DESIGN.md D-062). Topics are drawn from the seed
+-- Debates as live rounds (docs/DESIGN.md D-072). Topics are drawn from the seed
 -- when the match starts and announced weeks ahead (View.nextDebate). A debate
 -- week opens with its Debate phase: one round per topic, each an input phase in
 -- which every player picks a move at once.

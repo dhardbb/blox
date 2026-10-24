@@ -70,7 +70,7 @@ local REASONS: { [string]: string } = {
 	NoColorPass = "Picking a color needs the Color Pass.",
 	NotSaved = "Your saved data didn't load, so your color can't be saved.",
 	ColorTaken = "Your opponent has that color. Pick another.",
-	-- Custom names (D-063)
+	-- Custom names (D-069)
 	NoNamePass = "Naming your candidate needs the Name Pass.",
 	NameNotEligible = "Custom names are for age-checked players 16 and over.",
 	NameBadText = "Use letters, spaces, - ' and . only. Try another.",
@@ -119,7 +119,7 @@ local function colorTakenText(): string
 	if payload and payload.view.claims then
 		for id, owner in payload.view.claims do
 			if owner ~= payload.you and Candidates.exists(id) then
-				-- Their custom name when this view carries one (D-063).
+				-- Their custom name when this view carries one (D-069).
 				local them = payload.view.players[owner]
 				who = if them and them.customName
 					then them.customName
@@ -217,14 +217,14 @@ function Net.setColor(color: string?)
 	Net.send("SetColor", { color = color })
 end
 
--- Names your candidate (Name Pass owners, D-063); nil goes back to the
+-- Names your candidate (Name Pass owners, D-069); nil goes back to the
 -- candidate's own name. The server checks the pass, the age rule and the
 -- text filter itself.
 function Net.setName(name: string?)
 	Net.send("SetName", { name = name })
 end
 
--- Reports the custom name this player was shown for `userId` (D-063).
+-- Reports the custom name this player was shown for `userId` (D-069).
 function Net.reportName(userId: string)
 	Net.send("ReportName", { userId = userId })
 end

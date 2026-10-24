@@ -110,7 +110,7 @@ local function busyMatch(): State.MatchState
 		assert(ok, `busy plan {p} rejected: {reason}`)
 	end
 	match = Match.advance(C, match, { plan, plan2 })
-	-- Week 4 opens with the debate's live rounds (D-062); both have a move locked
+	-- Week 4 opens with the debate's live rounds (D-072); both have a move locked
 	-- in for round 2 after an open round 1.
 	assert(match.phase == "Debate", "week 4 opens with the debate")
 	match = Match.advance(C, match, { { move = "Defend" }, { move = "Attack" } })

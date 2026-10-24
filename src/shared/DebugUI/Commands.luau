@@ -13,7 +13,7 @@
 --     rpoll REGION | gotv ST UNITS | pivot DROP ADD
 --     (aliases: fundraise = fund; media = ad; attack = attackad = attack ad,
 --     so the player-facing names of D-030 work as typed)
---   defend|attack|pivot [zinger]               (a debate round, D-062: zinger stakes the Zinger)
+--   defend|attack|pivot [zinger]               (a debate round, D-072: zinger stakes the Zinger)
 --   choice a|b|c                               (a Choice week's Decision step, D-044)
 --   pass                                       (submit an empty plan)
 --   auto | autoplay on|off | show ST | rules  (rules: the "How it works" text)

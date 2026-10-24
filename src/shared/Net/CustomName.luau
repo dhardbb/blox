@@ -1,5 +1,5 @@
 --!strict
--- Custom candidate names (the Name Pass, docs/DESIGN.md D-063), the pure part:
+-- Custom candidate names (the Name Pass, docs/DESIGN.md D-069), the pure part:
 -- the character rules, the length limit, folding for the blocklist and the
 -- blocklist match, each a small function of its own so the server and the
 -- specs share them. The text filter (TextService), the blocklists themselves

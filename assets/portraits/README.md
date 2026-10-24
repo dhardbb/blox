@@ -1,6 +1,6 @@
 # Candidate portraits
 
-Made by `make.py` (Pillow 11), run from the repository root: `python3 assets/portraits/make.py` (add `--preview DIR` for a sheet of all eight on their plates at 40, 80 and 160 px). See `docs/DESIGN.md` D-062.
+Made by `make.py` (Pillow 11), run from the repository root: `python3 assets/portraits/make.py` (add `--preview DIR` for a sheet of all eight on their plates at 40, 80 and 160 px). See `docs/DESIGN.md` D-068.
 
 One 512x512 PNG per candidate in `src/shared/Sim/Candidates.luau`, named by candidate id: a flat head-and-shoulders bust on a transparent background, drawn at 4x and scaled down. `Kit.portrait` puts it on a round neutral plate and clips it to the circle (a `UICorner` on the image), so each bust is centered and fits the image's inscribed circle.
 

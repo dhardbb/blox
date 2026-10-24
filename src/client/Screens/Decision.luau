@@ -6,7 +6,7 @@
 --
 --   Stance  in a Choice week: take a stance (the event card's chips, EventCard).
 --   (The debate focus it also held is gone: debates have their own screen,
---   Screens/Debate, D-062.)
+--   Screens/Debate, D-072.)
 --
 -- Layout (docs/UI-STYLE.md §4.4): the Campaign header (the week and the event or
 -- "Debate prep", the countdown, the score on wide screens, and the "what to do

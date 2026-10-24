@@ -17,7 +17,7 @@
 -- trailing state its bonus, each within EVENT_CAP per state. In a Decision phase
 -- (D-044) a Choice event's stance is the one whose public per-state effects
 -- (Events.stanceEffects) are worth the most expected EV on this bot's map
--- (Bot.choose, D-039). In a debate round (D-062) it plays the move whose worst
+-- (Bot.choose, D-039). In a debate round (D-072) it plays the move whose worst
 -- outcome is best on its map, and stakes its Zinger where a likely win lands
 -- on the states worth the most (Bot.debate). A
 -- candidate who previews next week's event (View.nextEvent) ends the route in a
@@ -73,9 +73,9 @@ export type Style =
 	| "NeverPoll" -- never buys internal polls
 	| "Sandbag" -- stops investing in a state once it estimates a lead over +4
 	| "RandomStance" -- the standard bot, but takes a random stance on Choice events (the skill check for D-039)
-	| "RandomMove" -- the standard bot, but random debate moves and a random Zinger round (the skill check for D-062)
-	| "NoAnswer" -- the standard bot, but never answers a debate round (the canned answer: what a timeout costs, D-062)
-	| "AlwaysDefend" -- the standard bot, but always Defends in a debate (no move may dominate, D-062)
+	| "RandomMove" -- the standard bot, but random debate moves and a random Zinger round (the skill check for D-072)
+	| "NoAnswer" -- the standard bot, but never answers a debate round (the canned answer: what a timeout costs, D-072)
+	| "AlwaysDefend" -- the standard bot, but always Defends in a debate (no move may dominate, D-072)
 	| "AlwaysAttack" -- the standard bot, but always Attacks in a debate
 	| "AlwaysPivot" -- the standard bot, but always Pivots in a debate
 	| "TopIssues" -- the standard bot, but runs on the three highest-EV issues (the niche check for D-047)
@@ -955,7 +955,7 @@ end
 
 -- ---------------------------------------------------------------- debates
 
--- Debate rounds (D-062). Each cell of the round's 3x3 table (my move, their
+-- Debate rounds (D-072). Each cell of the round's 3x3 table (my move, their
 -- move) is valued first by the result (+1 a win, 0 a split, -1 a loss: reading
 -- the board is the skill) and then, at most DEBATE_WORTH_SHARE of a result, by
 -- what its map effects are worth on this bot's estimates: a point of support
@@ -1215,7 +1215,7 @@ local function pastMoves(view: View): { number }?
 	return { counts[1] / total, counts[2] / total, counts[3] / total }
 end
 
--- A debate round's move (D-062): { move, zinger }, or nil for the canned answer.
+-- A debate round's move (D-072): { move, zinger }, or nil for the canned answer.
 function Bot.debate(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	local live = view.debate
 	if live == nil then

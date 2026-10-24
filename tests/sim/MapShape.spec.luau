@@ -1,6 +1,6 @@
 --!strict
 -- The real map's geometry (src/shared/UI/MapShape.luau and the generated
--- MapShapeData, D-062), pure: every state has a shape, a label anchor inside it
+-- MapShapeData, D-070), pure: every state has a shape, a label anchor inside it
 -- and a sprite inside the box and its atlas; the atlases on disk are at most
 -- 1024 px; the callout chips stand east of all land; taps resolve by outline.
 
@@ -38,7 +38,7 @@ local function landEast(): number
 	return east
 end
 
-describe("MapShape (D-062)", function()
+describe("MapShape (D-070)", function()
 	it("has one shape per state, in StateData order, at the circle map's aspect", function()
 		expect(#MapShape.list()):toBe(#StateData.list)
 		for i, record in StateData.list do

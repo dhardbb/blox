@@ -1,5 +1,5 @@
 --!strict
--- The debate's moments without input (docs/DESIGN.md D-062): the intro before
+-- The debate's moments without input (docs/DESIGN.md D-072): the intro before
 -- round 1, a round's clash, and the verdict after round 3.
 --
 --   Clash     [ You · Defend 8 ]   [ Rex · Attack 5 ]

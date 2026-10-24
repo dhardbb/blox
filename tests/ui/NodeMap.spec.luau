@@ -1,6 +1,6 @@
 --!strict
 -- The circle map (src/client/Map/NodeMap.luau, NodeMap.circles: the fallback
--- until the real map's images are uploaded, D-062) on the fake engine: 36 px tap
+-- until the real map's images are uploaded, D-070) on the fake engine: 36 px tap
 -- targets (B13), leaders for the Northeast ladder (B12), the momentum arrow
 -- (Mark.arrow), and a clean strict audit on a phone-size map. NodeMap.new()
 -- picks the real map or the circles (last block); the real map is ShapeMap.spec.
@@ -239,7 +239,7 @@ describe("NodeMap", function()
 		expect(m.Audit.PENDING.NodeMap):toBe(nil)
 	end)
 
-	it("stands candidate pins on the circles and shows the legend row (D-062)", function()
+	it("stands candidate pins on the circles and shows the legend row (D-070)", function()
 		local m = mount(390, 244)
 		local blue = m.Kit.color({ r = 70, g = 110, b = 220 })
 		m.map:setPins({ { state = "OH", name = "Dana Okafor", color = blue, tag = "You", you = true } })
@@ -254,7 +254,7 @@ describe("NodeMap", function()
 		expect(m.map.root.MapLegend.Visible):toBe(false)
 	end)
 
-	it("shows the plan preview's tags under the circles, inside the map (D-063)", function()
+	it("shows the plan preview's tags under the circles, inside the map (D-071)", function()
 		local m = mount(390, 244)
 		m.map:setPreview({ OH = { text = "+2.0" }, HI = { text = "-0.5", negative = true } })
 		expect(m.map.root.Preview.OH.Text):toBe("+2.0")

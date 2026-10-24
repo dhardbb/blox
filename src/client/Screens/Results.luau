@@ -3,7 +3,7 @@
 -- reasons, then the details one tap away. The player leaves with Back to lobby
 -- or goes straight into another match.
 --
--- Layout: three tabs pinned at the top once the election is in (D-066; a
+-- Layout: three tabs pinned at the top once the election is in (D-073; a
 -- segmented row of chips Tab_Summary | Tab_Map | Tab_Graph, "Summary" | "Map" |
 -- "Graph"), a scrolling column, and the pinned ActionBar ("Play vs Bot again" /
 -- "Play again" primary, "Back to lobby" secondary). Summary is the first view:
@@ -20,7 +20,7 @@
 --   RatingSlot    the rating change, once the server sends it (rated matches)
 --   EVBar         Kit.raceBar, 14 px: you from the left, them from the right,
 --                 the 270 tick (Marker270) with its caption (data colors)
---   Versus        two player cards: a 64 px portrait (D-062) over the name, You /
+--   Versus        two player cards: a 64 px portrait (D-068) over the name, You /
 --                 Opponent, "280 votes" in Fredoka, "20 states", debate topics
 --                 won; the winner's card is edged in their color. Player colors
 --                 stay on the portrait ring, the edge and the bar, never on big
@@ -89,7 +89,7 @@ local LANDSLIDE_LINE_H = Kit.size.caption + 6 -- px, the votes line under it
 local LANDSLIDE_GLOW = 0.45 -- the glow behind the stamp, in the winner's color (transparency)
 local LANDSLIDE_GLOW_W = 1.2 -- its width, a share of the column
 local LANDSLIDE_BREATHE = { 0.45, 0.65, 1.6 } -- the winner's glow breathes between these transparencies, s per breath
-local TAB_H = Kit.MIN_TOUCH -- px, the pinned tab row (D-066)
+local TAB_H = Kit.MIN_TOUCH -- px, the pinned tab row (D-073)
 local TABS = { "Summary", "Map", "Graph" }
 
 local DECIDED_BY: { [string]: string } = {
@@ -137,7 +137,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local ratingLine: TextLabel? = nil
 	local sheet = Sheet.new(parent, { title = "Full breakdown", name = "BreakdownSheet" })
 
-	-- The tabs (D-066): Summary first; Map and Graph once the election is in.
+	-- The tabs (D-073): Summary first; Map and Graph once the election is in.
 	local tabBar = page.header :: Frame
 	tabBar.Name = "Tabs"
 	tabBar.Visible = false
@@ -295,7 +295,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				TextXAlignment = center,
 			})
 		end
-		-- The opponent's custom name (D-063): a quiet way to report it.
+		-- The opponent's custom name (D-069): a quiet way to report it.
 		local report = ctx.report
 		if not mine and report and entry and entry.customName then
 			Kit.button(SetupWords.REPORT, function()
@@ -443,7 +443,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		for p = 1, #view.players do
 			local entry = view.players[p]
 			local full = Data.playerName(ctx.config, view, p)
-			-- A custom name stays whole (D-063); a candidate's goes by its first name.
+			-- A custom name stays whole (D-069); a candidate's goes by its first name.
 			names[p] = if entry and entry.customName then full else string.match(full, "^(%S+)") or full
 		end
 

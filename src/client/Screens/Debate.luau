@@ -1,5 +1,5 @@
 --!strict
--- The Debate screen (docs/DESIGN.md D-062): a debate is its own event, three
+-- The Debate screen (docs/DESIGN.md D-072): a debate is its own event, three
 -- live rounds on a stage. The designers asked for it after playtest feedback:
 -- debates "kinda feel like glorified stance questions rather than their own
 -- thing."

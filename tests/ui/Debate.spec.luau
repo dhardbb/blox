@@ -1,5 +1,5 @@
 --!strict
--- The Debate screen (D-062, src/client/Screens/Debate.luau) on the fake engine:
+-- The Debate screen (D-072, src/client/Screens/Debate.luau) on the fake engine:
 -- the intro, a live round, a clash and the verdict each route to it and pass
 -- the strict UI audit on a phone, an iPad and 16:9; a round shows three moves
 -- with the board's numbers above the pinned bar; one tap picks, Lock in sends

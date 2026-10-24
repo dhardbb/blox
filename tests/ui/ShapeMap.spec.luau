@@ -1,5 +1,5 @@
 --!strict
--- The real map (src/client/Map/ShapeMap.luau, D-062) on the fake engine: one
+-- The real map (src/client/Map/ShapeMap.luau, D-070) on the fake engine: one
 -- tinted shape per state from its atlas rect, a 36 px tap square per state and
 -- a chip per callout state, taps settled by outline, outlines for selection and
 -- rings, the Polls extras, candidate pins, the legend, and a clean strict audit.
@@ -282,7 +282,7 @@ describe("ShapeMap", function()
 		expect(#m.map.root.MapLegend:GetChildren() >= 2):toBe(true)
 	end)
 
-	it("shows the plan preview's faint tags on top: green gains, orange losses (D-063)", function()
+	it("shows the plan preview's faint tags on top: green gains, orange losses (D-071)", function()
 		local m = mount(390, 244)
 		m.map:setLens({
 			TX = {

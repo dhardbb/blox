@@ -1,4 +1,4 @@
-"""Draws the candidates' portraits (docs/DESIGN.md D-062).
+"""Draws the candidates' portraits (docs/DESIGN.md D-068).
 
 Run from the repository root:  python3 assets/portraits/make.py [--preview DIR]
 Needs Pillow 11 (PIL). Writes, next to this script, one 512x512 PNG per

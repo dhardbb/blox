@@ -23,7 +23,7 @@
 -- Layout (docs/UI-STYLE.md §4.2): the standard Header with the "what to do now"
 -- line and the timer, a scroll area (a coach tip, the cards or chips, then the
 -- color line with one ghost button for details), and the pinned ActionBar. Each
--- card shows the candidate's portrait (Kit.portrait, D-062) on a neutral plate,
+-- card shows the candidate's portrait (Kit.portrait, D-068) on a neutral plate,
 -- ringed in a player color only once it is picked (yours) or taken (theirs,
 -- dimmed), and a short strength and weakness (Shared/UI/Words/Setup); the exact
 -- numbers are in a sheet ("About Dana"), and "How issues work" explains votes
@@ -80,7 +80,7 @@ local SWATCH = 36 -- px, a color swatch's monogram (Color Pass owners, D-061)
 local SWATCH_CELL_MAX = 72 -- px, widest a swatch's cell gets (six in a row; a phone gives each about 56)
 local SWATCH_NAME_H = 18 -- px, the color name (or "Taken") under a swatch
 local SWAP_HINT_SECONDS = 3 -- how long "tap one to swap it" stays up
-local NAME_BUTTON_W = 180 -- px, the name line's Rename / Get the Name Pass button (D-063)
+local NAME_BUTTON_W = 180 -- px, the name line's Rename / Get the Name Pass button (D-069)
 local PICKED = Kit.glyph.bullet .. " " -- before a picked issue's name
 local TAKEN_FADE = 0.5 -- a taken card's fill and text transparency
 local ARRIVE_FROM = 0.92 -- scale a card pops in from when its step opens
@@ -168,7 +168,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return nil
 	end
 
-	-- The opponent's custom name when this view carries one (D-063), else their
+	-- The opponent's custom name when this view carries one (D-069), else their
 	-- candidate's first name once they hold one, else "your opponent".
 	local function opponentName(): string
 		local current = payload
@@ -583,7 +583,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		swatches[color] = { cell = cell, button = button, slot = slot, name = name }
 	end
 
-	-- Each card's portrait (D-062) on a neutral plate, so the eight faces tell
+	-- Each card's portrait (D-068) on a neutral plate, so the eight faces tell
 	-- the candidates apart. A ring in a player color marks whose it is: yours
 	-- (picked or claimed) in your color, the taken one in your opponent's
 	-- (dimmed); free candidates have none.
@@ -714,7 +714,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		renderPicker(name)
 	end
 
-	-- ------------------------------------------------------------ custom name (D-063)
+	-- ------------------------------------------------------------ custom name (D-069)
 
 	-- A line under the color for a player who may use the Name Pass (it is set
 	-- up and they are a verified 16+ account: payload.naming): "Name: Captain

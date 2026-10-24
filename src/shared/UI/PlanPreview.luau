@@ -1,5 +1,5 @@
 --!strict
--- The plan preview (docs/DESIGN.md D-063): while you draft a week's plan, what
+-- The plan preview (docs/DESIGN.md D-071): while you draft a week's plan, what
 -- it would do on the map if nothing else changes. Pure: reads only your own
 -- View and draft, and Explain's per-action estimates (the numbers the state
 -- card shows), so the map and the card always agree.

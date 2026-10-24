@@ -17,8 +17,8 @@ type Config = ConfigModule.Config
 export type Moment =
 	"Select" -- character select, nothing chosen yet
 	| "SelectColor" -- the same for a Color Pass owner: you hold Violet, Rex claimed Teal (D-061)
-	| "SelectName" -- Select for a Name Pass owner (D-063): you named your candidate "Captain Zed"; Rex is "Big Wave"
-	| "SelectNameBuy" -- Select for an eligible player without the Name Pass (D-063)
+	| "SelectName" -- Select for a Name Pass owner (D-069): you named your candidate "Captain Zed"; Rex is "Big Wave"
+	| "SelectNameBuy" -- Select for an eligible player without the Name Pass (D-069)
 	| "MapReveal" -- leans shown
 	| "Draft" -- a nomination round in progress, homes picked and strongholds assigned
 	| "Plan" -- week 3 plan, with history behind it
@@ -26,8 +26,8 @@ export type Moment =
 	| "ChoiceWeek" -- the plan that follows a stance (the stance taken in one line)
 	| "Resolve" -- the resolve animation after week 3
 	| "ChoiceResolve" -- the resolve animation right after a Choice week (both stances revealed)
-	| "DebateIntro" -- the week 4 debate's stage before round 1 (D-062)
-	| "DebateRound" -- round 2 of the week 9 debate: pick a move (D-062)
+	| "DebateIntro" -- the week 4 debate's stage before round 1 (D-072)
+	| "DebateRound" -- round 2 of the week 9 debate: pick a move (D-072)
 	| "Clash" -- the clash after round 1 of the week 4 debate
 	| "Debate" -- the verdict after the week 4 debate's last round
 	| "Election" -- election night
@@ -191,7 +191,7 @@ Fixtures.NAME_PASS_ID = 7654321
 Fixtures.YOUR_NAME = "Captain Zed" -- the custom names in the SelectName fixture
 Fixtures.THEIR_NAME = "Big Wave"
 
--- Select for a player who may use the Name Pass (D-063), both seats eligible
+-- Select for a player who may use the Name Pass (D-069), both seats eligible
 -- (they see custom names): `owned` you own it and named your candidate; the
 -- opponent, holding Rex Calloway, is named too. Without `owned`, nobody is named.
 local function selectName(config: Config, s: number, owned: boolean): Session.StatePayload

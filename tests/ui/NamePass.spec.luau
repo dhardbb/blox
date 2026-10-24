@@ -1,5 +1,5 @@
 --!strict
--- The Name Pass (docs/DESIGN.md D-063) end to end on the fake engine: the real
+-- The Name Pass (docs/DESIGN.md D-069) end to end on the fake engine: the real
 -- server (MatchService, PassService, NameService, NameEligibility, DataService)
 -- and the real client Select screen. Ownership comes from the fake
 -- MarketplaceService, eligibility from the fake TextChatService (the stand-in
@@ -86,7 +86,7 @@ local function savedName(world: FakeRoblox.World, userId: number): string?
 	return if record then record.data.customName else nil
 end
 
-describe("Name Pass: who may use it (D-063)", function()
+describe("Name Pass: who may use it (D-069)", function()
 	it("is hidden everywhere while the pass id is 0", function()
 		local world, peer =
 			live(1, { passId = 0, owns = true, chat = true, saved = { customName = "Captain Zed" } })
@@ -142,7 +142,7 @@ describe("Name Pass: who may use it (D-063)", function()
 	end)
 end)
 
-describe("Name Pass: setting a name (D-063)", function()
+describe("Name Pass: setting a name (D-069)", function()
 	it("names an eligible owner's candidate, saves it, and never names the bot", function()
 		local world, peer = live(4, { owns = true, chat = true })
 		local payload = practice(world, peer)
@@ -237,7 +237,7 @@ describe("Name Pass: setting a name (D-063)", function()
 	end)
 end)
 
-describe("Name Pass: who sees a name (D-063)", function()
+describe("Name Pass: who sees a name (D-069)", function()
 	-- Two players queue into one match: A eligible and named, B as given.
 	local function pair(
 		seed: number,
@@ -289,7 +289,7 @@ describe("Name Pass: who sees a name (D-063)", function()
 	end)
 end)
 
-describe("Name Pass: who sees a name, pairs (D-063)", function()
+describe("Name Pass: who sees a name, pairs (D-069)", function()
 	it("hides A's name from an eligible opponent who may not receive A's messages", function()
 		local world = Rig.newWorld(14)
 		FakeRoblox.setNamePass(world, PASS)
@@ -311,7 +311,7 @@ describe("Name Pass: who sees a name, pairs (D-063)", function()
 	end)
 end)
 
-describe("Name Pass: filtered per viewer, like chat (D-063)", function()
+describe("Name Pass: filtered per viewer, like chat (D-069)", function()
 	local function duel(seed: number, setup: (world: FakeRoblox.World, b: number) -> ())
 		local world = Rig.newWorld(seed)
 		FakeRoblox.setNamePass(world, PASS)
@@ -354,7 +354,7 @@ describe("Name Pass: filtered per viewer, like chat (D-063)", function()
 	end)
 end)
 
-describe("Name Pass: Select (D-063)", function()
+describe("Name Pass: Select (D-069)", function()
 	it("offers the pass to an eligible player without it, and Rename after the purchase", function()
 		local world, peer = live(13, { owns = false, chat = true })
 		practice(world, peer)
@@ -419,7 +419,7 @@ describe("Name Pass: Select (D-063)", function()
 	end)
 end)
 
-describe("Admins get both passes free (D-063)", function()
+describe("Admins get both passes free (D-069)", function()
 	-- A world with both pass ids at 0 and player 1 listed as an admin.
 	local function adminWorld(seed: number, chat: boolean): (FakeRoblox.World, FakeRoblox.Peer)
 		local world = Rig.newWorld(seed)

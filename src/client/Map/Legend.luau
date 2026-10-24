@@ -1,5 +1,5 @@
 --!strict
--- The map's small legend row (D-062): a mark and a word or two per item
+-- The map's small legend row (D-070): a mark and a word or two per item
 -- ("▲ momentum", "● ○ ground game"), in a strip of the map box that holds no
 -- land. Both maps use it (MapInterface.setLegend).
 --

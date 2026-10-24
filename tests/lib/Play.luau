@@ -58,7 +58,7 @@ export type Record = {
 	noiseSpread: number, -- sd of player 1's EV from election noise alone
 	debateTopicsWon: { number },
 	debateTopicsPlayed: number,
-	debateRounds: number, -- debate rounds played (D-062)
+	debateRounds: number, -- debate rounds played (D-072)
 	debateMoves: { [string]: number }, -- moves played, both players, by move ("Canned" for a timeout)
 	debateSplits: number, -- rounds that were a split
 	sameMove: number, -- rounds where both played the same move

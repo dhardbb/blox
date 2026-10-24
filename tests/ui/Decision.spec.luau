@@ -3,7 +3,7 @@
 -- engine: a Choice stance gets its own screen with its own countdown, a pinned
 -- Lock in and nothing else (no state card, plan list or week card); one tap
 -- picks, Lock in sends exactly { choice }; the map previews the pick; strict UI
--- audit at 16:9 and on a phone. (The debate focus is gone: D-062.)
+-- audit at 16:9 and on a phone. (The debate focus is gone: D-072.)
 
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Rig = require("./Rig")

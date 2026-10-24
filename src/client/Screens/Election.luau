@@ -504,7 +504,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function nameOf(index: number): string
 		local player = payload.view.players[index]
 		if player and player.customName then
-			return player.customName -- the Name Pass (D-063)
+			return player.customName -- the Name Pass (D-069)
 		end
 		local candidate = if player then player.candidate else nil
 		if candidate and Candidates.exists(candidate) then

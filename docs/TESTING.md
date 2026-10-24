@@ -728,9 +728,9 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
 
-## Plan preview (unreleased, D-063)
+## Plan preview (unreleased, D-071)
 
-Agents: `lune run tests "D-063"`, `lune run tests "Plan preview"`, `lune run tests/ui/snap.luau -- plan-preview` (shots `10c`, `10d`, `10e`; 0 audit findings at all three sizes).
+Agents: `lune run tests "D-071"`, `lune run tests "Plan preview"`, `lune run tests/ui/snap.luau -- plan-preview` (shots `10c`, `10d`, `10e`; 0 audit findings at all three sizes).
 
 1. **Start a week's plan (phone and iPad).** No numbers on the map yet, nothing under it about the plan.
 2. **Add an Ad in a state.** **Expect:** a faint green "+2.2"-style number appears beside that state's code, and under the map "Plan: 310 → 310 EV" (or higher) with "if nothing else changes" beside it on the iPad.
@@ -743,7 +743,7 @@ Agents: `lune run tests "D-063"`, `lune run tests "Plan preview"`, `lune run tes
 8. **Lock in.** **Expect:** the numbers and the plan line disappear.
 9. **No errors** from `Campaign`, `ShapeMap`, `PlanPreview` or `Legend`. *Send back:* a phone and an iPad screenshot of step 3, and whether the numbers are easy to read without hiding the map.
 
-## Real US map (unreleased, D-062)
+## Real US map (unreleased, D-070)
 
 Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests Lens`, `lune run tests/ui/snap.luau -- lens` (and `-- draft`, `-- decision`, `-- election`); 0 audit findings at all three sizes.
 
@@ -906,7 +906,7 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.
 3. **Send back:** whether you polled more than before, and any price on screen that still says $1 or $3 for a poll.
 
-## The week's results, move by move (unreleased, D-063)
+## The week's results, move by move (unreleased, D-066)
 
 Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tally"`, `lune run tests/ui/snap.luau -- resolve` (shots `16b-resolve-step1`, `16c-resolve-mid`, `16d-resolve-settle`, `17-resolve-end`; 0 audit findings at all three sizes).
 
@@ -920,7 +920,7 @@ Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tall
 
 **Send back:** a phone and an iPad screenshot mid-reveal, whether each move's effect was easy to follow, whether "New polls are in" read as the polls updating (not as moves being undone), whether each move was on screen long enough to see it land, and any Output errors.
 
-## Richer colors (unreleased, D-064)
+## Richer colors (unreleased, D-067)
 
 Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- select`, `-- election`, `-- results`); 0 audit findings. In Studio, play one match vs a bot on the iPad and look at:
 
@@ -928,7 +928,7 @@ Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- s
 2. **Names in color** (header, state card, election night): Rex's name is a vivid red, Dana's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
 3. **Color Pass colors** (if you have the pass): all six swatches look rich, and Amber still reads as gold, not orange. *Send back:* a screenshot of Select with the swatches.
 
-## Candidate portraits (unreleased, D-062)
+## Candidate portraits (unreleased, D-068)
 
 Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `-- debate`, `-- reveal`, `-- election`, `-- results`, `-- howto`); the snapshots always draw the PNGs; 0 audit findings at all three sizes.
 
@@ -945,7 +945,7 @@ Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `--
 4. **Map reveal:** the Strongholds card shows both faces, each ringed in its player's color. **A week's results:** "Your week" and "Rex's week" each start with the face. **Debate (week 4):** the two faces face off over the scoreboard with "vs" between. **Header (iPad, Mac):** a small face at each end of the score bar. **Election night:** the winner's face in the spotlight card. **Results:** a big face on each player card. **How to play** (Lobby), page 1: two faces over the race bar.
 5. **No errors** from `Kit`, `Select`, `TopBar`, `Reveal`, `Election`, `Results` or `HowTo` in the Output window. *Send back:* whether the faces feel friendly and fit the front-page look, and anything that looks off (cut-off hats, blurry edges).
 
-## The Name Pass (unreleased, D-063)
+## The Name Pass (unreleased, D-069)
 
 A custom candidate name for players Roblox lets chat (the stand-in for 16+), filtered like chat, with reports and an owner review. Agents: `lune run tests "Name Pass"`, `lune run tests "reported names"`, shots `03d`–`03g`, `01g`, `02k`.
 
@@ -976,7 +976,7 @@ Studio may not answer the chat-permission check, and its text filter is limited.
 
 **Send back:** screenshots of the Select name line, the sheet, a refusal, B's view after reporting, and the review panel; and the Output lines from step 6.
 
-## Debates as live rounds (unreleased, D-062)
+## Debates as live rounds (unreleased, D-072)
 
 Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- debate --size phone` (also `ipad`, `desktop`; 0 audit findings), `lune run tests/harness/balance.luau` (the "Debate" lines). Duel: `defend`, `attack`, `pivot`, add `zinger`.
 
@@ -989,7 +989,7 @@ Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- 
 
 **Send back:** did you know why you won or lost each round? Did you ever pick a move because of what the bot did last round? Did the map move where you expected? Did it feel like its own event, or still like a quiz? How long did each debate take?
 
-## End screen: Map and Graph (unreleased, D-066)
+## End screen: Map and Graph (unreleased, D-073)
 
 Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`, `lune run tests EVChart`, `lune run tests "Poll history"`, `lune run tests/ui/snap.luau -- 23` (shots `23d` to `23g`; 0 audit findings at all three sizes).
 

@@ -3,7 +3,7 @@
 -- every campaign fixture mounts cleanly in 16:9 and phone portrait, the plan can
 -- be built and locked in by pressing buttons, the reveals play, and a whole
 -- autoplayed practice match runs through the screen. The Decision screen
--- (stances, D-044) and the Debate screen (D-062) have their own specs.
+-- (stances, D-044) and the Debate screen (D-072) have their own specs.
 -- Also the v0.3.1 bug-hunt cases for this screen: the state list and its
 -- ordering, auto-submit, retries after a rejection, the forfeit countdown, and
 -- readable rejection codes (Net).
@@ -30,7 +30,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
 local PHONE = { x = 390, y = 844 }
-local MOMENTS = { "Plan", "ChoiceWeek", "Resolve" } -- debates have their own screen (D-062, tests/ui/Debate.spec)
+local MOMENTS = { "Plan", "ChoiceWeek", "Resolve" } -- debates have their own screen (D-072, tests/ui/Debate.spec)
 
 -- Fails the spec with a readable message.
 local function check(condition: boolean, message: string)

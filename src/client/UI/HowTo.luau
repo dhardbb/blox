@@ -36,7 +36,7 @@ local HEIGHT = 0.7 -- share of the screen height (the tallest page, Actions, fit
 local NUMBER = 28 -- px, a step number's circle
 local ROW = 28 -- px, one row of a picture
 local NAV_W = 0.32 -- share of the row each nav button takes
-local FACE = 40 -- px, the goal page's two candidate portraits (D-062)
+local FACE = 40 -- px, the goal page's two candidate portraits (D-068)
 local FACE_YOU = "okafor" -- the goal page's sample candidates: you (blue) and a rival (red)
 local FACE_RIVAL = "calloway"
 

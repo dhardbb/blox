@@ -334,7 +334,7 @@ describe("Explain labels", function()
 end)
 
 describe("Explain: debates, Choice events, election night", function()
-	it("splits a debate round's score into the move's strength and the counter (D-062)", function()
+	it("splits a debate round's score into the move's strength and the counter (D-072)", function()
 		local view = ohio()
 		local me, them = view.you, if view.you == 1 then 2 else 1
 		local picks, canned, zingers, strengths, scores = {}, {}, {}, {}, {}

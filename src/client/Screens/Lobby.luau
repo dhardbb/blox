@@ -25,7 +25,7 @@
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, Settings (SoundChip,
--- MotionChip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-063), BotLevel (Level_<level>), HowToSheet,
+-- MotionChip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -193,7 +193,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	local settings = Settings.row({ LayoutOrder = 5, Parent = idle })
 	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 6, Parent = idle })
-	-- Admins only (D-063): the reported names to review.
+	-- Admins only (D-069): the reported names to review.
 	local review = NameReview.new(parent, ctx, { LayoutOrder = 7, Parent = idle })
 	local board = Leaderboard.new(parent, ctx)
 

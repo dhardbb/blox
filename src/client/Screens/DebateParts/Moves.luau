@@ -1,5 +1,5 @@
 --!strict
--- A debate round's three moves (docs/DESIGN.md D-062). Each is one big button:
+-- A debate round's three moves (docs/DESIGN.md D-072). Each is one big button:
 -- the move and its strength over three result cells against the opponent's
 -- moves, a "Safe" tag on a move that cannot lose (only in the player's first
 -- debate of the session, with a coach tip), then the Zinger toggle and "Why?"

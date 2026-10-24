@@ -1,6 +1,6 @@
 --!strict
 -- The map every screen mounts: NodeMap.new() returns the real map (Map/ShapeMap,
--- D-062) once its images are uploaded (UI/Assets mapStates*, mapBorders), and
+-- D-070) once its images are uploaded (UI/Assets mapStates*, mapBorders), and
 -- these circles until then, so the game always has a map. NodeMap.preview = true
 -- (the headless specs and snapshots) takes the real map without the uploads;
 -- NodeMap.circles() always builds the circles.
@@ -669,7 +669,7 @@ function NodeMap.circles(): MapInterface.Map
 		local glyph = if mark and mark.arrow then ARROWS[mark.arrow] else nil
 		local arrowColor = if mark and mark.arrowColor then mark.arrowColor else Kit.colors.text
 		if glyph == nil and line and line.momentum then
-			-- The Polls lens's momentum (D-062); the circles have no room for pips.
+			-- The Polls lens's momentum (D-070); the circles have no room for pips.
 			glyph, arrowColor = ARROWS.up, line.momentum
 		end
 		node.arrow.Visible = glyph ~= nil
@@ -929,7 +929,7 @@ function NodeMap.circles(): MapInterface.Map
 		Motion.ring(node.circle, color)
 	end
 
-	-- Candidate pins stand on the circle's top edge (D-062).
+	-- Candidate pins stand on the circle's top edge (D-070).
 	local pinLayer = Kit.box({ Name = "Pins", ZIndex = 6, Parent = root })
 	function map.setPins(_self: any, pins: { MapInterface.Pin })
 		for _, child in pinLayer:GetChildren() do
@@ -950,7 +950,7 @@ function NodeMap.circles(): MapInterface.Map
 		end
 	end
 
-	-- The plan preview (D-063): a faint tag under each circle it moves, on top.
+	-- The plan preview (D-071): a faint tag under each circle it moves, on top.
 	local previewLayer = Kit.box({ Name = "Preview", ZIndex = 7, Parent = root })
 	function map.setPreview(_self: any, tags: { [string]: MapInterface.PreviewTag }?)
 		for _, child in previewLayer:GetChildren() do

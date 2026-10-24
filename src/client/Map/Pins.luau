@@ -1,5 +1,5 @@
 --!strict
--- Candidate pins on the map (D-062): where each candidate is right now
+-- Candidate pins on the map (D-070): where each candidate is right now
 -- (PlayerView.location, public for every player), so you can find yourself at a
 -- glance. A pin is compact: the candidate's face (their portrait ringed in
 -- their color, D-068) with a tab beside it in the same color, "You" on yours

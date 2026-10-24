@@ -109,7 +109,7 @@ describe("Reveal: three beats", function()
 	end)
 end)
 
-describe("Reveal: a running tally (D-063)", function()
+describe("Reveal: a running tally (D-066)", function()
 	-- The score in the header, as numbers.
 	local function score(peer: FakeRoblox.Peer): (number, number)
 		return tonumber(Rig.textOf(peer, "Campaign", "YouVotes")) or -1,

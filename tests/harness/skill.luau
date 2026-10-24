@@ -1,5 +1,5 @@
 --!strict
--- Skill check for Choice stances (D-039, D-041) and debate moves (D-062):
+-- Skill check for Choice stances (D-039, D-041) and debate moves (D-072):
 -- the standard bot against the same bot deciding at random, seats alternating,
 -- two different candidates per match. Prints the random style's win rate with
 -- its 95% band.

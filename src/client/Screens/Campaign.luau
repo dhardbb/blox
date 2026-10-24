@@ -477,12 +477,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Lens.lines(Lens.current(), { config = config, view = shown, draft = model.draft }),
 			lensFade
 		)
-		-- Polls explains its extra marks in the legend row; the pins show in every lens (D-062).
+		-- Polls explains its extra marks in the legend row; the pins show in every lens (D-070).
 		local legend: { MapInterface.LegendItem } = Lens.mapLegend(
 			{ config = config, view = shown },
 			Lens.current()
 		) or {}
-		-- The plan preview (D-063): while you draft, what the plan would move.
+		-- The plan preview (D-071): while you draft, what the plan would move.
 		local tags = {}
 		if live and shown == view and Model.planning(live) and not Model.isLocked(model, live) then
 			local line

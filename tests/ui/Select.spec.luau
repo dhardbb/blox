@@ -424,7 +424,7 @@ describe("Select style v2: details one tap away", function()
 		Rig.noErrors(world)
 	end)
 
-	it("gives every card its candidate's portrait on a neutral plate, rings only on picks (D-062)", function()
+	it("gives every card its candidate's portrait on a neutral plate, rings only on picks (D-068)", function()
 		local world, peer = Rig.fixture("Select", nil)
 		local function face(id: string): any
 			local found = Rig.need(peer, "Select", `Candidate_{id}`):FindFirstChild("Portrait", true)

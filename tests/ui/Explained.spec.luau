@@ -200,7 +200,7 @@ describe("Explained: events and debates", function()
 		Rig.noErrors(world)
 	end)
 
-	it("explains each debate move's strength in parts behind Why? (D-062)", function()
+	it("explains each debate move's strength in parts behind Why? (D-072)", function()
 		local world, peer = Rig.fixture("DebateRound", nil)
 		local view = Rig.payloadOf(world, peer).view
 		tap(world, peer, "Debate", "WhyToggle")

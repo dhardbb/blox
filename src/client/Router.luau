@@ -53,7 +53,7 @@ function Router.pick(state: Types.State): Name
 		or payload.reveal == "Clash"
 		or payload.reveal == "Verdict"
 	then
-		return "Debate" -- the debate's live rounds, their clashes and the verdict (D-062)
+		return "Debate" -- the debate's live rounds, their clashes and the verdict (D-072)
 	elseif phase == "Decision" and payload.stage == "Input" then
 		return "Decision" -- a stance, on its own before the plan (D-044)
 	elseif phase == "Election" and payload.stage == "Show" then
