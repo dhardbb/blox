@@ -130,6 +130,88 @@ describe("Debate screen: a round", function()
 	end)
 end)
 
+-- A stand-in InputObject: a press of `kind` whose Changed fires as its state moves.
+local function press(kind: string): any
+	local handlers: { (string) -> () } = {}
+	local input: any = { UserInputType = { Name = kind }, UserInputState = { Name = "Begin" } }
+	input.Changed = {
+		Connect = function(_self: any, fn: (string) -> ())
+			table.insert(handlers, fn)
+			return {
+				Disconnect = function()
+					local at = table.find(handlers, fn)
+					if at then
+						table.remove(handlers, at)
+					end
+				end,
+			}
+		end,
+	}
+	function input.move(state: string)
+		input.UserInputState = { Name = state }
+		for _, fn in table.clone(handlers) do
+			fn("UserInputState")
+		end
+	end
+	return input
+end
+
+describe("Debate screen: a payload without your seat", function()
+	it("does not break after Lock in", function()
+		local world, peer = Rig.fixture("DebateRound", nil)
+		tap(world, peer, "MovePivot")
+		tap(world, peer, "LockIn")
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		payload.seats[payload.you] = nil
+		Rig.push(world, peer, payload)
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Debate screen: holding a move", function()
+	-- The Moves part alone, with a stand-in screen model that counts renders.
+	local function moves(): (FakeRoblox.World, any, any)
+		local world, peer = Rig.fixture("DebateRound", Rig.PHONE)
+		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
+		local Moves = FakeRoblox.require(world, peer, "src/client/Screens/DebateParts/Moves.luau")
+		local pick = { move = nil, held = nil, zinger = false, showSafe = false }
+		local model = { config = C, render = function() end }
+		local stage = Kit.box({ Name = "Stage", Parent = Kit.new("ScreenGui", { Name = "TestGui" }) })
+		world.current = peer
+		local part = Moves.new(stage, model, pick, 1)
+		world.current = nil
+		return world, part.root:FindFirstChild("MoveAttack", true), pick
+	end
+
+	it(
+		"previews while held and stops when the press ends anywhere, is cancelled, or the mouse leaves",
+		function()
+			local world, button, pick = moves()
+			for _, finish in { "End", "Cancel", "Leave" } do
+				local input = press(if finish == "Leave" then "MouseButton1" else "Touch")
+				button.InputBegan.fire(input)
+				FakeRoblox.run(world, 0.1)
+				expect(pick.held):toBe("Attack")
+				if finish == "Leave" then
+					button.MouseLeave.fire()
+				else
+					input.move(finish) -- lifted off the button: no InputEnded on it
+				end
+				FakeRoblox.run(world, 0.1)
+				check(pick.held == nil, `the preview stuck after {finish}`)
+			end
+			-- A release on the button still ends it.
+			local input = press("Touch")
+			button.InputBegan.fire(input)
+			FakeRoblox.run(world, 0.1)
+			button.InputEnded.fire(input)
+			FakeRoblox.run(world, 0.1)
+			expect(pick.held):toBe(nil)
+			Rig.noErrors(world)
+		end
+	)
+end)
+
 describe("Debate screen: the clash and the verdict", function()
 	it("shows both moves, a stamp, and the round's line", function()
 		local world, peer = Rig.fixture("Clash", nil)

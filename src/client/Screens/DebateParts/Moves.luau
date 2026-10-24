@@ -145,18 +145,40 @@ function Moves.new(parent: Instance, model: Model.Model, pick: Pick, order: numb
 			TextColor3 = Kit.colors.text,
 			Parent = line,
 		})
+		-- Holding previews; the preview ends however the hold does: released on
+		-- the button (InputEnded), the mouse moved off it (MouseLeave), or the
+		-- press ended or was cancelled anywhere (the same InputObject is updated
+		-- until its input ends: InputObject, Changed).
+		local function release()
+			if pick.held == move then
+				pick.held = nil
+				model.render()
+			end
+		end
 		button.InputBegan:Connect(function(input: InputObject)
 			if held(input) and pick.held ~= move then
 				pick.held = move
 				model.render()
+				local changed = (input :: any).Changed
+				if changed == nil then
+					return
+				end
+				local connection: RBXScriptConnection
+				connection = changed:Connect(function(property: string)
+					local state = if property == "UserInputState" then input.UserInputState.Name else nil
+					if state == "End" or state == "Cancel" then
+						connection:Disconnect()
+						release()
+					end
+				end)
 			end
 		end)
 		button.InputEnded:Connect(function(input: InputObject)
-			if held(input) and pick.held == move then
-				pick.held = nil
-				model.render()
+			if held(input) then
+				release()
 			end
 		end)
+		button.MouseLeave:Connect(release)
 		local whyLine = Kit.caption("", {
 			Name = `Why{move}`,
 			LayoutOrder = 2 * k,
