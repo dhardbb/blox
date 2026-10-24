@@ -132,6 +132,7 @@ local NOTICES: { [string]: string } = {
 	TeleportFailed = "Couldn't move you to the match. Try again.",
 	InviteExpired = "That invite has expired: your friend isn't hosting anymore.",
 	InviteBusy = "Someone else is joining your friend's match right now.",
+	CodeGone = "Your friend isn't hosting that match anymore.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,

@@ -403,8 +403,11 @@ local function check(claim: Claim)
 		return
 	end
 	local now = os.time()
+	-- Why it fell through, for our player: an opponent who stayed in their bot
+	-- game, or a host who stopped hosting.
+	local gone = if claim.kind == "Queue" then "OpponentDeclined" else "CodeGone"
 	if not Matchmaking.isTicket(ticket) or ticket.match ~= claim.match then
-		dropClaim(claim, nil)
+		dropClaim(claim, if claim.kind == "Code" then gone else nil)
 		return
 	end
 	if ticket.state == "Accepted" then
@@ -413,12 +416,12 @@ local function check(claim: Claim)
 		update(claim.kind, claim.key, function(old: any): any
 			return Matchmaking.reopen(old, claim.match)
 		end)
-		dropClaim(claim, if claim.kind == "Queue" then "OpponentDeclined" else "InviteExpired")
+		dropClaim(claim, gone)
 	elseif now > claim.untilAt then
 		update(claim.kind, claim.key, function(old: any): any
 			return Matchmaking.lapse(old, now)
 		end)
-		dropClaim(claim, if claim.kind == "Queue" then "OpponentDeclined" else "InviteExpired")
+		dropClaim(claim, gone)
 	end
 end
 
