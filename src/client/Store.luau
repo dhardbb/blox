@@ -81,6 +81,28 @@ function Store.setPayload(payload: Session.StatePayload)
 	changed()
 end
 
+-- The server took this player's report on seat `seat`'s custom name (D-069):
+-- hide it here at once. Once a match is over the server sends no new State,
+-- so Results would otherwise keep showing it. A copy of the payload, so every
+-- screen sees a new one and redraws with the candidate's own name.
+function Store.hideName(seat: number)
+	local payload = state.payload
+	local entry = if payload then payload.view.players[seat] else nil
+	if payload == nil or entry == nil or entry.customName == nil then
+		return
+	end
+	local players = table.clone(payload.view.players)
+	local hidden = table.clone(entry)
+	hidden.customName = nil
+	players[seat] = hidden
+	local view = table.clone(payload.view)
+	view.players = players
+	local copy = table.clone(payload)
+	copy.view = view
+	state.payload = copy
+	changed()
+end
+
 function Store.setLobby(lobby: Remotes.LobbyStatus)
 	state.lobby = lobby
 	changed()

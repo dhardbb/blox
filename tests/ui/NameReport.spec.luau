@@ -161,6 +161,26 @@ describe("Reporting a custom name (D-069)", function()
 		expect(Rig.shown(Rig.need(t.b, "HelpOverlay", "HelpReport"), "HelpOverlay")):toBe(false)
 		Rig.noErrors(t.world)
 	end)
+
+	it("hides it on Results at once, though the server sends no new State after the match", function()
+		local t = trio(9)
+		local seatA = Rig.payloadOf(t.world, t.a).you
+		fire(t.world, t.a, { op = "Forfeit", matchId = Rig.payloadOf(t.world, t.a).matchId }, 3)
+		expect(Rig.payloadOf(t.world, t.b).stage):toBe("Over")
+		local function opponentName(): string
+			local card = Rig.need(t.b, "Results", "Player_Opponent")
+			return tostring((card :: any):FindFirstChild("Candidate", true).Text)
+		end
+		expect(opponentName()):toBe("Captain Zed")
+		check(Rig.findIn(t.b, "Results", "ReportName") ~= nil, "no Report button on the opponent's card")
+		Rig.tap(t.world, t.b, "Results", "ReportName")
+		Rig.tap(t.world, t.b, "ReportOverlay", "ReportConfirm", 1)
+		check(said(t.world, t.b, "Thanks for the report"), "no thanks notice")
+		expect(Rig.payloadOf(t.world, t.b).view.players[seatA].customName):toBe(nil)
+		check(opponentName() ~= "Captain Zed", "the reported name still shows on the card")
+		expect(Rig.findIn(t.b, "Results", "ReportName")):toBe(nil)
+		Rig.noErrors(t.world)
+	end)
 end)
 
 describe("Reviewing reported names (D-069)", function()
