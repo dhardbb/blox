@@ -7,6 +7,7 @@ local Fixtures = require("@testlib/Fixtures")
 local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
 local Match = require("@sim/Match")
+local Resolve = require("@sim/Resolve")
 local State = require("@sim/State")
 local StateData = require("@sim/StateData")
 
@@ -416,5 +417,54 @@ describe("Resolve: pivots and upkeep", function()
 			}
 			run(match, plan, plan)
 		end
+	end)
+end)
+
+describe("Resolve: reveal pacing (D-063)", function()
+	local function ev(kind: string, player: number?, private: boolean?): State.Event
+		return { kind = kind, player = player, state = "OH", private = private }
+	end
+
+	it("counts one step per move, one for a player with only still events, and the new polls", function()
+		expect(Resolve.revealSteps({ ev("Polls") })):toBe(1)
+		local events = {
+			ev("Flights", 1),
+			ev("Rally", 1),
+			ev("Rally", 1),
+			ev("Fundraise", 1),
+			ev("Media", 1),
+			ev("Raised", 1, true),
+			ev("Fundraise", 2),
+			ev("Raised", 2, true),
+			ev("Polls"),
+		}
+		expect(Resolve.revealSteps(events)):toBe(3 + 1 + 1)
+		expect(Resolve.revealSteps({ ev("Choice", 1), ev("Choice", 2), ev("Backlash", 2), ev("Polls") })):toBe(
+			4
+		)
+	end)
+
+	it("gives both seats the same time whoever did what", function()
+		local a = { ev("Rally", 1), ev("Rally", 1), ev("Fundraise", 2), ev("Polls") }
+		local b = { ev("Rally", 2), ev("Rally", 2), ev("Fundraise", 1), ev("Polls") }
+		expect(Resolve.revealTime(C, a)):toBe(Resolve.revealTime(C, b))
+	end)
+
+	it("grows with the steps between TIMER_RESOLVE and TIMER_RESOLVE_MAX", function()
+		local function week(moves: number): { State.Event }
+			local events = {}
+			for k = 1, moves do
+				table.insert(events, ev("Rally", 1 + k % 2))
+			end
+			table.insert(events, ev("Polls"))
+			return events
+		end
+		expect(Resolve.revealTime(C, week(0))):toBe(C.TIMER_RESOLVE)
+		expect(Resolve.revealTime(C, week(9))):toBeCloseTo(
+			C.TIMER_RESOLVE_BASE + C.TIMER_RESOLVE_PER_STEP * 10
+		)
+		expect(Resolve.revealTime(C, week(40))):toBe(C.TIMER_RESOLVE_MAX)
+		-- Each step gets at least PER_STEP seconds of the window the client paces in.
+		expect(C.TIMER_RESOLVE_PER_STEP >= 0.5):toBe(true)
 	end)
 end)

@@ -550,6 +550,50 @@ local SHOTS: { Shot } = {
 	},
 	{ name = "16-resolve-start", moment = "Resolve", screen = "Campaign" },
 	{
+		-- The running tally (D-063): the first step has landed (shot 0.7 s into
+		-- the stage: the 0.5 s intro, then step 1), map and score moved with it.
+		name = "16b-resolve-step1",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Resolve")
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+			FakeRoblox.run(world, 0.1)
+		end,
+	},
+	{
+		-- Halfway through the moves (3.2 s in): the tally so far on map and score.
+		name = "16c-resolve-mid",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Resolve")
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+			FakeRoblox.run(world, 2.6)
+		end,
+	},
+	{
+		-- The moment "New polls are in" lands (just after the last move, 2.1 s
+		-- before the end): its stamp, the sweep, the real score.
+		name = "16d-resolve-settle",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Resolve")
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+			FakeRoblox.run(world, payload.deadline - payload.stageStart - 2.7)
+		end,
+	},
+	{
 		-- From the week-3 plan, so the reveal knows the polls before it ("What changed").
 		name = "17-resolve-end",
 		moment = "Plan",
@@ -560,7 +604,7 @@ local SHOTS: { Shot } = {
 			payload.stageStart += shift
 			payload.deadline += shift
 			Rig.push(world, peer, payload)
-			FakeRoblox.run(world, 6)
+			FakeRoblox.run(world, payload.deadline - payload.stageStart - 0.9) -- the end of the reveal (it grows with its steps, D-063)
 		end,
 	},
 	{ name = "18-choice-resolve", moment = "ChoiceResolve", screen = "Campaign" },

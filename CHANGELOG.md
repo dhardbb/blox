@@ -10,6 +10,17 @@ The game is now called **Landslide** ("Race to 270"), a landslide win gets its o
 - **Landslide stamp (D-062):** win with more than 70% of the votes (377 of 538 or more) and Results stamps a big **LANDSLIDE** in your color under "You won", with extra confetti, a second hit and a light sweeping across it. Your opponent sees "REX WON BY A / LANDSLIDE" in Rex's color under "You lost". New `Config.LANDSLIDE_EV_SHARE` (0.70); the rules of winning do not change.
 - **The week's event is at the top (D-065):** on the plan screen it is a strip right under the score, above the map, on every screen size: a gold icon, the event's name and one line of what it does ("Fundraisers where you trail +20%"; in a Choice week, your stance). Tap it for the full story and effect. It no longer sits in the side column.
 - **Polls cost half (D-063):** a state poll is $0.5 (was $1), a region poll $1.5 (was $3). Every price on screen follows. In the bot-vs-bot harness the bots buy about as many polls and put the saved money into ads and ground game; win rates moved within noise.
+## Unreleased
+
+### The week's results tally up move by move (D-063)
+
+Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING.md`, "The week's results, move by move".
+
+- **Each move is followed by its effect.** In the end-of-week results, every shown move (yours and your opponent's, in the order shown) now moves the map's colors and leads and the header's projected votes and race bar right away. Every state the move touched shows its points ("+1.5" in your color, "−1.5" in orange against you); a lead change says FLIP, flashes in the new leader's color and shows in the header ("Rex: Rally · NY → Rex +28").
+- **"New polls are in" is the last step,** with its own look: a stamp, "Polls shifted 4 states", a pulse sweeping the map. It lands exactly on the real new polls (momentum and poll noise on top of the moves). "What changed" still lists the whole week's real flips and biggest moves.
+- The per-move numbers are estimates from the polls both players saw (the server never reveals true support); one line behind "Why?" says so.
+- The header no longer jumps to the week's result when the reveal opens. Skip still ends it early.
+- **Busy weeks get a longer reveal** so each move is seen to land: 4.5 s + 0.55 s per step, between 8 and 14 s (9.4 s on average, about +16 s a match). New Config: `TIMER_RESOLVE_BASE`, `TIMER_RESOLVE_PER_STEP`, `TIMER_RESOLVE_MAX`.
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 

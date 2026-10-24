@@ -222,6 +222,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	local shownMine: number?, shownTheirs: number? = nil, nil
 	local shownCash: number? = nil
 	local namesShown = ""
+	local pollsShown = false -- the now line is the reveal's "New polls are in" (D-063)
 
 	-- Shows `value` on `label` as format(value): counts there from `before`
 	-- (with a delta chip) when the value changed, else sets it.
@@ -344,6 +345,15 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			)
 			local theirFirst = Model.firstName(config, view, rival)
 			header:setNow(nowFor(p, theirFirst))
+			-- The reveal's last step reads as news, not as another move: bold and round, popped in.
+			local polls = p.reveal == "Resolve" and model.captionPolls == true
+			if polls ~= pollsShown then
+				pollsShown = polls
+				nowText.Font = if polls then Kit.font.display else Kit.font.medium
+				if polls then
+					Motion.pop(nowText)
+				end
+			end
 
 			local planning = Model.planning(p)
 			budget.Visible = planning
@@ -377,7 +387,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 				scoreShown = wantScore
 				layout()
 			end
-			local ev = view.projectedEV
+			-- During a reveal the score follows what the map shows (the running tally, D-063).
+			local ev = if p.reveal ~= nil and model.revealEV then model.revealEV else view.projectedEV
 			local mine, theirs = ev[me] or 0, ev[rival] or 0
 			local myName = Model.candidateName(config, view, me)
 			local theirName = Model.candidateName(config, view, rival)

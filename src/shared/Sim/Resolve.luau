@@ -468,4 +468,58 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 	return events
 end
 
+-- ---------------------------------------------------------------- reveal pacing
+
+-- Event kinds the week's reveal shows as a move (each its own step) and as
+-- still events (shown along with a move; a player with only these gets one
+-- step). The client's Shared/UI/RevealSteps groups the same way (D-063).
+Resolve.REVEAL_MOVES = table.freeze({
+	Rally = true,
+	Media = true,
+	Attack = true,
+	Backlash = true,
+	Pivot = true,
+	Choice = true,
+} :: { [string]: boolean })
+Resolve.REVEAL_STILL = table.freeze({
+	Fundraise = true,
+	Raised = true,
+	InternalPolls = true,
+	Flights = true,
+} :: { [string]: boolean })
+
+-- The steps the week's reveal has at most on any screen: each player's moves
+-- (or one step for only still events), one for events with no player, and the
+-- new polls. Counts every player's events, private ones included, so both
+-- seats get the same number.
+function Resolve.revealSteps(events: { Event }): number
+	local moves: { [number]: number } = {}
+	local still: { [number]: boolean } = {}
+	for _, event in events do
+		local key = event.player or 0
+		if Resolve.REVEAL_MOVES[event.kind] then
+			moves[key] = (moves[key] or 0) + 1
+		elseif Resolve.REVEAL_STILL[event.kind] then
+			still[key] = true
+		end
+	end
+	local steps = 1 -- the new polls
+	for _, count in moves do
+		steps += count
+	end
+	for key in still do
+		if moves[key] == nil then
+			steps += 1
+		end
+	end
+	return steps
+end
+
+-- Seconds the server gives the week's reveal (D-063): clamp(BASE + PER_STEP x
+-- steps, TIMER_RESOLVE, TIMER_RESOLVE_MAX).
+function Resolve.revealTime(config: Config, events: { Event }): number
+	local seconds = config.TIMER_RESOLVE_BASE + config.TIMER_RESOLVE_PER_STEP * Resolve.revealSteps(events)
+	return math.clamp(seconds, config.TIMER_RESOLVE, config.TIMER_RESOLVE_MAX)
+end
+
 return table.freeze(Resolve)

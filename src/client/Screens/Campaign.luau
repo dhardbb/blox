@@ -111,6 +111,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		peekFocus = nil,
 		stanceMap = false,
 		revealSwing = nil,
+		revealEV = nil,
 		caption = nil,
 		moreActions = false,
 		details = false,
@@ -273,14 +274,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local reveal = Reveal.new(side, model, ORDER.reveal, {
 		-- The reveal's latest line becomes the header's now line.
-		caption = function(text: string)
+		caption = function(text: string, polls: boolean?)
 			model.caption = text
+			model.captionPolls = polls == true
 			top:render(ctx.now())
 		end,
+		-- The map and the header's score show the same moment of the reveal.
 		paint = function(view: View)
 			local p = model.payload
 			if p then
 				paintMapFor(p.view, view)
+				model.revealEV = view.projectedEV
+				top:render(ctx.now())
 			end
 		end,
 		focus = function(id: string?)
@@ -473,7 +478,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- A reveal shows what moved (D-042); the stance preview is on the Decision screen (D-044).
 		local swing = model.revealSwing
 		if swing then
-			marks = SwingMarks.reveal(view, swing.net, swing.flips, marks)
+			marks = if swing.step
+				then SwingMarks.step(view, swing.net, swing.flips, marks)
+				else SwingMarks.reveal(view, swing.net, swing.flips, marks)
 		end
 		map:setMarks(marks :: any)
 	end
@@ -646,7 +653,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local now = ctx.now()
 		if p.reveal == nil then
 			model.revealSwing = nil
+			model.revealEV = nil
 			model.caption = nil
+			model.captionPolls = nil
 		end
 		syncBadges(p)
 		reveal:render(p)
@@ -759,6 +768,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			-- The plan was sent and resolved: the View already includes it.
 			model.draft = PlanDraft.new()
 			model.draftStep = nil
+		end
+		if p.reveal == "Resolve" then
+			-- The reveal sets the header's score (the week's start) before it renders.
+			reveal:tick(p, now)
 		end
 		render()
 		reveal:tick(p, now)

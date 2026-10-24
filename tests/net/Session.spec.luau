@@ -5,6 +5,7 @@
 local Test = require("@testlib/Test")
 local Bot = require("@sim/Bot")
 local Config = require("@sim/Config")
+local Resolve = require("@sim/Resolve")
 local Rng = require("@sim/Rng")
 local Session = require("@net/Session")
 local View = require("@sim/View")
@@ -119,7 +120,11 @@ describe("Session: stages and timers", function()
 		expect(session.match.phase):toBe("Plan")
 		lockAll(session, t)
 		expect(session.stage):toBe("Reveal")
-		expect(session.deadline):toBe(t + C.TIMER_RESOLVE)
+		-- The week's reveal grows with its steps (D-063).
+		expect(session.deadline):toBe(t + Resolve.revealTime(C, session.events))
+		expect(session.deadline - t >= C.TIMER_RESOLVE and session.deadline - t <= C.TIMER_RESOLVE_MAX):toBe(
+			true
+		)
 	end)
 
 	it("plays a whole match to the election and a result", function()

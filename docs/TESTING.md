@@ -875,3 +875,16 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Helen Strand still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
 2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.
 3. **Send back:** whether you polled more than before, and any price on screen that still says $1 or $3 for a poll.
+## The week's results, move by move (unreleased, D-063)
+
+Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tally"`, `lune run tests/ui/snap.luau -- resolve` (shots `16b-resolve-step1`, `16c-resolve-mid`, `16d-resolve-settle`, `17-resolve-end`; 0 audit findings at all three sizes).
+
+1. **Play vs Bot**, plan week 1 with two or three rallies, lock in. **Expect:** "Both plans are in"; the header's two numbers stay where they were during planning (they no longer jump at once).
+2. **Watch the moves land.** **Expect:** each line ("Rally in Texas · Jobs") is followed at once by its state bumping, its color moving, and a "+3.1" tag (your color) or "−2.0" tag (orange) on every state the move touched. When the move changes who leads a state: FLIP, a flash in the new leader's color, and the header line says so ("Rex: Rally · NY → Rex +28") while the header's numbers count and the bar slides. "Why?" holds one line saying the per-move points are estimates.
+3. **The last step.** **Expect:** the header line says "New polls are in" in the round font; a pulse sweeps the map west to east; the panel shows a "New polls are in" stamp over "Polls shifted N states"; the map and the header land on the new polls (usually a few states move without a move of their own: momentum and poll noise); "What changed" lists the week's flips. When the next week opens, the header's numbers do not change again.
+4. **Skip** (both players, or against the bot). **Expect:** the reveal fast-forwards and ends on the same numbers as step 3.
+4b. **A busy week** (both sides use every action and a few ads). **Expect:** the reveal runs longer (up to 14 s; the timer at the top shows it) and each move still lands with its tag and the header count before the next one; a quiet week stays at 8 s.
+5. **Phone (390x844) and iPad.** **Expect:** while the moves land, the map and the header's numbers are on screen together; the panel scrolls under the map.
+6. **No errors** from `Reveal`, `RevealSteps`, `TopBar` or `Campaign` in the Output window.
+
+**Send back:** a phone and an iPad screenshot mid-reveal, whether each move's effect was easy to follow, whether "New polls are in" read as the polls updating (not as moves being undone), whether each move was on screen long enough to see it land, and any Output errors.
