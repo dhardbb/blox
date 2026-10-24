@@ -1023,7 +1023,7 @@ function ShapeMap.new(): MapInterface.Map
 		local px = math.clamp(math.floor((if bw > 0 then bw else 600) * PIN_SHARE), PIN_MIN, PIN_MAX)
 		local keys = { tostring(px) }
 		for _, pin in pins do
-			table.insert(keys, `{pin.state}:{pin.name}:{pin.tag}:{pin.color}:{pin.you}`)
+			table.insert(keys, `{pin.state}:{pin.candidate}:{pin.name}:{pin.tag}:{pin.color}:{pin.you}`)
 		end
 		local key = table.concat(keys, "|")
 		if key == lastPins then

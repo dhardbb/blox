@@ -60,7 +60,8 @@ export type LensLine = {
 -- A candidate's pin on the state they are in (D-062).
 export type Pin = {
 	state: string,
-	name: string, -- the candidate's name: their face (UI/Kit monogram for now) shows its initials
+	name: string, -- the candidate's name (a custom one if the viewer may see it): the face's initials until its portrait is uploaded
+	candidate: string?, -- the candidate's id: their portrait (Kit.portrait); nil = a monogram of `name`
 	color: Color3,
 	tag: string, -- the word on the pin's flag: "You", or the rival's first name
 	you: boolean?, -- your own pin (drawn on top)

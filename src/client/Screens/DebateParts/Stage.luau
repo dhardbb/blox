@@ -9,8 +9,8 @@
 --   "Clinics out west have month-long waits. What would you do?"
 --   <Their issue> <You trail its states> <Counter +3>
 --
--- Faces are Kit.monogram until there is portrait art: Stage.face is the one
--- place that makes a face, so swapping in Kit.portrait is a one-line change.
+-- Faces are the candidates' portraits ringed in their player colors (Kit.portrait,
+-- D-068); Stage.face is the one place that makes a face.
 --
 --   local stage = Stage.new(parent, model, order)
 --   stage:render(p)          -- the live round, its clash or the verdict
@@ -39,9 +39,10 @@ export type Stage = {
 	render: (self: Stage, p: Model.Payload) -> (),
 }
 
--- A candidate's face. The one place faces are made (Kit.portrait replaces this).
-function Stage.face(name: string, color: Color3, px: number): Frame
-	return Kit.monogram(name, color, px)
+-- A candidate's face: their portrait ringed in `color` (the initials of `name`
+-- until it is uploaded). The one place faces are made.
+function Stage.face(name: string, color: Color3, px: number, candidate: string?): Frame
+	return Kit.portrait(candidate, name, px, { ring = color })
 end
 
 function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
@@ -136,8 +137,8 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 	end
 
 	local faces: { [string]: string } = {}
-	local function setFace(slot: Frame, key: string, name: string, color: Color3)
-		local stamp = `{name}|{tostring(color)}`
+	local function setFace(slot: Frame, key: string, name: string, color: Color3, candidate: string?)
+		local stamp = `{candidate}|{name}|{tostring(color)}`
 		if faces[key] == stamp then
 			return
 		end
@@ -145,7 +146,7 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 		for _, child in slot:GetChildren() do
 			child:Destroy()
 		end
-		local face = Stage.face(name, color, FACE)
+		local face = Stage.face(name, color, FACE, candidate)
 		face.Name = `{key}Face`
 		face.Parent = slot
 	end
@@ -164,8 +165,8 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 				else { 0, 0 }
 			local myName = Model.candidateName(config, view, me)
 			local theirName = Model.candidateName(config, view, them)
-			setFace(youSlot, "You", myName, Kit.playerColor(view, me))
-			setFace(themSlot, "Them", theirName, Kit.playerColor(view, them))
+			setFace(youSlot, "You", myName, Kit.playerColor(view, me), view.players[me].candidate)
+			setFace(themSlot, "Them", theirName, Kit.playerColor(view, them), view.players[them].candidate)
 			youName.Text = Model.firstName(config, view, me)
 			themName.Text = Model.firstName(config, view, them)
 			youName.TextColor3 = Kit.playerText(view, me)

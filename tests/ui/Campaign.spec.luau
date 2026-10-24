@@ -410,6 +410,28 @@ describe("Campaign screen", function()
 		)
 	end
 
+	it("pins both candidates on the map with their portraits (D-070, D-068)", function()
+		local world, peer = mountsCleanly("Plan")
+		local view = Fixtures.payload(C, "Plan").view
+		local seen = 0
+		for p, player in view.players do
+			if player.location then
+				local pin = find(peer, `Pin{player.location}`)
+				check(pin ~= nil, `no pin on {player.location}`)
+				local found = false
+				for _, d in pin:GetDescendants() do
+					if d.Name == "Portrait" and d:GetAttribute("Portrait") == player.candidate then
+						found = true
+					end
+				end
+				check(found, `player {p}'s pin has no portrait of {player.candidate}`)
+				seen += 1
+			end
+		end
+		check(seen == 2, `{seen} pins`)
+		noErrors(world)
+	end)
+
 	it("fits every event in the deck on one line on a phone (D-065)", function()
 		local world, peer = mountsCleanly("Plan", PHONE)
 		local base = Rig.payloadOf(world, peer)

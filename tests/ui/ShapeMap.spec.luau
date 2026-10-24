@@ -243,6 +243,25 @@ describe("ShapeMap", function()
 		expect(mine.Flag.BackgroundColor3):toBe(blue)
 		check(mine:FindFirstChild("Monogram", true) ~= nil or mine:FindFirstChild("Face") ~= nil, "no face")
 		expect(pins:FindFirstChild("PinPA").Flag.Text):toBe("Rex")
+		-- With a candidate id the face is their portrait, ringed in the player's color (D-068).
+		m.map:setPins({
+			{ state = "PA", name = "Rex Calloway", candidate = "calloway", color = red, tag = "Rex" },
+			{
+				state = "OH",
+				name = "Dana Okafor",
+				candidate = "okafor",
+				color = blue,
+				tag = "You",
+				you = true,
+			},
+		})
+		settle(m)
+		local face = pins:FindFirstChild("PinOH").Face
+		local portrait = face:FindFirstChild("Portrait")
+		check(portrait ~= nil, "no portrait on your pin")
+		expect(portrait:GetAttribute("Portrait")):toBe("okafor")
+		expect(portrait.Ring.Color):toBe(blue)
+		expect(pins:FindFirstChild("PinPA").Face.Portrait:GetAttribute("Portrait")):toBe("calloway")
 		-- Both in one state: side by side.
 		m.map:setPins({
 			{ state = "OH", name = "Rex Calloway", color = red, tag = "Rex" },
