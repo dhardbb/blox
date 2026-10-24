@@ -2,6 +2,26 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Candidate portraits (D-062)
+
+Client and assets only: no rule, sim, server or Config changes. Studio checklist: `docs/TESTING.md`, "Candidate portraits". Needed from the humans: upload the eight PNGs in `assets/portraits/` and send the ids (until then the game shows initials on the plates).
+
+- **Every candidate has an illustrated portrait:** a friendly flat bust with their own face, hair, outfit and a prop that hints at the perk (Rex's straw boater, Helen's glasses and pencil, Walt's field cap, Priya's headset, ...).
+- **Select:** the eight cards show the eight faces on the same neutral plate; a ring in your color marks your pick, a ring in your opponent's color (dimmed) marks theirs. Cards are a little taller for the bigger faces; a phone still fits step 1 without scrolling.
+- Portraits also on the map reveal's strongholds card, the Campaign header (wide screens), the week reveal, a new face-off over the debate scoreboard, the election spotlight, Results and How to play.
+- New `Kit.portrait`; `Kit.monogram` is unchanged. The headless snapshots draw the PNGs.
+
+### The Name Pass: a custom name for your candidate (D-063)
+
+Server, payload and the Select screen; two new Config values (`NAME_MAX_LENGTH` 16, `NAME_MIN_AGE` 16; no rule changes). Studio checklist: `docs/TESTING.md`, "The Name Pass". Needed from the humans: the pass and its id; and see the age note below.
+
+- **A Game Pass to give your candidate a name of your own** (up to 16 characters), entered on Select and remembered for your next matches. The candidate keeps its portrait and perk.
+- **Only for accounts Roblox has verified as 16 or older, and only shown to them:** everyone else sees the candidate's own name. Roblox gives games no way to read a verified age today, so for now nobody is eligible and the option stays hidden; the check is one function to switch on when Roblox offers it.
+- Every name goes through Roblox's text filter; anything it hides, or a filter that cannot be reached, is turned down ("That name isn't allowed. Try another name."). A server-only blocklist (empty for now) catches names the filter misses.
+- Bots never get custom names. Wire: new request `SetName { name? }`; reasons `NoNamePass`, `NameNotEligible`, `NameBadText`, `NameEmpty`, `NameTooLong`, `NameFiltered`, `NameFilterFailed`, `NameNotSaved`.
+
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 
 A new look (navy stage, white accent, orange losses, chunky buttons, a lit map, stamps for the big moments), a global leaderboard, Easy to Extreme bots, Leave match, How to play, and Color Pass colors claimed first come, first served. Needed from the humans: the Color Pass id (see 0.11.0).

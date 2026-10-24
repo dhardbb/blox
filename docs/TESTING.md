@@ -849,3 +849,44 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 7. **State card.** The six actions each start with their icon on a small dark circle; the poll is a small race bar with a tick in the middle. The event card shows "THIS WEEK" over "Windfall · …". The **Key** chip (magnifier) beside the lens chips opens "How to read the map".
 8. **Help (?).** The five tabs sit in one dark track (two rows on a phone), the open one raised with a white outline. "How to win" shows the race bar; "Actions" shows each icon on a round plate. At the end, under a thin line, **Leave match** is orange-outlined. **How to play** (Lobby): the step numbers are round, the election-night winners are tags filled blue / red.
 9. **No errors** from `Lobby`, `Leaderboard`, `Select`, `Draft`, `TopBar`, `StateCard`, `EventCard`, `Focus` or `Help` in the Output window. *Send back:* the Output log.
+
+## Candidate portraits (unreleased, D-062)
+
+Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `-- debate`, `-- reveal`, `-- election`, `-- results`, `-- howto`); the snapshots always draw the PNGs; 0 audit findings at all three sizes.
+
+### Uploading the portraits (once, for the lead or the humans)
+
+1. Upload the eight PNGs in `assets/portraits/` (okafor, calloway, venkat, hale, alvarado, reyes, strand, begay) as images: Creator Hub → Create → Development items → Images, or Studio's Asset Manager.
+2. Put each number in `src/client/UI/Assets.luau` under `portraits` (`okafor = 1234567890,` and so on). Until then every plate shows the candidate's initials instead of the face; nothing breaks.
+
+### In Studio (after the ids are in the build)
+
+1. **Play (F5) → Play vs Bot.** **Expect:** on Select, eight different faces on the same slate-blue plate, no colored rings. Rex Calloway's card (the bot's) is dimmed with a red ring. *Send back:* an iPad screenshot and a phone screenshot.
+2. Tap **Dana Okafor**. **Expect:** her face gets a ring in your color (blue). Tap another: the ring moves.
+3. **Faces at small sizes:** can you tell all eight apart on the phone cards (about the size of a fingertip)? *Send back:* which ones look alike, if any.
+4. **Map reveal:** the Strongholds card shows both faces, each ringed in its player's color. **A week's results:** "Your week" and "Rex's week" each start with the face. **Debate (week 4):** the two faces face off over the scoreboard with "vs" between. **Header (iPad, Mac):** a small face at each end of the score bar. **Election night:** the winner's face in the spotlight card. **Results:** a big face on each player card. **How to play** (Lobby), page 1: two faces over the race bar.
+5. **No errors** from `Kit`, `Select`, `TopBar`, `Reveal`, `Election`, `Results` or `HowTo` in the Output window. *Send back:* whether the faces feel friendly and fit the front-page look, and anything that looks off (cut-off hats, blurry edges).
+
+## The Name Pass (unreleased, D-063)
+
+A custom name for your candidate, only for accounts Roblox has verified as 16 or older. **Today nobody can see this in a live game:** Roblox gives scripts no way to read a verified age, so `server/NameEligibility` treats everyone as not eligible (fail closed) and the option stays hidden even after the pass exists. The agents test the rest with a faked age (`tests/ui/NamePass.spec`; shots `03d`–`03f`).
+
+### Setting up the Name Pass (once, for the humans)
+
+1. [Creator Dashboard](https://create.roblox.com/dashboard/creations) → the experience of place **133510178057620** → **Monetization → Passes → Create pass.** Name: **Name Your Candidate**. Description, for example: "Give your candidate a name of your own (up to 16 characters). Only for age-checked players 16+; others see the candidate's own name." Square icon (up to 512x512). **Create pass.**
+2. Put it **on sale** and set a price in Robux. **Save.**
+3. On **Passes**: hover the pass, **⋯ → Copy Asset ID**. Send that number to Claude (or put it in `src/shared/Net/Products.luau`: `Products.NAME_PASS_ID = <the number>`).
+4. Decide with Claude how eligibility should work, since a verified age cannot be read: for example, rating the game "Content May Vary" (only age-checked 16+ players can join at all) would let every player count as eligible.
+
+### In Studio (only after eligibility is switched on)
+
+Studio purchases are test purchases; DataStores need **Game Settings → Security → Enable Studio Access to API Services** to remember the name.
+
+1. **Play vs Bot.** **Expect:** on Select, under "Your color", a line "Name: your candidate's own" with **Get the Name Pass**. Tap it: Roblox's purchase prompt for "Name Your Candidate". **Buy.** **Expect:** the button becomes **Rename**.
+2. Tap **Dana Okafor**, then **Rename**. **Expect:** a sheet "Name your candidate" with a box (placeholder "Dana Okafor"), the hint "Up to 16 characters…", **Use the candidate's name** and **Save name**. Typing stops at 16 characters.
+3. Type `  Captain   Zed ` and **Save name**. **Expect:** the sheet closes and the line reads "Name: Captain Zed". Lock in and play a week: the header and the reveal say "Captain Zed"; your portrait is still Dana's.
+4. Try a rude word, then `Zed #1`, then only spaces. **Expect:** the sheet stays open and says why ("That name isn't allowed. Try another name.", "That name has a character…", "Type a name first."); your name does not change.
+5. **Two players** (published game): one eligible owner named, one not eligible. **Expect:** the owner sees their custom name; the other player sees "Dana Okafor" everywhere.
+6. Output: any line with `name filter failed`, `Name Pass check` or `rejected SetName`.
+
+**Send back:** screenshots of steps 1–4 (iPad and phone), what the other player saw in step 5, and the Output lines from step 6.
