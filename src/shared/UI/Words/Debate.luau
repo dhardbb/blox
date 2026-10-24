@@ -9,8 +9,12 @@
 --   Words.cells(row) -> string                "D +4 · A +3 · P =" (against their Defend, Attack, Pivot)
 --   Words.facts(board) -> { string }          "Your issue", "You lead its states"...
 --   Words.stamp(view, round, name) -> (string, tone)   "YOU WIN BY 3", "REX WINS BY 3", "SPLIT"
+--                                             ("THEY WIN BY 3" for a name too long for a stamp)
+--   Words.crowdStamp(lead, name) -> (string, tone)    "YOU WON THE CROWD", "REX WON THE CROWD",
+--                                             "THEY WON THE CROWD" (a long name), "AN EVEN CROWD"
 --   Words.counterLine(round, view) -> string? "Pivot beats Defend: +3"
---   Words.crowdLine(view, crowd, name) -> string  "You +4", "Rex +2", "Even" (who leads the crowd)
+--   Words.crowdLine(view, crowd, name) -> string  "You +4", "Rex +2", "Even" (who leads the crowd;
+--                                             "Them +2" for a long name)
 --   Words.zinger(board) -> string             the Zinger toggle's label
 
 local Issues = require("../../Sim/Issues")
@@ -81,6 +85,18 @@ end
 
 export type Tone = "good" | "loss" | "text"
 
+-- Characters of the opponent's name a stamp spells out: a longer one (a custom
+-- name runs to 16) makes the stamp too wide for a phone, so it says "THEY".
+Words.STAMP_NAME_MAX = 10
+
+-- The opponent on a stamp: "REX", or "THEY" for a long name.
+local function stampName(theirName: string): (string, boolean)
+	if (utf8.len(theirName) or #theirName) > Words.STAMP_NAME_MAX then
+		return "THEY", true
+	end
+	return string.upper(theirName), false
+end
+
 -- The clash's stamp and its tone: who won the round and by how much.
 function Words.stamp(view: View, round: SimState.DebateRound, theirName: string): (string, Tone)
 	if round.winner == 0 then
@@ -88,7 +104,19 @@ function Words.stamp(view: View, round: SimState.DebateRound, theirName: string)
 	elseif round.winner == view.you then
 		return `YOU WIN BY {round.margin}`, "good"
 	end
-	return `{string.upper(theirName)} WINS BY {round.margin}`, "loss"
+	local who, they = stampName(theirName)
+	return `{who} {if they then "WIN" else "WINS"} BY {round.margin}`, "loss"
+end
+
+-- The verdict's stamp and its tone: who won the crowd (`lead` = your crowd
+-- less theirs).
+function Words.crowdStamp(lead: number, theirName: string): (string, Tone)
+	if lead > 0 then
+		return "YOU WON THE CROWD", "good"
+	elseif lead < 0 then
+		return `{(stampName(theirName))} WON THE CROWD`, "loss"
+	end
+	return "AN EVEN CROWD", "text"
 end
 
 -- "Pivot beats Defend: +3" when a counter landed, else nil.
@@ -123,7 +151,9 @@ function Words.crowdLine(view: View, crowd: { number }, theirName: string): stri
 	if lead > 0 then
 		return `You +{lead}`
 	elseif lead < 0 then
-		return `{theirName} +{-lead}`
+		-- A long name would not fit the meter's caption on a phone.
+		local long = (utf8.len(theirName) or #theirName) > Words.STAMP_NAME_MAX
+		return `{if long then "Them" else theirName} +{-lead}`
 	end
 	return "Even"
 end

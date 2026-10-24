@@ -83,6 +83,7 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 			Size = UDim2.new(1, 0, 0, 20),
 			Font = Kit.font.bold,
 			TextWrapped = false,
+			TextScaled = true, -- a 16-letter custom name shrinks to fit a phone
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			TextXAlignment = if right then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
 			Parent = column,

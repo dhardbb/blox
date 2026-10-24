@@ -815,7 +815,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			reveal:remember(p.view)
 			-- A rejection after Lock in: the seat is still open, so allow editing again.
-			if model.lockStep == p.step and not p.seats[p.you].locked then
+			local own = p.seats[p.you]
+			if model.lockStep == p.step and not (own ~= nil and own.locked) then
 				local turnedDown = Messages.rejectionAfter(state, lockMessageId)
 				if turnedDown ~= nil then
 					model.lockStep = nil

@@ -387,7 +387,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			pick.showSafe = safeWeek == week
 		end
-		if model.lockStep == p.step and not p.seats[p.you].locked then
+		local own = p.seats[p.you]
+		if model.lockStep == p.step and not (own ~= nil and own.locked) then
 			local turnedDown = Messages.rejectionAfter(state, lockMessageId)
 			if turnedDown ~= nil then
 				model.lockStep = nil

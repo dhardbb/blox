@@ -33,6 +33,7 @@ local Clash = {}
 
 local CARD_H = 56 -- px, one side's card in the clash
 local STAMP_ROW = 56 -- px, the row the stamp sits in
+local STAMP_INSET = 8 -- px kept free beside the stamp: room for its tilt
 local MAX_LINES = 3
 local ROUNDS_WORD = { "One round:", "Two rounds:", "Three rounds:" } -- the intro's line over its topics
 
@@ -121,10 +122,18 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			size = Kit.size.heading,
+			fit = STAMP_INSET, -- a long name never pushes it past the column
 			Parent = stampRow,
 		})
 		stamp = s
 		Motion.stamp(s)
+	end
+
+	local function toneColor(tone: string): Color3 -- a Words.Tone
+		return if tone == "good"
+			then Kit.colors.good
+			elseif tone == "loss" then Kit.colors.loss
+			else Kit.colors.raised
 	end
 
 	local function setLines(lines: { string })
@@ -207,15 +216,8 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 					return nil
 				end
 				local lead = (result.crowd[me] or 0) - (result.crowd[them] or 0)
-				local text, color
-				if lead > 0 then
-					text, color = "YOU WON THE CROWD", Kit.colors.good
-				elseif lead < 0 then
-					text, color = `{string.upper(theirName)} WON THE CROWD`, Kit.colors.loss
-				else
-					text, color = "AN EVEN CROWD", Kit.colors.raised
-				end
-				setStamp(text, color, `verdict:{result.week}`)
+				local text, tone = Words.crowdStamp(lead, theirName)
+				setStamp(text, toneColor(tone), `verdict:{result.week}`)
 				line.Text = Words.crowdLine(view, result.crowd, theirName)
 				local lines: { string } = {}
 				if result.ovation and result.ovation > 0 then
@@ -258,10 +260,7 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 			themCard.Visible = true
 			counter.Text = Words.counterLine(round, view) or "No counter this round"
 			local text, tone = Words.stamp(view, round, theirName)
-			local color = if tone == "good"
-				then Kit.colors.good
-				elseif tone == "loss" then Kit.colors.loss
-				else Kit.colors.raised
+			local color = toneColor(tone)
 			local key = `clash:{view.week}:{round.round}`
 			if shownKey ~= key then
 				Audio.play(if round.winner == me then "debateWin" else "whoosh")

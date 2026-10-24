@@ -134,6 +134,26 @@ local function colorTakenText(): string
 	return Words.colorTaken(who, asked or (if lobby then lobby.color else nil))
 end
 
+-- The player whose custom name this player last reported (Net.reportName).
+local reportedId: string? = nil
+
+-- The server took the report (its NameReported notice): hide that name in the
+-- payload this client holds. A match that is over gets no new State, so
+-- Results would keep showing the name otherwise (D-069).
+local function hideReported()
+	local id = reportedId
+	reportedId = nil
+	local payload = Store.get().payload
+	if id == nil or payload == nil then
+		return
+	end
+	for seat, info in payload.seats do
+		if info.id == id then
+			Store.hideName(seat)
+		end
+	end
+end
+
 local function noticeText(code: string?): string
 	if code == "ColorTaken" then
 		return colorTakenText()
@@ -163,6 +183,9 @@ function Net.start()
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Notice" then
+			if message.notice == "NameReported" then
+				hideReported()
+			end
 			Store.say(noticeText(message.notice))
 		elseif message.kind == "Rejected" then
 			Store.say(Net.reasonText(message.reason), true, message.reason)
@@ -226,8 +249,10 @@ function Net.setName(name: string?)
 	Net.send("SetName", { name = name })
 end
 
--- Reports the custom name this player was shown for `userId` (D-069).
+-- Reports the custom name this player was shown for `userId` (D-069). When the
+-- server's NameReported notice arrives, that name is hidden here too.
 function Net.reportName(userId: string)
+	reportedId = userId
 	Net.send("ReportName", { userId = userId })
 end
 

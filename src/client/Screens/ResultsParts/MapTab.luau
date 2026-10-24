@@ -48,6 +48,7 @@ export type Tab = {
 	set: (self: Tab, payload: Session.StatePayload, names: { string }) -> (),
 	show: (self: Tab, visible: boolean) -> (),
 	layout: (self: Tab, width: number, height: number) -> (),
+	destroy: (self: Tab) -> (), -- the map's own loops and handlers stop with the screen
 }
 
 function MapTab.new(parent: Instance, order: number): Tab
@@ -233,6 +234,13 @@ function MapTab.new(parent: Instance, order: number): Tab
 				+ 4 * Kit.space.sm
 			local h = math.floor(math.min(width / MapLayout.ASPECT, math.max(height - others, MAP_MIN_H)))
 			mapBox.Size = UDim2.new(1, 0, 0, h)
+		end,
+		destroy = function(_self: Tab)
+			local made = map
+			map = nil
+			if made then
+				made:destroy()
+			end
 		end,
 	}
 	return tab

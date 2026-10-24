@@ -7,6 +7,7 @@
 
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
+local Fixtures = require("@ui/Fixtures")
 local Rig = require("./Rig")
 local Swing = require("@ui/Swing")
 local Test = require("@testlib/Test")
@@ -129,6 +130,88 @@ describe("Debate screen: a round", function()
 	end)
 end)
 
+-- A stand-in InputObject: a press of `kind` whose Changed fires as its state moves.
+local function press(kind: string): any
+	local handlers: { (string) -> () } = {}
+	local input: any = { UserInputType = { Name = kind }, UserInputState = { Name = "Begin" } }
+	input.Changed = {
+		Connect = function(_self: any, fn: (string) -> ())
+			table.insert(handlers, fn)
+			return {
+				Disconnect = function()
+					local at = table.find(handlers, fn)
+					if at then
+						table.remove(handlers, at)
+					end
+				end,
+			}
+		end,
+	}
+	function input.move(state: string)
+		input.UserInputState = { Name = state }
+		for _, fn in table.clone(handlers) do
+			fn("UserInputState")
+		end
+	end
+	return input
+end
+
+describe("Debate screen: a payload without your seat", function()
+	it("does not break after Lock in", function()
+		local world, peer = Rig.fixture("DebateRound", nil)
+		tap(world, peer, "MovePivot")
+		tap(world, peer, "LockIn")
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		payload.seats[payload.you] = nil
+		Rig.push(world, peer, payload)
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Debate screen: holding a move", function()
+	-- The Moves part alone, with a stand-in screen model that counts renders.
+	local function moves(): (FakeRoblox.World, any, any)
+		local world, peer = Rig.fixture("DebateRound", Rig.PHONE)
+		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
+		local Moves = FakeRoblox.require(world, peer, "src/client/Screens/DebateParts/Moves.luau")
+		local pick = { move = nil, held = nil, zinger = false, showSafe = false }
+		local model = { config = C, render = function() end }
+		local stage = Kit.box({ Name = "Stage", Parent = Kit.new("ScreenGui", { Name = "TestGui" }) })
+		world.current = peer
+		local part = Moves.new(stage, model, pick, 1)
+		world.current = nil
+		return world, part.root:FindFirstChild("MoveAttack", true), pick
+	end
+
+	it(
+		"previews while held and stops when the press ends anywhere, is cancelled, or the mouse leaves",
+		function()
+			local world, button, pick = moves()
+			for _, finish in { "End", "Cancel", "Leave" } do
+				local input = press(if finish == "Leave" then "MouseButton1" else "Touch")
+				button.InputBegan.fire(input)
+				FakeRoblox.run(world, 0.1)
+				expect(pick.held):toBe("Attack")
+				if finish == "Leave" then
+					button.MouseLeave.fire()
+				else
+					input.move(finish) -- lifted off the button: no InputEnded on it
+				end
+				FakeRoblox.run(world, 0.1)
+				check(pick.held == nil, `the preview stuck after {finish}`)
+			end
+			-- A release on the button still ends it.
+			local input = press("Touch")
+			button.InputBegan.fire(input)
+			FakeRoblox.run(world, 0.1)
+			button.InputEnded.fire(input)
+			FakeRoblox.run(world, 0.1)
+			expect(pick.held):toBe(nil)
+			Rig.noErrors(world)
+		end
+	)
+end)
+
 describe("Debate screen: the clash and the verdict", function()
 	it("shows both moves, a stamp, and the round's line", function()
 		local world, peer = Rig.fixture("Clash", nil)
@@ -171,7 +254,68 @@ describe("Debate screen: the clash and the verdict", function()
 	end)
 end)
 
+-- Fixture `moment` against an opponent with a 16-character custom name who won
+-- the last clash and the crowd.
+local LONG_NAME = "Bartholomew Zork" -- 16 letters, the most a custom name may have
+local function longNamed(
+	moment: string,
+	name: string,
+	screen: { x: number, y: number }
+): (FakeRoblox.World, FakeRoblox.Peer)
+	local world, peer = Rig.fixture("Lobby", screen)
+	local payload = Fixtures.payload(C, moment :: any)
+	local them = 3 - payload.you
+	payload.view.players[them].customName = name
+	local last = payload.view.debates[#payload.view.debates]
+	local rounds = if payload.view.debate then payload.view.debate.rounds else last.rounds
+	local round = rounds[#rounds]
+	round.winner, round.margin = them, 3
+	if last and last.crowd then
+		last.crowd[them] = (last.crowd[payload.you] or 0) + 4
+	end
+	Rig.push(world, peer, payload)
+	FakeRoblox.run(world, 1)
+	return world, peer
+end
+
+describe("Debate screen: a long custom name", function()
+	-- 16 letters: the stamp says THEY; 10 (the most it spells out): it narrows.
+	local cases = {
+		{ moment = "Clash", name = LONG_NAME, words = "THEY WIN BY 3" },
+		{ moment = "Debate", name = LONG_NAME, words = "THEY WON THE CROWD" },
+		{ moment = "Debate", name = "Wilhelmina", words = "WILHELMINA WON THE CROWD" },
+	}
+	for _, case in cases do
+		for _, size in SIZES do
+			it(`keeps the {case.moment} stamp inside the column, {case.name} ({size.name})`, function()
+				local world, peer = longNamed(case.moment, case.name, size.screen)
+				local stamp = need(peer, "ClashStamp")
+				expect(stamp:FindFirstChild("Label", true).Text):toBe(case.words)
+				local row = need(peer, "StampRow")
+				check(
+					stamp.AbsoluteSize.X <= row.AbsoluteSize.X,
+					`the stamp is {stamp.AbsoluteSize.X} px in a {row.AbsoluteSize.X} px column`
+				)
+				local problems = strict(world, peer)
+				check(#problems == 0, table.concat(problems, "; "))
+				Rig.noErrors(world)
+			end)
+		end
+	end
+end)
+
 describe("Words.Debate", function()
+	it("names a short name on a stamp and says THEY for a long one", function()
+		expect((Words.crowdStamp(-2, "Rex"))):toBe("REX WON THE CROWD")
+		expect((Words.crowdStamp(-2, LONG_NAME))):toBe("THEY WON THE CROWD")
+		expect((Words.crowdStamp(3, LONG_NAME))):toBe("YOU WON THE CROWD")
+		expect((Words.crowdStamp(0, LONG_NAME))):toBe("AN EVEN CROWD")
+		local view: any = { you = 1 }
+		local round: any = { winner = 2, margin = 3 }
+		expect((Words.stamp(view, round, "Rex"))):toBe("REX WINS BY 3")
+		expect((Words.stamp(view, round, LONG_NAME))):toBe("THEY WIN BY 3")
+	end)
+
 	it("writes result cells with a sign, and splits as =", function()
 		expect(Words.cell(3)):toBe("+3")
 		expect(Words.cell(-2)):toBe("−2")
@@ -184,6 +328,7 @@ describe("Words.Debate", function()
 		expect(Words.crowdLine(view, { 4, 0 }, "Rex")):toBe("You +4")
 		expect(Words.crowdLine(view, { 1, 3 }, "Rex")):toBe("Rex +2")
 		expect(Words.crowdLine(view, { 2, 2 }, "Rex")):toBe("Even")
+		expect(Words.crowdLine(view, { 1, 3 }, LONG_NAME)):toBe("Them +2")
 		local board = { zingers = 1, zingerMult = 2 } :: any
 		expect(Words.zinger(board, false)):toBe("Stake Zinger: a win counts ×2")
 		expect(Words.zinger(board, true)):toBe("Zinger staked: a win counts ×2")
