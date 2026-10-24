@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### The Daily Race (D-080)
+
+- **One race a day, the same for everyone.** A new **Daily Race** card in the Lobby: today's candidate (everyone plays as them today, a different one every day), the time left until the next race, your streak and how today's run went. **Play today's race** starts it straight on picking your three issues, against the Hard bot (normal timers). The map, the issues, the events and the bot's candidate are the same for every player that day.
+- **One counted run a day.** Your first run that reaches week 1 counts; leaving before then counts for nothing. Later runs that day are practice and say so. A counted run you leave counts as a full loss.
+- **Today's board:** the top 50 by final vote margin over the bot (ties: fewer weeks behind in the polls, then who finished first), with "You: #N". Results show your margin, your rank today and your streak.
+- **Streak:** days in a row with a counted run. Missing a day just starts it again; nothing else happens. Nothing to buy.
+- The Daily Race never changes your rating or your record, and is never the tutorial. New `Config.DAILY_BOT_LEVEL` ("Hard") and `DAILY_FORFEIT_MARGIN` (-538).
+- Studio checklist: `docs/TESTING.md`, "The Daily Race". Needed from the humans: nothing new (DataStores need the published place, as for the leaderboard).
+
 ## 0.14.0: Map polish, issue symbols, the tutorial, fixes (Oct 24, 2026)
 
 A clearer map (bigger on phones, every state's votes, a Close filter), symbols for issues, an untimed first bot match with more time against easier bots, the Lobby's settings in the corner, and fixes from a full bug review (rated results across servers, win trading, name review safety, debate reconnects). Needed from the humans: nothing new (the 0.13.0 list still applies).

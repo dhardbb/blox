@@ -1078,3 +1078,18 @@ Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests "M
 11. **iPad and desktop.** **Expect:** the map looks as in 0.13.0 apart from the bracket, the quieter pins, the insets and the items above.
 
 **Send back:** a phone screenshot of Votes, Polls and Money, one with Close on, one of the end of a busy week's results, one of election night, and whether you would want Close on by default on a phone; plus any Output errors from `ShapeMap`, `Lens` or `SwingMarks`.
+
+## The Daily Race (unreleased, D-080)
+
+Agents: `lune run tests "Daily:"`, `lune run tests "e2e: the Daily"`, `lune run tests "Daily Race"`, `lune run tests/ui/snap.luau -- daily` and `-- 01-lobby` (0 audit findings at all three sizes). The board and the counted run need DataStores: test them in the published place (Studio: "Enable Studio Access to API Services" also works).
+
+1. **The card** (iPad and a phone). Open the game. **Expect:** under How to play, a Daily Race card with a face, "Daily Race · <today's date>", "Everyone plays as <name> today", and "<h>h <m>m left · No streak yet · Not played yet"; the time counts down. On a phone the leaderboard below shows only "You" and See all. Ask your partner: **Expect** the same name on their card.
+2. **Play it.** Tap **Play today's race**. **Expect:** "Daily Race: this run counts once week 1 starts. Good luck!"; Select opens on the issues (no candidate cards) with your candidate already the card's, and the bar reads "Daily Race: everyone is <first name> today". The bot is Hard and the timer is the normal 38 s (not 57 s). It is not the tutorial (no "No timer").
+3. **Leave early.** **Leave match** during Select. **Expect:** back in the Lobby, the card still says "Not played yet" and Play is still **Play today's race**.
+4. **The counted run.** Play a run to the end. **Expect:** Results show a "DAILY RACE · <date>" card: "You won by N votes." (or lost), then "Rank today: #N · 1-day streak" (the rank can take a few seconds); the primary button is **Practice again**; no rating line. Back in the Lobby: "Won by N today" (or "Lost by N today"), and the button reads **Practice today's race**. Your rating and record are unchanged.
+5. **Practice.** Tap **Practice today's race** and play (or leave from week 1 on). **Expect:** "Practice run: today's Daily Race already counts. This one won't."; at the end Results say "Practice run: …" and "Only your first run counts. Today: …"; the board and your Lobby line do not change.
+6. **The board.** Tap **Today's board**. **Expect:** "Today's top 50", how it ranks, "You: #N · +N" in bold, and your row highlighted. With your partner's run in too: a bigger margin is higher.
+7. **Streak** (over two days): play a counted run tomorrow (after 00:00 UTC). **Expect:** a new candidate, and "2-day streak". Skip a day: **Expect** "No streak yet" again, nothing else.
+8. **Tutorial** (a brand-new account): play the Daily Race first, then **Play vs Bot**. **Expect:** that bot match is still the tutorial.
+
+**Send back:** a phone and an iPad screenshot of the Lobby card, one of Results after the counted run and one after a practice run, the board sheet, and the Output lines containing `daily race`.
