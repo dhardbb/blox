@@ -196,6 +196,9 @@ local Config = {
 	-- The tutorial (a player's first bot match, or a replay) has no choice timer at all.
 	BOT_TIME_MULT_EASY = 2, -- choice timers against an Easy bot (the designers' number)
 	BOT_TIME_MULT_MEDIUM = 1.5, -- choice timers against a Medium bot (the designers' number)
+	-- The Daily Race (D-080): one seeded race a UTC day, the same for everyone.
+	DAILY_BOT_LEVEL = "Hard", -- the bot's level in every Daily Race, so its timers are Hard's x1
+	DAILY_FORFEIT_MARGIN = -538, -- the score of a counted run left or abandoned after week 1 began: every vote lost
 
 	-- Practice bot difficulty (D-057). Medium is the standard (balance harness) bot
 	-- and reads none of these. Every level decides from its own View only.
