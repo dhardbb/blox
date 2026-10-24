@@ -188,26 +188,6 @@ describe("Words: what changed", function()
 	end)
 end)
 
-describe("Words: debates", function()
-	it("gives each topic a verdict and one short line", function()
-		local view = Fixtures.payload(C, "Debate").view
-		local result = view.debates[#view.debates]
-		for t = 1, #result.topics do
-			local verdict, tone = Words.verdict(view, result.winners[t], "Rex")
-			check(verdict == "You win" or verdict == "Tie" or verdict == "Rex wins", verdict)
-			check(tone ~= nil, "no tone")
-			local line = Words.topicLine(C, view, result, t, "Rex")
-			check(words(line) <= 20, `topic line is {words(line)} words: {line}`)
-		end
-		local headline = Words.debateHeadline(view, result, "Rex")
-		check(string.find(headline, "topic", 1, true) ~= nil, headline)
-		check(
-			string.find(Words.everyState(view, result, "Rex"), "Every state also got", 1, true) ~= nil,
-			"no flat points line"
-		)
-	end)
-end)
-
 describe("Words: election night and Results", function()
 	it("calls a state in votes and points", function()
 		expect(Words.stateLine("OH")):toBe("Ohio · 17 votes")

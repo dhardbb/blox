@@ -661,11 +661,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setSecondary(nil, false)
 			bar:setStatus(reveal:status(p), "muted")
 		else
-			-- The debate (and any step with nothing to press) cannot be skipped.
+			-- A step with nothing to press cannot be skipped (debates have their own screen).
 			primary.Name = "SkipButton"
 			primary.Visible = false
 			bar:setSecondary(nil, false)
-			bar:setStatus(if p.reveal == "Debate" then reveal:status(p) else "Campaign", "muted")
+			bar:setStatus("Campaign", "muted")
 		end
 		parent:SetAttribute("PrimaryOptional", not primary.Visible)
 	end
