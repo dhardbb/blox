@@ -22,10 +22,12 @@ export type Moment =
 	| "ChoiceWeek" -- the plan that follows a stance (the stance taken in one line)
 	| "Resolve" -- the resolve animation after week 3
 	| "ChoiceResolve" -- the resolve animation right after a Choice week (both stances revealed)
-	| "Focus" -- the Decision screen before the week 9 debate: pick a focus topic (D-044)
-	| "Debate" -- the debate sequence
+	| "DebateIntro" -- the week 4 debate's stage before round 1 (D-062)
+	| "DebateRound" -- round 2 of the week 9 debate: pick a move (D-062)
+	| "Clash" -- the clash after round 1 of the week 4 debate
+	| "Debate" -- the verdict after the week 4 debate's last round
 	| "Election" -- election night
-	| "Over" -- the result
+	| "Over" -- the result: a win for seat 1 (the first seed from `seed` on where it wins)
 
 local Fixtures = {}
 
@@ -39,7 +41,9 @@ Fixtures.MOMENTS = table.freeze({
 	"ChoiceWeek",
 	"Resolve",
 	"ChoiceResolve",
-	"Focus",
+	"DebateIntro",
+	"DebateRound",
+	"Clash",
 	"Debate",
 	"Election",
 	"Over",
@@ -69,13 +73,19 @@ local function reached(session: Session.Session, moment: Moment): boolean
 			and last ~= nil
 			and last.choices ~= nil
 			and last.week == session.match.week - 1
-	elseif moment == "Focus" then
-		return phase == "Decision"
-			and session.match.decision == "Focus"
-			and session.match.week == 9
+	elseif moment == "DebateIntro" then
+		return session.reveal == "DebateIntro"
+	elseif moment == "DebateRound" then
+		local live = session.match.debate
+		return phase == "Debate"
 			and stage == "Input"
+			and session.match.week == 9
+			and live ~= nil
+			and live.round == 2
+	elseif moment == "Clash" then
+		return session.reveal == "Clash" and session.match.week == 4
 	elseif moment == "Debate" then
-		return session.reveal == "Debate"
+		return session.reveal == "Verdict"
 	elseif moment == "Election" then
 		return phase == "Election" and stage == "Show"
 	end
@@ -140,10 +150,18 @@ function Fixtures.payload(
 	if moment == "SelectColor" then
 		return selectColor(config, first)
 	end
-	local tries = if moment == "Stance" or moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
+	local tries = if moment == "Stance"
+			or moment == "ChoiceWeek"
+			or moment == "ChoiceResolve"
+			or moment == "Over"
+		then 40
+		else 1
 	for k = 0, tries - 1 do
 		local payload = play(config, moment, first + k, candidate)
-		if payload then
+		-- The result screen's fixture is a win for seat 1 (its specs check the victory moment).
+		local won = moment ~= "Over"
+			or (payload ~= nil and payload.result ~= nil and payload.result.winner == 1)
+		if payload and won then
 			return payload
 		end
 	end

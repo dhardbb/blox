@@ -14,8 +14,6 @@
 --   Words.planLine(actions) -> string         "Rally OH · Ad PA · Poll TX"
 --   Words.stanceEffect(preview) -> string     "+4 states · −2 states"
 --   Words.stanceParts(preview) -> (string?, string?)   "+4 states", "−2 states"
---   Words.focusHead(config, view, info) -> string   "Schools · 14 states"
---   Words.focusOdds(info) -> string           "You win 81%"
 --   Words.key(id) -> { string }               the map key's lines for a lens
 --   Words.bands() -> { { name, text } }       the map key's four color steps
 --   Words.gain(effect) -> string?             "+4.1" from "+4.1 support" (the map's ghost tag)
@@ -226,21 +224,6 @@ function Words.stanceParts(preview: { gains: { string }, losses: { string } }): 
 		return "No change", nil
 	end
 	return gain, loss
-end
-
--- A debate topic's card title: "Schools · 14 states".
-function Words.focusHead(
-	_config: Config,
-	_view: View,
-	info: { topic: Types.Issue, states: { string } }
-): string
-	local name = Issues.displayName[info.topic] or info.topic
-	return `{name} · {#info.states} {if #info.states == 1 then "state" else "states"}`
-end
-
--- Your chance to win a topic if you focus on it: "You win 81%".
-function Words.focusOdds(info: { win: number }): string
-	return `You win {math.floor(info.win * 100 + 0.5)}%`
 end
 
 -- An event's effect without the multiplier sign: "raise ×1.2 this week" ->

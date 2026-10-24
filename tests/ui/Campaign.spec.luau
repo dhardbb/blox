@@ -2,8 +2,8 @@
 -- The campaign screen (src/client/Screens/Campaign.luau) on the fake engine:
 -- every campaign fixture mounts cleanly in 16:9 and phone portrait, the plan can
 -- be built and locked in by pressing buttons, the reveals play, and a whole
--- autoplayed practice match runs through the screen. The Decision screen (debate
--- focus and stances, D-044) has its own checks here and in tests/ui/Decision.spec.
+-- autoplayed practice match runs through the screen. The Decision screen
+-- (stances, D-044) and the Debate screen (D-062) have their own specs.
 -- Also the v0.3.1 bug-hunt cases for this screen: the state list and its
 -- ordering, auto-submit, retries after a rejection, the forfeit countdown, and
 -- readable rejection codes (Net).
@@ -30,7 +30,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
 local PHONE = { x = 390, y = 844 }
-local MOMENTS = { "Plan", "ChoiceWeek", "Resolve", "Debate" }
+local MOMENTS = { "Plan", "ChoiceWeek", "Resolve" } -- debates have their own screen (D-062, tests/ui/Debate.spec)
 
 -- Fails the spec with a readable message.
 local function check(condition: boolean, message: string)
@@ -338,28 +338,6 @@ describe("Campaign screen", function()
 		)
 		check(find(peer, "SkipButton").Active == false, "Skip is still enabled after the tap")
 		check(find(peer, "SkipButton"):GetAttribute("PrimaryAction") == true, "Skip is not the bar's primary")
-		noErrors(world)
-	end)
-
-	it("shows the debate result topic by topic", function()
-		local world, peer = fixture("Debate")
-		local payload = Fixtures.payload(C, "Debate")
-		local result = payload.view.debates[#payload.view.debates]
-		FakeRoblox.run(world, 8)
-		for t = 1, #result.topics do
-			-- The scoreboard row: the topic, "you – them", a verdict (WP-C, UI-STYLE §4.7).
-			check(text(peer, `DebateTopic{t}`) ~= "", `topic {t} not shown`)
-			check(
-				string.find(text(peer, `DebateScore{t}`), " – ", 1, true) ~= nil,
-				`topic {t} has no score`
-			)
-			check(text(peer, `DebateVerdict{t}`) ~= "", `topic {t} has no verdict`)
-		end
-		check(
-			string.find(text(peer, "RevealSummary"), "Every state also got", 1, true) ~= nil,
-			"no summary of the points every state got"
-		)
-		check(not shown(find(peer, "SkipButton")), "debates cannot be skipped")
 		noErrors(world)
 	end)
 

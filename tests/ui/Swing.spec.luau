@@ -8,6 +8,7 @@ local Config = require("@sim/Config")
 local Debate = require("@sim/Debate")
 local Events = require("@sim/Events")
 local Fixtures = require("@ui/Fixtures")
+local Issues = require("@sim/Issues")
 local State = require("@sim/State")
 local StateData = require("@sim/StateData")
 local Swing = require("@ui/Swing")
@@ -180,43 +181,66 @@ describe("Swing: stance previews", function()
 end)
 
 describe("Swing: debates", function()
-	it("says which states each topic swung and credits every flip once", function()
+	it("says what each round swung, where, and every flip it made (D-062)", function()
 		local view = viewAt("Debate")
 		local result = view.debates[#view.debates]
-		local credited: { [string]: number } = {}
-		for t, topic in result.topics do
+		expect(#result.rounds):toBe(C.DEBATE_TOPICS)
+		for t, round in result.rounds do
 			local entry = Swing.debateTopic(C, view, result, t)
-			expect(#entry.states):toBe(#Debate.topicStates(view.issueMap, topic))
-			if entry.winner == view.you then
-				check(has(entry.line, "Your "), entry.line)
-				check(has(entry.line, `win swung {entry.states[1]}`), entry.line)
-				check(has(entry.line, `{string.format("%+.1f", C.DEBATE_TOPIC_WIN)} each`), entry.line)
-			elseif entry.winner == 0 then
-				check(has(entry.line, "tie"), entry.line)
+			expect(entry.winner):toBe(round.winner)
+			if round.winner == 0 then
+				check(has(entry.line, "split"), entry.line)
+			else
+				local landing = round.landing[round.winner]
+				expect(#entry.states):toBe(#Debate.topicStates(view.issueMap, landing))
+				check(has(entry.line, if round.winner == view.you then "Your " else "Their "), entry.line)
+				check(
+					has(entry.line, `won {Issues.displayName[round.topic] or round.topic} by {round.margin}`),
+					entry.line
+				)
+				expect(entry.points):toBe(C.DEBATE_ROUND_WIN * round.mult)
 			end
 			for _, flip in entry.flips do
-				credited[flip.state] = (credited[flip.state] or 0) + 1
 				check(has(entry.line, Swing.flipPhrase(view, flip)), entry.line)
 			end
 		end
-		for _, flip in Swing.debateOther(view, result) do
-			credited[flip.state] = (credited[flip.state] or 0) + 1
-		end
-		for _, flip in result.flips do
-			expect(credited[flip.state]):toBe(1)
-		end
 	end)
 
-	it("writes gaffes as a loss in the topic's states", function()
+	it("writes a backfire as a loss where the move aimed", function()
 		local view = viewAt("Debate")
 		local result = view.debates[#view.debates]
-		result.gaffes[view.you][1] = true
+		local round = result.rounds[1]
+		round.backfire[view.you] = true
 		local entry = Swing.debateTopic(C, view, result, 1)
 		check(
-			has(entry.gaffeLines[1], `Your gaffe on`)
-				and has(entry.gaffeLines[1], `{string.format("%+.1f", -C.DEBATE_GAFFE)} in {entry.states[1]}`),
+			has(entry.gaffeLines[1], "Your ")
+				and has(entry.gaffeLines[1], `backfired: {string.format("%+.1f", -C.DEBATE_BACKFIRE)}`),
 			entry.gaffeLines[1]
 		)
+	end)
+
+	it("lays out a round's board for you: strengths, result cells, safe moves, where a win lands", function()
+		local view = viewAt("DebateRound")
+		local board = Swing.debateBoard(C, view) :: Swing.DebateBoard
+		check(board ~= nil, "no board")
+		local live = view.debate
+		expect(board.round):toBe(live.round)
+		expect(board.topic):toBe(live.topics[live.round])
+		for k, row in board.rows do
+			expect(row.strength):toBe(Debate.info(live.board.players[view.you], row.move).strength)
+			local safe = true
+			for b, theirs in { "Defend", "Attack", "Pivot" } do
+				expect(row.cells[b]):toBe(
+					Debate.versus(C, live.board, view.you, row.move, 3 - view.you, theirs :: any)
+				)
+				if row.cells[b] < 0 then
+					safe = false
+				end
+			end
+			expect(row.safe):toBe(safe)
+			expect(row.landing):toBe(Debate.landing(live.board, view.you, row.move))
+			check(k >= 1, "")
+		end
 	end)
 
 	it("phrases a flip from your side", function()
@@ -307,41 +331,5 @@ describe("Swing: resolved Choice weeks and the result", function()
 		check(has(line, verdict), line)
 		view.scouted = { { state = result.state, week = 9, gotv = { 0, 0 } } }
 		expect(Swing.scoutLine(view)):toBe(nil) -- a poll that saw none is not a credit
-	end)
-end)
-
-describe("Swing: the debate focus (D-044)", function()
-	it("lists a topic's states and EV, the ones you need, and the odds a focus gives", function()
-		local view = viewAt("Focus")
-		expect(view.decision):toBe("Focus")
-		calm(view)
-		local topics = view.nextDebate.topics
-		local topic = topics[1]
-		local states = Debate.topicStates(view.issueMap, topic)
-		local need, needEV = states[1], StateData.byId[states[1]].ev
-		setPoll(view, need, 40, 40)
-		local info = Swing.focus(C, view, topic)
-		local total = 0
-		for _, id in states do
-			total += StateData.byId[id].ev
-		end
-		expect(info.ev):toBe(total)
-		expect(#info.states):toBe(#states)
-		expect(#info.need):toBe(1)
-		expect(info.needEV):toBe(needEV)
-		check(has(info.head, `{#states} states, {total} EV`), info.head)
-		check(has(info.needLine, `You need 1 of them ({needEV} EV): tied {need}`), info.needLine)
-		-- The odds: your focus edge on top of platform and stat, against theirs without a focus.
-		expect(info.mine - info.theirs >= info.edge - 2 * C.DEBATE_PLATFORM_BONUS):toBe(true)
-		check(info.win > info.winBoth, "their focus on the same topic cancels yours")
-		check(has(info.oddsLine, "You win"), info.oddsLine)
-		-- The map preview: a win's points in every one of its states, and the flip it makes.
-		expect(info.effects[need]):toBe(C.DEBATE_TOPIC_WIN)
-		expect(#info.flips):toBe(1)
-		expect(info.flips[1].state):toBe(need)
-		check(has(info.winLine, `could flip {need}`), info.winLine)
-		-- Nothing close: nothing needed.
-		calm(view)
-		check(has(Swing.focus(C, view, topic).needLine, "You need none of them"), "no need")
 	end)
 end)

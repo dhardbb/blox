@@ -1,6 +1,6 @@
 --!strict
--- What the Campaign and Decision screens and their parts (TopBar, StateCard,
--- PlanList, Focus, EventCard, Reveal) share: the screen's model (the payload,
+-- What the Campaign, Decision and Debate screens and their parts (TopBar,
+-- StateCard, PlanList, EventCard, Reveal) share: the screen's model (the payload,
 -- the plan or decision being built, what is selected) and the text helpers every
 -- part writes with.
 --
@@ -50,9 +50,9 @@ export type Model = {
 	sortMode: StateOrder.Mode,
 	portrait: boolean,
 	choice: SharedTypes.Choice?, -- Decision screen: the stance selected (nil until one is tapped; the server's default is C)
-	focus: Issue?, -- Decision screen: the debate topic selected (nil until one is tapped; the default is no focus)
+	focus: Issue?, -- unused since debates are live rounds (D-062); kept so older screens' models still type-check
 	peekChoice: SharedTypes.Choice?, -- a stance chip being held: previewed, not selected
-	peekFocus: Issue?, -- a focus topic being held: previewed, not selected
+	peekFocus: Issue?, -- unused since D-062 (see focus)
 	stanceMap: boolean, -- the stance chips are showing, so the map previews a stance
 	revealSwing: RevealSwing?, -- what a reveal shows moved on the map, else nil
 	caption: string?, -- the reveal's latest line, shown as the header's now line
@@ -94,16 +94,30 @@ function Part.planning(p: Payload): boolean
 	return p.stage == "Input" and p.view.phase == "Plan" and p.reveal == nil
 end
 
--- The Decision step before the plan (D-044): "Focus" or "Stance", else nil.
-function Part.deciding(p: Payload): ("Focus" | "Stance")?
+-- The Decision step before the plan (D-044): "Stance", else nil.
+function Part.deciding(p: Payload): "Stance"?
 	if p.stage == "Input" and p.view.phase == "Decision" and p.reveal == nil then
 		return p.view.decision
 	end
 	return nil
 end
 
+-- A debate round is asking for a move (D-062).
+function Part.debating(p: Payload): boolean
+	return p.stage == "Input" and p.view.phase == "Debate" and p.reveal == nil and p.view.debate ~= nil
+end
+
+-- The debate's own reveals (D-062): its intro, a round's clash, the verdict.
+function Part.debateReveal(p: Payload): ("DebateIntro" | "Clash" | "Verdict")?
+	local reveal = p.reveal
+	if reveal == "DebateIntro" or reveal == "Clash" or reveal == "Verdict" then
+		return reveal
+	end
+	return nil
+end
+
 function Part.editable(model: Model, p: Payload): boolean
-	return (Part.planning(p) or Part.deciding(p) ~= nil) and not Part.isLocked(model, p)
+	return (Part.planning(p) or Part.deciding(p) ~= nil or Part.debating(p)) and not Part.isLocked(model, p)
 end
 
 -- The problem the draft would have with `action` added.
@@ -245,15 +259,6 @@ function Part.previewStance(model: Model, p: Payload): SharedTypes.Choice?
 		return chosen
 	end
 	return "C"
-end
-
--- The topic the map previews on the focus screen: the one held, else the one
--- selected. Nil when there is nothing to preview.
-function Part.previewFocus(model: Model, p: Payload): Issue?
-	if Part.deciding(p) ~= "Focus" then
-		return nil
-	end
-	return model.peekFocus or model.focus
 end
 
 -- This week's event, or nil while any reveal plays: the Resolve reveal carries

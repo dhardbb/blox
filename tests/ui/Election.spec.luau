@@ -574,7 +574,8 @@ describe("Election screen: the show (polish WP-2)", function()
 	it("says who reaches 270 on the tipping call", function()
 		local rig = fixtureRig(nil, 0)
 		local seen = false
-		for _ = 1, 200 do
+		-- Watch the whole show: the tipping call can come late (it is one of the slow calls).
+		for _ = 1, 10 * stage do
 			FakeRoblox.run(rig.world, 0.1)
 			local label = tostring(inScreen(rig.peer, "SpotLabel").Text)
 			if string.find(label, "REACHES 270", 1, true) then

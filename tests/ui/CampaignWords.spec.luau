@@ -114,7 +114,7 @@ describe("Words.Campaign", function()
 		expect(Words.planLine({})):toBe("")
 	end)
 
-	it("sums up a stance and a debate topic in a few words", function()
+	it("sums up a stance in a few words", function()
 		local stance = Fixtures.payload(C, "Stance").view
 		local preview = Swing.stance(C, stance, "A")
 		local text = Words.stanceEffect(preview)
@@ -125,13 +125,6 @@ describe("Words.Campaign", function()
 		expect(Words.stanceEffect({ gains = { "OH" }, losses = { "PA", "MI" } })):toBe(
 			"+1 state · −2 states"
 		)
-		local focus = Fixtures.payload(C, "Focus").view
-		local info = Swing.focus(C, focus, focus.nextDebate.topics[1])
-		check(
-			string.find(Words.focusHead(C, focus, info), `· {#info.states} states`, 1, true) ~= nil,
-			"no state count"
-		)
-		expect(Words.focusOdds({ win = 0.814 })):toBe("You win 81%")
 	end)
 
 	it("explains every lens in a few short sentences", function()

@@ -91,7 +91,7 @@ function Lobby.howTo(config: Config): { Page }
 		{
 			id = "events",
 			title = "Debates and events",
-			text = "Some weeks bring an event: pick a side, A, B or C. Before a debate, prepare one topic. Win a topic and the states that care swing your way.",
+			text = "Some weeks bring an event: pick a side, A, B or C. Debates are three quick rounds: Defend, Attack or Pivot. Win a round and its states swing your way.",
 		},
 		{
 			id = "night",

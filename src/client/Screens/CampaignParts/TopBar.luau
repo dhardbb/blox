@@ -17,8 +17,8 @@
 -- colors) over the race bar (Kit.raceBar, 10 px) with its tick at the votes
 -- to win (270 of 538). The time bar under the first row shows the
 -- step's time left. The disconnect notice adds a 24 px row under the now line.
--- The step's name ("Plan your week", "Results", "Debate", "Locked in", "Debate
--- focus", "Take a stance") is kept on the hidden StageLabel: the now line says
+-- The step's name ("Plan your week", "Results", "Debate", "Locked in",
+-- "Take a stance") is kept on the hidden StageLabel: the now line says
 -- the same thing as an instruction.
 --
 -- Motion (docs/DESIGN.md D-053): when a side's projected votes or the money
@@ -269,11 +269,18 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	-- The now line for this moment.
 	local function nowFor(p: Model.Payload, theirName: string): string
 		local deciding = Model.deciding(p)
-		if deciding ~= nil then
+		local debateReveal = Model.debateReveal(p)
+		if deciding ~= nil or Model.debating(p) then
 			if Model.isLocked(model, p) then
 				return `Waiting for {theirName}…`
 			end
-			return if deciding == "Focus" then "Pick one debate topic" else "Pick a side: A, B or C"
+			return if deciding == "Stance" then "Pick a side: A, B or C" else "Pick Defend, Attack or Pivot"
+		elseif debateReveal == "DebateIntro" then
+			return "The debate is about to begin"
+		elseif debateReveal == "Clash" then
+			return model.caption or "The clash!"
+		elseif debateReveal == "Verdict" then
+			return model.caption or "The verdict: who won the crowd?"
 		elseif p.reveal == "Resolve" then
 			return model.caption or "Here's what happened this week"
 		elseif p.reveal == "Debate" then
@@ -311,11 +318,11 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			local week = view.week
 			local stage = "Plan your week"
 			local deciding = Model.deciding(p)
+			local debate = Model.debating(p) or Model.debateReveal(p) ~= nil
 			if deciding ~= nil then
-				stage = if Model.isLocked(model, p)
-					then "Locked in"
-					elseif deciding == "Focus" then "Debate focus"
-					else "Take a stance"
+				stage = if Model.isLocked(model, p) then "Locked in" else "Take a stance"
+			elseif debate then
+				stage = if Model.debating(p) and Model.isLocked(model, p) then "Locked in" else "Debate"
 			elseif p.reveal == "Resolve" then
 				week -= 1
 				stage = "Results"
@@ -330,8 +337,14 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			local title = if portrait then `Week {week}` else `Week {week} of {config.WEEKS}`
 			if deciding == "Stance" and view.event then
 				title = `Week {week} · {view.event.name}`
-			elseif deciding == "Focus" then
-				title = `Week {week} · Debate prep`
+			elseif debate then
+				local live = view.debate
+				title = if portrait
+					then `Week {week}`
+					elseif
+						live and Model.debating(p)
+					then `Week {week} · Round {live.round} of {#live.topics}`
+					else `Week {week} · Debate`
 			end
 			header:setTitle(title)
 			header:setSubtitle(stage)

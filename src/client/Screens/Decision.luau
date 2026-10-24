@@ -4,16 +4,16 @@
 -- with debates or event choices, they should be on a separate screen before the
 -- week decisions with a separate timer."
 --
---   Focus   right before a debate: pick one of its topics (CampaignParts/Focus).
 --   Stance  in a Choice week: take a stance (the event card's chips, EventCard).
+--   (The debate focus it also held is gone: debates have their own screen,
+--   Screens/Debate, D-062.)
 --
 -- Layout (docs/UI-STYLE.md §4.4): the Campaign header (the week and the event or
 -- "Debate prep", the countdown, the score on wide screens, and the "what to do
 -- now" line), the map (left on 16:9, top on phones) previewing the selected
--- topic or stance with a two-dot key over it, and one panel with the pinned
--- action bar under it: the question, the three stances (or the debate's
--- topics) as big chips with what each does in a few words, and "Why?" for the
--- rest. On a phone every option is on the first screen. Nothing else: no state
+-- stance with a two-dot key over it, and one panel with the pinned action bar
+-- under it: the question, the three stances as big chips with what each does in
+-- a few words, and "Why?" for the rest. On a phone every option is on the first screen. Nothing else: no state
 -- card, plan list or week card.
 --
 -- Motion and sound (docs/DESIGN.md D-053): a new decision's options pop in one
@@ -22,8 +22,8 @@
 -- in ✓", which rises and pops in).
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:
--- { focus = topic } or { choice = "A"|"B"|"C" }. The server validates it
--- (Sim/Decision); a timer that runs out sends the selection if there is one.
+-- { choice = "A"|"B"|"C" }. The server validates it (Sim/Decision); a timer
+-- that runs out sends the selection if there is one.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -40,7 +40,6 @@ local Audio = require(script.Parent.Parent.UI.Audio)
 local AutoLock = require(script.Parent.Common.AutoLock)
 local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
-local Focus = require(script.Parent.CampaignParts.Focus)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local Messages = require(script.Parent.Common.Messages)
@@ -167,17 +166,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	Kit.new("UIPadding", { PaddingRight = UDim.new(0, 10), Parent = side })
 
 	local eventCard = EventCard.new(side, model)
-	local focusPanel = Focus.new(side, model, 1)
 
 	-- The first-match coach tip for this decision, under the options (so they
 	-- all stay on the first screen of a phone).
 	local tip: CoachTip.Tip? = nil
 	local function renderTip(p: Payload)
 		local kind = Model.deciding(p)
-		local want = if kind == "Stance"
-			then "decision.stance"
-			elseif kind == "Focus" then "decision.focus"
-			else nil
+		local want = if kind == "Stance" then "decision.stance" else nil
 		if want and Model.editable(model, p) and tip == nil and not CoachTip.seen(want) then
 			tip = CoachTip.show(side, { id = want, order = 2 })
 		end
@@ -185,10 +180,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- What Lock in would send now, or nil when nothing is picked yet.
 	local function selection(p: Payload): any?
-		local kind = Model.deciding(p)
-		if kind == "Focus" then
-			return if model.focus then { focus = model.focus } else nil
-		elseif kind == "Stance" then
+		if Model.deciding(p) == "Stance" then
 			return { choice = model.choice or "C" }
 		end
 		return nil
@@ -273,20 +265,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 		local stance: SharedTypes.Choice? = Model.previewStance(model, p)
-		local topic: SharedTypes.Issue? = Model.previewFocus(model, p)
 		gainDot.BackgroundColor3 = Kit.playerColor(view, view.you)
 		lossDot.Visible = stance ~= nil
 		lossText.Visible = stance ~= nil
-		gainDot.Visible = stance ~= nil or topic ~= nil
+		gainDot.Visible = stance ~= nil
 		if stance then
 			marks = SwingMarks.preview(view, Swing.stance(config, view, stance), marks)
 			gainText.Text = "Helps you"
 			lossText.Text = "Hurts you"
-		elseif topic then
-			marks = SwingMarks.preview(view, Swing.focus(config, view, topic), marks)
-			gainText.Text = `A {Model.issueName(topic)} win helps here`
-		elseif Model.deciding(p) == "Focus" then
-			gainText.Text = "Tap a topic to see its states"
 		else
 			gainText.Text = ""
 		end
@@ -327,15 +313,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		local turnedDown = rejection
-		if kind == "Focus" and model.focus == nil then
-			bar:setPrimary("Pick a topic", false)
-			bar:setStatus("No focus in time: every topic you lose is a gaffe", "warn")
-		elseif turnedDown and turnedDown.step == p.step then
+		if turnedDown and turnedDown.step == p.step then
 			bar:setPrimary("Lock in", true)
 			bar:setStatus(turnedDown.text, "bad")
-		elseif kind == "Focus" then
-			bar:setPrimary("Lock in", true)
-			bar:setStatus(`Focus: {Model.issueName(model.focus)} · kept secret`, "muted")
 		else
 			bar:setPrimary("Lock in", true)
 			bar:setStatus(`Stance {model.choice or "C"} · kept secret`, "muted")
@@ -354,7 +334,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if not model.stanceMap then
 			model.peekChoice = nil
 		end
-		focusPanel:render(p)
 		renderTip(p)
 		paintMap(p)
 		renderBar(p)
@@ -379,11 +358,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local refused = false
 		if Model.deciding(p) ~= nil and model.draftStep ~= p.step then
 			fresh = true
-			-- A new decision: nothing picked for the focus (the default is no focus);
-			-- the hedge (C), the server's default, starts selected for a stance.
+			-- A new decision: the hedge (C), the server's default, starts selected.
 			model.draftStep = p.step
-			model.focus = nil
-			model.peekFocus = nil
 			model.choice = if Model.deciding(p) == "Stance" then "C" else nil
 			model.peekChoice = nil
 		end
@@ -402,7 +378,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local options: { GuiObject } = {}
 			for _, inst in side:GetDescendants() do
 				local isOption = string.match(inst.Name, "^Choice[ABC]$") ~= nil
-					or string.match(inst.Name, "^FocusTopic") ~= nil
 				if isOption and inst:IsA("GuiButton") and (inst :: GuiButton).Visible then
 					table.insert(options, inst :: GuiButton)
 				end
@@ -436,8 +411,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				relayout(true)
 			end
 			renderBar(p)
-			-- The timer is about to end: send what is picked. Nothing picked for the
-			-- focus is left to the server's default (no focus).
+			-- The timer is about to end: send what is picked.
 			if Model.deciding(p) ~= nil and autoLock:due(p, now, Model.isLocked(model, p)) then
 				if selection(p) ~= nil then
 					lock()

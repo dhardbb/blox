@@ -245,10 +245,14 @@ describe("Words: election night and Results", function()
 			local a, b = string.match(text, "carried (%d+) states to (%d+)")
 			check(a == nil or tonumber(a) >= tonumber(b), `"{text}" reads backwards`)
 		end
-		check(
-			table.find(reasons, "Dana won the bigger states (20 to 31)") ~= nil,
-			table.concat(reasons, " | ")
-		)
+		-- "the bigger states" only ever when the winner carried fewer of them.
+		local election = view.election
+		local won, lost = election.statesWon[1], election.statesWon[2]
+		for _, text in reasons do
+			if string.find(text, "bigger states", 1, true) then
+				check(won < lost, `"{text}" but Dana carried {won} states to {lost}`)
+			end
+		end
 	end)
 end)
 

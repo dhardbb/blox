@@ -13,8 +13,7 @@
 --   Explain.leanText(view, s) · momentumNote · backlashNote · underdogText
 --   Explain.scoutOf(view, id) · scoutNote(config, view, id) (their ground game, as your polls saw it, D-049)
 --   Explain.driftRule(config, view?) · driftPerPoint (how momentum turns into support)
---   Explain.debateOdds(config, edge) -> (win, tie, lose)
---   Explain.debateParts / debateLine (a resolved topic, split into focus, platform, stat, roll)
+--   Explain.debateParts / debateLine (a resolved debate round: the move, its strength, the counter, D-062)
 --   Explain.choiceLines(config, issueMap?, event?, platform?, base?) (each stance of a Choice event and the states it moves)
 --   Explain.leadWinChance(config, pollLead)
 --   Explain.help(config, view?) -> { Section } (the "How it works" screen)
@@ -668,69 +667,57 @@ end
 
 -- ---------------------------------------------------------------- debates
 
--- Exact chances for one topic when your fixed score (focus + platform + stat)
--- beats theirs by `edge`: both roll 0..DEBATE_ROLL_MAX, the higher total wins.
-function Explain.debateOdds(config: Config, edge: number): (number, number, number)
-	local faces = config.DEBATE_ROLL_MAX + 1
-	local win, tie = 0, 0
-	for a = 0, config.DEBATE_ROLL_MAX do
-		for b = 0, config.DEBATE_ROLL_MAX do
-			local d = edge + a - b
-			if d > 0 then
-				win += 1
-			elseif d == 0 then
-				tie += 1
-			end
-		end
-	end
-	local n = faces * faces
-	return win / n, tie / n, (n - win - tie) / n
-end
+export type TopicParts = {
+	move: string, -- the move played ("Defend"; a canned answer is "Defend")
+	canned: boolean, -- the timer ran out
+	zinger: boolean, -- staked the Zinger
+	strength: number, -- the move's strength (Debate.board)
+	counter: number, -- the counter bonus it earned (0 if none)
+	score: number,
+}
 
-export type TopicParts = { prep: number, platform: number, stat: number, roll: number, score: number }
-
--- Player p's score on topic t of a resolved debate, split into its parts. The
--- roll is what is left after the focus, platform bonus and debate stat (the
--- debate result carries the focus edge per topic as `prep`, and the total). Meant for the debate week, before any
--- later pivot changes the platform.
+-- Player p's score in round t of a resolved debate (D-062), split into the
+-- move's strength and the counter bonus.
 function Explain.debateParts(
-	config: Config,
-	view: View,
+	_config: Config,
+	_view: View,
 	result: SimState.DebateResult,
 	p: number,
 	t: number
 ): TopicParts
-	local prep = (result.prep[p] or {})[t] or 0
-	local score = (result.scores[p] or {})[t] or 0
-	local platform: { Types.Issue } = view.players[p].platform or {}
-	local bonus = if table.find(platform, result.topics[t]) then config.DEBATE_PLATFORM_BONUS else 0
-	local stat = profileOf(config, view, p).debateStat
-	return { prep = prep, platform = bonus, stat = stat, roll = score - prep - bonus - stat, score = score }
+	local round = result.rounds and result.rounds[t]
+	if round == nil then
+		local score = (result.scores[p] or {})[t] or 0
+		return { move = "?", canned = false, zinger = false, strength = score, counter = 0, score = score }
+	end
+	local strength = round.strengths[p] or 0
+	local score = round.scores[p] or 0
+	return {
+		move = round.picks[p],
+		canned = round.canned[p] == true,
+		zinger = round.zingers[p] == true,
+		strength = strength,
+		counter = score - strength,
+		score = score,
+	}
 end
 
-local function partsText(config: Config, parts: TopicParts): string
-	local terms: { string } = {}
-	if parts.prep > 0 then
-		table.insert(terms, `{parts.prep} focus`)
+local function partsText(parts: TopicParts): string
+	local name = if parts.canned then "no answer (canned Defend)" else parts.move
+	local text = `{name} {parts.strength}`
+	if parts.counter > 0 then
+		text ..= ` + {parts.counter} counter = {parts.score}`
 	end
-	if parts.platform > 0 then
-		table.insert(terms, `{parts.platform} platform`)
+	if parts.zinger then
+		text ..= " (Zinger staked)"
 	end
-	table.insert(terms, `{parts.stat} stat`)
-	local text = table.concat(terms, " + ")
-	if parts.roll >= 0 and parts.roll <= config.DEBATE_ROLL_MAX then
-		text ..= ` + roll {parts.roll}`
-	else
-		text ..= ` + {parts.roll} other`
-	end
-	return `{text} = {parts.score}`
+	return text
 end
 
--- "you 2 focus + 2 platform + 1 stat + roll 3 = 8 · them 1 stat + roll 2 = 3"
+-- "you Defend 6 + 2 counter = 8 · them Attack 5"
 function Explain.debateLine(config: Config, view: View, result: SimState.DebateResult, t: number): string
 	local me, rival = view.you, opponentOf(view)
-	return `you {partsText(config, Explain.debateParts(config, view, result, me, t))} · them {partsText(
-		config,
+	return `you {partsText(Explain.debateParts(config, view, result, me, t))} · them {partsText(
 		Explain.debateParts(config, view, result, rival, t)
 	)}`
 end
@@ -869,8 +856,7 @@ type Numbersheet = {
 	gotvCost: number,
 	gotvMaxUnits: number,
 	momentumDecay: number,
-	focusEdge: number,
-	debateStat: number,
+	zingerMult: number,
 }
 
 local function sheet(config: Config, view: View?): Numbersheet
@@ -892,8 +878,7 @@ local function sheet(config: Config, view: View?): Numbersheet
 			gotvCost = p.gotvCost,
 			gotvMaxUnits = p.gotvMaxUnits,
 			momentumDecay = p.momentumDecay,
-			focusEdge = p.focusEdge,
-			debateStat = p.debateStat,
+			zingerMult = p.zingerMult,
 		}
 	end
 	return {
@@ -911,8 +896,7 @@ local function sheet(config: Config, view: View?): Numbersheet
 		gotvCost = config.GOTV_COST,
 		gotvMaxUnits = config.GOTV_MAX_UNITS,
 		momentumDecay = config.MOMENTUM_DECAY,
-		focusEdge = config.DEBATE_FOCUS,
-		debateStat = config.DEBATE_STAT,
+		zingerMult = config.DEBATE_ZINGER_MULT,
 	}
 end
 
@@ -935,11 +919,6 @@ function Explain.driftRule(config: Config, view: View?): string
 	)}, then the leader gains {num(config.DRIFT_RATE)} per point of what is left, at most {num(
 		config.DRIFT_CAP
 	)} a week)`
-end
-
-local function oddsText(config: Config, edge: number): string
-	local win, tie, lose = Explain.debateOdds(config, edge)
-	return `win {pct(win)}, tie {pct(tie)}, lose {pct(lose)}`
 end
 
 -- The "How it works" sections, one per concept, every number from Config and
@@ -1068,17 +1047,30 @@ function Explain.help(config: Config, view: View?): { Section }
 		table.insert(debateWeeks, tostring(week))
 	end
 	section("debates", "Debates", {
-		`Debates open weeks {table.concat(debateWeeks, " and ")}, on {c.DEBATE_TOPICS} topics shown in advance. Right before each, on its own screen, pick one topic to focus on: +{me.focusEdge} on that topic. The screen lists each topic's states, their EV and the ones you need.`,
-		`Each topic: your focus (+{me.focusEdge}, on one topic) + {c.DEBATE_PLATFORM_BONUS} if it is on your platform + debate stat ({me.debateStat}) + a roll of 0 to {c.DEBATE_ROLL_MAX}. Higher total wins the topic; a tie gives it to nobody.`,
-		`Winning a topic: {signed(c.DEBATE_TOPIC_WIN)} in every state where it is a top issue, plus {signed(
-			c.DEBATE_TOPIC_NATIONAL
-		)} in every state. Winning all: {signed(c.DEBATE_SWEEP)} more in every state and +{num(
-			c.DEBATE_SWEEP_MOMENTUM
-		)} momentum in every battleground. No focus picked in time: every topic you lose costs {signed(
-			-c.DEBATE_GAFFE
-		)} in its states (a gaffe).`,
-		`The roll is big. Level: {oddsText(c, 0)}. 2 points ahead: {oddsText(c, 2)}. 4 ahead: {oddsText(c, 4)}.`,
-		"The polls are republished right after the debate. The debate screen names the states each topic swung, badges them on the map, and calls out every state whose poll leader flipped (FLIP).",
+		`Debates open weeks {table.concat(debateWeeks, " and ")}: {c.DEBATE_TOPICS} live rounds, one per topic, topics shown weeks in advance. Each round both pick Defend, Attack or Pivot at once ({num(
+			c.TIMER_DEBATE_ROUND
+		)} s).`,
+		`Strength: Defend {num(c.DEBATE_DEFEND_BASE)}, +{num(c.DEBATE_OWN_ISSUE)} if the topic is your issue, +{num(
+			c.DEBATE_GROUND
+		)} if you lead its states. Attack {num(c.DEBATE_ATTACK_BASE)}, +{num(c.DEBATE_THEIR_ISSUE)} if it is their issue, +{num(
+			c.DEBATE_GROUND
+		)} if you trail its states, +{num(c.DEBATE_CROWD_TRAIL)} if you trail the crowd. Pivot {num(
+			c.DEBATE_PIVOT_BASE
+		)}, +{num(c.DEBATE_OFF_ISSUE)} if it is not your issue. The same move as last round: -{num(
+			c.DEBATE_REPEAT
+		)}.`,
+		`Defend beats Attack, Attack beats Pivot, Pivot beats Defend: the counter adds +{num(
+			c.DEBATE_COUNTER[1]
+		)} in round 1, +{num(c.DEBATE_COUNTER[2])} after. Higher score wins; equal is a split. Each button shows how it does against each of their moves.`,
+		`A win: {signed(c.DEBATE_ROUND_WIN)} in every state of the topic (Defend, Attack) or of your pivot issue (Pivot). A split: {signed(
+			c.DEBATE_ROUND_SPLIT
+		)} each. Losing to a counter: {signed(-c.DEBATE_BACKFIRE)} where your move aimed.`,
+		`Your Zinger (one per debate): stake it on a round; if you win, it counts ×{num(me.zingerMult)}. A crowd lead of {num(
+			c.DEBATE_OVATION
+		)} or more at the end is a standing ovation: +{num(c.DEBATE_OVATION_MOMENTUM)} momentum in every battleground. No move in time: a weak Defend ({num(
+			c.DEBATE_CANNED
+		)}).`,
+		"The polls are republished after every round, so the map shows each round as it lands, FLIP included.",
 	})
 
 	local choice = Explain.choiceLines(c)

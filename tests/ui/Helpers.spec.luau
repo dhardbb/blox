@@ -375,10 +375,19 @@ describe("Fixtures", function()
 			elseif moment == "Draft" then
 				expect(payload.view.phase):toBe("Draft")
 				expect(#payload.view.draftLog > 0):toBe(true)
-			elseif moment == "Stance" or moment == "Focus" then
+			elseif moment == "Stance" then
 				expect(payload.stage):toBe("Input")
 				expect(payload.view.phase):toBe("Decision")
 				expect(payload.view.decision):toBe(moment)
+			elseif moment == "DebateIntro" then
+				expect(payload.reveal):toBe("DebateIntro")
+				expect(payload.view.debate ~= nil):toBe(true)
+			elseif moment == "DebateRound" then
+				expect(payload.stage):toBe("Input")
+				expect(payload.view.phase):toBe("Debate")
+				expect(payload.view.debate.round):toBe(2)
+			elseif moment == "Clash" then
+				expect(payload.reveal):toBe("Clash")
 			elseif moment == "Plan" or moment == "ChoiceWeek" then
 				expect(payload.stage):toBe("Input")
 				expect(payload.view.phase):toBe("Plan")
@@ -391,7 +400,7 @@ describe("Fixtures", function()
 				expect(payload.reveal):toBe("Resolve")
 				expect(#payload.events > 0):toBe(true)
 			elseif moment == "Debate" then
-				expect(payload.reveal):toBe("Debate")
+				expect(payload.reveal):toBe("Verdict")
 				expect(#payload.view.debates > 0):toBe(true)
 			elseif moment == "Election" then
 				expect(payload.view.election ~= nil):toBe(true)

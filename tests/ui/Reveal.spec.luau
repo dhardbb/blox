@@ -1,7 +1,7 @@
 --!strict
 -- The weekly reveal's three beats (polish WP-2, docs/UI-STYLE.md §2.7, D-053):
 -- "Both plans are in" with who goes first, then the actions land one beat at a
--- time with the trailing player's first, then the new polls. The debate's rows
+-- time with the trailing player's first, then the new polls. (Debates have their own screen since D-062.) The debate's rows
 -- come in with their sound. Each case checks end states and the cues played,
 -- never timings of a tween.
 
@@ -104,24 +104,5 @@ describe("Reveal: three beats", function()
 			expect(Rig.textOf(calmPeer, "Campaign", name)):toBe(Rig.textOf(peer, "Campaign", name))
 		end
 		Rig.noErrors(calmWorld)
-	end)
-end)
-
-describe("Reveal: debate rows", function()
-	it("plays debateWin for each topic you win and select for the rest", function()
-		local world, peer = Rig.fixture("Debate", nil)
-		FakeRoblox.run(world, 8)
-		local view = Rig.payloadOf(world, peer).view
-		local result = view.debates[#view.debates]
-		local wins = 0
-		for t = 1, #result.topics do
-			if result.winners[t] == view.you then
-				wins += 1
-			end
-			check(shown(peer, `DebateRow{t}`), `row {t} never came in`)
-		end
-		expect(count(Rig.sounds(peer), "debateWin")):toBe(wins)
-		check(shown(peer, "DebateHeadline"), "no headline")
-		Rig.noErrors(world)
 	end)
 end)
