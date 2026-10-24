@@ -39,7 +39,7 @@ Client only: no rule, sim, server, payload or Config changes. Studio checklist: 
   - **Name review (D-078):** a removed name blocks itself as whole words only ("Ann" no longer blocks "Hannah"); only the exact removed name is cleared from saved data. Keep and Remove act only on the name the admin saw. A failed blocklist save changes nothing, and a reload never brings a removed name back. Until the blocklist has loaded, no new name is accepted.
   - **Reports:** the daily report limit is saved (rejoining no longer resets it), and the review queue is split over eight keys.
   - **Debates:** a drop during the reveal before a debate no longer uses up that debate's one grace period.
-  - **Rejoins:** the server now sends your locked-in debate move and Zinger after a rejoin mid-round (`view.debate.yourMove`; the Debate screen does not show it yet); custom names no longer vanish for the rest of the match after a rejoin or a slow chat check.
+  - **Rejoins:** after a rejoin mid-round the Debate screen shows the move and Zinger you locked in (the server now sends them as `view.debate.yourMove`); custom names no longer vanish for the rest of the match after a rejoin or a slow chat check.
   - **Reveal timer:** the week's reveal no longer runs longer when the opponent bought internal polls.
   - **More than two players:** forfeits, the bot's opponent and the plan preview no longer assume two players (two-player play is unchanged).
 

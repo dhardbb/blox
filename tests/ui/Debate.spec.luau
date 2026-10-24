@@ -156,6 +156,29 @@ local function press(kind: string): any
 	return input
 end
 
+describe("Debate screen: a rejoin mid-round", function()
+	it("shows the move and Zinger you locked in before you left, as locked", function()
+		local world, peer = Rig.fixture("DebateRound", nil)
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		local view = payload.view
+		local staked = view.debate.zingers[view.you] > 0
+		-- The server's State after the rejoin: your seat is locked, with your move.
+		payload.seats[payload.you].locked = true
+		view.debate.yourMove = { move = "Attack", zinger = staked }
+		payload.step += 1
+		Rig.push(world, peer, payload)
+		check(need(peer, "MoveAttack"):GetAttribute("Selected") == true, "Attack is not shown as picked")
+		expect(need(peer, "MoveDefend"):GetAttribute("Selected") == true):toBe(false)
+		expect(need(peer, "Zinger"):GetAttribute("Selected") == true):toBe(staked)
+		expect(need(peer, "LockIn").Text):toBe("Locked in")
+		expect(textOf(peer, "BarStatus")):toBe("Locked in · waiting for opponent")
+		-- Tapping another move changes nothing: it is locked.
+		tap(world, peer, "MovePivot")
+		check(need(peer, "MoveAttack"):GetAttribute("Selected") == true, "a locked pick changed")
+		Rig.noErrors(world)
+	end)
+end)
+
 describe("Debate screen: a payload without your seat", function()
 	it("does not break after Lock in", function()
 		local world, peer = Rig.fixture("DebateRound", nil)
