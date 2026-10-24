@@ -11,8 +11,9 @@
 -- Back and Next step through the pages; the last page's Next reads "Got it"
 -- and closes. The sheet never holds a primary action (Next is a secondary).
 -- Under the pages, on every page, "Play the tutorial" (D-075) starts the
--- tutorial again: a practice match against the Easy bot with no choice timers
--- and every coach tip shown again (CoachTip.reset), with a one-line hint.
+-- tutorial again: the short 4-week practice match against the Easy bot (D-080)
+-- with no choice timers and every coach tip shown again (CoachTip.reset), with
+-- a one-line hint.
 --
 --   local howTo = HowTo.new(screenRoot, ctx)
 --   howTo.open()          opens on page 1

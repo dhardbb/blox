@@ -1038,6 +1038,25 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Election", "HelpButton")
 		end,
 	},
+	-- D-080: the short tutorial's key steps, each with its coach tip (the
+	-- tutorial's copy), and its end: "You're ready!" and "Play a real match".
+	{ name = "30-tutorial-select", moment = "TutorialSelect", screen = "Select" },
+	{ name = "30a-tutorial-plan", moment = "TutorialPlan", screen = "Campaign" },
+	{ name = "30b-tutorial-stance", moment = "TutorialStance", screen = "Decision" },
+	{ name = "30c-tutorial-debate", moment = "TutorialDebate", screen = "Debate" },
+	{ name = "30d-tutorial-last-week", moment = "TutorialLast", screen = "Campaign" },
+	{ name = "30e-tutorial-election", moment = "TutorialElection", screen = "Election" },
+	{ name = "30f-tutorial-results", moment = "TutorialOver", screen = "Results" },
+	{
+		-- Help follows the tutorial's schedule: "After week 4".
+		name = "30g-tutorial-help",
+		moment = "TutorialLast",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+			tapIf(world, peer, "HelpOverlay", "HelpTab_win")
+		end,
+	},
 }
 
 -- ------------------------------------------------------------- arguments

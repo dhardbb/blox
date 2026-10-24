@@ -9,10 +9,19 @@
 -- fades in and slides up (Motion.enter) inside a CanvasGroup "ScreenFade" that
 -- exists only for the transition; when it ends the screen moves back under the
 -- container. Under reduced motion it is a 0.1 s fade; headless, instant.
+--
+-- The tutorial (D-080) runs on its own short schedule (Config.tutorial): while
+-- a tutorial match is on screen, ctx.config is that config (so "Week 2 of 4",
+-- the debate week and Help's numbers follow it) and the coach tips use their
+-- tutorial copy (CoachTip.setTutorial). Back in the Lobby both return to normal.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
+
 local Audit = require(script.Parent.UI.Audit)
+local CoachTip = require(script.Parent.UI.CoachTip)
 local Motion = require(script.Parent.UI.Motion)
 local Types = require(script.Parent.Screens.Types)
 
@@ -62,6 +71,12 @@ function Router.pick(state: Types.State): Name
 	return "Campaign"
 end
 
+-- Whether the screen for this state is a tutorial match's (D-080).
+function Router.tutorial(state: Types.State): boolean
+	local payload = state.payload
+	return payload ~= nil and payload.tutorial == true and Router.pick(state) ~= "Lobby"
+end
+
 -- Whether this client runs the layout audit.
 function Router.auditing(): boolean
 	return RunService:IsStudio()
@@ -77,6 +92,9 @@ function Router.start(
 ): () -> ()
 	local currentName: Name? = nil
 	local current: Types.Screen? = nil
+	-- The match's config (D-080): the tutorial's short schedule or the normal one.
+	local baseConfig = ctx.config
+	local tutorialConfig = ConfigModule.tutorial(baseConfig)
 	local holder: Frame? = nil
 	local auditing = Router.auditing()
 	local auditToken = 0 -- only the newest scheduled audit runs
@@ -130,6 +148,9 @@ function Router.start(
 
 	local function show(state: Types.State)
 		local name: Name = Router.pick(state)
+		local tutorial = Router.tutorial(state)
+		ctx.config = if tutorial then tutorialConfig else baseConfig
+		CoachTip.setTutorial(tutorial)
 		if name ~= currentName then
 			if current then
 				current.destroy()

@@ -12,6 +12,8 @@
 --   CoachTip.TIPS[id] -> text          -- the copy, one place for all screens
 --   CoachTip.seen(id) -> boolean · CoachTip.markSeen(id) · CoachTip.reset()
 --   CoachTip.setEnabled(enabled)       -- off: show() returns nil (tests, replays)
+--   CoachTip.setTutorial(on)           -- the short tutorial's copy (D-080; the Router sets it)
+--   CoachTip.has(id) -> boolean        -- a tip with this id exists in the current copy
 --   CoachTip.useStore(store)           -- persist "seen" elsewhere (e.g. the
 --                                         saved profile, a later package)
 --
@@ -26,6 +28,10 @@
 -- Placement: in a list layout pass `order` (LayoutOrder); anywhere else pass
 -- `position` and `anchorPoint` (and `width`, default the parent's width, at
 -- most 360 px). Keep tips off the map's nodes and off the action bar.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Sim.Config)
 
 local Audio = require(script.Parent.Audio)
 local Kit = require(script.Parent.Kit)
@@ -50,6 +56,19 @@ CoachTip.TIPS = table.freeze({
 	["campaign.lens"] = "These buttons switch the map: votes, issues, polls, money.",
 	["reveal.week"] = "Both plans are out! Marked states moved the most.",
 	["election.night"] = "States are called one by one. First to 270 wins!",
+} :: { [string]: string })
+
+-- The short tutorial's copy (D-080), by id: it steps a new player through the
+-- tutorial in order (Select, draft, week 1's plan, the stance, the debate, the
+-- last week's ground game, election night). Ids missing here use TIPS; ids only
+-- here (campaign.ground) show in the tutorial alone. Same 12-word limit.
+local T = Config.defaults
+CoachTip.TUTORIAL = table.freeze({
+	["select.candidate"] = `{T.TUTORIAL_WEEKS} quick weeks to learn. Pick a candidate: one strength, one weakness.`,
+	["campaign.map"] = `Week 1 of {T.TUTORIAL_WEEKS}. Tap any state to see who's ahead.`,
+	["decision.stance"] = `Week {T.TUTORIAL_CHOICE_WEEK}: take a side, or stay out. States that care react.`,
+	["debate.moves"] = `Debate night: {T.DEBATE_TOPICS} rounds. Each move shows how it does against theirs.`,
+	["campaign.ground"] = "Last week! Ground game in close states adds votes on election night.",
 } :: { [string]: string })
 
 export type Store = {
@@ -77,6 +96,12 @@ export type Tip = {
 local seenThisSession: { [string]: boolean } = {}
 local store: Store? = nil
 local enabled = true
+local tutorial = false
+
+-- The copy for `id` right now: the tutorial's, else the normal one, else nil.
+local function textOf(id: string): string?
+	return (if tutorial then CoachTip.TUTORIAL[id] else nil) or CoachTip.TIPS[id]
+end
 
 function CoachTip.seen(id: string): boolean
 	if seenThisSession[id] then
@@ -106,10 +131,20 @@ function CoachTip.useStore(value: Store?)
 	store = value
 end
 
+-- The short tutorial is on screen (D-080): its copy, and its own tips, apply.
+function CoachTip.setTutorial(value: boolean)
+	tutorial = value
+end
+
+-- Is there a tip `id` to show in the current copy (tips on, the text exists)?
+function CoachTip.has(id: string): boolean
+	return enabled and textOf(id) ~= nil
+end
+
 -- Shows tip `options.id` in `parent`, or returns nil if it was seen already.
 function CoachTip.show(parent: Instance, options: Options): Tip?
 	local id = options.id
-	local text = options.text or CoachTip.TIPS[id]
+	local text = options.text or textOf(id)
 	if not enabled or text == nil or CoachTip.seen(id) then
 		return nil
 	end

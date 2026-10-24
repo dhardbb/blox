@@ -49,9 +49,19 @@ Lobby.HOWTO_NEXT = "Next"
 Lobby.HOWTO_BACK = "Back"
 Lobby.HOWTO_DONE = "Got it"
 -- Replaying the tutorial (D-075): a bot match with the tips back on and no
--- timers, always against the Easy bot (the hint says so).
+-- timers, always against the Easy bot (the hint says so). It is the short
+-- tutorial (D-080): TUTORIAL_WEEKS weeks.
 Lobby.TUTORIAL_BUTTON = "Play the tutorial"
-Lobby.TUTORIAL_HINT = "A match against the Easy bot, with tips and no timers."
+Lobby.TUTORIAL_HINT =
+	`A short {ConfigModule.defaults.TUTORIAL_WEEKS}-week match against the Easy bot, with tips and no timers.`
+
+-- The tutorial's end on Results (D-080): it says the player is ready and the
+-- primary button starts a real match. `config` is the normal one.
+Lobby.READY_TITLE = "You're ready!"
+Lobby.READY_PLAY = "Play a real match"
+function Lobby.readyText(config: Config): string
+	return `That was the whole game in {config.TUTORIAL_WEEKS} weeks. A real match has {config.WEEKS} weeks, {#config.DEBATE_WEEKS} debates and a timer on every choice.`
+end
 
 export type Page = {
 	id: string, -- "goal" | "week" | "actions" | "events" | "night": which picture

@@ -432,12 +432,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if Model.planning(p) and Model.editable(model, p) then
 			-- The map first; once there is a plan, how to finish it; the lenses
 			-- from week 2, when nothing is picked. Never over the state's actions.
+			-- The tutorial's last week leads with ground game (D-080; the tip
+			-- exists only in the tutorial's copy, CoachTip.has).
+			local last = p.view.week >= config.WEEKS
 			local order: { string } = if #model.draft.actions > 0
 				then { "campaign.actions" }
 				elseif model.selected then {}
+				elseif last then { "campaign.ground", "campaign.map", "campaign.lens" }
 				else { "campaign.map", "campaign.lens" }
 			for _, id in order do
-				if not CoachTip.seen(id) and (id ~= "campaign.lens" or p.view.week >= 2) then
+				if
+					CoachTip.has(id)
+					and not CoachTip.seen(id)
+					and (id ~= "campaign.lens" or p.view.week >= 2)
+				then
 					want = id
 					break
 				end
