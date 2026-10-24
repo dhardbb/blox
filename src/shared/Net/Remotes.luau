@@ -7,6 +7,7 @@
 local Leaderboard = require("./Leaderboard")
 local Lobby = require("./Lobby")
 local Profile = require("./Profile")
+local Rematch = require("./Rematch")
 local Session = require("./Session")
 
 local Remotes = {}
@@ -37,6 +38,10 @@ export type Op =
 	| "Resync" -- ask for the current state again
 	| "Leaderboard" -- ask for the global leaderboard (D-059); answered with a "Leaderboard" message
 	| "Forfeit" -- leave the match in progress and lose it (D-059): { matchId }
+	| "WaitBot" -- play the bot while waiting in the queue (D-080): { difficulty? }
+	| "Answer" -- answer "Opponent found! Leave this bot game?" (D-080): { accept }
+	| "Rematch" -- on Results: play the same opponent again (D-080): { matchId } (the finished match)
+	| "Return" -- in a match server: go back to a lobby server (D-080)
 
 export type Request = {
 	op: Op,
@@ -51,6 +56,20 @@ export type Request = {
 	tutorial: boolean?, -- Practice: true replays the tutorial (How to play, D-075): Easy bot, no choice timers
 	name: string?, -- SetName: the custom name as typed (absent = the candidate's own); ReviewKeep/ReviewRemove: the name the admin saw
 	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)
+	accept: boolean?, -- Answer: true joins the match found, false keeps playing the bot (D-080)
+}
+
+-- An opponent was found and the match is on its way (LobbyStatus.found, D-080).
+export type FoundPhase =
+	"Answer" -- you are in a bot game: join the match or keep playing (by untilAt)
+	| "Waiting" -- the opponent is in a bot game and has until untilAt to answer
+	| "Joining" -- a match server is being set up for you two, or you are on your way
+	| "Arriving" -- you are in the match server; your opponent is on their way
+	| "Leaving" -- on your way back to a lobby server
+
+export type Found = {
+	phase: FoundPhase,
+	untilAt: number?, -- server time: Answer and Waiting
 }
 
 -- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while
@@ -70,6 +89,10 @@ export type LobbyStatus = {
 	color: string?, -- the saved color pick; absent = auto (red or blue)
 	colorPass: ColorPass?, -- absent while the pass is not set up
 	review: { count: number }?, -- admins only (D-069): reported names waiting for review
+	online: number?, -- players online in every server of the game (D-080); absent while unknown
+	botAt: number?, -- Queued: server time from which a bot game while waiting is offered (D-080)
+	found: Found?, -- Found, or InMatch in a bot game while waiting: the match on its way (D-080)
+	matchServer: boolean?, -- this is a match server: Back to lobby goes to a lobby server (D-080)
 }
 
 -- One reported name in the admins' review panel (D-069).
@@ -97,13 +120,14 @@ export type RatingChange = {
 
 -- Server -> client messages.
 export type Message = {
-	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard" | "Review",
+	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard" | "Review" | "Rematch",
 	lobby: LobbyStatus?,
 	state: Session.StatePayload?,
 	notice: string?, -- e.g. "OpponentDisconnected"
 	rating: RatingChange?, -- Rating: sent once when a rated match ends
 	leaderboard: Leaderboard.Board?, -- Leaderboard: the top list and where this player stands
 	review: ReviewBoard?, -- Review: the reported names (admins only, D-069)
+	rematch: Rematch.Status?, -- Rematch: where a rematch of the last match stands (D-080)
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

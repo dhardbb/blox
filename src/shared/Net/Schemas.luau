@@ -34,6 +34,10 @@ local OPS: { [string]: boolean } = {
 	Resync = true,
 	Leaderboard = true,
 	Forfeit = true,
+	WaitBot = true,
+	Answer = true,
+	Rematch = true,
+	Return = true,
 }
 
 -- True if `value` is plain data within the size limits: only tables, strings,
@@ -147,8 +151,17 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			end
 			request.name = raw.name
 		end
-	elseif op == "Forfeit" then
-		-- The match being left: a stale request can never end a newer match.
+	elseif op == "WaitBot" then
+		-- The bot's level, as for Practice (D-057): never a rejection.
+		request.difficulty = Bot.difficulty(raw.difficulty)
+	elseif op == "Answer" then
+		if type(raw.accept) ~= "boolean" then
+			return false, "BadShape", nil
+		end
+		request.accept = raw.accept
+	elseif op == "Forfeit" or op == "Rematch" then
+		-- Forfeit: the match being left, so a stale request can never end a newer
+		-- match. Rematch: the finished match to play again (D-080).
 		if type(raw.matchId) ~= "string" then
 			return false, "BadShape", nil
 		end

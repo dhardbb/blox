@@ -244,7 +244,12 @@ local Config = {
 	ELO_FLOOR = 100, -- ratings never fall below this (D-028)
 	RATED_PAIR_DAILY_MAX = 3, -- rated games one pair of players may play in RATED_PAIR_WINDOW; more are unrated (D-077)
 	RATED_PAIR_WINDOW = 86400, -- seconds that cap looks back (a day)
-	MATCHES_PER_SERVER = 10, -- concurrent matches per server (20 players)
+	MATCHES_PER_SERVER = 50, -- concurrent matches per server: a full 50-player server can all play the bot at once (D-080)
+
+	-- Matchmaking (D-080)
+	QUEUE_BOT_OFFER_SECONDS = 30, -- seconds in the queue before "Play a bot while you wait" is offered
+	QUEUE_ACCEPT_SECONDS = 15, -- seconds a player in a bot game has to answer "Opponent found! Leave this bot game?"
+	REMATCH_WINDOW_SECONDS = 20, -- seconds after a match against a person in which both may tap Rematch
 }
 
 export type Config = typeof(Config)
