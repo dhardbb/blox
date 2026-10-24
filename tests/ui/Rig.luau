@@ -61,9 +61,17 @@ local function fixture(
 	return world, peer
 end
 
--- A real server with one human, who has pressed Practice.
-local function practice(seed: number): (FakeRoblox.World, FakeRoblox.Peer)
+-- A real server with one human in the Lobby. They have played before (their
+-- saved profile says the tutorial is done, D-075), so a Practice match has
+-- timers; with `options.tutorial` they are brand new and their first bot
+-- match is the tutorial.
+local function practice(seed: number, options: { tutorial: boolean? }?): (FakeRoblox.World, FakeRoblox.Peer)
 	local world = newWorld(seed)
+	if not (options and options.tutorial) then
+		local keys = world.data.stores.PlayerData_v1 or {}
+		world.data.stores.PlayerData_v1 = keys
+		keys[`Player_{world.nextUserId}`] = { data = { version = 1, tutorialDone = true } }
+	end
 	local peer = FakeRoblox.join(world, "A")
 	FakeRoblox.run(world, 1)
 	return world, peer

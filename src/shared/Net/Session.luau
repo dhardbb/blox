@@ -15,6 +15,13 @@
 -- verdict, D-072), "Over". A debate week runs: intro (Show) -> three times
 -- [round (Input, TIMER_DEBATE_ROUND) -> clash (Reveal)] -> verdict (Reveal). Every stage change bumps `step`; clients stamp each
 -- request with the step they saw, and stale requests are rejected.
+--
+-- Choice timers (D-075): against a practice bot every Input stage's timer is
+-- multiplied by the bot's level (Session.timeScale: Easy x2, Medium x1.5). The
+-- tutorial (Options.tutorial) has no choice timer at all: its Input stages wait
+-- for the player. Inside the session that deadline is math.huge (every
+-- comparison and min still works); on the wire it is nil (StatePayload.deadline),
+-- never a large number. Show and Reveal stages are always timed.
 
 local Bot = require("../Sim/Bot")
 local Candidates = require("../Sim/Candidates")
@@ -96,7 +103,8 @@ export type StatePayload = {
 	stage: Stage,
 	reveal: RevealKind?,
 	stageStart: number,
-	deadline: number, -- this seat's deadline (its own time bank included)
+	deadline: number?, -- this seat's deadline (its own time bank included); nil = no deadline (the tutorial's choices, D-075)
+	tutorial: boolean?, -- true in the tutorial (D-075): choices have no timer
 	you: number,
 	view: View.View,
 	events: { State.Event },
@@ -120,7 +128,7 @@ export type Session = {
 	step: number,
 	stage: Stage,
 	stageStart: number,
-	deadline: number, -- base deadline of the stage
+	deadline: number, -- base deadline of the stage; Session.NO_DEADLINE (math.huge) for a tutorial choice (D-075)
 	skippedTo: number?, -- earlier end once every seat has skipped
 	reveal: RevealKind?, -- what a Reveal stage is showing
 	events: { State.Event }, -- events of the last advance, shown during Reveal
@@ -130,11 +138,14 @@ export type Session = {
 	pendingColorClaims: { [number]: string }, -- Select: color claims waiting for the next update (one batch, D-061)
 	introWeek: number?, -- the debate week whose intro has been shown (D-072)
 	verdictNext: boolean, -- the last round's clash is on: the debate's verdict follows it
+	tutorial: boolean, -- the tutorial (D-075): Input stages have no deadline
+	timeScale: number, -- every choice timer is multiplied by this (a practice bot's level, D-075)
 }
 
 -- Match options a private lobby may set (public queue and practice use none).
 export type Options = {
 	events: boolean?, -- false: no event deck this match (D-027)
+	tutorial: boolean?, -- true: the tutorial, no choice timers (D-075; the server sets it for a bot match only)
 }
 
 export type SeatSpec = {
@@ -162,7 +173,12 @@ Session.Reason = table.freeze({
 	NotSkippable = "NotSkippable",
 	Over = "Over",
 	NotSelect = "NotSelect",
+	NoTimer = "NoTimer", -- the time bank in a step without a timer (the tutorial, D-075)
 })
+
+-- The deadline of an Input stage that waits for its players (the tutorial,
+-- D-075). It never reaches the wire: Session.payload sends nil instead.
+Session.NO_DEADLINE = math.huge
 
 -- Notice sent to a player whose claim lost a same-step coin flip (D-048).
 Session.CANDIDATE_TAKEN = "CandidateTaken"
@@ -171,6 +187,8 @@ Session.CANDIDATE_TAKEN = "CandidateTaken"
 Session.COLOR_TAKEN = "ColorTaken"
 -- Notice sent to the others when a player leaves the match (D-059).
 Session.OPPONENT_FORFEITED = "OpponentForfeited"
+-- Notice sent to the player as the tutorial starts: no timers (D-075).
+Session.TUTORIAL = "Tutorial"
 
 local function isBot(seat: Seat): boolean
 	return seat.kind == "Bot"
@@ -183,6 +201,18 @@ end
 
 local function seatDeadline(session: Session, seat: Seat): number
 	return session.deadline + seat.bankUsed
+end
+
+-- The choice-timer multiplier for a match against a bot at `difficulty`
+-- (D-075): Easy BOT_TIME_MULT_EASY, Medium BOT_TIME_MULT_MEDIUM, Hard and
+-- Extreme 1. No bot level (people only, or a harness bot with a style): 1.
+function Session.timeScale(config: Config, difficulty: Bot.Difficulty?): number
+	if difficulty == "Easy" then
+		return config.BOT_TIME_MULT_EASY
+	elseif difficulty == "Medium" then
+		return config.BOT_TIME_MULT_MEDIUM
+	end
+	return 1
 end
 
 local function inputDuration(config: Config, phase: State.Phase): number
@@ -214,9 +244,12 @@ function Session.payload(session: Session, p: number): StatePayload
 			difficulty = seat.botDifficulty,
 		}
 	end
-	local deadline = if session.stage == "Input"
+	local deadline: number? = if session.stage == "Input"
 		then seatDeadline(session, session.seats[p])
 		else session.skippedTo or session.deadline
+	if deadline == Session.NO_DEADLINE then
+		deadline = nil -- no deadline goes out as nil, never as a huge number
+	end
 	-- Custom names reach only a viewer who may see them (D-069): their own,
 	-- and each other seat's as the server filtered it for this viewer.
 	local seat = session.seats[p]
@@ -248,6 +281,7 @@ function Session.payload(session: Session, p: number): StatePayload
 		reveal = session.reveal,
 		stageStart = session.stageStart,
 		deadline = deadline,
+		tutorial = if session.tutorial then true else nil,
 		you = p,
 		view = view,
 		events = View.events(session.events, p),
@@ -415,7 +449,10 @@ enterPhase = function(session: Session, now: number)
 			seat.input = nil
 			seat.bankUsed = 0
 		end
-		setStage(session, "Input", now, inputDuration(config, phase))
+		local duration = if session.tutorial
+			then Session.NO_DEADLINE
+			else inputDuration(config, phase) * session.timeScale
+		setStage(session, "Input", now, duration)
 		session.events = {}
 		botInputs(session)
 	elseif phase == "MapReveal" then
@@ -621,6 +658,13 @@ function Session.new(
 			hiddenNames = {},
 		}
 	end
+	-- Against a practice bot, its level sets the choice timers (D-075).
+	local timeScale = 1
+	for _, seat in seats do
+		if seat.kind == "Bot" and seat.botDifficulty ~= nil then
+			timeScale = math.max(timeScale, Session.timeScale(config, seat.botDifficulty))
+		end
+	end
 	local session: Session = {
 		id = id,
 		config = config,
@@ -639,7 +683,15 @@ function Session.new(
 		pendingColorClaims = {},
 		introWeek = nil,
 		verdictNext = false,
+		tutorial = options ~= nil and options.tutorial == true,
+		timeScale = timeScale,
 	}
+	if session.tutorial then
+		-- Told before the first State, so the notice is the first thing they read.
+		for p in session.seats do
+			tell(session, p, Session.TUTORIAL)
+		end
+	end
 	enterPhase(session, now)
 	-- An owner whose saved favorite lost the coin flip as Select opened (both
 	-- owners saved the same color) is told to pick another (D-061).
@@ -900,6 +952,9 @@ function Session.bank(session: Session, p: number, step: any, now: number): (boo
 	if session.stage ~= "Input" or session.match.phase ~= "Plan" or seat.locked then
 		return false, Session.Reason.NotInput
 	end
+	if session.deadline == Session.NO_DEADLINE then
+		return false, Session.Reason.NoTimer -- nothing to extend (the tutorial, D-075)
+	end
 	if seat.bank < config.TIME_BANK_CHUNK or now > seatDeadline(session, seat) then
 		return false, Session.Reason.NoBank
 	end
@@ -976,9 +1031,10 @@ function Session.reconnect(session: Session, p: number, now: number)
 	local seat = session.seats[p]
 	seat.connected = true
 	seat.graceUntil = nil
-	if session.stage == "Input" and not seat.locked then
+	if session.stage == "Input" and not seat.locked and session.deadline ~= Session.NO_DEADLINE then
 		-- Grace can hold a stage open past this seat's deadline. Give the returning
 		-- player a fair window to act instead of closing it with their default.
+		-- (A stage without a deadline already waits for them, D-075.)
 		local needed = now + session.config.RECONNECT_WINDOW - session.deadline
 		seat.bankUsed = math.max(seat.bankUsed, needed)
 	end

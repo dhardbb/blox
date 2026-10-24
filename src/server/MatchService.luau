@@ -242,6 +242,9 @@ local function settle(session: Session.Session)
 			evAgainst = if election then election.ev[them] else nil,
 		}
 		local change: Profile.Change? = nil
+		-- The tutorial (D-075) is done once it ends in an election or a forfeit
+		-- (Leave match included); an abandoned one comes back next time.
+		local tutorialDone = session.tutorial
 		local function announce()
 			local applied = change
 			if applied and applied.rated then
@@ -258,6 +261,9 @@ local function settle(session: Session.Session)
 		local how = DataService.update(seat.id, function(profile: Profile.Profile): Profile.Profile
 			local updated, applied = Profile.applyResult(profile, input, config)
 			change = applied
+			if tutorialDone then
+				updated = Profile.withTutorialDone(updated)
+			end
 			return updated
 		end, announce)
 		if how == "Skipped" and starts then
@@ -590,7 +596,14 @@ local function startMatch(outcome: Lobby.Outcome)
 	end
 	local created: Session.Session? = nil
 	local built, err = pcall(function(): string?
-		created = Session.new(config, matchId, seed, specs, now(), { events = outcome.events })
+		created = Session.new(
+			config,
+			matchId,
+			seed,
+			specs,
+			now(),
+			{ events = outcome.events, tutorial = outcome.kind == "Practice" and outcome.tutorial == true }
+		)
 		return nil
 	end)
 	local session = created
@@ -623,6 +636,9 @@ local function startMatch(outcome: Lobby.Outcome)
 	end
 	broadcastLobby() -- the queue shrank and a match slot filled up
 	local against = if outcome.kind == "Practice" then `, bot {Bot.difficulty(outcome.difficulty)}` else ""
+	if outcome.tutorial then
+		against ..= ", tutorial"
+	end
 	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
 	flush(session)
 	task.spawn(shareNames, session)
@@ -638,7 +654,13 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 	elseif request.op == "Join" then
 		outcome, reason = Lobby.join(lobby, id, request.code :: string)
 	elseif request.op == "Practice" then
-		outcome, reason = Lobby.practice(lobby, id, request.difficulty)
+		-- The tutorial (D-075): asked for from How to play, or this player's
+		-- first bot match (their saved profile says they have not finished it).
+		local tutorial: Lobby.Tutorial? = if request.tutorial == true
+			then "Replay"
+			elseif Profile.needsTutorial(DataService.profile(id)) then "First"
+			else nil
+		outcome, reason = Lobby.practice(lobby, id, request.difficulty, tutorial)
 	elseif request.op == "Leave" then
 		Lobby.leave(lobby, id)
 	elseif request.op == "PrePick" then

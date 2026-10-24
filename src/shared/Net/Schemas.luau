@@ -106,6 +106,11 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 		-- Optional bot difficulty (D-057): absent or not one of the four names
 		-- plays Medium, the standard bot. Never a rejection.
 		request.difficulty = Bot.difficulty(raw.difficulty)
+		-- Optional tutorial replay (D-075): only `true` asks for it; anything else
+		-- is an ordinary practice match. Never a rejection either.
+		if raw.tutorial == true then
+			request.tutorial = true
+		end
 	elseif op == "PrePick" then
 		if type(raw.pick) ~= "table" then
 			return false, "BadShape", nil

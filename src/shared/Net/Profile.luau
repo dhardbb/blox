@@ -56,6 +56,11 @@ export type Profile = {
 	-- At most NAME_HIDDEN_MAX, oldest dropped. Optional: no version bump.
 	hiddenNames: { [string]: string }?,
 	hiddenOrder: { string }?, -- the setter ids in hiddenNames, oldest first
+	-- The tutorial (D-075): true once the player's tutorial bot match ended (an
+	-- election or a forfeit; an abandoned one does not count). Optional: no
+	-- version bump; a profile without it that has any game recorded counts as
+	-- done (Profile.needsTutorial).
+	tutorialDone: boolean?,
 }
 
 -- What the lobby shows.
@@ -219,6 +224,9 @@ function Profile.migrate(raw: any, config: Config?): Profile
 	if raw.customName ~= nil then
 		out.customName = (CustomName.normalize(raw.customName, c))
 	end
+	if raw.tutorialDone == true then
+		out.tutorialDone = true
+	end
 	if type(raw.hiddenNames) == "table" and type(raw.hiddenOrder) == "table" then
 		local names: { [string]: string } = {}
 		local order: { string } = {}
@@ -355,6 +363,24 @@ end
 -- True if this player reported `setterId`'s name `name`.
 function Profile.hides(profile: Profile?, setterId: string, name: string): boolean
 	return profile ~= nil and profile.hiddenNames ~= nil and profile.hiddenNames[setterId] == name
+end
+
+-- True if this player's next bot match is the tutorial (D-075): their profile
+-- is loaded, they have not finished the tutorial, and they have no game on
+-- record at all (players from before the tutorial existed skip it). No
+-- profile (still loading, or the DataStore is down): false, a normal match.
+function Profile.needsTutorial(profile: Profile?): boolean
+	if profile == nil or profile.tutorialDone == true then
+		return false
+	end
+	return profile.games == 0 and profile.practice.games == 0
+end
+
+-- The profile with the tutorial marked done (D-075).
+function Profile.withTutorialDone(profile: Profile): Profile
+	local out = copy(profile)
+	out.tutorialDone = true
+	return out
 end
 
 function Profile.summary(profile: Profile): Summary

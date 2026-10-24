@@ -81,6 +81,15 @@ function Support.join(rig: Rig, name: string, extra: any?): FakeRoblox.Peer
 	return peer
 end
 
+-- The next player to join has played before: their saved profile says the
+-- tutorial is done (D-075), so their bot matches have timers, as specs that
+-- wait for a timer to run out need.
+function Support.returning(rig: Rig)
+	local keys = rig.world.data.stores.PlayerData_v1 or {}
+	rig.world.data.stores.PlayerData_v1 = keys
+	keys[`Player_{rig.world.nextUserId}`] = { data = { version = 1, tutorialDone = true } }
+end
+
 -- A player disconnects (the recorder keeps their history).
 function Support.leave(rig: Rig, peer: FakeRoblox.Peer)
 	FakeRoblox.leave(rig.world, peer)

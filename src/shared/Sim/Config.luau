@@ -190,6 +190,12 @@ local Config = {
 	RECONNECT_WINDOW = 15, -- seconds a returning player gets to finish a turn already past its deadline
 	GRACE_USES = 2, -- grace periods per player per match
 	FORFEIT_MISSED_WEEKS = 2, -- consecutive missed weeks that forfeit
+	-- Bot matches (D-075): every choice timer (Select, a draft round, a decision,
+	-- a debate round, the plan) is multiplied by the bot's level; Hard and Extreme
+	-- keep x1. Reveals, clashes, election night and the time bank are not scaled.
+	-- The tutorial (a player's first bot match, or a replay) has no choice timer at all.
+	BOT_TIME_MULT_EASY = 2, -- choice timers against an Easy bot (the designers' number)
+	BOT_TIME_MULT_MEDIUM = 1.5, -- choice timers against a Medium bot (the designers' number)
 
 	-- Practice bot difficulty (D-057). Medium is the standard (balance harness) bot
 	-- and reads none of these. Every level decides from its own View only.

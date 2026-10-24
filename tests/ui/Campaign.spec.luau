@@ -631,6 +631,7 @@ describe("Campaign screen", function()
 
 	local function startPractice(seed: number): (Support.Rig, FakeRoblox.Peer)
 		local rig = Support.new(process.cwd, seed)
+		Support.returning(rig) -- timed bot matches: not the tutorial (D-075)
 		local peer = Support.join(rig, "Player1")
 		Support.press(rig, peer, "Practice")
 		Support.run(rig, 1)
