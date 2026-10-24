@@ -5,10 +5,13 @@
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SocialService = game:GetService("SocialService")
 
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
+local Matchmaking = require(ReplicatedStorage.Shared.Net.Matchmaking)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
+local MatchWords = require(ReplicatedStorage.Shared.UI.Words.Matchmaking)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Store = require(script.Parent.Store)
 
@@ -66,6 +69,17 @@ local REASONS: { [string]: string } = {
 	CodeTaken = "That code is already in use. Try hosting again.",
 	InMatch = "You're already in a match.",
 	BadCode = "Codes are 5 characters: letters A-Z and numbers 2-9.",
+	-- Matchmaking (D-080)
+	Matching = "You're already joining a match.",
+	NotQueued = "Join the queue first.",
+	BotTooSoon = `A bot game opens after {Config.defaults.QUEUE_BOT_OFFER_SECONDS} seconds in the queue.`,
+	NoOffer = "There's no match waiting for your answer.",
+	NoRematch = "That rematch isn't available anymore.",
+	RematchExpired = "The rematch window has closed.",
+	OpponentLeft = "Your opponent has left.",
+	NotMatchServer = "You're already in the lobby.",
+	CodeBusy = "Someone else is joining that match right now.",
+	Unavailable = "Matching across servers isn't working right now. Try again soon.",
 	-- Color (D-055)
 	UnknownColor = "Pick one of the six colors.",
 	NoColorPass = "Picking a color needs the Color Pass.",
@@ -117,6 +131,17 @@ local NOTICES: { [string]: string } = {
 	AdminUnrated = "Timers were off (admin), so this match doesn't count for anyone's rating.",
 	DailyCounted = "Daily Race: this run counts once week 1 starts. Good luck!",
 	DailyPractice = "Practice run: today's Daily Race already counts. This one won't.",
+	-- Matchmaking (D-080)
+	WaitBot = "You're still in the queue. We'll ask before you leave this bot game.",
+	OfferDeclined = "You left the queue and kept playing. Find a match again any time.",
+	OfferExpired = "No answer in time, so you left the queue. Enjoy the bot game!",
+	OpponentDeclined = "Your opponent kept playing their bot game. You're first in line.",
+	OpponentNoShow = "Your opponent couldn't reach the match, so you're back in the lobby.",
+	MatchServerFailed = "The match couldn't start, so you're back in the lobby.",
+	TeleportFailed = "Couldn't move you to the match. Try again.",
+	InviteExpired = "That invite has expired: your friend isn't hosting anymore.",
+	InviteBusy = "Someone else is joining your friend's match right now.",
+	CodeGone = "Your friend isn't hosting that match anymore.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,
@@ -197,6 +222,8 @@ function Net.start()
 			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Daily" and message.daily then
 			Store.setDaily(message.daily)
+		elseif message.kind == "Rematch" and message.rematch then
+			Store.setRematch(message.rematch)
 		elseif message.kind == "Notice" then
 			if message.notice == "NameReported" then
 				hideReported()
@@ -293,6 +320,47 @@ end
 
 function Net.bank()
 	matchRequest("Bank")
+end
+
+-- Answers "Opponent found! Leave this bot game?" (D-080). Joining ends the
+-- bot game: its end skips Results (Store.leave), straight to the new match.
+function Net.answer(accept: boolean)
+	local payload = Store.get().payload
+	if accept and payload and payload.stage ~= "Over" then
+		Store.leave(payload.matchId)
+	end
+	Net.send("Answer", { accept = accept })
+end
+
+-- Rematch on Results (D-080): the match this player just finished.
+function Net.rematch()
+	local payload = Store.get().payload
+	if payload == nil or payload.stage ~= "Over" then
+		return
+	end
+	Net.send("Rematch", { matchId = payload.matchId })
+end
+
+-- Opens Roblox's invite prompt with the private code in the invite's launch
+-- data (D-080), once SocialService says this player may invite. Says so in
+-- the toast when they can't (a platform without invites, an error). Yields.
+function Net.invite(code: string)
+	local ok, can = pcall(function(): boolean
+		return SocialService:CanSendGameInviteAsync(Players.LocalPlayer)
+	end)
+	if not ok or can ~= true then
+		Store.say(MatchWords.INVITE_UNAVAILABLE, true, "InviteUnavailable")
+		return
+	end
+	local prompted = pcall(function()
+		local options = Instance.new("ExperienceInviteOptions")
+		options.LaunchData = Matchmaking.launchData(code)
+		options.PromptMessage = MatchWords.INVITE_PROMPT
+		SocialService:PromptGameInvite(Players.LocalPlayer, options)
+	end)
+	if not prompted then
+		Store.say(MatchWords.INVITE_UNAVAILABLE, true, "InviteUnavailable")
+	end
 end
 
 function Net.skip()

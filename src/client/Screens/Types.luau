@@ -30,6 +30,7 @@ export type State = {
 	review: any?, -- Remotes.ReviewBoard: admins' reported names (D-069)
 	daily: any?, -- Net/Daily.Info: today's Daily Race (D-080)
 	dailyRun: any?, -- Net/Daily.Run: the Daily Race run that ended last (D-080)
+	rematch: any?, -- Rematch.Status: where a rematch of the last match stands (D-080)
 }
 
 export type Net = {
@@ -44,6 +45,9 @@ export type Net = {
 	bank: () -> (),
 	skip: () -> (),
 	forfeit: (() -> ())?, -- leave the current match and lose it (D-059)
+	answer: ((accept: boolean) -> ())?, -- answer "Opponent found! Leave this bot game?" (D-080)
+	rematch: (() -> ())?, -- Results: play the same opponent again (D-080)
+	invite: ((code: string) -> ())?, -- Roblox's invite prompt carrying a private code (D-080); yields
 	reasonText: (reason: string?) -> string,
 }
 

@@ -135,7 +135,7 @@ describe("Results: the Daily Race summary (D-080)", function()
 		return payload.matchId
 	end
 
-	it("a counted run: the margin, the rank today and the streak; Practice again", function()
+	it("a counted run: the margin, the rank today and the streak; Rematch is practice", function()
 		local world, peer = Rig.fixture("Over", Rig.PHONE)
 		local matchId = over(world, peer, true)
 		expect(textOf(peer, "Results", "DailyLine")):toBe("Saving your run…")
@@ -152,9 +152,10 @@ describe("Results: the Daily Race summary (D-080)", function()
 		)
 		expect(textOf(peer, "Results", "DailyLine")):toBe("You won by 62 votes.")
 		expect(textOf(peer, "Results", "DailyMore")):toBe("Rank today: #7 · 3-day streak")
-		expect(textOf(peer, "Results", "PlayAgain")):toBe("Practice again")
-		tap(world, peer, "Results", "PlayAgain")
-		expect(sentCount(peer, "DailyRace")):toBe(1)
+		expect(textOf(peer, "Results", "Rematch")):toBe("Rematch")
+		expect(textOf(peer, "Results", "BarStatus")):toBe("Rematch plays today's race as practice.")
+		tap(world, peer, "Results", "Rematch")
+		expect(Rig.count(peer, "DEBUG_UI rematch")):toBe(1) -- the server starts today's race again (D-082)
 		Rig.noErrors(world)
 	end)
 

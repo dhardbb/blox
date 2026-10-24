@@ -8,6 +8,7 @@ local Daily = require("./Daily")
 local Leaderboard = require("./Leaderboard")
 local Lobby = require("./Lobby")
 local Profile = require("./Profile")
+local Rematch = require("./Rematch")
 local Session = require("./Session")
 
 local Remotes = {}
@@ -41,6 +42,10 @@ export type Op =
 	| "SetTimersOff" -- admins: the "Timers off" toggle, saved and applied to their match (D-080): { on }
 	| "DailyRace" -- play today's Daily Race (D-080): today's candidate, the Hard bot; the first run past week 1 counts
 	| "Daily" -- ask for today's Daily Race and its board (D-080); answered with a "Daily" message
+	| "WaitBot" -- play the bot while waiting in the queue (D-080): { difficulty? }
+	| "Answer" -- answer "Opponent found! Leave this bot game?" (D-080): { accept }
+	| "Rematch" -- on Results: play the same opponent again (D-080): { matchId } (the finished match)
+	| "Return" -- in a match server: go back to a lobby server (D-080)
 
 export type Request = {
 	op: Op,
@@ -56,6 +61,20 @@ export type Request = {
 	name: string?, -- SetName: the custom name as typed (absent = the candidate's own); ReviewKeep/ReviewRemove: the name the admin saw
 	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)
 	on: boolean?, -- SetTimersOff: true turns the admin's choice timers off (D-080)
+	accept: boolean?, -- Answer: true joins the match found, false keeps playing the bot (D-080)
+}
+
+-- An opponent was found and the match is on its way (LobbyStatus.found, D-080).
+export type FoundPhase =
+	"Answer" -- you are in a bot game: join the match or keep playing (by untilAt)
+	| "Waiting" -- the opponent is in a bot game and has until untilAt to answer
+	| "Joining" -- a match server is being set up for you two, or you are on your way
+	| "Arriving" -- you are in the match server; your opponent is on their way
+	| "Leaving" -- on your way back to a lobby server
+
+export type Found = {
+	phase: FoundPhase,
+	untilAt: number?, -- server time: Answer and Waiting
 }
 
 -- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while
@@ -76,6 +95,10 @@ export type LobbyStatus = {
 	colorPass: ColorPass?, -- absent while the pass is not set up
 	review: { count: number }?, -- admins only (D-069): reported names waiting for review
 	admin: { timersOff: boolean }?, -- admins only (D-080): their saved "Timers off" toggle
+	online: number?, -- players online in every server of the game (D-080); absent while unknown
+	botAt: number?, -- Queued: server time from which a bot game while waiting is offered (D-080)
+	found: Found?, -- Found, or InMatch in a bot game while waiting: the match on its way (D-080)
+	matchServer: boolean?, -- this is a match server: Back to lobby goes to a lobby server (D-080)
 }
 
 -- One reported name in the admins' review panel (D-069).
@@ -103,7 +126,15 @@ export type RatingChange = {
 
 -- Server -> client messages.
 export type Message = {
-	kind: "Lobby" | "State" | "Notice" | "Rating" | "Rejected" | "Leaderboard" | "Review" | "Daily",
+	kind: "Lobby"
+		| "State"
+		| "Notice"
+		| "Rating"
+		| "Rejected"
+		| "Leaderboard"
+		| "Review"
+		| "Daily"
+		| "Rematch",
 	lobby: LobbyStatus?,
 	state: Session.StatePayload?,
 	notice: string?, -- e.g. "OpponentDisconnected"
@@ -111,6 +142,7 @@ export type Message = {
 	leaderboard: Leaderboard.Board?, -- Leaderboard: the top list and where this player stands
 	review: ReviewBoard?, -- Review: the reported names (admins only, D-069)
 	daily: Daily.Info?, -- Daily: today's race, your streak and the day's board (D-080)
+	rematch: Rematch.Status?, -- Rematch: where a rematch of the last match stands (D-080)
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

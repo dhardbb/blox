@@ -43,6 +43,17 @@
 -- true unless world.chat.blocked["from:to"]; both wait the DataStore latency
 -- and fail while world.chat.failures > 0 (FakeRoblox.setCanChat, blockChat).
 --
+-- Matchmaking (docs/DESIGN.md D-080): MemoryStoreService (sorted maps and hash
+-- maps in world.memory, items expire on the simulated clock; pass one world's
+-- `memory` to another to stand for two servers; failures and reruns
+-- switches), TeleportService (ReserveServerAsync, TeleportAsync: logged in
+-- world.teleport.sent, the player leaves this world 0.5 s later unless a
+-- failure switch is set; TeleportInitFailed; refuses in Studio, like Roblox),
+-- SocialService (CanSendGameInviteAsync, PromptGameInvite logged in
+-- world.social.prompts), TeleportOptions:SetTeleportData, Player:GetJoinData()
+-- (world.joinData), and game.PlaceId / PrivateServerId / PrivateServerOwnerId
+-- (the world's `placeId` and `privateServerId` options).
+--
 -- Presentation stubs (client polish, docs/DESIGN.md D-053): TweenService
 -- (Create returns a tween whose Play applies the goals at once and fires
 -- Completed on the next step; Cancel fires it as Cancelled), TweenInfo,
@@ -129,6 +140,41 @@ export type World = {
 	userNames: { [number]: string }, -- usernames GetNameFromUserIdAsync knows besides joined players
 	nameFailures: number, -- the next N GetNameFromUserIdAsync calls fail
 	nameLookups: number, -- GetNameFromUserIdAsync calls so far
+	placeId: number, -- game.PlaceId (0 = unpublished, the default)
+	privateServerId: string, -- the server's game.PrivateServerId ("" = a public server; set: a reserved match server)
+	memory: MemoryState, -- MemoryStoreService (D-080); share it between worlds for two servers
+	teleport: TeleportState, -- TeleportService (D-080)
+	social: SocialState, -- SocialService (D-080)
+	joinData: { [number]: any }, -- user id -> what Player:GetJoinData() returns (default {})
+}
+
+-- The fake MemoryStoreService's state (D-080): sorted maps and hash maps by
+-- name, item -> { value, sortKey, expires (world clock) }.
+export type MemoryState = {
+	sorted: { [string]: { [string]: any } },
+	hash: { [string]: { [string]: any } },
+	failures: number, -- the next N requests fail
+	reruns: number, -- the next N UpdateAsync calls run their transform twice (a conflict)
+	requests: number, -- requests so far
+	rangeReads: number, -- GetRangeAsync calls so far
+}
+
+-- The fake TeleportService's state (D-080).
+export type TeleportState = {
+	sent: { { userId: number, placeId: number, access: string?, data: any, at: number } },
+	servers: { { placeId: number, access: string, privateId: string } }, -- ReserveServerAsync results
+	reserved: number,
+	failures: number, -- the next N TeleportAsync calls throw
+	initFailures: number, -- the next N TeleportAsync calls fire TeleportInitFailed instead of moving the player
+	reserveFailures: number, -- the next N ReserveServerAsync calls throw
+}
+
+-- The fake SocialService's state (D-080).
+export type SocialState = {
+	canInvite: boolean, -- CanSendGameInviteAsync's answer (default true)
+	failures: number, -- the next N CanSendGameInviteAsync calls fail
+	checks: number,
+	prompts: { { userId: number, launchData: string?, message: string? } }, -- PromptGameInvite calls
 }
 
 -- The fake MarketplaceService's world-level state. Tests flip the switches.
@@ -582,6 +628,322 @@ local function newMessagingService(world: World): any
 			subscribers[topic] = list
 			return { Disconnect = function() end }
 		end,
+	}
+end
+
+-- ---------------------------------------------------------------- matchmaking (D-080)
+
+-- One memory-store item: a deep copy of the value, its sort key, and the
+-- world clock at which it expires.
+type MemoryItem = { value: any, sortKey: any, expires: number }
+
+-- Counts the request, waits the DataStore latency, raises a configured failure.
+local function beginMemory(world: World)
+	local memory = world.memory
+	memory.requests += 1
+	requestDelay(world)
+	if memory.failures > 0 then
+		memory.failures -= 1
+		error("MemoryStore request failed (simulated)", 0)
+	end
+end
+
+local function memoryItems(world: World, kind: string, name: string): { [string]: MemoryItem }
+	local structures = world.memory[kind]
+	local items = structures[name]
+	if items == nil then
+		items = {}
+		structures[name] = items
+	end
+	-- Expired items are gone, as on Roblox.
+	for key, item in items do
+		if item.expires <= world.clock then
+			items[key] = nil
+		end
+	end
+	return items
+end
+
+local function checkExpiration(expiration: any)
+	if type(expiration) ~= "number" or expiration < 0 or expiration > 3888000 then
+		error("InvalidExpirationTime: expiration must be between 0 and 3,888,000", 0)
+	end
+end
+
+-- Sort order of sorted-map items: numeric sort keys, then string sort keys,
+-- then none; ties (and no sort key) by key.
+local function sortTuple(sortKey: any, key: string): (number, any, string)
+	if type(sortKey) == "number" then
+		return 0, sortKey, key
+	elseif type(sortKey) == "string" then
+		return 1, sortKey, key
+	end
+	return 2, 0, key
+end
+
+local function before(a: { any }, b: { any }): boolean
+	if a[1] ~= b[1] then
+		return a[1] < b[1]
+	end
+	if a[2] ~= b[2] then
+		return a[2] < b[2]
+	end
+	return a[3] < b[3]
+end
+
+local function newSortedMap(world: World, name: string): any
+	local map = {}
+	function map.GetAsync(_self: any, key: string): (any, any)
+		beginMemory(world)
+		local item = memoryItems(world, "sorted", name)[key]
+		if item == nil then
+			return nil, nil
+		end
+		return deepCopy(item.value), item.sortKey
+	end
+	function map.SetAsync(_self: any, key: string, value: any, expiration: number, sortKey: any?): boolean
+		checkExpiration(expiration)
+		checkStorable(value, "value")
+		beginMemory(world)
+		local items = memoryItems(world, "sorted", name)
+		local existed = items[key] ~= nil
+		items[key] = { value = deepCopy(value), sortKey = sortKey, expires = world.clock + expiration }
+		return existed
+	end
+	function map.UpdateAsync(
+		_self: any,
+		key: string,
+		transform: (any, any) -> (any, any),
+		expiration: number
+	): (any, any)
+		checkExpiration(expiration)
+		beginMemory(world)
+		local items = memoryItems(world, "sorted", name)
+		if world.memory.reruns > 0 then
+			-- Another server wrote in between: Roblox calls the transform again.
+			world.memory.reruns -= 1
+			local item = items[key]
+			transform(if item then deepCopy(item.value) else nil, if item then item.sortKey else nil)
+		end
+		local item = items[key]
+		local value, sortKey =
+			transform(if item then deepCopy(item.value) else nil, if item then item.sortKey else nil)
+		if value == nil then
+			return nil, nil
+		end
+		checkStorable(value, "value")
+		items[key] = { value = deepCopy(value), sortKey = sortKey, expires = world.clock + expiration }
+		return deepCopy(value), sortKey
+	end
+	function map.RemoveAsync(_self: any, key: string)
+		beginMemory(world)
+		memoryItems(world, "sorted", name)[key] = nil
+	end
+	function map.GetRangeAsync(_self: any, direction: any, count: number, lower: any?, upper: any?): { any }
+		if type(count) ~= "number" or count < 1 or count > 200 then
+			error("InvalidRequest: count must be between 1 and 200", 0)
+		end
+		beginMemory(world)
+		local rows = {}
+		for key, item in memoryItems(world, "sorted", name) do
+			local a, b, c = sortTuple(item.sortKey, key)
+			table.insert(rows, { tuple = { a, b, c }, key = key, item = item })
+		end
+		table.sort(rows, function(x, y)
+			return before(x.tuple, y.tuple)
+		end)
+		local descending = tostring(direction) == "Enum.SortDirection.Descending"
+		local out = {}
+		local function inBounds(tuple: { any }): boolean
+			if lower ~= nil then
+				local a, b, c = sortTuple(lower.sortKey, lower.key or "")
+				if not before({ a, b, c }, tuple) then
+					return false
+				end
+			end
+			if upper ~= nil then
+				local a, b, c = sortTuple(upper.sortKey, upper.key or string.rep("~", 129))
+				if not before(tuple, { a, b, c }) then
+					return false
+				end
+			end
+			return true
+		end
+		local first, last, stepBy = 1, #rows, 1
+		if descending then
+			first, last, stepBy = #rows, 1, -1
+		end
+		for k = first, last, stepBy do
+			local row = rows[k]
+			if inBounds(row.tuple) then
+				table.insert(
+					out,
+					{ key = row.key, value = deepCopy(row.item.value), sortKey = row.item.sortKey }
+				)
+				if #out >= count then
+					break
+				end
+			end
+		end
+		world.memory.rangeReads += 1
+		return out
+	end
+	return map
+end
+
+local function newHashMap(world: World, name: string): any
+	local map = {}
+	function map.GetAsync(_self: any, key: string): any
+		beginMemory(world)
+		local item = memoryItems(world, "hash", name)[key]
+		return if item then deepCopy(item.value) else nil
+	end
+	function map.SetAsync(_self: any, key: string, value: any, expiration: number): boolean
+		checkExpiration(expiration)
+		checkStorable(value, "value")
+		beginMemory(world)
+		local items = memoryItems(world, "hash", name)
+		local existed = items[key] ~= nil
+		items[key] = { value = deepCopy(value), sortKey = nil, expires = world.clock + expiration }
+		return existed
+	end
+	function map.UpdateAsync(_self: any, key: string, transform: (any) -> any, expiration: number): any
+		checkExpiration(expiration)
+		beginMemory(world)
+		local items = memoryItems(world, "hash", name)
+		if world.memory.reruns > 0 then
+			world.memory.reruns -= 1
+			local item = items[key]
+			transform(if item then deepCopy(item.value) else nil)
+		end
+		local item = items[key]
+		local value = transform(if item then deepCopy(item.value) else nil)
+		if value == nil then
+			return nil
+		end
+		checkStorable(value, "value")
+		items[key] = { value = deepCopy(value), sortKey = nil, expires = world.clock + expiration }
+		return deepCopy(value)
+	end
+	function map.RemoveAsync(_self: any, key: string)
+		beginMemory(world)
+		memoryItems(world, "hash", name)[key] = nil
+	end
+	return map
+end
+
+local function newMemoryStoreService(world: World): any
+	return {
+		GetSortedMap = function(_self: any, name: string): any
+			return newSortedMap(world, name)
+		end,
+		GetHashMap = function(_self: any, name: string): any
+			return newHashMap(world, name)
+		end,
+	}
+end
+
+-- TeleportService for the server (D-080). ReserveServerAsync hands out
+-- "access-<n>" / "ps-<n>" (fails while world.teleport.reserveFailures > 0);
+-- TeleportAsync logs every call in world.teleport.sent and, unless
+-- world.teleport.failures > 0 (it throws) or world.teleport.initFailures > 0
+-- (TeleportInitFailed fires instead, the player stays), the player leaves
+-- this world half a second later as if the teleport went through. A test
+-- then joins them to the destination world itself (FakeRoblox.setJoinData).
+local function newTeleportService(world: World): any
+	local service = {
+		TeleportInitFailed = newSignal(world),
+	}
+	function service.ReserveServerAsync(_self: any, placeId: number): (string, string)
+		local state = world.teleport
+		requestDelay(world)
+		if state.reserveFailures > 0 then
+			state.reserveFailures -= 1
+			error("HTTP 500 (simulated ReserveServerAsync failure)", 0)
+		end
+		state.reserved += 1
+		local n = state.reserved
+		table.insert(state.servers, { placeId = placeId, access = `access-{n}`, privateId = `ps-{n}` })
+		return `access-{n}`, `ps-{n}`
+	end
+	function service.TeleportAsync(_self: any, placeId: number, players: { any }, options: any?): any
+		local state = world.teleport
+		if world.studio then
+			error("TeleportService:TeleportAsync() is not supported in Studio", 0)
+		end
+		requestDelay(world)
+		if state.failures > 0 then
+			state.failures -= 1
+			error("HTTP 500 (simulated TeleportAsync failure)", 0)
+		end
+		local props = if options then rawget(options, "_props") else {}
+		local data = props._TeleportData
+		for _, player in players do
+			table.insert(state.sent, {
+				userId = player.UserId,
+				placeId = placeId,
+				access = props.ReservedServerAccessCode,
+				data = deepCopy(data),
+				at = world.clock,
+			})
+		end
+		local fail = state.initFailures > 0
+		if fail then
+			state.initFailures -= 1
+		end
+		local co = coroutine.create(function()
+			for _, player in players do
+				if fail then
+					-- Roblox hands back new options for the same destination; the
+					-- original ones do for the fake.
+					service.TeleportInitFailed.fire(
+						player,
+						Enum.TeleportResult.Failure,
+						"simulated",
+						placeId,
+						options
+					)
+				else
+					for _, peer in world.clients do
+						if peer.player == player then
+							FakeRoblox.leave(world, peer)
+							break
+						end
+					end
+				end
+			end
+		end)
+		schedule(world, world.clock + 0.5, co, world.server, {})
+		return nil
+	end
+	return service
+end
+
+-- SocialService for a client (D-080): CanSendGameInviteAsync answers
+-- world.social.canInvite after the latency (fails while world.social.failures
+-- > 0); PromptGameInvite logs { userId, launchData, message } in
+-- world.social.prompts.
+local function newSocialService(world: World): any
+	return {
+		CanSendGameInviteAsync = function(_self: any, _player: any, _recipient: number?): boolean
+			local state = world.social
+			state.checks += 1
+			requestDelay(world)
+			if state.failures > 0 then
+				state.failures -= 1
+				error("HTTP 500 (simulated SocialService failure)", 0)
+			end
+			return state.canInvite
+		end,
+		PromptGameInvite = function(_self: any, player: any, options: any?)
+			local props = if options then rawget(options, "_props") else {}
+			table.insert(world.social.prompts, {
+				userId = player.UserId,
+				launchData = props.LaunchData,
+				message = props.PromptMessage,
+			})
+		end,
+		GameInvitePromptClosed = newSignal(world),
 	}
 end
 
@@ -1112,6 +1474,21 @@ function methods.BindToClose(self: any, callback: () -> ())
 	table.insert((rawget(self, "_world") :: World).closeHandlers, callback)
 end
 
+-- TeleportOptions (D-080): the teleport data rides in a hidden property.
+function methods.SetTeleportData(self: any, data: any)
+	rawget(self, "_props")._TeleportData = deepCopy(data)
+end
+
+function methods.GetTeleportData(self: any): any
+	return deepCopy(rawget(self, "_props")._TeleportData)
+end
+
+-- Player:GetJoinData() (D-080): world.joinData[UserId], else an empty table.
+function methods.GetJoinData(self: any): any
+	local world: World = rawget(self, "_world")
+	return deepCopy(world.joinData[self.UserId] or {})
+end
+
 -- RunService: the fake runs "in Studio" unless a test sets world.studio = false.
 function methods.IsStudio(self: any): boolean
 	return (rawget(self, "_world") :: World).studio
@@ -1459,7 +1836,13 @@ local function newGame(world: World, isServer: boolean): any
 	services.TextService = newTextService(world)
 	services.TextChatService = newTextChatService(world)
 	services.MessagingService = newMessagingService(world)
+	services.MemoryStoreService = newMemoryStoreService(world)
+	services.TeleportService = newTeleportService(world)
+	services.SocialService = newSocialService(world)
 	rawget(game, "_props").JobId = if isServer then world.jobId else ""
+	rawget(game, "_props").PlaceId = world.placeId
+	rawget(game, "_props").PrivateServerId = if isServer then world.privateServerId else ""
+	rawget(game, "_props").PrivateServerOwnerId = 0
 	if isServer then
 		local spsParent = newInstance(world, "StarterPlayerScripts", "StarterPlayerScripts")
 		spsParent.Parent = services.StarterPlayer
@@ -1591,6 +1974,10 @@ function FakeRoblox.world(
 		screen: { x: number, y: number }?,
 		jobId: string?, -- the server's game.JobId (default "job-1")
 		stores: { [string]: { [string]: any } }?, -- share another world's DataStore keys (two servers)
+		placeId: number?, -- game.PlaceId (default 0: unpublished)
+		privateServerId: string?, -- a reserved match server's game.PrivateServerId (D-080)
+		memory: MemoryState?, -- share another world's memory stores (two servers, D-080)
+		studio: boolean?, -- what RunService:IsStudio() answers from the start (default true)
 	}
 ): World
 	local world = {
@@ -1626,7 +2013,7 @@ function FakeRoblox.world(
 		},
 		jobId = options.jobId or "job-1",
 		closeHandlers = {},
-		studio = true,
+		studio = options.studio ~= false,
 		clientFolder = nil,
 		reducedMotion = false,
 		sounds = {},
@@ -1646,6 +2033,26 @@ function FakeRoblox.world(
 		userNames = {},
 		nameFailures = 0,
 		nameLookups = 0,
+		placeId = options.placeId or 0,
+		privateServerId = options.privateServerId or "",
+		memory = options.memory or {
+			sorted = {},
+			hash = {},
+			failures = 0,
+			reruns = 0,
+			requests = 0,
+			rangeReads = 0,
+		},
+		teleport = {
+			sent = {},
+			servers = {},
+			reserved = 0,
+			failures = 0,
+			initFailures = 0,
+			reserveFailures = 0,
+		},
+		social = { canInvite = true, failures = 0, checks = 0, prompts = {} },
+		joinData = {},
 	} :: World
 	world.shared = newInstance(world, "ReplicatedStorage", "ReplicatedStorage")
 	local sharedFolder = newInstance(world, "Folder", "Shared")

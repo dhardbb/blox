@@ -5,6 +5,7 @@
 
 local process = require("@lune/process")
 
+local Config = require("@sim/Config")
 local Test = require("@testlib/Test")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Support = require("./Support")
@@ -227,7 +228,8 @@ describe("e2e bug hunt: the lobby status stays current", function()
 	it("clears 'server full' when a match ends, for players who were not in it", function()
 		local rig = newRig(12)
 		local fillers = {}
-		for k = 1, 10 do
+		-- One practice match per filler fills every match slot (D-080: 50).
+		for k = 1, Config.defaults.MATCHES_PER_SERVER do
 			table.insert(fillers, Support.join(rig, `Filler{k}`))
 		end
 		for _, peer in fillers do

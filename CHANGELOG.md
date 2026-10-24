@@ -33,6 +33,16 @@ Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from t
 - The Daily Race never changes your rating or your record, and is never the tutorial. New `Config.DAILY_BOT_LEVEL` ("Hard") and `DAILY_FORFEIT_MARGIN` (-538).
 - Studio checklist: `docs/TESTING.md`, "The Daily Race". Needed from the humans: nothing new (DataStores need the published place, as for the leaderboard).
 
+### Matchmaking: across servers, invites, rematch (D-080)
+
+- **Find match and private codes work across servers.** Players still waiting after their own server had its go are matched with players on any server of the game; both are moved to a fresh match server, which starts the match (rated as before) and sends them back to a lobby afterwards (Back to lobby). Two players on one server still start at once without moving. In Studio everything stays in-server, as before.
+- **Bigger servers:** up to 50 matches per server (`MATCHES_PER_SERVER` 10 → 50), so a 50-player lobby works. **Needed from the humans:** set Max Players to 50 in Game Settings (`docs/TESTING.md`, "Matchmaking", step 0).
+- **Play a bot while you wait:** after 30 s in the queue (`QUEUE_BOT_OFFER_SECONDS`) the waiting screen offers a bot game that keeps your place in line. When an opponent is found you get "Opponent found! Leave this bot game?" for 15 s (`QUEUE_ACCEPT_SECONDS`): Join match ends the bot game (unrated, nothing saved); Keep playing (or no answer) keeps it and leaves the queue, and your opponent goes back to the front of the line.
+- **"1,234 online"** on the Lobby: players in every server of the game, refreshed every 30 s.
+- **Rematch** on Results: against the bot a new match at the same level at once; against a person both tap within 20 s (`REMATCH_WINDOW_SECONDS`) for a new match with the same seats. The button says "Opponent left" or "Rematch expired" when it can't. It replaces Play again.
+- **Invite a friend** (Play a friend sheet, and the code screen) opens Roblox's invite with your private code inside; a friend who joins from it goes straight into your match, on any server. "That invite has expired" if you left.
+- Checklist: `docs/TESTING.md`, "Matchmaking" (two accounts, published game). Needed from the humans: Max Players, and a published game to test teleports and invites.
+
 ## 0.14.0: Map polish, issue symbols, the tutorial, fixes (Oct 24, 2026)
 
 A clearer map (bigger on phones, every state's votes, a Close filter), symbols for issues, an untimed first bot match with more time against easier bots, the Lobby's settings in the corner, and fixes from a full bug review (rated results across servers, win trading, name review safety, debate reconnects). Needed from the humans: nothing new (the 0.13.0 list still applies).

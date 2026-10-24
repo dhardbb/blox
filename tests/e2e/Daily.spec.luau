@@ -146,9 +146,13 @@ describe("e2e: the Daily Race (D-080)", function()
 			expect(info.streak):toBe(1)
 			expect(info.margin):toBe(data.daily.margin)
 
-			-- A second run the same day is practice: told so, nothing saved.
-			Support.fire(rig, p1, { op = "DailyRace" })
+			-- A second run the same day is practice: told so, nothing saved. It
+			-- starts from Results' Rematch (D-082): today's race again, same seed.
+			Support.fire(rig, p1, { op = "Rematch", matchId = "m1" })
 			Support.run(rig, 1)
+			expect(serverSaid(rig, "rematch of m1")):toBe(1)
+			local race = SimDaily.race(C, day)
+			expect(serverSaid(rig, `seed {race.seed}, bot Hard, daily race`)):toBe(2)
 			check(told(rig, p1, "Practice run"), "the second run was not called practice")
 			expect(state(rig, p1).payload.daily.counted):toBe(false)
 			playOut(rig, p1, "m2")

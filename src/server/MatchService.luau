@@ -3,6 +3,14 @@
 -- one Net/Session per match, a clock that advances them, connection changes,
 -- and cleanup. The game logic lives in Net/Session and Sim; this module only
 -- feeds them requests and the server time and sends what they produce.
+--
+-- Matchmaking (D-080): players still waiting after the local lobby had its go
+-- are matched across servers (server/CrossServer); a match server (a reserved
+-- server) starts the match it was made for and sends its players back to a
+-- lobby server afterwards; a queued player may play the bot while they wait;
+-- Results offers a rematch; the Lobby shows how many players are online
+-- (server/OnlineCount); a friend invited with a private code is taken
+-- straight into it (their join's LaunchData).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,16 +21,20 @@ local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
 local CustomName = require(ReplicatedStorage.Shared.Net.CustomName)
 local Lobby = require(ReplicatedStorage.Shared.Net.Lobby)
+local Matchmaking = require(ReplicatedStorage.Shared.Net.Matchmaking)
 local Profile = require(ReplicatedStorage.Shared.Net.Profile)
+local Rematch = require(ReplicatedStorage.Shared.Net.Rematch)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local DataService = require(script.Parent.DataService)
 local DailyService = require(script.Parent.DailyService)
 local Admins = require(script.Parent.Admins)
+local CrossServer = require(script.Parent.CrossServer)
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local NameEligibility = require(script.Parent.NameEligibility)
 local NameReview = require(script.Parent.NameReview)
 local NameService = require(script.Parent.NameService)
+local OnlineCount = require(script.Parent.OnlineCount)
 local PassService = require(script.Parent.PassService)
 local Replication = require(script.Parent.Replication)
 
@@ -58,6 +70,36 @@ local lastRequest: { [string]: { [string]: number } } = {} -- player id -> op ->
 local random = Random.new()
 local matchCount = 0
 
+-- Matchmaking (D-080).
+local REQUEST_COOLDOWN = 1 -- s between one player's WaitBot, Answer, Rematch or Return requests
+local JOIN_COOLDOWN = 2 -- s between one player's lookups of a code on another server (a MemoryStore read)
+local PROFILE_WAIT = 10 -- s a match server waits for both saved profiles before starting unrated
+local LAUNCH_TRIES = 10 -- launch data can take a few seconds to appear after an invited join
+local LAUNCH_WAIT = 1 -- s between reads
+type MatchInfo = {
+	kind: "Match" | "Practice",
+	players: { string }, -- the humans, seat order
+	difficulty: Bot.Difficulty?, -- Practice: the bot's level
+	events: boolean?, -- Match: false if the host turned events off
+	waiting: boolean?, -- Practice: a bot game while waiting in the queue
+	daily: boolean?, -- Practice: a Daily Race run (D-082): its rematch is today's race again
+}
+local matchInfo: { [string]: MatchInfo } = {} -- running or just finished match id -> how it was made
+type RematchEntry = {
+	offer: Rematch.Offer,
+	info: MatchInfo,
+	told: boolean, -- its players were told it expired
+}
+local rematches: { [string]: RematchEntry } = {} -- finished match id -> its rematch offer
+local rematchOf: { [string]: string } = {} -- player id -> the finished match whose rematch they may take
+local foundAs: { [string]: Remotes.Found } = {} -- held player id -> what their Lobby says (Found)
+local queuedAt: { [string]: number } = {} -- queued player id -> unix time they joined the line (tickets)
+local matchServer = CrossServer.isMatchServer()
+local spec: Matchmaking.Spec? = nil -- a match server's match, once read
+local specStarted = false
+local arrivedAt: number? = nil -- server time both of a match server's players were here
+local onlineShown: number? = nil
+
 local function now(): number
 	return workspace:GetServerTimeNow()
 end
@@ -78,6 +120,22 @@ end
 
 local function idOf(player: Player): string
 	return tostring(player.UserId)
+end
+
+-- What a player whose match is on its way sees (D-080), or nil.
+local function foundOf(id: string): Remotes.Found?
+	local pending = Lobby.pending(lobby, id)
+	if pending then
+		return { phase = "Answer", untilAt = pending.untilAt }
+	end
+	local offer = lobby.offers[id]
+	if offer then
+		return { phase = "Waiting", untilAt = offer.untilAt }
+	end
+	if lobby.held[id] then
+		return foundAs[id] or { phase = "Joining" }
+	end
+	return nil
 end
 
 local function sendLobby(id: string)
@@ -102,6 +160,10 @@ local function sendLobby(id: string)
 		admin = if Admins.isAdminId(tonumber(id) or 0)
 			then { timersOff = profile ~= nil and profile.adminTimersOff == true }
 			else nil,
+		online = OnlineCount.get(),
+		botAt = Lobby.botAt(lobby, id),
+		found = foundOf(id),
+		matchServer = if matchServer then true else nil,
 	}
 	Replication.send(id, { kind = "Lobby", lobby = status })
 end
@@ -325,6 +387,76 @@ local function settle(session: Session.Session)
 	end
 end
 
+-- ---------------------------------------------------------------- rematch (D-080)
+
+-- Tells each player still here where a rematch stands.
+local function sendRematch(entry: RematchEntry)
+	local t = now()
+	for _, id in entry.offer.players do
+		if playerOf(id) ~= nil and rematchOf[id] == entry.offer.matchId then
+			Replication.send(id, { kind = "Rematch", rematch = Rematch.status(entry.offer, id, t) })
+		end
+	end
+end
+
+local function closeRematch(matchId: string)
+	local entry = rematches[matchId]
+	rematches[matchId] = nil
+	if entry then
+		for _, id in entry.offer.players do
+			if rematchOf[id] == matchId then
+				rematchOf[id] = nil
+			end
+		end
+	end
+end
+
+-- Player `id` left the server or started something else: a rematch they
+-- could take is gone, and the other player is told.
+local function leaveRematch(id: string)
+	local matchId = rematchOf[id]
+	if matchId == nil then
+		return
+	end
+	rematchOf[id] = nil
+	local entry = rematches[matchId]
+	if entry and Rematch.leave(entry.offer, id) then
+		sendRematch(entry)
+	end
+end
+
+-- A match just ended: its players may play it again (not after an abandoned
+-- match). The player who forfeited is not offered one.
+local function openRematch(session: Session.Session)
+	local info = matchInfo[session.id]
+	matchInfo[session.id] = nil
+	local result = session.result
+	if info == nil or result == nil or result.reason == "Abandoned" then
+		return
+	end
+	local offer =
+		Rematch.new(session.id, info.players, info.kind == "Practice", now(), config.REMATCH_WINDOW_SECONDS)
+	local entry: RematchEntry = { offer = offer, info = info, told = false }
+	for _, id in info.players do
+		local previous = rematchOf[id]
+		if previous then
+			closeRematch(previous)
+		end
+	end
+	rematches[session.id] = entry
+	for p, seat in session.seats do
+		if seat.kind ~= "Human" then
+			continue
+		end
+		rematchOf[seat.id] = session.id
+		local forfeited = result.reason == "Forfeit" and result.winner ~= p and result.winner ~= 0
+		if playerOf(seat.id) == nil or forfeited then
+			Rematch.leave(offer, seat.id)
+		end
+	end
+	sendRematch(entry)
+end
+
 -- Sends a session's queued messages; ends the match in the lobby once it is over.
 local function flush(session: Session.Session)
 	for _, message in Session.drain(session) do
@@ -349,6 +481,14 @@ local function flush(session: Session.Session)
 		end)
 		if not settled then
 			warn(`[270] match {session.id}: could not apply the result to saved data: {err}`)
+		end
+		openRematch(session)
+		-- A bot game while waiting is over: they are still in line (D-080).
+		for _, id in ids do
+			local at = queuedAt[id]
+			if at and table.find(lobby.queue, id) then
+				CrossServer.queued(id, at, false)
+			end
 		end
 		broadcastLobby()
 		local result = session.result :: Session.Result
@@ -675,10 +815,12 @@ local function newCode(): string
 	error("could not make a free match code")
 end
 
-local function startMatch(outcome: Lobby.Outcome)
+-- Starts the match a lobby outcome describes. `fixedSeed`: a match server's
+-- match uses the seed in its spec (D-080).
+local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 	matchCount += 1
 	local matchId = `m{matchCount}`
-	local seed = random:NextInteger(1, 2 ^ 31 - 1)
+	local seed = fixedSeed or random:NextInteger(1, 2 ^ 31 - 1)
 	-- The Daily Race (D-080): the day's seed, candidates and bot level for everyone.
 	local race = if outcome.daily ~= nil then DailyService.race() else nil
 	if race and race.day ~= outcome.daily then
@@ -689,13 +831,28 @@ local function startMatch(outcome: Lobby.Outcome)
 		seed = race.seed
 		daily = { day = race.day, counted = DailyService.canCount(outcome.players[1], race.day) }
 	end
+	-- Whatever they were waiting for elsewhere is over (D-080). A bot game while
+	-- waiting keeps their place in line, here and across servers.
+	for _, id in outcome.players do
+		leaveRematch(id)
+		foundAs[id] = nil
+		if outcome.waiting then
+			local at = queuedAt[id]
+			if at then
+				CrossServer.queued(id, at, true)
+			end
+		else
+			queuedAt[id] = nil
+			CrossServer.forget(id)
+		end
+	end
 	local specs: { Session.SeatSpec } = {}
 	for _, id in outcome.players do
-		local spec = humanSpec(id)
+		local seatSpec = humanSpec(id)
 		if race then
-			spec.candidate = race.candidate
+			seatSpec.candidate = race.candidate
 		end
-		table.insert(specs, spec)
+		table.insert(specs, seatSpec)
 	end
 	if outcome.kind == "Practice" then
 		local candidate = if race
@@ -712,7 +869,10 @@ local function startMatch(outcome: Lobby.Outcome)
 	local built, err = pcall(function(): string?
 		created = Session.new(config, matchId, seed, specs, now(), {
 			events = outcome.events,
-			tutorial = outcome.kind == "Practice" and outcome.tutorial == true and daily == nil,
+			tutorial = outcome.kind == "Practice"
+				and outcome.tutorial == true
+				and daily == nil
+				and not outcome.waiting,
 			daily = daily,
 		})
 		return nil
@@ -726,6 +886,14 @@ local function startMatch(outcome: Lobby.Outcome)
 		return
 	end
 	sessions[matchId] = session
+	matchInfo[matchId] = {
+		kind = if outcome.kind == "Practice" then "Practice" else "Match",
+		players = table.clone(outcome.players),
+		difficulty = if outcome.kind == "Practice" then Bot.difficulty(outcome.difficulty) else nil,
+		events = outcome.events,
+		waiting = outcome.waiting,
+		daily = if daily then true else nil,
+	}
 	-- An id for the result unique across servers, so it is applied once (Profile.settle).
 	local job = if game.JobId == "" then "studio" else game.JobId
 	resultIds[matchId] = `{job}/{matchId}/{seed}`
@@ -770,6 +938,9 @@ local function startMatch(outcome: Lobby.Outcome)
 		against ..= ", daily race"
 		DailyService.started(session)
 	end
+	if outcome.waiting then
+		against ..= ", while waiting"
+	end
 	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
 	flush(session)
 	if pairCapped then
@@ -777,19 +948,245 @@ local function startMatch(outcome: Lobby.Outcome)
 			Replication.send(id, { kind = "Notice", notice = "MatchUnrated" })
 		end
 	end
+	if outcome.waiting then
+		for _, id in outcome.players do
+			Replication.send(id, { kind = "Notice", notice = "WaitBot" })
+		end
+	end
 	task.spawn(shareNames, session)
+end
+
+-- ---------------------------------------------------------------- matchmaking (D-080)
+
+local function notify(id: string, code: string)
+	Replication.send(id, { kind = "Notice", notice = code })
+end
+
+-- Every player waiting in this server's line has a ticket in the game-wide
+-- queue (CrossServer.queued keeps an existing one as it is).
+local function relist()
+	for _, id in lobby.queue do
+		local at = queuedAt[id]
+		if at == nil then
+			at = os.time()
+			queuedAt[id] = at
+		end
+		CrossServer.queued(id, at, lobby.botWait[id] == true)
+	end
+end
+
+-- Acts on what a lobby step produced: a match starts; an offer asks its
+-- players (the ones in a bot game answer, the others wait, D-080).
+local function apply(outcome: Lobby.Outcome?)
+	if outcome == nil then
+		return
+	end
+	if outcome.kind == "Match" or outcome.kind == "Practice" then
+		startMatch(outcome)
+	elseif outcome.kind == "Offer" then
+		for _, id in outcome.players do
+			-- Out of the game-wide queue while they answer; back in if it falls through.
+			CrossServer.forget(id)
+			sendLobby(id)
+		end
+		print(`[270] opponent found for {table.concat(outcome.players, " and ")}: waiting for an answer`)
+	end
+end
+
+-- Pairs the front of the line again (someone came back to it).
+local function repair()
+	apply(Lobby.pair(lobby, now()))
+	relist()
+end
+
+-- A player in a bot game said no to an offer, or did not answer in time:
+-- they keep playing it, out of the line; the others are first in line again.
+local function declined(id: string, outcome: Lobby.Outcome, why: string, remote: boolean)
+	queuedAt[id] = nil
+	if remote then
+		CrossServer.answer(id, false)
+	else
+		CrossServer.forget(id)
+	end
+	notify(id, why)
+	sendLobby(id)
+	for _, other in outcome.players do
+		notify(other, "OpponentDeclined")
+	end
+	repair()
+	broadcastLobby()
+end
+
+-- Answer (D-080): "Opponent found! Leave this bot game?" Accept ends the bot
+-- game (abandoned: unrated, nothing saved, the tutorial flag untouched) and
+-- starts the match once every player in a bot game has accepted. Returns a
+-- reason code when there is nothing to answer.
+local function answerOffer(id: string, accept: boolean): string?
+	local offer = Lobby.pending(lobby, id)
+	if offer == nil then
+		return Lobby.Reason.NoOffer
+	end
+	local remote = offer.remote == true
+	if not accept then
+		local outcome = Lobby.answer(lobby, id, false)
+		if outcome then
+			declined(id, outcome, "OfferDeclined", remote)
+		end
+		return nil
+	end
+	local session = sessions[matchOf[id] or ""]
+	if session then
+		guard(session, function()
+			Session.abort(session, now())
+		end)
+		flush(session)
+	end
+	local outcome, reason = Lobby.answer(lobby, id, true)
+	if outcome and outcome.kind == "Remote" then
+		foundAs[id] = { phase = "Joining" }
+		CrossServer.answer(id, true)
+		sendLobby(id)
+	elseif outcome then
+		apply(outcome)
+	else
+		sendLobby(id) -- waiting for the other player's answer, or back in line
+		relist()
+	end
+	return reason
+end
+
+-- Rematch (D-080): against the bot a new match at the same level at once;
+-- against a person once both have tapped within the window.
+local function rematchRequest(player: Player, matchId: string): string?
+	local id = idOf(player)
+	local entry = rematches[matchId]
+	if entry == nil or rematchOf[id] ~= matchId then
+		return Rematch.Reason.NotYours
+	end
+	if matchOf[id] ~= nil then
+		return "InMatch"
+	end
+	local verdict, reason = Rematch.ask(entry.offer, id, now())
+	if verdict == nil then
+		sendRematch(entry)
+		return reason
+	end
+	if verdict == "Waiting" then
+		print(`[270] player {id} asks for a rematch of {matchId}`)
+		sendRematch(entry)
+		return nil
+	end
+	local info = entry.info
+	local outcome: Lobby.Outcome? = nil
+	local why: string? = nil
+	if info.kind == "Practice" then
+		if info.daily then
+			-- After a Daily Race (D-082): today's race again, a practice run once
+			-- today's run counted (DailyService decides as it starts).
+			local race = DailyService.race()
+			outcome, why = Lobby.daily(lobby, id, race.day, race.level)
+		elseif info.waiting and Lobby.botAt(lobby, id) ~= nil then
+			-- Still in line: another bot game while they wait.
+			outcome, why = Lobby.waitBot(lobby, id, now(), info.difficulty)
+		else
+			outcome, why = Lobby.practice(lobby, id, info.difficulty, nil)
+		end
+	else
+		outcome, why = Lobby.direct(lobby, entry.offer.players, { events = info.events })
+	end
+	sendRematch(entry)
+	closeRematch(matchId)
+	if outcome == nil then
+		for _, other in entry.offer.players do
+			if other ~= id then
+				local them = playerOf(other)
+				if them then
+					Replication.reject(them, "Rematch", why or "Rejected")
+				end
+			end
+		end
+		return why
+	end
+	print(`[270] rematch of {matchId}`)
+	startMatch(outcome)
+	return nil
+end
+
+-- Return (D-080): from a match server back to a lobby server.
+local function returnToLobby(player: Player): string?
+	local id = idOf(player)
+	if not matchServer then
+		return "NotMatchServer"
+	end
+	if matchOf[id] ~= nil then
+		return "InMatch"
+	end
+	leaveRematch(id)
+	Lobby.leave(lobby, id)
+	CrossServer.forget(id)
+	Lobby.hold(lobby, id)
+	foundAs[id] = { phase = "Leaving" }
+	sendLobby(id)
+	task.spawn(CrossServer.toLobby, player, nil, false, function(_: Player)
+		Lobby.unhold(lobby, id)
+		foundAs[id] = nil
+		notify(id, "TeleportFailed")
+		sendLobby(id)
+	end)
+	return nil
+end
+
+-- A private code that is not on this server: look it up across servers.
+-- The player is held (Found) while the match server is set up. Yields.
+local function joinRemote(player: Player, code: string)
+	local id = idOf(player)
+	local why = CrossServer.join(id, code)
+	if why then
+		Replication.reject(player, "Join", why)
+		sendLobby(id)
+	end
 end
 
 local function lobbyRequest(player: Player, request: Remotes.Request)
 	local id = idOf(player)
 	local outcome, reason = nil, nil
-	if request.op == "Queue" then
-		outcome, reason = Lobby.queue(lobby, id)
-	elseif request.op == "Host" then
-		outcome, reason = Lobby.host(lobby, id, newCode(), { events = request.events })
-	elseif request.op == "Join" then
+	local op = request.op
+	if
+		op == "Queue"
+		or op == "Host"
+		or op == "Join"
+		or op == "Practice"
+		or op == "WaitBot"
+		or op == "DailyRace"
+	then
+		-- Starting anything else gives up a rematch (D-080).
+		leaveRematch(id)
+	end
+	if op == "Queue" then
+		outcome, reason = Lobby.queue(lobby, id, now())
+		if outcome then
+			CrossServer.forget(id)
+			queuedAt[id] = os.time()
+		end
+	elseif op == "Host" then
+		local code = newCode()
+		outcome, reason = Lobby.host(lobby, id, code, { events = request.events })
+		if outcome then
+			queuedAt[id] = nil
+			CrossServer.forget(id)
+			CrossServer.hosted(id, code, request.events)
+		end
+	elseif op == "Join" then
 		outcome, reason = Lobby.join(lobby, id, request.code :: string)
-	elseif request.op == "Practice" then
+		if reason == "NoSuchCode" and CrossServer.enabled() then
+			if cooled(id, "JoinRemote", JOIN_COOLDOWN) then
+				reason = nil
+				task.spawn(joinRemote, player, request.code :: string)
+			else
+				reason = "RateLimited"
+			end
+		end
+	elseif op == "Practice" then
 		-- The tutorial (D-075): asked for from How to play, or this player's
 		-- first bot match (their saved profile says they have not finished it).
 		local tutorial: Lobby.Tutorial? = if request.tutorial == true
@@ -797,25 +1194,48 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 			elseif Profile.needsTutorial(DataService.profile(id)) then "First"
 			else nil
 		outcome, reason = Lobby.practice(lobby, id, request.difficulty, tutorial)
-	elseif request.op == "DailyRace" then
+	elseif op == "DailyRace" then
 		-- Today's Daily Race (D-080): never the tutorial; the first run past week 1 counts.
 		local race = DailyService.race()
 		outcome, reason = Lobby.daily(lobby, id, race.day, race.level)
-	elseif request.op == "Leave" then
+	elseif op == "WaitBot" then
+		if cooled(id, op, REQUEST_COOLDOWN) then
+			outcome, reason = Lobby.waitBot(lobby, id, now(), request.difficulty)
+		else
+			reason = "RateLimited"
+		end
+	elseif op == "Answer" then
+		reason = if cooled(id, op, REQUEST_COOLDOWN / 2)
+			then answerOffer(id, request.accept == true)
+			else "RateLimited"
+	elseif op == "Rematch" then
+		reason = if cooled(id, op, REQUEST_COOLDOWN)
+			then rematchRequest(player, request.matchId :: string)
+			else "RateLimited"
+	elseif op == "Return" then
+		reason = if cooled(id, op, REQUEST_COOLDOWN) then returnToLobby(player) else "RateLimited"
+	elseif op == "Leave" then
 		Lobby.leave(lobby, id)
-	elseif request.op == "PrePick" then
+		queuedAt[id] = nil
+		foundAs[id] = nil
+		CrossServer.forget(id)
+		repair()
+	elseif op == "PrePick" then
 		prePicks[id] = request.pick
-	elseif request.op == "SetColor" then
+	elseif op == "SetColor" then
 		reason = setColor(player, request.color)
 	end
 	if reason then
-		Replication.reject(player, request.op, reason)
+		Replication.reject(player, op, reason)
 	end
-	if outcome and (outcome.kind == "Match" or outcome.kind == "Practice") then
-		startMatch(outcome)
-	elseif request.op == "PrePick" or request.op == "SetColor" or reason then
+	if outcome and outcome.kind ~= "Waiting" then
+		apply(outcome)
+		relist()
+		broadcastLobby()
+	elseif op == "PrePick" or op == "SetColor" or op == "Answer" or op == "Rematch" or reason then
 		sendLobby(id) -- only this player's own screen changes
 	else
+		relist()
 		broadcastLobby() -- the queue or the open codes changed
 	end
 end
@@ -984,6 +1404,180 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 	end
 end
 
+-- ---------------------------------------------------------------- arrivals (D-080)
+
+-- A match server starts its match once both players are here and their saved
+-- profiles have loaded, or PROFILE_WAIT after both arrived (then unrated, as
+-- any match whose ratings are not known). The seats and the seed come from
+-- the spec in memory store, never from the teleport data.
+local function tryStartSpec()
+	local s = spec
+	if s == nil or specStarted then
+		return
+	end
+	for _, id in s.players do
+		if playerOf(id) == nil then
+			return
+		end
+	end
+	local t = now()
+	local since = arrivedAt or t
+	arrivedAt = since
+	for _, id in s.players do
+		if DataService.rating(id) == nil and t - since < PROFILE_WAIT then
+			return
+		end
+	end
+	specStarted = true
+	for _, id in s.players do
+		foundAs[id] = nil
+	end
+	local outcome, why = Lobby.direct(lobby, s.players, { events = s.events })
+	if outcome == nil then
+		warn(`[270] match server could not start {s.match}: {why}`)
+		return
+	end
+	print(`[270] match server: both players are here, starting {s.match}`)
+	startMatch(outcome, s.seed)
+end
+
+-- Sends a match server's waiting players back to a lobby server: the
+-- opponent never came, or the match could not be read.
+local function sendBack(noticeCode: string, requeue: boolean)
+	for _, player in Players:GetPlayers() do
+		local id = idOf(player)
+		if matchOf[id] == nil and lobby.held[id] then
+			foundAs[id] = { phase = "Leaving" }
+			sendLobby(id)
+			task.spawn(CrossServer.toLobby, player, noticeCode, requeue, function(_: Player)
+				Lobby.unhold(lobby, id)
+				foundAs[id] = nil
+				notify(id, noticeCode)
+				sendLobby(id)
+			end)
+		end
+	end
+end
+
+-- A match server reads its spec and waits for its players (D-080).
+local function runMatchServer()
+	local loaded = CrossServer.loadSpec()
+	spec = loaded
+	if loaded == nil then
+		warn("[270] match server: no match spec; sending players back")
+		sendBack("MatchServerFailed", true)
+		return
+	end
+	print(`[270] match server for {loaded.match}: {table.concat(loaded.players, " vs ")}`)
+	-- Anyone here who is not one of its players is just a lobby player.
+	for _, player in Players:GetPlayers() do
+		local id = idOf(player)
+		if table.find(loaded.players, id) == nil and foundAs[id] and foundAs[id].phase == "Arriving" then
+			Lobby.unhold(lobby, id)
+			foundAs[id] = nil
+			sendLobby(id)
+		end
+	end
+	tryStartSpec()
+	task.delay(Matchmaking.ARRIVAL_TIMEOUT, function()
+		if not specStarted then
+			print(`[270] match server: the opponent did not arrive for {loaded.match}`)
+			sendBack("OpponentNoShow", loaded.mode == "Queue")
+		end
+	end)
+end
+
+-- An invited friend joined with the host's code in their launch data
+-- (D-080): straight into the host's private match, on this server or another.
+local function inviteJoin(player: Player, code: string)
+	local id = idOf(player)
+	if playerOf(id) ~= player or matchOf[id] ~= nil or Lobby.state(lobby, id) ~= "Idle" then
+		return
+	end
+	print(`[270] player {id} joined from an invite to code {code}`)
+	local outcome, reason = Lobby.join(lobby, id, code)
+	if outcome then
+		apply(outcome)
+		relist()
+		broadcastLobby()
+		return
+	end
+	if reason == "NoSuchCode" and CrossServer.enabled() then
+		reason = CrossServer.join(id, code)
+	end
+	if reason == "NoSuchCode" or reason == "Unavailable" then
+		notify(id, "InviteExpired")
+	elseif reason == "CodeBusy" then
+		notify(id, "InviteBusy")
+	end
+	sendLobby(id)
+end
+
+-- How a player arrived (D-080): back from a match server (a notice, and
+-- maybe straight back into the queue), or from a friend's invite (its launch
+-- data carries the host's code). GetJoinData is server-side; launch data can
+-- take a few seconds to appear, so it is read again a few times. Yields.
+local function readArrival(player: Player)
+	local function joinData(): any
+		local ok, data = pcall(function(): any
+			return (player :: any):GetJoinData()
+		end)
+		return if ok and type(data) == "table" then data else nil
+	end
+	local data = joinData()
+	if data == nil then
+		return
+	end
+	local id = idOf(player)
+	local noticeCode, requeue = Matchmaking.readTravel(data.TeleportData)
+	if noticeCode then
+		notify(id, noticeCode)
+	end
+	if requeue and not matchServer and matchOf[id] == nil and Lobby.state(lobby, id) == "Idle" then
+		lobbyRequest(player, { op = "Queue" })
+	end
+	if matchServer then
+		return -- a match server's players came for its match, not for an invite
+	end
+	local launch = data.LaunchData
+	for _ = 1, LAUNCH_TRIES do
+		if type(launch) == "string" and launch ~= "" then
+			break
+		end
+		task.wait(LAUNCH_WAIT)
+		if playerOf(id) ~= player then
+			return
+		end
+		local again = joinData()
+		launch = if again then again.LaunchData else nil
+	end
+	local code = Matchmaking.codeFromLaunch(launch)
+	if code then
+		inviteJoin(player, code)
+	end
+end
+
+-- Offers nobody answered, rematch windows that closed, and a match server
+-- whose players are all here (D-080).
+local function matchmakingTick(t: number)
+	for _, item in Lobby.expire(lobby, t) do
+		declined(item.id, item.outcome, "OfferExpired", item.remote)
+	end
+	for matchId, entry in rematches do
+		local offer = entry.offer
+		if not offer.vsBot and not offer.started and not entry.told and t > offer.untilAt then
+			entry.told = true
+			sendRematch(entry)
+		end
+		if Rematch.closed(offer, t) and (entry.told or offer.vsBot or offer.started) then
+			closeRematch(matchId)
+		end
+	end
+	if spec ~= nil and not specStarted then
+		tryStartSpec()
+	end
+end
+
 function MatchService.start()
 	DataService.start()
 	LeaderboardService.start({
@@ -1010,6 +1604,7 @@ function MatchService.start()
 			sendLobby(id)
 			DailyService.tell(id) -- the streak and today's run are known now (D-080)
 		end
+		tryStartSpec()
 		task.spawn(approveSavedName, id)
 		-- Ratings saved before the board existed join it on the player's next visit.
 		local profile = DataService.profile(id)
@@ -1017,6 +1612,67 @@ function MatchService.start()
 			LeaderboardService.record(id, profile.rating)
 		end
 	end)
+	-- Matching across servers and the online count (D-080). Both are off in
+	-- Studio and in an unpublished place: matches are made in-server there.
+	CrossServer.start({
+		isWaiting = function(id: string): boolean
+			return playerOf(id) ~= nil and table.find(lobby.queue, id) ~= nil
+		end,
+		isHosting = function(id: string, code: string): boolean
+			return playerOf(id) ~= nil and lobby.hosting[id] == code and not lobby.held[id]
+		end,
+		ask = function(id: string, untilAt: number): boolean
+			if Lobby.offerRemote(lobby, id, untilAt) then
+				print(`[270] opponent found on another server for {id}: asking them`)
+				sendLobby(id)
+				return true
+			end
+			return false
+		end,
+		hold = function(id: string, phase: string, untilAt: number?)
+			if matchOf[id] ~= nil then
+				return -- already playing a match here
+			end
+			Lobby.hold(lobby, id)
+			foundAs[id] = { phase = phase :: Remotes.FoundPhase, untilAt = untilAt }
+			sendLobby(id)
+			broadcastLobby()
+		end,
+		unhold = function(id: string, noticeCode: string?)
+			Lobby.withdraw(lobby, id) -- a question about a pairing that is gone
+			Lobby.unhold(lobby, id)
+			foundAs[id] = nil
+			if noticeCode then
+				notify(id, noticeCode)
+			end
+			sendLobby(id)
+			repair()
+			broadcastLobby()
+		end,
+		recode = function(id: string)
+			local old = lobby.hosting[id]
+			if old == nil then
+				return
+			end
+			local events = lobby.options[old] and lobby.options[old].events
+			Lobby.leave(lobby, id)
+			local code = newCode()
+			if Lobby.host(lobby, id, code, { events = events }) then
+				CrossServer.hosted(id, code, events)
+			end
+			sendLobby(id)
+		end,
+	})
+	OnlineCount.onChanged(function(count: number?)
+		if count ~= onlineShown then
+			onlineShown = count
+			broadcastLobby()
+		end
+	end)
+	OnlineCount.start()
+	if matchServer then
+		task.spawn(runMatchServer)
+	end
 	PassService.start()
 	NameReview.start()
 	NameReview.onBlocklist(onBlocklist)
@@ -1080,8 +1736,15 @@ function MatchService.start()
 			end)
 			flush(session)
 		else
+			-- A match server's player waits for their opponent (D-080).
+			if matchServer and not specStarted and (spec == nil or table.find(spec.players, id) ~= nil) then
+				Lobby.hold(lobby, id)
+				foundAs[id] = { phase = "Arriving" }
+			end
 			sendLobby(id)
+			tryStartSpec()
 		end
+		task.spawn(readArrival, player)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
@@ -1096,7 +1759,14 @@ function MatchService.start()
 		NameEligibility.forget(player)
 		Admins.forget(player)
 		NameService.forget(player)
-		if before == "Queued" or before == "Hosting" then
+		-- Matchmaking (D-080): their tickets and a rematch with them are gone;
+		-- anyone they were paired with here is first in line again.
+		leaveRematch(id)
+		CrossServer.forget(id)
+		queuedAt[id] = nil
+		foundAs[id] = nil
+		if before == "Queued" or before == "Hosting" or before == "Found" then
+			repair()
 			broadcastLobby()
 		end
 		local session = sessions[matchOf[id] or ""]
@@ -1116,6 +1786,7 @@ function MatchService.start()
 		end
 		elapsed = 0
 		local t = now()
+		matchmakingTick(t)
 		for _, session in sessions do
 			if t >= Session.nextWake(session) then
 				guard(session, function()

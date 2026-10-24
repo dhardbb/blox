@@ -99,12 +99,12 @@ describe("Results layout", function()
 		Rig.noErrors(world)
 	end)
 
-	it("pins Play vs Bot again and Back to lobby in the action bar", function()
+	it("pins Rematch and Back to lobby in the action bar (D-080)", function()
 		local world, peer = Rig.fixture("Over", Rig.PHONE)
-		local again = Rig.need(peer, "Results", "PlayAgain")
+		local again = Rig.need(peer, "Results", "Rematch")
 		expect(again:GetAttribute("PrimaryAction")):toBe(true)
-		expect(tostring(again.Text)):toBe("Play vs Bot again")
-		check(not inScroll(again), "Play again scrolls")
+		expect(tostring(again.Text)):toBe("Rematch")
+		check(not inScroll(again), "Rematch scrolls")
 		local back = Rig.need(peer, "Results", "BackToLobby")
 		check(not inScroll(back), "Back to lobby scrolls")
 		expect(back:GetAttribute("Variant")):toBe("secondary")
@@ -161,7 +161,7 @@ describe("Results layout", function()
 		local debates = Rig.findIn(peer, "Results", "Debates")
 		check(debates == nil or Rig.shown(debates, "Results"), "the debates are hidden in the sheet")
 		check(
-			Rig.need(peer, "Results", "PlayAgain"):GetAttribute("PrimaryAction") == true,
+			Rig.need(peer, "Results", "Rematch"):GetAttribute("PrimaryAction") == true,
 			"the sheet took the primary"
 		)
 		Rig.tap(world, peer, "Results", "Close", 0.3)

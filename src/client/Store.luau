@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Daily = require(ReplicatedStorage.Shared.Net.Daily)
 local Leaderboard = require(ReplicatedStorage.Shared.Net.Leaderboard)
+local Rematch = require(ReplicatedStorage.Shared.Net.Rematch)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 
@@ -31,6 +32,7 @@ export type State = {
 	review: Remotes.ReviewBoard?, -- admins: the reported names, as last sent (D-069)
 	daily: Daily.Info?, -- today's Daily Race, the streak and the day's board, as last sent (D-080)
 	dailyRun: Daily.Run?, -- the Daily Race run that ended last (its Results summary, D-080)
+	rematch: Rematch.Status?, -- where a rematch of the last match stands (D-080)
 }
 
 local Store = {}
@@ -50,6 +52,7 @@ local state: State = {
 	review = nil,
 	daily = nil,
 	dailyRun = nil,
+	rematch = nil,
 }
 local listeners: { (State) -> () } = {}
 
@@ -142,6 +145,11 @@ function Store.setDaily(info: Daily.Info)
 	if info.run then
 		state.dailyRun = info.run
 	end
+	changed()
+end
+
+function Store.setRematch(status: Rematch.Status)
+	state.rematch = status
 	changed()
 end
 

@@ -22,7 +22,7 @@ Daily.LOADING = "Loading today's board…"
 Daily.UNAVAILABLE = "Today's board is unavailable"
 Daily.EMPTY = "Nobody has finished today's race yet. Be the first!"
 Daily.WAITING = "Loading today's race…"
-Daily.RESULTS_AGAIN = "Practice again"
+Daily.REMATCH_PRACTICE = "Rematch plays today's race as practice." -- Results' status line after a run (D-082)
 Daily.SAVING = "Saving your run…"
 
 -- "Sat, Oct 24" (UTC).

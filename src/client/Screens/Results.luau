@@ -1,12 +1,12 @@
 --!strict
 -- Results (docs/UI-STYLE.md §4.9): who won, big, and why in three short
 -- reasons, then the details one tap away. The player leaves with Back to lobby
--- or goes straight into another match.
+-- or plays the same opponent again (Rematch, D-080).
 --
 -- Layout: three tabs pinned at the top once the election is in (D-073; a
 -- segmented row of chips Tab_Summary | Tab_Map | Tab_Graph, "Summary" | "Map" |
 -- "Graph"), a scrolling column, and the pinned ActionBar ("Play vs Bot again" /
--- "Play again" primary, "Back to lobby" secondary). Summary is the first view:
+-- "Rematch" primary, "Back to lobby" secondary). Summary is the first view:
 --   BannerBox     a stamp, "You won" (green) / "You lost" (orange, dark text: no
 --                 red anywhere on a loss), hero size, tilted, with the winner's
 --                 glow behind it; its label is Banner (D-056)
@@ -42,7 +42,14 @@
 -- Without an election (a forfeit) there are no tabs: Summary alone.
 -- After the tutorial (D-080) a card TutorialReady ("You're ready!", ReadyTitle,
 -- ReadyText) follows the Reason, and the primary button reads "Play a real
--- match": it queues for a match against a person.
+-- match" (not Rematch): it queues for a match against a person.
+--
+-- Rematch (D-080; Net/Rematch): against the bot a new match at the same level
+-- at once; against a person both tap within Config.REMATCH_WINDOW_SECONDS
+-- (the bar's status line counts down: "Waiting for Rex… · 14 s", "Rex wants a
+-- rematch! · 9 s"), then a new match with a new seed and the same seats. The
+-- button says when it can't: "Opponent left", "Rematch expired". In a match
+-- server Back to lobby also asks to go back to a lobby server (Return).
 -- Four text sizes: hero, heading, body, caption.
 --
 -- The moment (docs/UI-STYLE.md §2.7, D-053), once per match: the banner stamp
@@ -59,6 +66,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Landslide = require(ReplicatedStorage.Shared.UI.Landslide)
 local LobbyWords = require(ReplicatedStorage.Shared.UI.Words.Lobby)
+local MatchWords = require(ReplicatedStorage.Shared.UI.Words.Matchmaking)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
@@ -70,7 +78,6 @@ local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local Audio = require(script.Parent.Parent.UI.Audio)
-local BotLevel = require(script.Parent.Parent.UI.BotLevel)
 local Data = require(script.Parent.Common.Data)
 local GraphTab = require(script.Parent.ResultsParts.GraphTab)
 local Kit = require(script.Parent.Parent.UI.Kit)
@@ -199,27 +206,78 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local againDaily = false -- a Daily Race run: the primary plays today's race again (practice, D-080)
 	local dailyLine: TextLabel? = nil
 	local dailyMore: TextLabel? = nil
+	local rivalName = "your opponent" -- the opponent's first name, for the rematch line
 	local bar = ActionBar.new(page.footer :: Frame, {
-		primary = "Play again",
+		primary = MatchWords.REMATCH,
 		onPrimary = function()
-			ctx.store.dismissResult()
 			if afterTutorial then
+				-- The tutorial's end (D-080): into the queue for a real match.
+				ctx.store.dismissResult()
 				ctx.net.send("Queue")
-			elseif againDaily then
-				ctx.net.send("DailyRace")
-			elseif againBot then
-				ctx.net.send("Practice", { difficulty = BotLevel.get() }) -- the level picked in the Lobby (D-059)
+				return
+			end
+			-- A Daily Race's rematch is today's race again, a practice run once
+			-- today's run counted: the server decides (D-082).
+			local rematch = ctx.net.rematch
+			if rematch then
+				rematch()
 			else
-				ctx.net.send("Queue")
+				local payload = ctx.store.get().payload
+				if payload then
+					ctx.net.send("Rematch", { matchId = payload.matchId })
+				end
 			end
 		end,
-		primaryName = "PlayAgain",
+		primaryName = "Rematch",
 		secondary = "Back to lobby",
 		onSecondary = function()
 			ctx.store.dismissResult()
+			-- A match server sends its players back to a lobby server (D-080).
+			local lobby = ctx.store.get().lobby
+			if lobby and lobby.matchServer then
+				ctx.net.send("Return")
+			end
 		end,
 		secondaryName = "BackToLobby",
 	})
+
+	-- The Rematch button and the status line follow the server's word (D-080).
+	local function showRematch(state: Types.State)
+		local current = state.payload
+		if current == nil then
+			return
+		end
+		local status = state.rematch
+		local mine = status ~= nil and status.matchId == current.matchId
+		local kind = if mine then status.state else "Open"
+		local seconds = if mine and type(status.untilAt) == "number" then status.untilAt - ctx.now() else nil
+		if afterTutorial then
+			-- The tutorial's end (D-080): "Play a real match", never a rematch.
+			bar:setPrimary(LobbyWords.READY_PLAY, true)
+			bar:setStatus("", "muted")
+			return
+		end
+		if againBot then
+			bar:setPrimary(MatchWords.REMATCH, kind ~= "Gone" and kind ~= "Started")
+			bar:setStatus(if againDaily then DailyWords.REMATCH_PRACTICE else "", "muted")
+			return
+		end
+		if kind == "Gone" then
+			bar:setPrimary(MatchWords.REMATCH_GONE, false)
+		elseif kind == "Expired" or (seconds ~= nil and seconds <= 0) then
+			bar:setPrimary(MatchWords.REMATCH_EXPIRED, false)
+		elseif kind == "Waiting" then
+			bar:setPrimary(MatchWords.REMATCH_ASKED, false)
+		elseif kind == "Started" then
+			bar:setPrimary(MatchWords.REMATCH, false)
+		else
+			bar:setPrimary(MatchWords.REMATCH, true)
+		end
+		local line = if seconds == nil or seconds > 0
+			then MatchWords.rematchStatus(kind, seconds, rivalName)
+			else nil
+		bar:setStatus(line or "", if kind == "Asked" then "ok" else "muted")
+	end
 
 	local function label(into: Instance, text: string, props: { [string]: any }?): TextLabel
 		local base: { [string]: any } = {
@@ -667,14 +725,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		againBot = opponent ~= nil and opponent.kind == "Bot"
 		afterTutorial = current.tutorial == true
 		againDaily = current.daily ~= nil
-		bar:setPrimary(
-			if afterTutorial
-				then LobbyWords.READY_PLAY
-				elseif againDaily then DailyWords.RESULTS_AGAIN
-				elseif againBot then "Play vs Bot again"
-				else "Play again",
-			true
-		)
+		local opponentSeat = Data.opponent(current)
+		rivalName = names[opponentSeat] or rivalName
+		bar:setPrimary(if afterTutorial then LobbyWords.READY_PLAY else MatchWords.REMATCH, true)
 
 		-- The tabs: a new match opens on Summary; a later payload of the same
 		-- match keeps the tab the player is on.
@@ -781,6 +834,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					moreLine.Text = DailyWords.practiceLine(if today then info.margin else nil)
 				end
 			end
+			showRematch(state)
 			-- Rated matches: "Rating 1000 → 1016 (+16)", once the server sends it.
 			local change = state.rating
 			local line = ratingLine
@@ -793,6 +847,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end,
 		tick = function(_now: number)
 			relayout()
+			showRematch(ctx.store.get())
 		end,
 		destroy = function()
 			stopEffects()
