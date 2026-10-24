@@ -9,12 +9,15 @@
 -- (Kit.wordmark, D-064), the record, then Play vs
 -- Bot (the one primary) with the bot level chips under it (UI/BotLevel, D-059),
 -- "Find match" and "Play a friend" side by side, and a ghost "How to play"
--- (UI/HowTo, five short pages, D-059), then the Sound and Reduce motion chips
--- (UI/Settings, session only), and once the Color Pass is set up the "Color"
--- button (UI/ColorPick, D-055: red or blue, or your pick with the pass). The
+-- (UI/HowTo, five short pages and "Play the tutorial", D-059, D-075), and once
+-- the Color Pass is set up the "Color" button (UI/ColorPick, D-055: red or blue, or your pick with the pass). The
 -- global leaderboard (UI/Leaderboard, D-059) sits beside the column on a wide
 -- screen (top 10, or top 3 when short) and at the end of it on a phone (top 3,
 -- or just "You" and See all on a short phone: the column never scrolls).
+-- Sound and Reduce motion are two compact icon toggles in the top-right corner
+-- (UI/Settings.corner, D-075), inside the safe area the Game ScreenGui keeps
+-- (CoreUISafeInsets: clear of Roblox's own buttons and a notch), above the
+-- leaderboard card's corner.
 -- "Play a friend" opens a sheet with
 -- "Make a code" (Host) and the code field + Join. Messages (rejections,
 -- notices, a bad code) go to the global toast.
@@ -24,8 +27,8 @@
 --
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
--- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, Settings (SoundChip,
--- MotionChip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
+-- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, CornerSettings
+-- (SoundToggle, MotionToggle, SettingsTip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -191,10 +194,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		LayoutOrder = 4,
 		Parent = idle,
 	})
-	local settings = Settings.row({ LayoutOrder = 5, Parent = idle })
 	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 6, Parent = idle })
 	-- Admins only (D-069): the reported names to review.
 	local review = NameReview.new(parent, ctx, { LayoutOrder = 7, Parent = idle })
+	-- Sound and Reduce motion: the top-right corner (D-075), on every Lobby state.
+	local settings = Settings.corner({ Parent = parent })
 	local board = Leaderboard.new(parent, ctx)
 
 	-- The sheet: make a code, or enter one.

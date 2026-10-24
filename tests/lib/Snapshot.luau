@@ -27,13 +27,16 @@
 -- face (attribute Portrait = candidate id) as assets/portraits/<id>.png,
 -- clipped to its UICorner, whether or not the game has its asset id yet (the
 -- portrait's stand-in initials, attribute PortraitFallback, are not drawn);
+-- a Kit.issueIcon image (attribute IssueIcon = issue) as its PNG from
+-- assets/issues/ (UI/IssueIcons) tinted in its ImageColor3 (a mask), uploaded
+-- or not;
 -- any other image as a labeled
 -- dashed box. Text widths are estimated (Builder Sans, Gotham and Fredoka One
 -- are drawn as Helvetica), so line breaks are close to Studio, not exact.
 --
 -- Not drawn: UIGradient Offset, Scale and Type, TileMode; a UIGradient's effect
 -- on its parent's UIStroke; Rotation's effect on clipping; images' real pixels
--- (except the portraits).
+-- (except the portraits and the issue symbols).
 --
 -- Snapshot.svg(peer, options?) -> string
 --   options.topInset  px the Roblox top bar takes from ScreenGuis that respect
@@ -44,6 +47,7 @@
 local fs = require("@lune/fs")
 
 local Icons = require("../../src/client/UI/Icons")
+local IssueIcons = require("../../src/client/UI/IssueIcons")
 local MapShape = require("../../src/shared/UI/MapShape")
 
 local Snapshot = {}
@@ -1068,6 +1072,81 @@ local function drawPortrait(out: Out, node: Node, ax: number, ay: number, id: st
 	)
 end
 
+local ISSUE_SIDE = 256 -- px, assets/issues/<file>.png
+local issueData: { [string]: string | false } = {}
+
+-- The data: URI of an issue symbol's PNG (UI/IssueIcons), or nil when there is none.
+local function issueUri(issue: string): string?
+	local cached = issueData[issue]
+	if cached == nil then
+		local icon = IssueIcons.icons[issue]
+		local ok, bytes = false, nil
+		if icon then
+			ok, bytes = pcall(fs.readFile, `assets/issues/{icon.file}.png`)
+		end
+		cached = if ok and type(bytes) == "string" then "data:image/png;base64," .. base64(bytes) else false
+		issueData[issue] = cached
+	end
+	return if cached then cached else nil
+end
+
+-- A Kit.issueIcon image (attribute IssueIcon): the local PNG, defined once per
+-- picture, used as a mask over a square of its ImageColor3 (the game's tint).
+local function drawIssueIcon(out: Out, node: Node, ax: number, ay: number, issue: string)
+	local p = props(node.inst)
+	local alpha = 1 - (p.ImageTransparency or 0)
+	local uri = issueUri(issue)
+	if uri == nil or alpha <= 0.01 then
+		return
+	end
+	local defId = `issue_{issue}`
+	if not out.portraits[defId] then
+		out.portraits[defId] = true
+		emit(
+			out,
+			string.format(
+				'<defs><image id="%s" width="%d" height="%d" xlink:href="%s"/></defs>',
+				defId,
+				ISSUE_SIDE,
+				ISSUE_SIDE,
+				uri
+			)
+		)
+	end
+	local w, h = node.w, node.h
+	local side = math.min(w, h)
+	local x, y = ax + (w - side) / 2, ay + (h - side) / 2
+	local mask = nextId(out, "im")
+	emit(
+		out,
+		string.format(
+			'<mask id="%s" maskUnits="userSpaceOnUse" x="%s" y="%s" width="%s" height="%s"><use xlink:href="#%s" transform="translate(%s %s) scale(%s)"/></mask>',
+			mask,
+			num(x),
+			num(y),
+			num(side),
+			num(side),
+			defId,
+			num(x),
+			num(y),
+			string.format("%.4f", side / ISSUE_SIDE)
+		)
+	)
+	emit(
+		out,
+		string.format(
+			'<rect x="%s" y="%s" width="%s" height="%s" fill="%s" fill-opacity="%s" mask="url(#%s)"/>',
+			num(x),
+			num(y),
+			num(side),
+			num(side),
+			hex(p.ImageColor3, "#ffffff"),
+			num(alpha),
+			mask
+		)
+	)
+end
+
 local function drawNode(out: Out, node: Node, ox: number, oy: number, siblings: { [string]: Node }?)
 	local inst = node.inst
 	local p = props(inst)
@@ -1136,6 +1215,11 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number, siblings: 
 	if c == "ImageLabel" and type(portrait) == "string" and portrait ~= "" then
 		drawPortrait(out, node, ax, ay, portrait)
 		assetName = "portrait" -- not a plain image
+	end
+	local issueIcon = attrs(inst).IssueIcon
+	if c == "ImageLabel" and type(issueIcon) == "string" then
+		drawIssueIcon(out, node, ax, ay, issueIcon)
+		assetName = "issue" -- not a plain image
 	end
 	local attributes = rawget(inst, "_attributes")
 	local iconName = if attributes then attributes.Icon else nil

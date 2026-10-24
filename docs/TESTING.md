@@ -993,7 +993,7 @@ Studio may not answer the chat-permission check, and its text filter is limited.
 1. With a name set on account A, **Find match** with account B (both allowed to chat). **Expect:** B sees A's custom name. With B's chat turned off (Roblox settings), B sees "Dana Okafor".
 2. Try a few names on A that Roblox's chat would hide (a rude word, a phone-number-like name spelled out in words). **Expect:** "That name isn't allowed. Try another."
 3. **Report:** on B, tap **?** → **Report "Captain Zed"** → **Report**. **Expect:** B sees "Dana Okafor" from then on (also in the next match against A); a thank-you message. A still sees their own name. The sheet mentions Roblox's own Report.
-4. **Review (owner or partner):** in the Lobby, **Review names (1)**. **Expect:** "Captain Zed · by <A's username> · 1 report · <date>". Tap **Keep**: the row goes, A keeps the name. Report it again from B, then **Remove**. **Expect:** A's candidate goes back to its own name with "Your custom name was removed after a review. You can pick a new one."; A can no longer use "Captain Zed", "Capta1n Zed" or "Captain Zeb", but can pick another name. On another server, A's saved name is cleared when A next joins.
+4. **Review (owner or partner):** in the Lobby, **Review names (1)**. **Expect:** "Captain Zed · by <A's username> · 1 report · <date>". Tap **Keep**: the row goes, A keeps the name. Report it again from B, then **Remove**. **Expect:** A's candidate goes back to its own name with "Your custom name was removed after a review. You can pick a new one."; A can no longer use "Captain Zed", "Capta1n Zed" or "Captain Zed Jr", but can pick another name, "Captain Zeb" included (D-078: whole words only). On another server, A's saved name is cleared when A next joins.
 5. **Admins' free color:** as the owner or partner, with no Color Pass bought, the Lobby shows **Color** with every swatch open.
 6. Output: lines with `name filter failed`, `name eligibility check failed`, `name review`, `rejected SetName`, `rejected ReportName`, `rejected Review`.
 
@@ -1012,16 +1012,65 @@ Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`
 7. **Rejoin:** leave the game on the Results screen and rejoin (if the match result is still shown). **Expect:** the Graph still shows every week.
 8. **Send back:** an iPad screenshot of each tab, whether the MISS tags made the polling errors easy to spot, whether the graph was readable on a phone, and any Output errors from `Results`, `MapTab` or `GraphTab`.
 
-## Map polish (unreleased, D-075)
+## The tutorial, bot timers and corner settings (unreleased, D-075)
+
+Server and client. Agents: `lune run tests D-075`, `lune run tests/ui/snap.luau -- 01` (and `-- 02f`, `-- 09t`, `-- 09u`) at all three sizes: 0 audit findings. In Studio the tutorial needs saved data: turn on **Enable Studio Access to API Services** (as for 0.13.0); without it every bot match is an ordinary one.
+
+1. **First bot match = tutorial.** With an account that has never played (or a fresh test account), press **Play vs Bot**. **Expect:** a message "Tutorial: no timer on any choice, so take your time."; on Select, the draft, a stance, each debate round and every plan the top right reads **No timer** (grey, no bar under the title), and the plan has no **+15 s** button. Wait a few minutes on a plan: nothing happens until you lock in. The week's reveal, the debate's clashes and election night still play on their own, and Skip works. Coach tips appear as usual. *Send back:* a screenshot of a tutorial plan on the iPad.
+2. **Done after one.** Finish that match (or **? → Leave match**), then press **Play vs Bot** again. **Expect:** an ordinary match with a countdown. Leave the game and rejoin: still ordinary (it is saved).
+3. **Quit mid-tutorial.** With a fresh account, start the first bot match and close Roblox. Rejoin after a minute and press **Play vs Bot**. **Expect:** the tutorial again (a match you quit does not count).
+4. **Replay.** In the Lobby open **How to play**. **Expect:** under the pages, on every page, **Play the tutorial** and "A match against the Easy bot, with tips and no timers." Tap it. **Expect:** the sheet closes and a tutorial starts against the Easy bot (shown in the seat list) whatever level is picked, with no timers and the coach tips back. *Send back:* whether the replay felt useful.
+5. **Bot timers.** Pick **Easy**, Play vs Bot: Select starts at 1:16, a draft round at 0:40, the plan at 1:40. **Medium**: 0:57, 0:30, 1:15. **Hard** and **Extreme**: 0:38, 0:20, 0:50, as before. The week's reveal and election night are as long as before. A match against a person is unchanged.
+6. **Corner settings.** In the Lobby (phone size, iPad, Mac window), Sound and Reduce motion are two small square buttons in the top-right corner, not in the column, clear of Roblox's own buttons and of the leaderboard. Tap Sound: the icon turns grey and crossed, and a small label "Sound off" shows beside them for a moment; tap again for "Sound on". Same for Reduce motion ("Reduce motion on" outlines it). On the Mac, hovering a button shows its label. In a match, the **?** sheet's settings and the header's sound button still work and the corner follows them. *Send back:* a phone and an iPad screenshot of the Lobby.
+7. **No errors** from `Session`, `MatchService`, `Header`, `Settings` or `HowTo` in the Output window.
+## Issue symbols (unreleased, D-076)
+
+Client only. Agents: `lune run tests "D-076"`, `lune run tests "Map lenses"`, `lune run tests/ui/snap.luau -- issues`, `-- 04-select`, `-- 10g`, `-- debate`, `-- howto`, `-- help` (0 audit findings at all three sizes). Before the upload, the game shows the old codes ("JOB") on the map and the names alone elsewhere: check that first, then again after the ids are in `src/client/UI/IssueIcons.luau`.
+
+1. **Play vs Bot** on the iPad. On the issue step, **Expect:** each issue card shows its symbol before the name (briefcase, heart with a pulse, cap, leaf, shield, bus, chip, wheat).
+2. In the campaign, tap **Issues** above the map. **Expect:** every state shows a small white symbol on its plate; states whose issue is one of yours have the plate filled in your color. Under the map, a row names the symbols of your issues (on the Mac also the others).
+3. Tap **Key**. **Expect:** "The mark is the state's top issue, below…" and all eight symbols with their names in two columns.
+4. Tap a state. **Expect:** the message chips show symbol + name (on a narrow chip only the name); under **Details +**, "Top issues:" with symbols and names.
+5. Reach a week with a spotlight or a stance event and a debate. **Expect:** the event's gold plate shows the issue's symbol; the debate intro lists the three rounds with symbols; each round's label starts with its symbol.
+6. Lobby → **How to play**: page 4 of 6 is "Your issues" with the eight symbols. In a match, **?** → **Actions** ends with the same list.
+7. At 16-20 px on the phone and the Mac: is each symbol recognizable? Does any look like a real logo or a party sign?
+
+**Send back:** screenshots of the Issues map (iPad and phone), the Map key, a message chip row, and which symbols (if any) were hard to tell apart or to read small.
+## Client fixes (unreleased)
+
+Agents: `lune run tests "Reporting a custom name"`, `lune run tests "Landslide stamp"`, `lune run tests "long custom name"`, `lune run tests "holding a move"`, `lune run tests "without your seat"`.
+
+1. **Report from Results** (two accounts, A with a custom name, e.g. "Captain Zed"): play to the end (A can **Leave match**). On B's Results, tap **Report** on A's card, then **Report**. **Expect:** at once B's banner reasons, A's card, and the Map and Graph tabs show A's candidate's own name; the Report button is gone; "Thanks for the report" shows.
+2. **LANDSLIDE shine** (iPad): win with more than 70% of the votes (Play vs Bot, Easy). **Expect:** every few seconds a soft light sweeps across the tilted LANDSLIDE stamp and stays inside its rounded edges: nothing bright shows outside the stamp. The primary button's shine also stays inside its rounded corners.
+3. **Long name in a debate** (phone size 390x844): name A's candidate with 16 letters (e.g. "Bartholomew Zork"), play B against A to a debate, and let A win a round and the crowd. **Expect:** B's stamps read "THEY WIN BY …" and "THEY WON THE CROWD", fully inside the panel; A's name over the face is smaller but whole; the crowd line reads "Them +N".
+4. **Hold a move** (iPad): in a debate round, press and hold **Attack**, slide the finger off the button and lift it. **Expect:** the map preview of Attack goes away. On the Mac: press, drag the mouse off the button, release. **Expect:** same.
+5. **Back to lobby after a landslide:** from the Results above, tap **Back to lobby**. **Expect:** no errors in Output.
+
+**Send back:** an iPad screenshot of the LANDSLIDE stamp mid-shine, a phone screenshot of the long-name verdict, and any Output errors from `Results`, `Moves`, `Clash` or `Motion`.
+
+## Server and saved-data fixes (unreleased)
+
+Agents: `lune run tests "e2e: a result follows"`, `lune run tests "e2e: request spam"`, `lune run tests "e2e: unrated"`, `lune run tests "hold up under failures"`, `lune run tests "review:"`. Live server tests (DataStores and two servers need a published place; use two accounts, A and B).
+
+1. **A loss follows you to another server.** A and B **Find match** (or a private code) and play into week 1. A leaves the game and joins a different server of the experience (Roblox → the experience → Servers, or join a friend on another server). Wait until the match on the old server ends (B wins by forfeit after A's missed weeks), then about a minute more. **Expect:** A's lobby rating drops (and A's loss count goes up) without A doing anything; after A leaves and rejoins, it is still the lower rating; the leaderboard shows the lower rating. **Send back:** A's rating before and after, and the Output lines `waits for the server that holds their data` and `merged`.
+2. **Leaving early is unrated (D-077).** Host a private match, the other joins, then press **Leave match** during Select. **Expect:** both see "The match ended before week 1, so it doesn't count for anyone's rating."; neither rating changes. Do the same in week 1: that one is rated.
+3. **Three rated games a day per pair.** Play (or forfeit from week 1 on) three rated matches between A and B, then queue a fourth. **Expect:** as it starts, both see "This match is unrated: you two already played 3 rated matches today."; at the end neither rating moves.
+4. **Spam.** In the Lobby, tap colors quickly (admin or Color Pass). **Expect:** some taps say "Slow down a little."; the color you end on is kept after a rejoin (wait 15 s before leaving).
+5. **Name review (admins).** Report a name like "Ann Lee", then **Remove** it. **Expect:** "Ann Lee" and "Ann Lee Jr" are turned down; "Hannah" and "Anna Leigh" are fine. A player with a saved name that only contains it ("Ann Lee Smith") sees their candidate's own name with "Your custom name isn't allowed anymore…" and keeps the name in their save. Open the review list, then have the owner rename and get reported again before you tap **Remove**: **Expect:** "That name changed since the list loaded. Check it again." and the list refreshes.
+6. **Debate grace.** In a 2-player match, drop (close the client) during the week's results right before a debate, rejoin, then drop again during debate round 1. **Expect:** the second drop still gets the 30 s grace (the opponent sees the countdown) instead of canned answers at once.
+7. **Rejoin in a debate.** In a debate round, pick **Attack**, stake the Zinger, **Lock in**, then leave and rejoin before the round ends. **Expect:** Attack and the Zinger show as picked, the bar says "Locked in · waiting for opponent", and tapping another move changes nothing.
+8. **Send back:** the Output lines containing `is unrated`, `rejected SetColor`, `rejected Review`, `result`, and any errors.
+
+## Map polish (unreleased, D-079)
 
 Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests "Map labels"`, `lune run tests "Close filter"`, `lune run tests Lens`, `lune run tests Stances`, `lune run tests/ui/snap.luau -- --size phone` (every map shot; 0 audit findings at all three sizes).
 
-1. **Phone in portrait (390x844 in Studio's device emulator, or a real phone).** Play vs Bot to the first plan. **Expect:** the map is taller than before (about 390x312), the nine small Northeast states are a row of chips under the map, every state shows its votes on one line ("PA 19", "19" on the tiny ones), the chips show code over number, and no two labels overlap. Rotate to landscape: the map goes back to the wide layout with the chip column.
-2. **Lenses on the phone.** Tap Polls. **Expect:** every state shows its lead; where there is momentum or ground game it sits in the same pill ("+8 ▲ ●●"), never on its own. Money: only 8 states show a coin and a dollar amount.
+1. **Phone in portrait (390x844 in Studio's device emulator, or a real phone).** Play vs Bot to the first plan. **Expect:** the map is taller than before (about 390x312), the nine small Northeast states are a row of chips under the map, every state shows its votes on one line ("PA 19"), or its code over its number on the small ones; a number that had to move has a thin line to its state; the chips show code over number, and no two labels overlap. Plan a rally: its badge and its "+N" sit on the state's line. Rotate to landscape: the map goes back to the wide layout with the chip column.
+2. **Lenses on the phone.** Tap Polls. **Expect:** every state shows its lead; where there is momentum or ground game it sits in the same pill ("+8 ▲ ●●"), never on its own. Money: only 8 states show coins, 1 to 3 by how rich the pool is (the dollars are on the state card). The legend says "▲▲ strong". Issues: each state's top issue is a symbol on a round disc.
 3. **Close.** Tap **Close**. **Expect:** states more than 8 points from close fade and lose their numbers; the chip stays on when you switch lenses and on the next week; tap it again to turn it off. On a phone the Key chip shows only its icon.
 4. **Pins.** **Expect:** in week 1 both pins have their name tabs; from week 2 only faces (yours a little bigger). Tap the state your candidate is in: your "You" tab appears; tap away: it goes.
 5. **Northeast.** **Expect:** one thin bracket from the chips to the coast, no fan of lines. Tap the RI chip: a line from the chip to Rhode Island; on the Mac, hovering a chip shows it too.
-6. **Alaska and Hawaii.** **Expect:** each in a small box under California; Hawaii's islands are visible, its label beside them.
+6. **Alaska and Hawaii.** **Expect:** each in a small box under California; Hawaii's box is tinted in its color, its label beside the islands.
 7. **Week results.** Play a busy week. **Expect:** the fills fade to each step's polls; at most 8 tags at a time; a flip is an outline in the new leader's color and a ▲ (it came your way) or ▼ (it went away) on the biggest ones. With Reduce motion on, the fills change at once.
 8. **Stance week.** On the Decision screen pick a stance. **Expect:** helped states outlined green, hurt states orange, a few green "+" tags, and the key's two rings in the same green and orange.
 9. **Election night.** **Expect:** uncalled states are dark outlines (not grey); each call shakes its state (not with Reduce motion); the state that will decide 270 is outlined in white before it is called; no tags on the map.

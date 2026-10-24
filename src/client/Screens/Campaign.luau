@@ -30,6 +30,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
+local Issues = require(Shared.Sim.Issues)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local PlanPreview = require(Shared.UI.PlanPreview)
@@ -70,7 +71,7 @@ local KEY_W = 88 -- px, the map key chip
 local KEY_NARROW = Kit.MIN_TOUCH -- px, ... its icon alone (a phone, so the Close chip fits)
 local KEY_ICON = 24 -- px, its icon plate
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
-local PORTRAIT_MAP_MAX = 0.5 -- most of the body height the map may take on phones (D-075: room for the tall map)
+local PORTRAIT_MAP_MAX = 0.5 -- most of the body height the map may take on phones (D-079: room for the tall map)
 local BACK_SECONDS = 4 -- how long "<name>: back" shows after a reconnect
 local SWATCH = 20 -- px, a color step's dot in the map key
 local KEY_ROW_H = 24 -- px, one color step's row in the map key
@@ -210,7 +211,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	lensToggle.root.AnchorPoint = Vector2.new(1, 0)
 	lensToggle.root.Position = UDim2.fromScale(1, 0)
 	-- The key chip keeps its own width (KEY_W); the lens chips take the right end.
-	-- Between them, the Close filter (D-075): only the states still in play.
+	-- Between them, the Close filter (D-079): only the states still in play.
 	local closeChip = LensToggle.close(mapArea, function()
 		lensFade = true
 		model.render()
@@ -322,8 +323,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	for k = 1, 8 do
 		keyLines[k] = Kit.text("", {
 			Name = `KeyLine{k}`,
-			-- The color steps come right after the first line (what color means).
-			LayoutOrder = if k == 1 then 1 else 10 + k,
+			-- The color steps come right after the first line (what color means);
+			-- the issue symbols (KeyIssues) right after the third (the Issues lens's).
+			LayoutOrder = if k == 1 then 1 else 10 + 2 * k,
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = key.body,
@@ -365,8 +367,41 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		})
 		table.insert(keyBands, { name = band.name, mine = mine, theirs = theirs })
 	end
+	-- The Issues lens (D-076): every issue's symbol with its name, two columns.
+	local keyIssues = Kit.box({
+		Name = "KeyIssues",
+		LayoutOrder = 17,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Visible = false,
+		Parent = key.body,
+	})
+	Kit.new("UIGridLayout", {
+		CellSize = UDim2.new(0.5, -Kit.space.xs, 0, KEY_ROW_H),
+		CellPadding = UDim2.fromOffset(Kit.space.sm, Kit.space.xs),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = keyIssues,
+	})
+	for k, issue in Issues.list do
+		local cell = Kit.box({ Name = `KeyIssue_{issue}`, LayoutOrder = k, Parent = keyIssues })
+		local row = Kit.list("Horizontal", Kit.space.sm)
+		row.VerticalAlignment = Enum.VerticalAlignment.Center
+		row.Parent = cell
+		local icon = Kit.issueIcon(issue, SWATCH)
+		icon.LayoutOrder = 1
+		icon.Parent = cell
+		Kit.text(Kit.issueName(issue), {
+			Name = "IssueText",
+			LayoutOrder = 2,
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, KEY_ROW_H),
+			TextWrapped = false,
+			Parent = cell,
+		})
+	end
 	keySheet = key
 	local function renderKey(p: Payload)
+		keyIssues.Visible = Lens.current() == "Issues"
 		local lines = Words.key(Lens.current())
 		for k, label in keyLines do
 			label.Text = lines[k] or ""
@@ -437,7 +472,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if isPortrait then
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
-			-- The map's box for this room (D-075: it stands up on a phone, 1.25 instead of 1.6).
+			-- The map's box for this room (D-079: it stands up on a phone, 1.25 instead of 1.6).
 			local maxHeight = height * PORTRAIT_MAP_MAX
 			local mapHeight = math.floor(math.min(width / map:aspectFor(width, maxHeight), maxHeight))
 			local areaHeight = mapHeight + LENS_H + Kit.space.xs
@@ -478,7 +513,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			colors[p] = Colors.of(player.color)
 		end
 		local live = model.payload
-		-- During a reveal the fills tween to each step's polls (D-075): the map
+		-- During a reveal the fills tween to each step's polls (D-079): the map
 		-- tells the story, the tags only name the flips and biggest moves.
 		map:setView(shown, colors, live ~= nil and live.reveal ~= nil)
 		local event = if live then Model.shownEvent(live) else nil
@@ -666,7 +701,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local seat = p.seats[p.you]
 			local bank = if seat then seat.bank else 0
 			local chunk = config.TIME_BANK_CHUNK
-			if canEdit and bank >= chunk then
+			-- No "+15 s" in a plan without a deadline (the tutorial, D-075).
+			if canEdit and bank >= chunk and p.deadline ~= nil then
 				bar:setSecondary(`+{chunk} s`, true)
 			else
 				bar:setSecondary(nil, false)
@@ -799,7 +835,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			reveal:remember(p.view)
 			-- A rejection after Lock in: the seat is still open, so allow editing again.
-			if model.lockStep == p.step and not p.seats[p.you].locked then
+			local own = p.seats[p.you]
+			if model.lockStep == p.step and not (own ~= nil and own.locked) then
 				local turnedDown = Messages.rejectionAfter(state, lockMessageId)
 				if turnedDown ~= nil then
 					model.lockStep = nil

@@ -532,6 +532,17 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			else `Round {round} of {totalRounds} · picks revealed`
 	end
 
+	-- The countdown and its bar (the stage's own length: a bot match scales the
+	-- round, D-075); a round without a deadline (the tutorial) says so.
+	local function showTimer(payload: Session.StatePayload, now: number)
+		local deadline = payload.deadline
+		if deadline == nil then
+			header:setNoTimer()
+			return
+		end
+		header:setTimer(deadline - now, if mode == "Input" then nil else 0, deadline - payload.stageStart)
+	end
+
 	local function render()
 		local state = current
 		if state == nil then
@@ -828,11 +839,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		howButton.Visible = mode ~= "Reveal"
 
 		-- Countdown: it only warns while there is something to lock in.
-		local total = if mode == "Input"
-			then config.TIMER_DRAFT_ROUND
-			elseif mode == "Map" then config.TIMER_MAP_REVEAL
-			else config.DRAFT_REVEAL
-		header:setTimer(payload.deadline - ctx.now(), if mode == "Input" then nil else 0, total)
+		showTimer(payload, ctx.now())
 	end
 	refresh = render
 
@@ -842,7 +849,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end)
 	chips.root.AnchorPoint = Vector2.new(1, 0)
 	chips.root.Position = UDim2.fromScale(1, 0)
-	-- The Close filter left of them (D-075).
+	-- The Close filter left of them (D-079).
 	local closeChip = LensToggle.close(mapHolder, function()
 		render()
 	end)
@@ -866,11 +873,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				-- Rotated or resized: titles and the legend's place depend on it.
 				render()
 			end
-			local total = if mode == "Input"
-				then config.TIMER_DRAFT_ROUND
-				elseif mode == "Map" then config.TIMER_MAP_REVEAL
-				else config.DRAFT_REVEAL
-			header:setTimer(payload.deadline - now, if mode == "Input" then nil else 0, total)
+			showTimer(payload, now)
 			-- The timer is about to end with a pick that was never locked: lock it.
 			if mode == "Input" and choices.first ~= nil and autoLock:due(payload, now, isLocked()) then
 				lockInPressed()

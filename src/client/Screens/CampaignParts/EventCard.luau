@@ -351,6 +351,14 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			card.root:SetAttribute("EventKind", event.kind)
 			card.root:SetAttribute("EventName", event.name)
 			effect.Text = Words.percent(PlanDraft.eventEffect(config, event))
+			-- An event about an issue leads its effect line with that issue's symbol (D-076).
+			local about: string? = if event.kind == "Spotlight" or event.kind == "Choice"
+				then event.issue :: any
+				else nil
+			if effect:GetAttribute("LeadIssue") ~= about then
+				effect:SetAttribute("LeadIssue", about)
+				Kit.issueLead(effect, about)
+			end
 			flavor.Text = event.text
 			local note = PlanDraft.eventMapNote(event)
 			mapNote.Text = note or ""
@@ -556,15 +564,24 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 				-- scaled 3% would run past the screen's edge and clip its arrow.
 				Motion.pulseOnce(plate)
 			end
-			if iconKind ~= shown.kind then
-				-- The plate's icon follows the event's kind.
-				iconKind = shown.kind
+			-- An event about an issue (a spotlight, a stance) shows that issue's
+			-- symbol (D-076); the others, their kind's icon.
+			local issue: string? = if shown.kind == "Spotlight" or shown.kind == "Choice"
+				then shown.issue :: any
+				else nil
+			local useIssue = issue ~= nil and Kit.hasIssueIcon(issue)
+			local iconFor = if issue and useIssue then `{shown.kind}:{issue}` else shown.kind
+			if iconKind ~= iconFor then
+				-- The plate's icon follows the event's kind (or issue).
+				iconKind = iconFor
 				for _, child in plate:GetChildren() do
 					if child:IsA("GuiObject") then
 						child:Destroy()
 					end
 				end
-				local icon = Kit.icon(EVENT_ICONS[shown.kind] or "vote", STRIP_GLYPH, Kit.colors.background)
+				local icon = if issue and useIssue
+					then Kit.issueIcon(issue, STRIP_GLYPH, Kit.colors.background)
+					else Kit.icon(EVENT_ICONS[shown.kind] or "vote", STRIP_GLYPH, Kit.colors.background)
 				icon.Name = "Icon"
 				icon.AnchorPoint = Vector2.new(0.5, 0.5)
 				icon.Position = UDim2.fromScale(0.5, 0.5)

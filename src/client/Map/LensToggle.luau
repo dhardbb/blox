@@ -6,7 +6,7 @@
 --
 --   LensToggle.new(parent, onChange) -> Toggle   the chips alone (the caller places root)
 --   LensToggle.bar(parent, config, onChange) -> Toggle   a full-width row: legend, then chips
---   LensToggle.close(parent, onChange) -> Toggle  the "Close" filter chip (D-075):
+--   LensToggle.close(parent, onChange) -> Toggle  the "Close" filter chip (D-079):
 --                                        on, only the states within Lens.CLOSE
 --                                        points keep their fill and value;
 --                                        remembered for the session like the lens

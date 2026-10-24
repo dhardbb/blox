@@ -1,7 +1,7 @@
 --!strict
 -- The screens for stances and debates (D-042) on the fake engine: a Choice week
 -- previews the selected (or held) stance on the map with green and orange
--- outlines, the biggest gains' tags and ▲ / ▼ flip tags (D-075), and says which states you need; the debate reveal names the states each
+-- outlines, the biggest gains' tags and ▲ / ▼ flip tags (D-079), and says which states you need; the debate reveal names the states each
 -- topic swung and calls out every flip and gaffe; the resolve reveal after a
 -- Choice week does the same for both stances; Results says what debates and
 -- stances decided. Every moment passes the strict UI audit at 1280x720, 844x390
@@ -84,7 +84,7 @@ local function nodePart(peer: FakeRoblox.Peer, id: string, part: string): any
 	error(`no {part} on map node {id}`)
 end
 
-local UP, DOWN = "▲", "▼" -- a flip's tag (SwingMarks, D-075)
+local UP, DOWN = "▲", "▼" -- a flip's tag (SwingMarks, D-079)
 local LABELS = 8 -- tags on the map at most (SwingMarks.LABELS)
 
 -- The text of a state's tag, or nil.
@@ -194,7 +194,7 @@ describe("Stances: the Choice week", function()
 		for _, flip in preview.flips do
 			flipped[flip.state] = true
 		end
-		-- Every moved state is outlined in the legend's colors (D-075: never a
+		-- Every moved state is outlined in the legend's colors (D-079: never a
 		-- player's color, which the fills use); only the biggest gains (and
 		-- flips, ▲ / ▼) carry a tag.
 		local gainTags = 0

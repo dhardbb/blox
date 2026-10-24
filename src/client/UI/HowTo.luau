@@ -1,15 +1,18 @@
 --!strict
 -- "How to play" for brand-new players (docs/DESIGN.md D-059): the Lobby's
--- ghost button opens this sheet of five short pages, one idea each: the goal
--- (270 votes, over two sample candidates' portraits), a week (plan, both reveal, the map moves), the actions, debates
--- and events, election night. Each page is a title, a small picture built from
+-- ghost button opens this sheet of six short pages, one idea each: the goal
+-- (270 votes, over two sample candidates' portraits), a week (plan, both reveal, the map moves), the actions, the
+-- issues (their symbols, D-076), debates and events, election night. Each page is a title, a small picture built from
 -- Kit pieces and at most 30 words (Shared/UI/Words/Lobby.howTo). The pictures
--- for the goal, the actions and the debates are the in-match Help's own
+-- for the goal, the actions, the issues and the debates are the in-match Help's own
 -- (UI/Help.art), so both always show the same thing; the full rules stay in
 -- the in-match "?" sheet.
 --
 -- Back and Next step through the pages; the last page's Next reads "Got it"
 -- and closes. The sheet never holds a primary action (Next is a secondary).
+-- Under the pages, on every page, "Play the tutorial" (D-075) starts the
+-- tutorial again: a practice match against the Easy bot with no choice timers
+-- and every coach tip shown again (CoachTip.reset), with a one-line hint.
 --
 --   local howTo = HowTo.new(screenRoot, ctx)
 --   howTo.open()          opens on page 1
@@ -17,7 +20,8 @@
 --   howTo.page() -> number
 --   howTo.sheet   the Sheet "HowToSheet"
 --   Elements: HowToPage_<id> (HowToTitle_<id>, HowToArt_<id>, HowToText_<id>),
---   HowToNav (HowToBack, HowToCount, HowToNext)
+--   HowToNav (HowToBack, HowToCount, HowToNext), HowToTutorial
+--   (PlayTutorial, TutorialHint)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -25,6 +29,7 @@ local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 
+local CoachTip = require(script.Parent.CoachTip)
 local Help = require(script.Parent.Help)
 local Kit = require(script.Parent.Kit)
 local Sheet = require(script.Parent.Sheet)
@@ -32,7 +37,7 @@ local Types = require(script.Parent.Parent.Screens.Types)
 
 local HowTo = {}
 
-local HEIGHT = 0.7 -- share of the screen height (the tallest page, Actions, fits on a 720 px screen)
+local HEIGHT = 0.82 -- share of the screen height (the tallest page, Actions, with "Play the tutorial" under it, fits on a 720 px screen; 0.7 before D-075)
 local NUMBER = 28 -- px, a step number's circle
 local ROW = 28 -- px, one row of a picture
 local NAV_W = 0.32 -- share of the row each nav button takes
@@ -171,6 +176,8 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 			weekArt(art)
 		elseif page.id == "actions" then
 			Help.art.actions(art)
+		elseif page.id == "issues" then
+			Help.art.issues(art)
 		elseif page.id == "events" then
 			Help.art.events(art)
 		else
@@ -224,6 +231,31 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromScale(NAV_W, 1),
 		Parent = nav,
+	})
+
+	-- Replay the tutorial (D-075): the tips come back for it, and the server
+	-- picks the Easy bot and drops the choice timers.
+	local tutorial = Kit.stack({
+		Name = "HowToTutorial",
+		LayoutOrder = 3,
+		Parent = sheet.body,
+	}, "Vertical", Kit.space.xs)
+	Kit.divider({ LayoutOrder = 1, Parent = tutorial })
+	Kit.button(Words.TUTORIAL_BUTTON, function()
+		CoachTip.reset()
+		sheet:close()
+		ctx.net.send("Practice", { difficulty = "Easy", tutorial = true })
+	end, {
+		variant = "secondary",
+		Name = "PlayTutorial",
+		LayoutOrder = 2,
+		Parent = tutorial,
+	})
+	Kit.caption(Words.TUTORIAL_HINT, {
+		Name = "TutorialHint",
+		LayoutOrder = 3,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = tutorial,
 	})
 
 	show = function(page: number)

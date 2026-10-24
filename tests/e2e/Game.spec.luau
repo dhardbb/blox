@@ -88,6 +88,7 @@ describe("e2e: full matches", function()
 
 	it("autoplay acts on the same step number in a second match", function()
 		local rig = newRig(21)
+		Support.returning(rig) -- timed bot matches: not the tutorial (D-075)
 		local p1 = Support.join(rig, "Player1")
 		-- Match 1: autoplay sees the first draft round (step 3), then goes off.
 		Support.press(rig, p1, "Practice")

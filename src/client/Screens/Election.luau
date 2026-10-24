@@ -23,7 +23,7 @@
 -- the tipping state is outlined in white before its call and keeps the ring
 -- and an accent glow after it (its call has no CALLED stamp: one stamp per
 -- moment; when it is the last call, the banner waits BANNER_HOLD for it).
--- On the map (D-075) states not called yet are hollow (a dark fill and a
+-- On the map (D-079) states not called yet are hollow (a dark fill and a
 -- hairline), each call shakes its state, and nothing carries a tag: the race
 -- bar's "270!" is the night's one big label. Feed rows carry a
 -- left bar in the winner's color. The banner: eyebrow "ELECTION NIGHT", the
@@ -599,7 +599,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 		end
 
-		-- Not called yet: drawn hollow, a dark fill and a hairline (D-075), so
+		-- Not called yet: drawn hollow, a dark fill and a hairline (D-079), so
 		-- the slate fill keeps meaning "toss-up" on every other screen.
 		local marks: { [string]: MapInterface.Mark } = {}
 		for k = count + 1, #results do
@@ -1009,13 +1009,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		-- "Results in" is not a deadline to beat: no warning colors, no ticks.
-		header:setTimer(payload.deadline - now, 0)
+		-- (Election night is always timed; only choices can go without, D-075.)
+		local deadline = payload.deadline or payload.stageStart
+		header:setTimer(deadline - now, 0)
 		build()
 		if not built then
 			return
 		end
 		applyLayout()
-		local stage = payload.deadline - payload.stageStart
+		local stage = deadline - payload.stageStart
 		if stage ~= scheduledFor then
 			scheduledFor = stage
 			ends, slowCalls = schedule(results, need, stage)

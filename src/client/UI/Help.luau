@@ -36,6 +36,7 @@ local RunService = game:GetService("RunService")
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Explain = require(ReplicatedStorage.Shared.UI.Explain)
+local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
 local LobbyWords = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
@@ -58,6 +59,8 @@ local NAME_W = 112 -- px, the name column of the Actions picture
 local BAR_H = 12 -- px, the race bar in the How to win picture
 local ICON = 24 -- px, an action's icon plate (Kit.iconPlate) in the Actions and Polls pictures
 local TAB_INSET = 3 -- px between the tab track's edge and its tabs
+local ISSUE_ROW = 24 -- px, one issue in the Actions picture's key (D-076)
+local ISSUE_ICON = 18 -- px, an issue's symbol in the pictures
 
 -- The plan action kind (Sim/Plan) behind each name in Words.ACTIONS, for its icon.
 local ACTION_KINDS: { [string]: string } = {
@@ -202,6 +205,28 @@ local function namedRow(
 	})
 end
 
+-- The eight issues (D-076): each one's symbol and name in two columns, so the
+-- symbols on the map and the chips have a key here too. `order`: its place
+-- in `art` (default after everything).
+local function issuesArt(art: Frame, order: number?)
+	local grid = Kit.box({
+		Name = "IssuesKey",
+		LayoutOrder = order or 100,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = art,
+	})
+	Kit.new("UIGridLayout", {
+		CellSize = UDim2.new(0.5, -Kit.space.xs, 0, ISSUE_ROW),
+		CellPadding = UDim2.fromOffset(Kit.space.sm, 0),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = grid,
+	})
+	for k, issue in Issues.list do
+		Kit.issueTag(issue, { LayoutOrder = k, iconSize = ISSUE_ICON, Parent = grid })
+	end
+end
+
 local function actionsArt(art: Frame)
 	for k, action in Words.ACTIONS do
 		local kind = ACTION_KINDS[action.name]
@@ -218,12 +243,13 @@ local function eventsArt(art: Frame)
 	}
 	for k, entry in rows do
 		local line = row(art, `Topic{k}`, k)
-		Kit.text(entry.topic, {
+		local topic = Kit.text(Kit.issueName(entry.topic), {
 			Name = "Topic",
 			Size = UDim2.fromScale(0.4, 1),
 			Font = Kit.font.bold,
 			Parent = line,
 		})
+		Kit.issueLead(topic, entry.topic, ISSUE_ICON) -- its symbol, as in the debate (D-076)
 		Kit.text(entry.score, {
 			Name = "Score",
 			Position = UDim2.fromScale(0.4, 0),
@@ -260,6 +286,7 @@ Help.art = table.freeze({
 	win = winArt,
 	turn = turnArt,
 	actions = actionsArt,
+	issues = issuesArt,
 	events = eventsArt,
 	polls = pollsArt,
 })
@@ -386,6 +413,13 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 			turnArt(art, ctx.config)
 		elseif tab.id == "actions" then
 			actionsArt(art)
+			-- Under the actions, the issues that rallies and ads are about.
+			Kit.caption(Words.ISSUES_KEY, {
+				Name = "IssuesCaption",
+				LayoutOrder = #Words.ACTIONS + 1,
+				Parent = art,
+			})
+			issuesArt(art, #Words.ACTIONS + 2)
 		elseif tab.id == "events" then
 			eventsArt(art)
 		else

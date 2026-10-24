@@ -159,7 +159,7 @@ describe("MapShape (D-070)", function()
 	end)
 end)
 
-describe("MapShape layouts (D-075)", function()
+describe("MapShape layouts (D-079)", function()
 	it("keeps the wide layout as before, and stands the tall one up at 1.25", function()
 		local wide, tall = MapShape.layout("wide"), MapShape.layout("tall")
 		expect(wide.aspect):toBe(MapLayout.ASPECT)

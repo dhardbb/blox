@@ -32,7 +32,13 @@ export type Outcome = {
 	code: string?, -- Waiting while hosting
 	events: boolean?, -- Match from a private code: false if the host turned events off
 	difficulty: Bot.Difficulty?, -- Practice: the bot's difficulty (D-057)
+	tutorial: boolean?, -- Practice: the tutorial, no choice timers (D-075)
 }
+
+-- Why a practice match is the tutorial (D-075): "First", the player has not
+-- finished it yet (the server reads their profile); "Replay", they asked for it
+-- from How to play.
+export type Tutorial = "First" | "Replay"
 
 local Lobby = {}
 
@@ -133,14 +139,27 @@ function Lobby.join(lobby: Lobby, id: string, code: string): (Outcome?, string?)
 end
 
 -- Starts a practice match against the bot at `difficulty` (absent or unknown:
--- Medium, D-057).
-function Lobby.practice(lobby: Lobby, id: string, difficulty: string?): (Outcome?, string?)
+-- Medium, D-057). With `tutorial` it is the tutorial (D-075): the first one
+-- keeps the level the player picked; a replay always plays the Easy bot.
+function Lobby.practice(
+	lobby: Lobby,
+	id: string,
+	difficulty: string?,
+	tutorial: Tutorial?
+): (Outcome?, string?)
 	local reason = check(lobby, id)
 	if reason then
 		return nil, reason
 	end
 	start(lobby, { id })
-	return { kind = "Practice", players = { id }, difficulty = Bot.difficulty(difficulty) }, nil
+	local level: Bot.Difficulty = if tutorial == "Replay" then "Easy" else Bot.difficulty(difficulty)
+	return {
+		kind = "Practice",
+		players = { id },
+		difficulty = level,
+		tutorial = if tutorial ~= nil then true else nil,
+	},
+		nil
 end
 
 -- A match is over (or abandoned): its players are free again.

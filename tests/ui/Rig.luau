@@ -37,10 +37,12 @@ local function count(peer: FakeRoblox.Peer, text: string): number
 end
 
 -- Every UI spec and snapshot draws the real map (Map/ShapeMap, D-070), even
--- before its images are uploaded: NodeMap.preview.
+-- before its images are uploaded: NodeMap.preview. The same for the issue
+-- symbols (D-076): IssueIcons.preview lays them out as if uploaded.
 local function newWorld(seed: number, screen: { x: number, y: number }?): FakeRoblox.World
 	local world = FakeRoblox.world({ root = process.cwd, seed = seed, screen = screen })
 	FakeRoblox.setModuleField(world, "src/client/Map/NodeMap.luau", "preview", true)
+	FakeRoblox.setModuleField(world, "src/client/UI/IssueIcons.luau", "preview", true)
 	return world
 end
 
@@ -61,9 +63,17 @@ local function fixture(
 	return world, peer
 end
 
--- A real server with one human, who has pressed Practice.
-local function practice(seed: number): (FakeRoblox.World, FakeRoblox.Peer)
+-- A real server with one human in the Lobby. They have played before (their
+-- saved profile says the tutorial is done, D-075), so a Practice match has
+-- timers; with `options.tutorial` they are brand new and their first bot
+-- match is the tutorial.
+local function practice(seed: number, options: { tutorial: boolean? }?): (FakeRoblox.World, FakeRoblox.Peer)
 	local world = newWorld(seed)
+	if not (options and options.tutorial) then
+		local keys = world.data.stores.PlayerData_v1 or {}
+		world.data.stores.PlayerData_v1 = keys
+		keys[`Player_{world.nextUserId}`] = { data = { version = 1, tutorialDone = true } }
+	end
 	local peer = FakeRoblox.join(world, "A")
 	FakeRoblox.run(world, 1)
 	return world, peer

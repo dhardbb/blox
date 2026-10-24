@@ -5,7 +5,7 @@
 --
 -- Coordinates are fractions of the map box: x of its width, y of its height.
 --
--- Two layouts (D-075), both drawn from the same atlases:
+-- Two layouts (D-079), both drawn from the same atlases:
 --   wide  the box at ASPECT (1.6): the land on the left, the nine small
 --         Northeast states as callout chips in one column at the right edge
 --         (iPad, desktop, and any map that is short for its width)
@@ -43,7 +43,7 @@ export type Layout = {
 	row: boolean, -- the chips stand in a row (tall)
 	insets: { [string]: Rect }, -- the hairline boxes around AK and HI
 	-- The callout bracket: polylines (x1, y1, x2, y2, ...) tying the chips to
-	-- the Northeast coast, drawn instead of nine leader lines (D-075).
+	-- the Northeast coast, drawn instead of nine leader lines (D-079).
 	bracket: { { number } },
 	shapes: { Shape },
 	list: () -> { Shape },

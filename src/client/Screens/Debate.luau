@@ -387,7 +387,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			pick.showSafe = safeWeek == week
 		end
-		if model.lockStep == p.step and not p.seats[p.you].locked then
+		local own = p.seats[p.you]
+		-- Locked in already (a rejoin mid-round): show the move and Zinger the
+		-- server holds for you (view.debate.yourMove, only ever your own).
+		local live = p.view.debate
+		local yours = if live then live.yourMove else nil
+		if Model.debating(p) and own ~= nil and own.locked and yours ~= nil and not yours.canned then
+			pick.move = yours.move
+			pick.zinger = yours.zinger == true
+		end
+		if model.lockStep == p.step and not (own ~= nil and own.locked) then
 			local turnedDown = Messages.rejectionAfter(state, lockMessageId)
 			if turnedDown ~= nil then
 				model.lockStep = nil

@@ -43,7 +43,8 @@
 -- up and the bar fills; a win drops confetti in both players' colors and white
 -- and plays "victory"; a loss plays "defeat". Nothing waits on it. After a
 -- landslide the LANDSLIDE stamp slams in LANDSLIDE_DELAY later; for the winner
--- with a light sweeping across it (Motion.shine), twice the confetti and a
+-- with a light sweeping across it (Motion.shine: a gradient on the stamp's
+-- plate, so it never spills past the tilted stamp), twice the confetti and a
 -- second hit ("debateWin"); for the loser it lands quietly.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -135,6 +136,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local celebrated: string? = nil -- the match whose moment has played
 	local details: Frame? = nil
 	local ratingLine: TextLabel? = nil
+	-- The landslide's looping effects (Motion.shine, Motion.breathe): stopped
+	-- when the column is redrawn and when the screen goes.
+	local stops: { () -> () } = {}
+	local function stopEffects()
+		for _, stop in stops do
+			stop()
+		end
+		table.clear(stops)
+	end
 	local sheet = Sheet.new(parent, { title = "Full breakdown", name = "BreakdownSheet" })
 
 	-- The tabs (D-073): Summary first; Map and Graph once the election is in.
@@ -383,6 +393,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 
 	local function render(current: Session.StatePayload)
+		stopEffects()
 		if details then
 			details:Destroy()
 		end
@@ -644,11 +655,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				-- The reward: a second hit as the stamp lands, then a light sweeps it.
 				local plate = landslide:FindFirstChild("Plate") :: Frame
 				plate.Active = true -- Motion.shine sweeps only an active object
-				Motion.shine(plate)
+				table.insert(stops, Motion.shine(plate))
 				local glow = slideGlow
 				if glow then
 					local b = LANDSLIDE_BREATHE
-					Motion.breathe(glow, "ImageTransparency", b[1], b[2], b[3])
+					table.insert(stops, Motion.breathe(glow, "ImageTransparency", b[1], b[2], b[3]))
 				end
 				task.delay(LANDSLIDE_DELAY, function()
 					if landslide.Parent ~= nil then
@@ -701,7 +712,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		tick = function(_now: number)
 			relayout()
 		end,
-		destroy = function() end,
+		destroy = function()
+			stopEffects()
+			mapTab:destroy()
+		end,
 	}
 end
 

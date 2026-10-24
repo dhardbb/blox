@@ -18,7 +18,9 @@
 -- (world.userNames, else a joined player's name; fails while
 -- world.nameFailures > 0, or for an unknown id), game.JobId,
 -- game:BindToClose (FakeRoblox.shutdown runs the handlers), and os.time on the
--- simulated clock.
+-- simulated clock. Two worlds can stand for two servers of one experience:
+-- FakeRoblox.world's `jobId` and `stores` options give the second its own JobId
+-- and the first one's DataStore keys (step both worlds to run them side by side).
 --
 -- MarketplaceService (the Color Pass, docs/DESIGN.md D-055): UserOwnsGamePassAsync
 -- answers from world.market.owned after the DataStore latency, or fails while
@@ -82,6 +84,7 @@ export type DataState = {
 	unpublished: boolean, -- every request fails as in an unpublished Studio place
 	unpublishedMessage: string, -- the error text for that
 	failures: number, -- the next N requests fail with a transient error
+	storeFailures: { [string]: number }, -- store name -> its next N requests fail (a transient error)
 	reruns: number, -- the next N UpdateAsync calls run their callback twice (a write conflict)
 	latency: number, -- simulated seconds each request takes
 	requests: number, -- requests made so far
@@ -461,12 +464,17 @@ local function requestDelay(world: World)
 end
 
 -- Counts the request, waits, and raises the configured failure, if any.
-local function beginRequest(world: World)
+local function beginRequest(world: World, name: string)
 	local data = world.data
 	data.requests += 1
 	requestDelay(world)
 	if data.unpublished then
 		error(data.unpublishedMessage, 0)
+	end
+	local own = data.storeFailures[name]
+	if own ~= nil and own > 0 then
+		data.storeFailures[name] = own - 1
+		error("503: DataStore request failed (simulated transient error)", 0)
 	end
 	if data.failures > 0 then
 		data.failures -= 1
@@ -482,17 +490,17 @@ local function newDataStore(world: World, name: string): any
 	end
 	local store = {}
 	function store.GetAsync(_self: any, key: string): (any, any)
-		beginRequest(world)
+		beginRequest(world, name)
 		return deepCopy(keys[key]), if keys[key] ~= nil then {} else nil
 	end
 	function store.SetAsync(_self: any, key: string, value: any): ()
 		checkStorable(value, "value")
-		beginRequest(world)
+		beginRequest(world, name)
 		keys[key] = deepCopy(value)
 		world.data.writes += 1
 	end
 	function store.UpdateAsync(_self: any, key: string, transform: (any, any) -> any): (any, any)
-		beginRequest(world)
+		beginRequest(world, name)
 		if world.data.reruns > 0 then
 			-- Another server wrote in between: Roblox discards this result and calls again.
 			world.data.reruns -= 1
@@ -729,6 +737,9 @@ local EVENTS = {
 	InputBegan = true,
 	InputEnded = true,
 	MouseLeave = true,
+	MouseEnter = true,
+	SelectionGained = true,
+	SelectionLost = true,
 	Ended = true,
 }
 
@@ -737,11 +748,30 @@ local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
 local newInstance: (world: World, className: string, name: string?) -> any
 local addPresentationServices: (world: World, peer: Peer) -> ()
 
+-- A text object's UIPadding as (left, top, right, bottom) px of its box (all
+-- 0 without one). Only a text's padding moves its children here (an icon a
+-- label leads with sits in it, Kit.issueLead); other padding is ignored, as before.
+local function textPadding(parent: any, w: number, h: number): (number, number, number, number)
+	if not TEXT_CLASSES[parent.ClassName] then
+		return 0, 0, 0, 0
+	end
+	for _, child in rawget(parent, "_children") do
+		if child.ClassName == "UIPadding" then
+			local p = rawget(child, "_props")
+			local function px(u: any, along: number): number
+				return if u then along * u.Scale + u.Offset else 0
+			end
+			return px(p.PaddingLeft, w), px(p.PaddingTop, h), px(p.PaddingRight, w), px(p.PaddingBottom, h)
+		end
+	end
+	return 0, 0, 0, 0
+end
+
 -- Rough layout: size from UDim2 against the parent's size, fitted by a child
 -- UIAspectRatioConstraint (Roblox's default FitWithinMaxSize: the largest box
 -- of that ratio inside the size) and clamped by a child UISizeConstraint
--- (padding and list layouts ignored), enough for the UI audit's 44 px,
--- truncation and on-screen checks.
+-- (list layouts ignored; padding only inside a text object, textPadding),
+-- enough for the UI audit's 44 px, truncation and on-screen checks.
 local function absoluteSize(world: World, inst: any): (number, number)
 	local raw = rawget(inst, "_props")
 	local parent = rawget(inst, "_parent")
@@ -753,6 +783,8 @@ local function absoluteSize(world: World, inst: any): (number, number)
 	if size == nil then
 		return px, py
 	end
+	local left, top, right, bottom = textPadding(parent, px, py)
+	px, py = px - left - right, py - top - bottom
 	local x = px * size.X.Scale + size.X.Offset
 	local y = py * size.Y.Scale + size.Y.Offset
 	if raw.AutomaticSize ~= nil and raw.AutomaticSize.Name ~= "None" then
@@ -801,6 +833,9 @@ local function absolutePosition(world: World, inst: any): (number, number)
 		return ox, oy
 	end
 	local pw, ph = absoluteSize(world, parent)
+	local left, top, right, bottom = textPadding(parent, pw, ph)
+	ox, oy = ox + left, oy + top
+	pw, ph = pw - left - right, ph - top - bottom
 	local w, h = absoluteSize(world, inst)
 	local position, anchor = raw.Position, raw.AnchorPoint
 	local x, y = ox, oy
@@ -1545,7 +1580,15 @@ local function newPeer(world: World, name: string, isServer: boolean): Peer
 end
 
 -- A new world with the server running. `root` is the repository root.
-function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: number, y: number }? }): World
+function FakeRoblox.world(
+	options: {
+		root: string,
+		seed: number?,
+		screen: { x: number, y: number }?,
+		jobId: string?, -- the server's game.JobId (default "job-1")
+		stores: { [string]: { [string]: any } }?, -- share another world's DataStore keys (two servers)
+	}
+): World
 	local world = {
 		clock = 1000,
 		seed = options.seed or 1,
@@ -1561,10 +1604,11 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		wireWarnings = {},
 		nextUserId = 1,
 		data = {
-			stores = {},
+			stores = options.stores or {},
 			unpublished = false,
 			unpublishedMessage = "You must publish this place to the web to access DataStore.",
 			failures = 0,
+			storeFailures = {},
 			reruns = 0,
 			latency = 0.2,
 			requests = 0,
@@ -1575,7 +1619,7 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 			orderedWrites = 0,
 			sortedReads = 0,
 		},
-		jobId = "job-1",
+		jobId = options.jobId or "job-1",
 		closeHandlers = {},
 		studio = true,
 		clientFolder = nil,

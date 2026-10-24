@@ -48,6 +48,10 @@ Lobby.HOWTO_TITLE = "How to play"
 Lobby.HOWTO_NEXT = "Next"
 Lobby.HOWTO_BACK = "Back"
 Lobby.HOWTO_DONE = "Got it"
+-- Replaying the tutorial (D-075): a bot match with the tips back on and no
+-- timers, always against the Easy bot (the hint says so).
+Lobby.TUTORIAL_BUTTON = "Play the tutorial"
+Lobby.TUTORIAL_HINT = "A match against the Easy bot, with tips and no timers."
 
 export type Page = {
 	id: string, -- "goal" | "week" | "actions" | "events" | "night": which picture
@@ -87,6 +91,11 @@ function Lobby.howTo(config: Config): { Page }
 			id = "actions",
 			title = "Your actions",
 			text = `You get {config.AP_PER_WEEK} actions a week. Tap a state, pick an action, then Lock in. Rallies and ads count extra on your 3 issues.`,
+		},
+		{
+			id = "issues",
+			title = "Your issues",
+			text = "Pick 3 of these 8 issues at the start. Rallies and ads on them count extra where states care. On the map, a symbol shows each state's top issue.",
 		},
 		{
 			id = "events",

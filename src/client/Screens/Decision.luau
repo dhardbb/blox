@@ -109,7 +109,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local mapArea = Kit.box({ Name = "MapArea", Parent = body })
 	-- The map key: two rings, no sentence ("○ helps you  ○ hurts you"), in the
-	-- green and orange the map outlines those states in (D-075).
+	-- green and orange the map outlines those states in (D-079).
 	local legend = Kit.box({ Name = "MapLegend", Size = UDim2.new(1, 0, 0, CAPTION_H), Parent = mapArea })
 	Kit.dataColor(legend)
 	local legendList = Kit.list("Horizontal", Kit.space.xs)
@@ -374,7 +374,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			model.peekChoice = nil
 		end
 		-- A rejection after Lock in: the seat is still open, so allow another try.
-		if model.lockStep == p.step and not p.seats[p.you].locked then
+		local own = p.seats[p.you]
+		if model.lockStep == p.step and not (own ~= nil and own.locked) then
 			local turnedDown = Messages.rejectionAfter(state, lockMessageId)
 			if turnedDown ~= nil then
 				model.lockStep = nil

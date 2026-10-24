@@ -12,7 +12,6 @@ local Explain = require("@ui/Explain")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
 local IssueMap = require("@sim/IssueMap")
-local Numbers = require("@ui/Numbers")
 local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
 local StateData = require("@sim/StateData")
@@ -36,7 +35,8 @@ local function mapOf(peer: FakeRoblox.Peer, screen: string): any
 	return Rig.need(peer, screen, "NodeMap")
 end
 
--- The texts of state `id`'s visible lens pills, in order.
+-- The texts of state `id`'s visible lens pills, in order; a pill showing an
+-- issue's symbol (D-076) as "symbol:<issue>".
 local function pills(peer: FakeRoblox.Peer, screen: string, id: string): { string }
 	local row = mapOf(peer, screen).Nodes:FindFirstChild(id):FindFirstChild("Lens")
 	local out = {}
@@ -48,7 +48,8 @@ local function pills(peer: FakeRoblox.Peer, screen: string, id: string): { strin
 		if part == nil or part.Visible == false then
 			break
 		end
-		table.insert(out, part.Text)
+		local icon = part:FindFirstChild("IssueIcon")
+		table.insert(out, if icon then `symbol:{icon:GetAttribute("IssueIcon")}` else part.Text)
 	end
 	return out
 end
@@ -193,7 +194,7 @@ describe("Map lenses", function()
 		Rig.noErrors(world)
 	end)
 
-	it("Issues: the state's top issue as a code, one of yours filled in your color", function()
+	it("Issues: the state's top issue as its symbol, one of yours filled in your color", function()
 		local world, peer = Rig.fixture("Plan")
 		local Lens, Kit = modules(world, peer)
 		Rig.tap(world, peer, "Campaign", "LensIssues")
@@ -214,7 +215,7 @@ describe("Map lenses", function()
 					break
 				end
 			end
-			expect(pills(peer, "Campaign", s.id)):toEqual({ Lens.issueCode(shownIssue) })
+			expect(pills(peer, "Campaign", s.id)):toEqual({ `symbol:{shownIssue}` })
 			local part = pill(peer, "Campaign", s.id, 1)
 			if table.find(platform, shownIssue) then
 				filledSeen += 1
@@ -344,7 +345,8 @@ describe("Map lenses", function()
 		end
 		-- The legend explains them, in Polls only.
 		local legend = Lens.mapLegend({ config = C, view = view }, "Polls")
-		check(legend ~= nil and #legend == 3, "no Polls legend")
+		check(legend ~= nil and #legend == 4, "no Polls legend")
+		expect(legend[2].text):toBe("▲▲ strong")
 		expect(Lens.mapLegend({ config = C, view = view }, "EV")):toBe(nil)
 		Rig.noErrors(world)
 	end)
@@ -364,7 +366,7 @@ describe("Map lenses", function()
 		expect(map.Nodes.TX.Lens.Pips.Visible):toBe(false)
 		Rig.tap(world, peer, "Campaign", "LensPolls")
 		expect(map.MapLegend.Visible):toBe(true)
-		-- In the lead's own pill (D-075), never on their own.
+		-- In the lead's own pill (D-079), never on their own.
 		expect(map.Nodes.TX.Lens.Visible):toBe(true)
 		expect(map.Nodes.TX.Lens.Pips.Visible):toBe(true)
 		local yours = 0
@@ -378,7 +380,7 @@ describe("Map lenses", function()
 	end)
 
 	it(
-		"Money: Explain's number on the 8 richest pools, a coin each; dimmed once your plan empties one",
+		"Money: 1 to 3 coins on the 8 richest pools by the median; dimmed once your plan empties one",
 		function()
 			local world, peer = Rig.fixture("Plan")
 			local Lens = modules(world, peer)
@@ -389,25 +391,31 @@ describe("Map lenses", function()
 			for _, s in view.states do
 				table.insert(amounts, Explain.action(C, view, empty, s.id, "Fundraise").money or 0)
 			end
-			table.sort(amounts, function(a: number, b: number): boolean
-				return a > b
-			end)
-			local floor = amounts[Lens.MONEY_TOP]
-			local shown = 0
+			table.sort(amounts)
+			local median = amounts[(#amounts + 1) // 2]
+			local floor = amounts[#amounts - Lens.MONEY_TOP + 1]
+			local marked = 0
 			for _, s in view.states do
 				local money = Explain.action(C, view, empty, s.id, "Fundraise").money or 0
-				local got = pills(peer, "Campaign", s.id)
-				if #got > 0 then
-					shown += 1
-					expect(got):toEqual({ Numbers.money(money) })
-					check(money >= floor - 1e-9, `{s.id} shows {got[1]} but is not among the richest`)
-					local row = mapOf(peer, "Campaign").Nodes:FindFirstChild(s.id).Lens
-					check(row:FindFirstChild("Icon1") ~= nil, `{s.id} has no coin`)
-				elseif money > floor + 1e-9 then
-					error(`{s.id} ({Numbers.money(money)}) is among the richest but shows nothing`)
+				local row = mapOf(peer, "Campaign").Nodes:FindFirstChild(s.id).Lens
+				local coins = 0
+				for _, child in row:GetChildren() do
+					if string.match(child.Name, "^Glyph") then
+						coins += 1
+					end
+				end
+				if coins > 0 then
+					marked += 1
+					check(money >= floor - 1e-9, `{s.id} has coins but is not among the richest`)
+					expect(coins):toBe(Lens.coinTier(money, median))
+					-- No dollar figure on the map: it is on the card.
+					expect(#pills(peer, "Campaign", s.id)):toBe(0)
 				end
 			end
-			check(shown > 0 and shown <= Lens.MONEY_TOP, `{shown} money values on the map`)
+			check(marked > 0 and marked <= Lens.MONEY_TOP, `{marked} pools marked on the map`)
+			expect(Lens.coinTier(5, 5)):toBe(1)
+			expect(Lens.coinTier(5.7, 5)):toBe(2)
+			expect(Lens.coinTier(6.5, 5)):toBe(3)
 			-- Enough fundraisers in OH take the whole pool: one more raises nothing.
 			local draft = PlanDraft.new()
 			for _ = 1, 40 do
@@ -499,9 +507,9 @@ describe("Map lenses", function()
 		Rig.toDraftInput(world, peer)
 		Rig.tap(world, peer, "Draft", "LensMoney")
 		expect(selected(peer, "Draft")):toEqual({ "Money" })
-		local function anyMoney(screen: string, view: any): boolean
-			for _, s in view.states do
-				if string.sub(pills(peer, screen, s.id)[1] or "", 1, 1) == "$" then
+		local function anyMoney(screen: string, _view: any): boolean
+			for _, inst in mapOf(peer, screen):GetDescendants() do
+				if string.match(inst.Name, "^Glyph") then
 					return true
 				end
 			end

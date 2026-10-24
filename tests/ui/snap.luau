@@ -446,7 +446,8 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		name = "02i-howto-4-events",
+		-- The eight issue symbols with their names (D-076).
+		name = "02h2-howto-4-issues",
 		moment = "Lobby",
 		screen = "Lobby",
 		steps = function(world, peer)
@@ -457,12 +458,32 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		name = "02j-howto-5-night",
+		name = "02i-howto-5-events",
 		moment = "Lobby",
 		screen = "Lobby",
 		steps = function(world, peer)
 			tapIf(world, peer, "Lobby", "HowToPlay")
 			for _ = 1, 4 do
+				tapIf(world, peer, "Lobby", "HowToNext")
+			end
+		end,
+	},
+	-- D-075: the corner settings' tooltip after a tap.
+	{
+		name = "01h-lobby-corner-tip",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "MotionToggle")
+		end,
+	},
+	{
+		name = "02j-howto-6-night",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "HowToPlay")
+			for _ = 1, 5 do
 				tapIf(world, peer, "Lobby", "HowToNext")
 			end
 		end,
@@ -611,6 +632,10 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "09-campaign-plan", moment = "Plan", screen = "Campaign" },
+	-- D-075: the tutorial's plan (no timer, no "+15 s") and a plan against the
+	-- Easy bot (the plan timer doubled).
+	{ name = "09t-campaign-plan-tutorial", moment = "PlanTutorial", screen = "Campaign" },
+	{ name = "09u-campaign-plan-easy", moment = "PlanEasy", screen = "Campaign" },
 	-- D-065: the event strip under the score for every kind of week (the Plan
 	-- fixture is a Windfall week, 15 a Choice week), next week's event alone,
 	-- and the details sheet a tap opens.
@@ -636,6 +661,18 @@ local SHOTS: { Shot } = {
 		screen = "Campaign",
 		steps = function(world, peer)
 			tapIf(world, peer, "Campaign", "OH")
+		end,
+	},
+	{
+		-- Every message chip with its issue's symbol (D-076), and the state's
+		-- top issues under Details.
+		name = "10g-campaign-messages",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "OH")
+			tapIf(world, peer, "Campaign", "MessageMore")
+			tapIf(world, peer, "Campaign", "DetailsToggle")
 		end,
 	},
 	{
@@ -701,6 +738,16 @@ local SHOTS: { Shot } = {
 	},
 	{ name = "11-lens-ev", moment = "Plan", screen = "Campaign", steps = lens("EV") },
 	{ name = "12-lens-issues", moment = "Plan", screen = "Campaign", steps = lens("Issues") },
+	{
+		-- The map key in the Issues lens (D-076): every issue's symbol with its name.
+		name = "12a-lens-issues-key",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "LensIssues")
+			tapIf(world, peer, "Campaign", "MapKey")
+		end,
+	},
 	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
 	{
 		-- The Polls lens with ground game on the map (D-070): your units in PA, WI
@@ -714,7 +761,7 @@ local SHOTS: { Shot } = {
 	},
 	{ name = "14-lens-money", moment = "Plan", screen = "Campaign", steps = lens("Money") },
 	{
-		-- The Close filter (D-075): only the states within 8 points keep their fill and value.
+		-- The Close filter (D-079): only the states within 8 points keep their fill and value.
 		name = "14b-close-filter",
 		moment = "Plan",
 		screen = "Campaign",

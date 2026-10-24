@@ -245,7 +245,9 @@ if type(fixture) == "string" then
 		-- Keep countdowns running: shift the fixture's times to now.
 		local shift = workspace:GetServerTimeNow() - payload.stageStart
 		payload.stageStart += shift
-		payload.deadline += shift
+		if payload.deadline ~= nil then
+			payload.deadline += shift
+		end
 		Store.setPayload(payload)
 	end
 	print(`[270] DEBUG_UI fixture {fixture}, screen {Router.pick(Store.get())}`)

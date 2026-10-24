@@ -31,8 +31,15 @@ local PlanPreview = {}
 
 PlanPreview.SHOWN = 0.05 -- a state's change under this many points shows no number
 
-local function opponentOf(view: View): number
-	return if view.you == 1 then 2 else 1
+-- A state's margin for you: your poll support minus the best of everyone else's.
+local function marginOf(support: { number }, me: number): number
+	local best = -math.huge
+	for p, value in support do
+		if p ~= me and value > best then
+			best = value
+		end
+	end
+	return (support[me] or 0) - (if best == -math.huge then 0 else best)
 end
 
 -- Every state's expected margin change from `draft`, keyed by state id
@@ -66,7 +73,7 @@ end
 
 -- Your projected votes now and after the plan, if nothing else changes.
 function PlanPreview.votes(config: Config, view: View, draft: PlanDraft.Draft): (number, number)
-	local me, rival = view.you, opponentOf(view)
+	local me = view.you
 	local now = view.projectedEV[me] or 0
 	local changes = PlanPreview.changes(config, view, draft)
 	local after = now
@@ -76,7 +83,7 @@ function PlanPreview.votes(config: Config, view: View, draft: PlanDraft.Draft): 
 		if change and poll then
 			local record = StateData.byId[s.id]
 			local ev = if record then record.ev else 0
-			local margin = (poll.support[me] or 0) - (poll.support[rival] or 0)
+			local margin = marginOf(poll.support, me)
 			local was = if margin > 0 then 1 elseif margin < 0 then -1 else 0
 			local moved = margin + change
 			local will = if moved > 0 then 1 elseif moved < 0 then -1 else 0

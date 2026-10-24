@@ -1,5 +1,5 @@
 --!strict
--- The map's label budget and focus tools (docs/DESIGN.md D-075,
+-- The map's label budget and focus tools (docs/DESIGN.md D-079,
 -- docs/UI-STYLE.md §4.6: "never more than ~8 labels on the map at once"):
 -- SwingMarks keeps every preview, reveal and reveal step to 8 tags, the 5
 -- biggest flips (by votes) as a ▲ / ▼ tag and the biggest moves; a stance
@@ -51,7 +51,7 @@ local function busy(view: any): ({ [string]: number }, { any })
 	return net, flips
 end
 
-describe("Map labels (D-075)", function()
+describe("Map labels (D-079)", function()
 	it(
 		"keeps a reveal, a step and a preview to 8 tags: the 5 biggest flips ▲ / ▼, then the biggest moves",
 		function()
@@ -135,7 +135,7 @@ describe("Map labels (D-075)", function()
 	end)
 end)
 
-describe("The Close filter (D-075)", function()
+describe("The Close filter (D-079)", function()
 	it("quiets every state more than 8 points from close, in any lens, and is remembered", function()
 		local world, peer = Rig.fixture("Plan", Rig.PHONE)
 		local Lens = load(world, peer, "src/client/Map/Lens.luau")
@@ -182,7 +182,7 @@ describe("The Close filter (D-075)", function()
 	end)
 end)
 
-describe("Election night on the map (D-075)", function()
+describe("Election night on the map (D-079)", function()
 	it(
 		"draws uncalled states hollow, outlines the tipping state before its call, and tags nothing",
 		function()
@@ -229,7 +229,7 @@ describe("Election night on the map (D-075)", function()
 	)
 end)
 
-describe("Pins (D-075)", function()
+describe("Pins (D-079)", function()
 	it("names both pins in the first week only", function()
 		local world, peer = Rig.fixture("Plan")
 		local Pins = load(world, peer, "src/client/Map/Pins.luau")

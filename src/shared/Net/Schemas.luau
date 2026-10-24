@@ -106,6 +106,11 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 		-- Optional bot difficulty (D-057): absent or not one of the four names
 		-- plays Medium, the standard bot. Never a rejection.
 		request.difficulty = Bot.difficulty(raw.difficulty)
+		-- Optional tutorial replay (D-075): only `true` asks for it; anything else
+		-- is an ordinary practice match. Never a rejection either.
+		if raw.tutorial == true then
+			request.tutorial = true
+		end
 	elseif op == "PrePick" then
 		if type(raw.pick) ~= "table" then
 			return false, "BadShape", nil
@@ -134,6 +139,14 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			return false, "BadShape", nil
 		end
 		request.userId = raw.userId
+		-- A review names the name the admin saw: the server acts only if it is
+		-- still the one queued (D-078).
+		if op ~= "ReportName" then
+			if type(raw.name) ~= "string" then
+				return false, "BadShape", nil
+			end
+			request.name = raw.name
+		end
 	elseif op == "Forfeit" then
 		-- The match being left: a stale request can never end a newer match.
 		if type(raw.matchId) ~= "string" then

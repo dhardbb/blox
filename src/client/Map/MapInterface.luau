@@ -27,25 +27,27 @@ export type Mark = {
 	-- for a state whose poll leader changes.
 	halo: Color3?,
 	haloStrong: boolean?,
-	-- D-075: `ring` drawn dashed and 2 px (a state the final polls called
+	-- D-079: `ring` drawn dashed and 2 px (a state the final polls called
 	-- wrong); `hollow`: the state drawn empty, a dark fill and a hairline
 	-- outline (not called yet on election night).
 	dashed: boolean?,
 	hollow: boolean?,
 }
 
--- One short pill in a state's lens row (Map/Lens): "17", "JOB", "+3", "$2.4".
+-- One short pill in a state's lens row (Map/Lens): "17", "+3", "$2.4", or an
+-- issue's symbol (D-076).
 export type LensPart = {
-	text: string,
+	text: string, -- with `icon`: what the pill says while the symbol is missing ("JOB")
+	icon: string?, -- an issue: the pill shows its symbol (Kit.issueIcon) instead of `text`
 	color: Color3?, -- the text's color (default: the text color)
 	filled: boolean?, -- fill the pill in `color` instead (e.g. an issue on your platform)
 	outlined: boolean?, -- the battleground mark (D-058): field fill, a white outline, white text
-	-- D-075: a Kit.icon name drawn before the text (Money's coin) in `iconColor`
-	-- (default `color`); with `disc`, the icon alone at 20 px on a 24 px disc
-	-- (the slot an issue icon takes; `text` is then "").
-	icon: string?,
-	iconColor: Color3?,
-	disc: boolean?,
+	-- D-079: a Kit.icon name (Money's coin) drawn `glyphs` times (default 1)
+	-- before the text, in `glyphColor` (default `color`); `text` may be "".
+	-- (The real map draws an issue's `icon` alone, 20 px on a 24 px disc.)
+	glyph: string?,
+	glyphColor: Color3?,
+	glyphs: number?,
 }
 
 -- A run of ground-game pips: `count` dots in `color`, hollow when it is the
@@ -66,7 +68,7 @@ export type LensLine = {
 	momentum: Color3?,
 	momentumStrong: boolean?,
 	pips: { Pips }?,
-	-- D-075: the Close filter's safe state: its fill at 40 % and no value.
+	-- D-079: the Close filter's safe state: its fill at 40 % and no value.
 	quiet: boolean?,
 }
 
@@ -78,14 +80,16 @@ export type Pin = {
 	color: Color3,
 	tag: string, -- the word on the pin's flag: "You", or the rival's first name
 	you: boolean?, -- your own pin (drawn on top)
-	label: boolean?, -- show the flag at rest (the first week); else only while its state is selected (D-075)
+	label: boolean?, -- show the flag at rest (the first week); else only while its state is selected (D-079)
 }
 
 -- One item of the map's small legend row (D-070): a mark and a word or two.
--- "none": the text alone. When the row is too narrow (a phone), items with
--- the highest `drop` go first, a whole level at a time (nil: always shown).
+-- "none": the text alone; "issue": the symbol of `issue` (D-076). When the row
+-- is too narrow (a phone), items with the highest `drop` go first, a whole
+-- level at a time (nil: always shown).
 export type LegendItem = {
-	mark: "up" | "pip" | "hollow" | "none",
+	mark: "up" | "pip" | "hollow" | "none" | "issue",
+	issue: string?, -- mark "issue": which one
 	color: Color3?,
 	text: string,
 	drop: number?,
@@ -134,7 +138,7 @@ export type Map = {
 	-- empty hides them).
 	setPreview: (self: Map, tags: { [string]: PreviewTag }?) -> (),
 	-- The box's aspect (width / height) in a frame up to `widthPx` x `heightPx`
-	-- (D-075: the real map stands up on a phone; the circles stay at 1.6).
+	-- (D-079: the real map stands up on a phone; the circles stay at 1.6).
 	aspectFor: (self: Map, widthPx: number, heightPx: number?) -> number,
 	destroy: (self: Map) -> (),
 }

@@ -292,12 +292,15 @@ function Words.key(id: string): { string }
 		"A ring: a home state or a stronghold, in its owner's color.",
 	}
 	if id == "Issues" then
-		table.insert(lines, "The code is the state's top issue. Filled: it is one of yours.")
+		table.insert(lines, "The mark is the state's top issue, below. Filled: it is one of yours.")
 	elseif id == "Polls" then
 		table.insert(lines, "The number is the leader's lead in points; ~ means no poll yet.")
-		table.insert(lines, "▲ momentum in its color; ● your ground game, ○ theirs as last polled.")
+		table.insert(
+			lines,
+			"▲ momentum (▲▲ strong) in its color; ● your ground game, ○ theirs polled."
+		)
 	elseif id == "Money" then
-		table.insert(lines, "The 8 richest states: what one more fundraiser there raises this week.")
+		table.insert(lines, "Coins: the 8 states where a fundraiser raises most; more coins, more money.")
 		table.insert(lines, "Faded: your plan already empties that state's money.")
 	else
 		table.insert(lines, "The number is how many votes the state is worth.")

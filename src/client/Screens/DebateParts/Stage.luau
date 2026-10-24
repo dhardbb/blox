@@ -83,6 +83,7 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 			Size = UDim2.new(1, 0, 0, 20),
 			Font = Kit.font.bold,
 			TextWrapped = false,
+			TextScaled = true, -- a 16-letter custom name shrinks to fit a phone
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			TextXAlignment = if right then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
 			Parent = column,
@@ -118,7 +119,41 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 	})
 	local crowd = Kit.raceBar(middle, { h = 10, mark = 0.5, name = "CrowdBar", order = 2 })
 
-	local roundLabel = Kit.eyebrow("", { Name = "RoundLabel", LayoutOrder = 3, Parent = root })
+	-- "ROUND 1 OF 3 · SAFETY", led by the topic's symbol (D-076).
+	local roundRow = Kit.box({
+		Name = "RoundRow",
+		LayoutOrder = 3,
+		Size = UDim2.new(1, 0, 0, Kit.size.caption + 4),
+		Parent = root,
+	})
+	local roundFlow = Kit.list("Horizontal", Kit.space.xs)
+	roundFlow.VerticalAlignment = Enum.VerticalAlignment.Center
+	roundFlow.Parent = roundRow
+	local roundLabel = Kit.eyebrow("", {
+		Name = "RoundLabel",
+		LayoutOrder = 2,
+		Size = UDim2.fromOffset(0, Kit.size.caption + 4),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextWrapped = false,
+		Parent = roundRow,
+	})
+	local roundIcon: GuiObject? = nil
+	local function setRoundIcon(topic: string?)
+		local old = roundIcon
+		if old and old:GetAttribute("IssueIcon") == topic then
+			return
+		end
+		if old then
+			old:Destroy()
+		end
+		roundIcon = nil
+		if topic and Kit.hasIssueIcon(topic) then
+			local icon = Kit.issueIcon(topic, Kit.MIN_ICON + 2, Kit.colors.muted)
+			icon.LayoutOrder = 1
+			icon.Parent = roundRow
+			roundIcon = icon
+		end
+	end
 	local question = Kit.text("", {
 		Name = "Question",
 		LayoutOrder = 4,
@@ -199,7 +234,8 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 			end
 			local verdict = Model.debateReveal(p) == "Verdict"
 			local intro = Model.debateReveal(p) == "DebateIntro"
-			roundLabel.Visible = topic ~= nil or verdict or intro
+			roundRow.Visible = topic ~= nil or verdict or intro
+			setRoundIcon(if verdict or intro then nil else topic)
 			question.Visible = topic ~= nil
 			if verdict then
 				roundLabel.Text = "THE VERDICT"

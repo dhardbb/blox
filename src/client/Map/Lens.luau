@@ -9,8 +9,10 @@
 --   EV      "Votes": the state's electoral votes on a dark plate; on a
 --           battleground "★13", outlined in white (good news, never orange,
 --           and never a white fill, which means "selected": D-056)
---   Issues  the state's top issue as a short code: the first one on your
---           platform (filled in your color), else its first top issue
+--   Issues  the state's top issue as its symbol (D-076; the short code while
+--           the image is missing): the first one on your platform (filled in
+--           your color), else its first top issue. The legend row names the
+--           symbols on the map (yours first) and the Map key lists all eight
 --   Polls   the public-poll lead ("+3") on a plate filled in the leader's
 --           color, "tie", or the lean before the first poll ("~+2", the
 --           leader's readable text color: a lean, not a poll). Under it, a
@@ -22,13 +24,13 @@
 --           and who is working it", so it may carry three marks; the map's
 --           legend row (Lens.mapLegend) says what they mean. Your internal
 --           poll numbers stay on the state card (Details)
---   Money   what one more fundraiser there would raise this week, from
---           Explain.action (the state card's number), on the Lens.MONEY_TOP
---           richest pools only, each with an amber coin (D-075: 51 values
---           within $5.0-$7.1 said nothing); dim when your plan already
---           empties the pool
+--   Money   the Lens.MONEY_TOP richest pools for one more fundraiser this
+--           week (Explain.action, the state card's number), each with 1 to 3
+--           gold coins by how far it is above the median pool (D-079: 51
+--           near-identical dollar figures said nothing; the dollars are on the
+--           card); dim when your plan already empties the pool
 --
--- Close (D-075): a filter on top of any lens, remembered like the lens. On, a
+-- Close (D-079): a filter on top of any lens, remembered like the lens. On, a
 -- state whose public-poll lead (or lean, before the first poll) is more than
 -- Lens.CLOSE points is quiet: its fill at 40 % and no value, so the map shows
 -- only the states still in play.
@@ -45,11 +47,13 @@ local Colors = require(Shared.UI.Colors)
 local ConfigModule = require(Shared.Sim.Config)
 local Explain = require(Shared.UI.Explain)
 local IssueMap = require(Shared.Sim.IssueMap)
+local Issues = require(Shared.Sim.Issues)
 local Numbers = require(Shared.UI.Numbers)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local StateData = require(Shared.Sim.StateData)
 local ViewModule = require(Shared.Sim.View)
 
+local IssueIcons = require(script.Parent.Parent.UI.IssueIcons)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local MapInterface = require(script.Parent.MapInterface)
 
@@ -80,21 +84,20 @@ Lens.TIE = 0.5 -- a public-poll lead under this many points reads "tie"
 Lens.DRAINED = 0.05 -- $ a fundraiser would still raise: under this, the pool is spent
 Lens.MOMENTUM = 0.05 -- a momentum lead under this shows no chevron (nobody drifts)
 Lens.STRONG = 2 -- a momentum lead of this much or more shows ▲▲
-Lens.MONEY_TOP = 8 -- Money labels this many of the richest pools (ties by votes)
+Lens.MONEY_TOP = 8 -- Money marks this many of the richest pools (ties by votes)
+Lens.COIN_TIERS = table.freeze({ 1.12, 1.25 }) -- x the median pool: 2 coins from the first, 3 from the second
 Lens.CLOSE = 8 -- points: the Close filter keeps states within this lead
 local COIN = Kit.color(Colors.player.Amber) -- the Money lens's coin (gold, the event strip's money plate)
 
--- Short codes for the issue chips. An issue without one shows its first three letters.
-Lens.ISSUE_CODE = table.freeze({
-	Jobs = "JOB",
-	Health = "HLT",
-	Schools = "SCH",
-	Environment = "ENV",
-	Safety = "SAF",
-	Transit = "TRN",
-	Technology = "TEC",
-	Farms = "FRM",
-} :: { [string]: string })
+-- Short codes for the issues (UI/IssueIcons): what the map shows while an
+-- issue's symbol is missing. An issue without one shows its first three letters.
+Lens.ISSUE_CODE = (function(): { [string]: string }
+	local codes: { [string]: string } = {}
+	for issue, icon in IssueIcons.icons do
+		codes[issue] = icon.code
+	end
+	return table.freeze(codes)
+end)()
 
 -- ---------------------------------------------------------------- session memory
 
@@ -128,7 +131,7 @@ function Lens.legend(_config: ConfigModule.Config, id: Id): string
 	elseif id == "Polls" then
 		return `Poll lead · {Kit.glyph.up} momentum · {Kit.glyph.bullet} ground game`
 	elseif id == "Money" then
-		return `The {Lens.MONEY_TOP} richest pools for a fundraiser`
+		return `Coins: the {Lens.MONEY_TOP} richest pools for a fundraiser`
 	end
 	return `Votes · {Kit.STAR} = battleground`
 end
@@ -172,7 +175,20 @@ function Lens.issuesOf(view: View, s: StateView): { string }
 end
 
 function Lens.issueCode(issue: string): string
-	return Lens.ISSUE_CODE[issue] or string.upper(string.sub(issue, 1, 3))
+	return Kit.issueCode(issue)
+end
+
+-- The issue each state shows in the Issues lens: the first top issue on your
+-- platform, else its first; nil for a state without top issues.
+function Lens.shownIssue(view: View, s: StateView): (string?, boolean)
+	local platform = view.players[view.you].platform or {}
+	local issues = Lens.issuesOf(view, s)
+	for _, issue in issues do
+		if table.find(platform, issue :: any) ~= nil then
+			return issue, true
+		end
+	end
+	return issues[1], false
 end
 
 -- ---------------------------------------------------------------- one line per lens
@@ -195,17 +211,23 @@ end
 -- The state's top issue to show: the first one on your platform, else its first.
 local function issuesLine(ctx: Context, s: StateView): Line
 	local view = ctx.view
-	local platform = view.players[view.you].platform or {}
-	local issues = Lens.issuesOf(view, s)
-	for _, issue in issues do
-		if table.find(platform, issue :: any) ~= nil then
-			return {
-				parts = { { text = Lens.issueCode(issue), color = colorOf(view, view.you), filled = true } },
-			}
-		end
+	local issue, yours = Lens.shownIssue(view, s)
+	if issue == nil then
+		return { parts = {} }
 	end
-	local first = issues[1]
-	return { parts = if first then { { text = Lens.issueCode(first) } } else {} }
+	if yours then
+		return {
+			parts = {
+				{
+					text = Lens.issueCode(issue),
+					icon = issue,
+					color = colorOf(view, view.you),
+					filled = true,
+				},
+			},
+		}
+	end
+	return { parts = { { text = Lens.issueCode(issue), icon = issue } } }
 end
 
 -- The momentum leader's color and whether the lead is strong, or nil.
@@ -266,27 +288,41 @@ local function moneyLine(ctx: Context, s: StateView): Line
 	local drained = money < Lens.DRAINED
 	return {
 		parts = {
-			{
-				text = Numbers.money(money),
-				color = if drained then Kit.colors.muted else Kit.colors.text,
-				icon = if drained then nil else "coins",
-				iconColor = COIN,
-			},
+			{ text = Numbers.money(money), color = if drained then Kit.colors.muted else Kit.colors.text },
 		},
 		dim = drained,
 	}
 end
 
--- Money keeps the MONEY_TOP richest pools' values (the rest are on their cards).
+-- How many coins (1 to 3) a pool of `money` earns against the `median` pool.
+function Lens.coinTier(money: number, median: number): number
+	if median <= 0 then
+		return 1
+	end
+	local ratio = money / median
+	if ratio >= Lens.COIN_TIERS[2] then
+		return 3
+	elseif ratio >= Lens.COIN_TIERS[1] then
+		return 2
+	end
+	return 1
+end
+
+-- Money marks the MONEY_TOP richest pools with 1 to 3 coins by how far each
+-- is above the median pool; the dollars are on the state card (D-079).
 local function topPools(ctx: Context, lines: { [string]: Line })
 	local ids: { string } = {}
 	local amount: { [string]: number } = {}
+	local all: { number } = {}
 	for _, s in ctx.view.states do
 		amount[s.id] = Lens.fundraise(ctx, s.id)
+		table.insert(all, amount[s.id])
 		if amount[s.id] >= Lens.DRAINED then
 			table.insert(ids, s.id)
 		end
 	end
+	table.sort(all)
+	local median = all[(#all + 1) // 2] or 0
 	table.sort(ids, function(a: string, b: string): boolean
 		if math.abs(amount[a] - amount[b]) > 1e-9 then
 			return amount[a] > amount[b]
@@ -302,7 +338,16 @@ local function topPools(ctx: Context, lines: { [string]: Line })
 		keep[ids[k]] = true
 	end
 	for id, line in lines do
-		if not keep[id] and not line.dim then
+		if keep[id] then
+			line.parts = {
+				{
+					text = "",
+					glyph = "coins",
+					glyphs = Lens.coinTier(amount[id], median),
+					glyphColor = COIN,
+				},
+			}
+		elseif not line.dim then
 			line.parts = {}
 		end
 	end
@@ -318,7 +363,9 @@ local LINES: { [Id]: (Context, StateView) -> Line } = {
 -- The map's legend row for lens `id` (D-070): Polls explains its extra marks;
 -- the other lenses need none (their one mark is in Lens.legend and the Map key).
 function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
-	if id ~= "Polls" then
+	if id == "Issues" then
+		return Lens.issueLegend(ctx.view)
+	elseif id ~= "Polls" then
 		return nil
 	end
 	local view = ctx.view
@@ -326,6 +373,8 @@ function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
 	-- opponent's (hollow); the Map key says the hollow ones are what your polls saw.
 	local items: { LegendItem } = {
 		{ mark = "up", text = "momentum" },
+		-- ▲▲: a momentum lead of Lens.STRONG or more (D-079).
+		{ mark = "none", text = `{Kit.glyph.up}{Kit.glyph.up} strong`, color = Kit.colors.muted },
 		{ mark = "pip", color = colorOf(view, view.you), text = "" },
 	}
 	local rival = nil
@@ -341,6 +390,38 @@ function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
 		text = "ground game",
 	})
 	return items
+end
+
+-- The Issues lens's legend row (D-076): each symbol on the map with its name,
+-- your platform's first (in your color, always shown), then the others in
+-- Issues order (dropped first on a narrow map). Nil when no state shows one.
+function Lens.issueLegend(view: View): { LegendItem }?
+	local shown: { [string]: boolean } = {}
+	for _, s in view.states do
+		local issue = Lens.shownIssue(view, s)
+		if issue then
+			shown[issue] = true
+		end
+	end
+	local items: { LegendItem } = {}
+	local platform: { string } = (view.players[view.you].platform or {}) :: any
+	for _, issue in platform do
+		if shown[issue] then
+			table.insert(items, {
+				mark = "issue",
+				issue = issue,
+				color = colorOf(view, view.you),
+				text = Kit.issueName(issue),
+			})
+			shown[issue] = nil
+		end
+	end
+	for _, issue in Issues.list do
+		if shown[issue] then
+			table.insert(items, { mark = "issue", issue = issue, text = Kit.issueName(issue), drop = 1 })
+		end
+	end
+	return if #items > 0 then items else nil
 end
 
 -- The public lead (or lean, before the first poll) in points, or nil for a

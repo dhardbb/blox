@@ -34,6 +34,8 @@ export type Moment =
 	| "Over" -- the result: a win for seat 1 (the first seed from `seed`, default END_SEED, on where it wins)
 	| "Landslide" -- the result after a landslide win: you took over 70% of the votes (D-062)
 	| "LandslideLoss" -- the result after the rival's landslide
+	| "PlanTutorial" -- the week 3 plan in the tutorial: no deadline (D-075)
+	| "PlanEasy" -- the week 3 plan against the Easy bot: the plan timer doubled (D-075)
 
 local Fixtures = {}
 
@@ -60,6 +62,8 @@ Fixtures.MOMENTS = table.freeze({
 	"Over",
 	"Landslide",
 	"LandslideLoss",
+	"PlanTutorial",
+	"PlanEasy",
 } :: { Moment })
 
 local function reached(session: Session.Session, moment: Moment): boolean
@@ -71,7 +75,7 @@ local function reached(session: Session.Session, moment: Moment): boolean
 		return phase == "MapReveal"
 	elseif moment == "Draft" then
 		return phase == "Draft" and session.match.draftRound == 1 and stage == "Input"
-	elseif moment == "Plan" then
+	elseif moment == "Plan" or moment == "PlanTutorial" or moment == "PlanEasy" then
 		return phase == "Plan" and session.match.week == 3 and stage == "Input"
 	elseif moment == "Stance" then
 		return phase == "Decision" and session.match.decision == "Stance" and stage == "Input"
@@ -108,10 +112,15 @@ end
 -- Plays one match with seed `s` up to `moment`. Nil if the match ends first (a
 -- seed whose deck never deals a Choice event into a plan week).
 local function play(config: Config, moment: Moment, s: number, candidate: string?): Session.StatePayload?
+	-- The tutorial and the Easy bot (D-075): a practice bot with a level, the
+	-- tutorial with no choice timers. Every other moment plays the standard bot.
+	local difficulty: Bot.Difficulty? = if moment == "PlanTutorial" or moment == "PlanEasy"
+		then "Easy"
+		else nil
 	local session = Session.new(config, "fixture", s, {
 		{ id = "you", kind = "Human" },
-		{ id = "bot", kind = "Bot", candidate = "calloway" },
-	}, 0)
+		{ id = "bot", kind = "Bot", candidate = "calloway", difficulty = difficulty },
+	}, 0, { tutorial = moment == "PlanTutorial" })
 	local rng = Rng.new(s * 13 + 1)
 	local t = 0
 	for _ = 1, 500 do

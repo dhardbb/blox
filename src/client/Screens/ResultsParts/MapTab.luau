@@ -18,7 +18,7 @@
 --                winner by their margin; the lead or margin in the state's pill
 --                ("+3", "+0.4"); every state the polls called wrong has a
 --                dashed outline in the real winner's color and "×" after its
---                value, in both modes (D-075)
+--                value, in both modes (D-079)
 --   StateLine    "Tap a state to compare." / the tapped state's poll and result
 -- The map is made the first time the tab shows (NodeMap is heavy; most players
 -- never open the tab) and sized so the whole tab fits the screen without
@@ -37,7 +37,7 @@ local NodeMap = require(script.Parent.Parent.Parent.Map.NodeMap)
 
 local MapTab = {}
 
-local MISS = Kit.glyph.close -- the mark after a missed state's value ("+0.4 ×"; D-075: was a MISS tag)
+local MISS = Kit.glyph.close -- the mark after a missed state's value ("+0.4 ×"; D-079: was a MISS tag)
 local LINE_H = Kit.size.body + 6 -- px, a one-line text row
 local MAP_MIN_H = 160 -- px, the map never gets smaller than this
 local STATE_H = 2 * (Kit.size.caption + 4) -- px, room for a tapped state's two lines, so a tap never moves the map
@@ -49,6 +49,7 @@ export type Tab = {
 	set: (self: Tab, payload: Session.StatePayload, names: { string }) -> (),
 	show: (self: Tab, visible: boolean) -> (),
 	layout: (self: Tab, width: number, height: number) -> (),
+	destroy: (self: Tab) -> (), -- the map's own loops and handlers stop with the screen
 }
 
 function MapTab.new(parent: Instance, order: number): Tab
@@ -142,7 +143,7 @@ function MapTab.new(parent: Instance, order: number): Tab
 		for _, row in rows do
 			local leader, lead = PollMiss.lead(row, mode)
 			-- A miss: "×" after its value, and a dashed outline in the real winner's
-			-- color, so the codes and values under it stay readable (D-075).
+			-- color, so the codes and values under it stay readable (D-079).
 			local parts: { MapInterface.LensPart } = if leader ~= 0
 				then {
 					{ text = PollMiss.leadText(lead), color = Kit.playerColor(view, leader), filled = true },
@@ -230,9 +231,16 @@ function MapTab.new(parent: Instance, order: number): Tab
 				+ missLine.AbsoluteSize.Y
 				+ STATE_H
 				+ 4 * Kit.space.sm
-			-- The real map's box for this room (D-075: it stands up on a phone).
+			-- The real map's box for this room (D-079: it stands up on a phone).
 			local h = MapShape.heightFor(width, math.max(height - others, MAP_MIN_H))
 			mapBox.Size = UDim2.new(1, 0, 0, h)
+		end,
+		destroy = function(_self: Tab)
+			local made = map
+			map = nil
+			if made then
+				made:destroy()
+			end
 		end,
 	}
 	return tab

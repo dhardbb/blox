@@ -3,7 +3,7 @@
 -- (PlayerView.location, public for every player), so you can find yourself at a
 -- glance. A pin is compact: the candidate's face (their portrait ringed in
 -- their color, D-068) and a tiny pointer under it; your own pin is a little
--- bigger and drawn on top. At rest that is all (D-075: the name tabs were the
+-- bigger and drawn on top. At rest that is all (D-079: the name tabs were the
 -- brightest marks on the map); the tab beside the face, in the same color
 -- ("You" on yours, the rival's first name or custom name on theirs), shows in
 -- the first week (Pin.label) and while the pin's state is selected. The real

@@ -1,5 +1,5 @@
 --!strict
--- The real map (src/client/Map/ShapeMap.luau, D-070, D-075) on the fake engine:
+-- The real map (src/client/Map/ShapeMap.luau, D-070, D-079) on the fake engine:
 -- one tinted shape per state from its atlas rect, a 36 px tap square per state
 -- and a chip per callout state, taps settled by outline, outlines for selection
 -- and rings (dashed, hollow), the Polls pill, quiet candidate pins, the legend,
@@ -183,7 +183,11 @@ describe("ShapeMap", function()
 		wide.map:setLens({})
 		settle(wide)
 		expect(wide.map.root:GetAttribute("Layout")):toBe("tall")
-		check(wide.map.root.Borders:FindFirstChild("InsetHI") ~= nil, "no Hawaii inset")
+		local hi = wide.map.root:FindFirstChild("InsetHI", true)
+		check(hi ~= nil, "no Hawaii inset")
+		-- Hawaii's islands are specks: its box is filled in its color, like a chip.
+		check(hi.BackgroundTransparency < 1, "Hawaii's inset is not filled")
+		expect(hi.BackgroundColor3):toBe(wide.map.root.Shapes.ShapeHI.ImageColor3)
 	end)
 
 	it("labels every state on one line on a phone, and no two labels overlap", function()
@@ -196,6 +200,7 @@ describe("ShapeMap", function()
 		settle(m)
 		local shown = {}
 		local values = 0
+		local stackedSeen = 0
 		for _, record in StateData.list do
 			local node = button(m, record.id)
 			for _, name in { "Label", "Lens" } do
@@ -204,22 +209,37 @@ describe("ShapeMap", function()
 					table.insert(shown, { id = record.id, inst = inst })
 					if name == "Lens" then
 						values += 1
-						-- On the code's line, not under it.
+						-- On the code's line, or right under it (the code at 12 px).
 						if node.Label.Visible and not MapShape.get(record.id).chip then
+							local l, r = node.Label, inst
+							local lx = l.AbsolutePosition.X + l.AbsoluteSize.X / 2
+							local ly = l.AbsolutePosition.Y + l.AbsoluteSize.Y / 2
+							local rx = r.AbsolutePosition.X + r.AbsoluteSize.X / 2
+							local ry = r.AbsolutePosition.Y + r.AbsoluteSize.Y / 2
+							local sameLine = math.abs(ry - ly) < 1
+							local stacked = math.abs(rx - lx) < 1 and ry > ly
 							check(
-								math.abs(
-									(inst.AbsolutePosition.Y + inst.AbsoluteSize.Y / 2)
-										- (node.Label.AbsolutePosition.Y + node.Label.AbsoluteSize.Y / 2)
-								) < 1,
-								`{record.id}'s value is not on its code's line`
+								sameLine or stacked,
+								`{record.id}'s value is neither beside nor under its code`
 							)
+							if stacked then
+								stackedSeen += 1
+							end
 						end
 					end
 				end
 			end
 		end
-		-- Every value shows on a phone (the audit counted 33 missing before D-075).
+		-- Every value shows on a phone (the audit counted 33 missing before D-079),
+		-- and almost every one with its code (D-079 review: no orphan values).
 		expect(values):toBe(#StateData.list)
+		local coded = 0
+		for _, record in StateData.list do
+			if button(m, record.id).Label.Visible then
+				coded += 1
+			end
+		end
+		check(coded >= #StateData.list - 3, `only {coded} codes beside their values`)
 		for i = 1, #shown do
 			for j = i + 1, #shown do
 				local a, b = shown[i], shown[j]
@@ -289,7 +309,7 @@ describe("ShapeMap", function()
 				pips = { { count = 2, color = blue }, { count = 3, color = red, hollow = true } },
 			},
 			OH = { parts = { { text = "tie" } } },
-			-- No value: no ▲, no pips (D-075).
+			-- No value: no ▲, no pips (D-079).
 			PA = { parts = {}, momentum = red, pips = { { count = 2, color = blue } } },
 		})
 		settle(m)
@@ -445,7 +465,7 @@ describe("ShapeMap", function()
 		local tex = button(m, "TX")
 		check(not overlaps(tx, tex.Lens), "the tag covers the lead")
 		check(not overlaps(tx, tex.Label), "the tag covers the code")
-		-- Two neighbors' preview tags never cover each other (D-075).
+		-- Two neighbors' preview tags never cover each other (D-079).
 		m.map:setPreview({ PA = { text = "+9.4" }, OH = { text = "+5.4" }, WV = { text = "+1.2" } })
 		settle(m)
 		check(not overlaps(layer.PA, layer.OH), "PA's and OH's preview tags overlap")

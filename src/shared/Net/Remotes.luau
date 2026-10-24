@@ -20,15 +20,15 @@ export type Op =
 	"Queue" -- join the public queue
 	| "Host" -- open a private match and get a code: { events? } (false = no event deck)
 	| "Join" -- join a private match: { code }
-	| "Practice" -- play the bot now: { difficulty? } (D-057)
+	| "Practice" -- play the bot now: { difficulty?, tutorial? } (D-057, D-075)
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
 	| "PrePick" -- remember a candidate and platform for Select: { pick }
 	| "SetColor" -- save a chosen color (Color Pass owners, D-055): { color? } (absent = auto)
 	| "SetName" -- name your candidate (Name Pass owners, eligible players, D-069): { name? } (absent = its own name)
 	| "ReportName" -- report a custom name you were shown (D-069): { userId } (the setter's, as a string)
 	| "ReviewList" -- admins: ask for the reported names (D-069); answered with a "Review" message
-	| "ReviewKeep" -- admins: keep a reported name, dismissing its reports: { userId }
-	| "ReviewRemove" -- admins: remove a reported name and block it and names like it: { userId }
+	| "ReviewKeep" -- admins: keep a reported name, dismissing its reports: { userId, name }
+	| "ReviewRemove" -- admins: remove a reported name and block it as whole words (D-078): { userId, name }
 	| "Claim" -- Select step 1: claim a candidate (D-048): { matchId, step, input = candidate id }
 	| "ClaimColor" -- Select, Color Pass owners: claim a color, first come first served (D-061): { matchId, step, color }
 	| "Submit" -- lock in this stage's input: { matchId, step, input }
@@ -48,7 +48,8 @@ export type Request = {
 	events: boolean?, -- Host: false turns the event deck off for this private match
 	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue). ClaimColor: the color (required)
 	difficulty: string?, -- Practice: "Easy" | "Medium" | "Hard" | "Extreme"; absent or anything else = "Medium" (D-057)
-	name: string?, -- SetName: the custom name as typed; absent = back to the candidate's own name
+	tutorial: boolean?, -- Practice: true replays the tutorial (How to play, D-075): Easy bot, no choice timers
+	name: string?, -- SetName: the custom name as typed (absent = the candidate's own); ReviewKeep/ReviewRemove: the name the admin saw
 	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)
 }
 

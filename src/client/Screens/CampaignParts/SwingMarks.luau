@@ -3,7 +3,7 @@
 -- numbers. Pure apart from colors: the Campaign screen hands the result to the
 -- map in place of its usual marks.
 --
--- Only what matters gets a label (docs/UI-STYLE.md §4.6, D-075): never more
+-- Only what matters gets a label (docs/UI-STYLE.md §4.6, D-079): never more
 -- than SwingMarks.LABELS on the map at once. A flip is a 3 px outline in the
 -- new leader's color (the halo, strong) and, on the SwingMarks.FLIP_TAGS
 -- biggest flips by votes, a one-character tag: ▲ when it comes your way, ▼

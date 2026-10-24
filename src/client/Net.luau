@@ -46,6 +46,7 @@ local REASONS: { [string]: string } = {
 	NotInput = "This part of the match isn't taking input right now.",
 	AlreadyLocked = "You already locked in.",
 	NoBank = "No time bank left.",
+	NoTimer = "No timer here: take your time.",
 	NotSkippable = "This part can't be skipped.",
 	Over = "The match is over.",
 	-- Select and Draft
@@ -87,6 +88,7 @@ local REASONS: { [string]: string } = {
 	ReportLimit = "You've sent a lot of reports. Thanks! Try again later.",
 	NotAdmin = "Only the game's owners can review names.",
 	ReviewFailed = "The review list couldn't be saved. Try again in a minute.",
+	ReviewChanged = "That name changed since the list loaded. Check it again.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -102,6 +104,10 @@ local NOTICES: { [string]: string } = {
 	OpponentForfeited = "Your opponent left the match. You win by forfeit.",
 	NameReported = "Thanks for the report. You'll see the candidate's own name instead.",
 	NameRemoved = "Your custom name was removed after a review. You can pick a new one.",
+	Tutorial = "Tutorial: no timer on any choice, so take your time.",
+	NameNotAllowed = "Your custom name isn't allowed anymore, so your candidate uses their own. You can pick a new one.",
+	MatchUnrated = `This match is unrated: you two already played {Config.defaults.RATED_PAIR_DAILY_MAX} rated matches today.`,
+	ForfeitUnrated = "The match ended before week 1, so it doesn't count for anyone's rating.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,
@@ -130,6 +136,26 @@ local function colorTakenText(): string
 	local lobby = state.lobby
 	local asked = if payload and payload.matchId == lastColorMatch then lastColorClaim else nil
 	return Words.colorTaken(who, asked or (if lobby then lobby.color else nil))
+end
+
+-- The player whose custom name this player last reported (Net.reportName).
+local reportedId: string? = nil
+
+-- The server took the report (its NameReported notice): hide that name in the
+-- payload this client holds. A match that is over gets no new State, so
+-- Results would keep showing the name otherwise (D-069).
+local function hideReported()
+	local id = reportedId
+	reportedId = nil
+	local payload = Store.get().payload
+	if id == nil or payload == nil then
+		return
+	end
+	for seat, info in payload.seats do
+		if info.id == id then
+			Store.hideName(seat)
+		end
+	end
 end
 
 local function noticeText(code: string?): string
@@ -161,6 +187,9 @@ function Net.start()
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Notice" then
+			if message.notice == "NameReported" then
+				hideReported()
+			end
 			Store.say(noticeText(message.notice))
 		elseif message.kind == "Rejected" then
 			Store.say(Net.reasonText(message.reason), true, message.reason)
@@ -224,8 +253,10 @@ function Net.setName(name: string?)
 	Net.send("SetName", { name = name })
 end
 
--- Reports the custom name this player was shown for `userId` (D-069).
+-- Reports the custom name this player was shown for `userId` (D-069). When the
+-- server's NameReported notice arrives, that name is hidden here too.
 function Net.reportName(userId: string)
+	reportedId = userId
 	Net.send("ReportName", { userId = userId })
 end
 

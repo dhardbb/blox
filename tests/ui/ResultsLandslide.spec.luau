@@ -152,6 +152,57 @@ describe("Results: the Landslide stamp", function()
 		end
 	end)
 
+	it("sweeps its light inside the tilted stamp, never past it", function()
+		local world, peer = Rig.fixture("Landslide", nil)
+		local Motion = FakeRoblox.require(world, peer, "src/client/UI/Motion.luau")
+		FakeRoblox.run(world, Motion.SHINE_EVERY + 1)
+		local plate = Rig.need(peer, "Results", "LandslideStamp"):FindFirstChild("Plate")
+		local shine = plate:FindFirstChild("Shine")
+		check(shine ~= nil, "no shine on the winner's stamp")
+		-- A rotated parent clips nothing (GuiObject.ClipsDescendants): the light
+		-- is a layer the plate's own size and shape, and only its gradient moves.
+		expect(shine.Size):toEqual(FakeRoblox.types.UDim2.fromScale(1, 1))
+		local at = shine.Position
+		check(at == nil or (at.X.Scale == 0 and at.X.Offset == 0), "the light moved off the plate")
+		local gradient = shine:FindFirstChildOfClass("UIGradient")
+		check(gradient ~= nil and gradient.Offset.X > 0.5, "the gradient did not sweep across")
+		local corner = plate:FindFirstChildOfClass("UICorner")
+		if corner then
+			local round = shine:FindFirstChildOfClass("UICorner")
+			check(
+				round ~= nil and round.CornerRadius == corner.CornerRadius,
+				"the light's corners are square"
+			)
+		end
+		Rig.noErrors(world)
+	end)
+
+	it("stops the shine and the breathing glow when the screen goes", function()
+		local world = Rig.newWorld(3)
+		-- Stand-ins for the two loops (set before the client loads Motion), each
+		-- counting its stop. Only the stamp's: the action bar's primary has its own.
+		local started, stopped = 0, 0
+		for _, name in { "shine", "breathe" } do
+			FakeRoblox.setModuleField(world, "src/client/UI/Motion.luau", name, function(inst: any): () -> ()
+				if name == "shine" and inst.Name ~= "Plate" then
+					return function() end
+				end
+				started += 1
+				return function()
+					stopped += 1
+				end
+			end)
+		end
+		local peer = FakeRoblox.join(world, "P", { DebugScreen = "Landslide" })
+		FakeRoblox.run(world, 1.5)
+		check(started >= 2, `the winner's stamp did not shine and breathe ({started})`)
+		expect(stopped):toBe(0)
+		Rig.tap(world, peer, "Results", "BackToLobby", 1)
+		expect(Rig.findIn(peer, "Results", "LandslideStamp")):toBe(nil)
+		expect(stopped):toBe(started)
+		Rig.noErrors(world)
+	end)
+
 	it("lands at once under reduced motion", function()
 		local world, peer = Rig.fixture("Landslide", nil, { reducedMotion = true })
 		local label = Rig.need(peer, "Results", "LandslideLabel")

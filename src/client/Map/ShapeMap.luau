@@ -1,5 +1,5 @@
 --!strict
--- The real map (docs/DESIGN.md D-070, D-075): every state's true shape from
+-- The real map (docs/DESIGN.md D-070, D-079): every state's true shape from
 -- the generated atlases (Shared/UI/MapShape, scripts/mapgen/make.py), tinted by
 -- the same rules as the circles (Colors.bandFill toward the public-poll leader,
 -- the lean before the first poll), thin dark borders from one overlay image,
@@ -76,6 +76,8 @@ local PART_PAD = 3 -- px, a lens pill's side padding
 local PART_GAP = 2 -- px, between two lens pills (and a lead and its suffix)
 local ROW_PAD = 2 -- px, a Polls pill's padding around its lead and suffix
 local UNIT_GAP = 2 -- px, between a compact label's code and its value
+local STAR_EXTRA = 6 -- px more a ★ takes than an estimated character
+local EDGE_CLEAR = 5 -- px a compact label keeps from the map's left and right edges
 local UNIT_MARGIN = 1.5 -- px, a compact label's clearance from its neighbors (text widths are estimates)
 local ROW_GAP = 1 -- px, between a stacked chip's code and its value
 local PIP = 6 -- px, one ground-game pip on a phone's map
@@ -95,6 +97,7 @@ local LEADER_PX = 1 -- the callout bracket
 local SELECT_LEADER_PX = 2 -- a selected or hovered chip's leader to its state
 local BRACKET_FADE = 0.4 -- the bracket's transparency
 local INSET_FADE = 0.55 -- the Alaska and Hawaii boxes' transparency
+local INSET_FILL = 0.55 -- Hawaii's box filled in its state's color at this transparency (its islands are specks)
 local ROUTE_PX = 2 -- the planned route: thin and dim, under every mark
 local ROUTE_FADE = 0.5 -- its transparency (a flight's: ROUTE_FLIGHT)
 local ROUTE_FLIGHT = 0.75
@@ -105,6 +108,7 @@ local CODE_COST = 1000 -- layout score per px² of a mark over a code or off the
 local MARK_COST = 20 -- ... per px² over another mark
 local FAR_COST = 40 -- ... for each step farther from the code
 local NUDGES = { 3, 6, 10, 15, 21, 28 } -- px a compact label may move off its anchor
+local FAR_NUDGES = { 3, 6, 10, 15, 21, 28, 36, 45, 55 } -- ... a value alone, with a leader to its state
 local NUDGE_COST = 25 -- layout score per px a compact label moves
 local SMALL_REACH = 10 -- px a small state's full line ("PA 19") may move; farther, it shows its value alone
 local CODE_CHAR = 0.72 -- a code character's width, share of its height (bold capitals)
@@ -114,8 +118,8 @@ local TAG_H = Kit.size.caption + 5 -- px, the tag's height
 local TAG_PAD = 4 -- px, the tag's side padding
 local TAG_RADIUS = 6 -- px, a tag's and a lens plate's corners
 local PLAN_BADGE_PX = 16 -- px, the planned-action badge
-local DIM_FILL = 0.4 -- shape transparency of a dimmed state: 60 % of its band fill (D-075)
-local QUIET_FILL = 0.6 -- ... of a state the Close filter quiets: 40 % (D-075)
+local DIM_FILL = 0.4 -- shape transparency of a dimmed state: 60 % of its band fill (D-079)
+local QUIET_FILL = 0.6 -- ... of a state the Close filter quiets: 40 % (D-079)
 local HOLLOW_FILL = 0.35 -- ... of a state not called yet (filled with the stage's field color)
 local DIM_TEXT = 0.3 -- label transparency of a dimmed state
 local TOP_SHADE = 0.18 -- the shape's transparency at its bottom (a top light over the navy)
@@ -152,10 +156,11 @@ local PREVIEW_EDGE = 0.45 -- ... its edge's transparency
 local ARROW_PX = 18 -- px, a mark's arrow box
 local GLYPH_NOTES = { ["▲"] = true, ["▼"] = true } -- notes drawn in their color (a flip's direction)
 
-type Part = { label: TextLabel, edge: UIStroke, icon: GuiObject? }
+type Part = { label: TextLabel, edge: UIStroke, glyphs: { GuiObject } }
 
 -- Where the last mark layout put a state's code and lens row (px from its anchor).
 type Place = {
+	codeH: number?, -- px, the code's height when it is not the state's usual one (stacked)
 	code: boolean,
 	codeX: number,
 	codeY: number,
@@ -294,7 +299,7 @@ local function newPart(row: Frame, k: number): Part
 	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	edge.Transparency = PART_EDGE
 	edge.Parent = label
-	return { label = label, edge = edge, icon = nil }
+	return { label = label, edge = edge, glyphs = {} }
 end
 
 local function hrow(name: string, height: number, parent: Instance): Frame
@@ -377,10 +382,11 @@ function ShapeMap.new(): MapInterface.Map
 	borders:SetAttribute("Asset", "mapBorders")
 	borders:SetAttribute("Decor", true)
 
-	-- Alaska's and Hawaii's inset boxes: hairlines, so the two read as insets.
+	-- Alaska's and Hawaii's inset boxes: hairlines, so the two read as insets
+	-- (under the shapes: Hawaii's is filled in its color).
 	local insetFrames: { [string]: Frame } = {}
 	for _, id in { "AK", "HI" } do
-		local frame = Kit.box({ Name = `Inset{id}`, Parent = borderLayer })
+		local frame = Kit.box({ Name = `Inset{id}`, Parent = glowLayer })
 		frame:SetAttribute("Decor", true)
 		Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = frame })
 		local edge = Kit.stroke(Kit.colors.line, HAIRLINE_PX)
@@ -959,12 +965,6 @@ function ShapeMap.new(): MapInterface.Map
 		return if growX then UDim.new(0, share * w - pad) else UDim.new(share, -pad)
 	end
 
-	-- The code's width in px (its two letters at the label's size).
-	local function codeWidth(node: Node): number
-		local lh = labelPx(node)
-		return math.ceil((utf8.len(node.id) or 2) * math.min(lh, Kit.size.heading) * CODE_CHAR) + 2
-	end
-
 	-- The chip's size in px, from its cell (not its tap square, which may be bigger).
 	local function chipPx(node: Node): (number, number)
 		local w, h = natural(node)
@@ -1054,8 +1054,11 @@ function ShapeMap.new(): MapInterface.Map
 			return
 		end
 		local place = node.place
-		local lh = labelPx(node)
-		node.label.Size = UDim2.fromOffset(codeWidth(node), lh)
+		local lh = if place and place.codeH then place.codeH else labelPx(node)
+		node.label.Size = UDim2.fromOffset(
+			math.ceil((utf8.len(node.id) or 2) * math.min(lh, Kit.size.heading) * CODE_CHAR) + 2,
+			lh
+		)
 		if place == nil then
 			node.label.Visible = true
 			node.label.Position = onAnchor(node, 0.5, 0)
@@ -1170,58 +1173,71 @@ function ShapeMap.new(): MapInterface.Map
 				else Kit.colors.line
 			part.edge.Transparency = if spec.filled or spec.outlined then 0 else PART_EDGE
 			part.edge.Thickness = if spec.outlined then Kit.MARK_STROKE else 1
-			-- An icon (a coin, an issue): before the text in the row, which then
-			-- wears the plate; or alone at DISC_ICON px on a DISC px disc.
-			local iconName = (spec :: any).icon :: string?
-			if iconName and node.ladder and not (spec :: any).disc then
-				-- A chip shows the icon only if the pill still fits it.
-				local room = if side then chipW / 2 - CHIP_PAD_X else chipW - 2
-				if
-					textW(text, PART_CHAR) + 2 * PART_PAD + Kit.size.caption + PART_GAP + 2 * ROW_PAD > room
-				then
-					iconName = nil
-				end
+			for _, old in part.glyphs do
+				old:Destroy()
 			end
-			local disc = (spec :: any).disc == true
-			if part.icon then
-				(part.icon :: GuiObject):Destroy()
-				part.icon = nil
+			table.clear(part.glyphs)
+			-- An issue (D-076): its symbol alone at DISC_ICON px on a DISC px disc,
+			-- once the game can draw it; else its code as text.
+			local issue = if spec.icon and Kit.hasIssueIcon(spec.icon) then spec.icon else nil
+			local disc = issue ~= nil
+			Kit.setIssueIcon(part.label, issue, DISC_ICON, part.label.TextColor3)
+			if disc then
+				part.label.Text = ""
 			end
 			local pad = part.label:FindFirstChildOfClass("UIPadding")
 			if pad then
 				pad.PaddingLeft = UDim.new(0, if disc then 0 else PART_PAD)
 				pad.PaddingRight = UDim.new(0, if disc then 0 else PART_PAD)
 			end
-			if iconName then
-				local px = if disc then DISC_ICON else Kit.size.caption
-				local icon = Kit.icon(iconName, px, (spec :: any).iconColor or color)
-				icon.ZIndex = 7
-				if disc then
-					icon.AnchorPoint = Vector2.new(0.5, 0.5)
-					icon.Position = UDim2.fromScale(0.5, 0.5)
-					icon.Parent = part.label
-					rowH = math.max(rowH, DISC)
-				else
-					icon.Name = `Icon{i}`
-					icon.LayoutOrder = 2 * i - 1
-					icon.Parent = node.lensRow
-					inline = true
-					valueW += px + PART_GAP
-				end
-				part.icon = icon
+			part.label.AutomaticSize = if disc then Enum.AutomaticSize.None else Enum.AutomaticSize.X
+			local corner = part.label:FindFirstChildOfClass("UICorner")
+			if corner then
+				corner.CornerRadius = UDim.new(0, if disc then DISC // 2 else TAG_RADIUS)
 			end
+			if disc then
+				rowH = math.max(rowH, DISC)
+			end
+			-- A glyph (Money's coin), `glyphs` times before the text, in the row,
+			-- which then wears the plate; a chip keeps it only if it still fits.
+			local glyph = spec.glyph
+			local count = if glyph then math.max(1, spec.glyphs or 1) else 0
+			if glyph and node.ladder then
+				local room = if side then chipW / 2 - CHIP_PAD_X else chipW - 2
+				local need = textW(text, PART_CHAR) + count * (Kit.size.caption + PART_GAP) + 2 * ROW_PAD
+				if need > room then
+					count = math.max(0, math.floor((room - 2 * ROW_PAD) / (Kit.size.caption + PART_GAP)))
+				end
+			end
+			for g = 1, count do
+				local icon = Kit.icon(glyph :: string, Kit.size.caption, spec.glyphColor or color)
+				icon.ZIndex = 7
+				icon.Name = `Glyph{i}_{g}`
+				icon.LayoutOrder = 2 * i - 1
+				icon.Parent = node.lensRow
+				table.insert(part.glyphs, icon)
+				inline = true
+				valueW += Kit.size.caption + PART_GAP
+			end
+			-- Glyphs alone (no text): no empty plate after them.
+			part.label.Visible = not (count > 0 and text == "")
 			part.label.Size = UDim2.fromOffset(if disc then DISC else 0, if disc then DISC else PART_H)
-			valueW += (if disc then DISC else textW(text, PART_CHAR) + 2 * PART_PAD) + (if i > 1
-				then PART_GAP
-				else 0)
+			if part.label.Visible then
+				-- (A ★ draws wider than a digit.)
+				local starW = if string.find(text, Kit.STAR, 1, true) then STAR_EXTRA else 0
+				valueW += (if disc then DISC else textW(text, PART_CHAR) + starW + 2 * PART_PAD) + (if i
+						> 1
+					then PART_GAP
+					else 0)
+			end
 		end
 		for i = #parts + 1, #node.parts do
 			local part = node.parts[i]
 			part.label.Visible = false
-			if part.icon then
-				(part.icon :: GuiObject):Destroy()
-				part.icon = nil
+			for _, old in part.glyphs do
+				old:Destroy()
 			end
+			table.clear(part.glyphs)
 		end
 
 		-- The Polls suffix (▲ and pips), only beside a value.
@@ -1273,7 +1289,7 @@ function ShapeMap.new(): MapInterface.Map
 		node.rowH = rowH
 		local keys = { upText, tostring(#runs) }
 		for _, spec in parts do
-			table.insert(keys, spec.text)
+			table.insert(keys, `{spec.text}:{spec.icon or ""}:{spec.glyphs or 0}`)
 		end
 		node.rowKey = table.concat(keys, ",")
 
@@ -1350,6 +1366,13 @@ function ShapeMap.new(): MapInterface.Map
 				chip.BackgroundColor3 = shown
 			end
 			chip.BackgroundTransparency = fade
+		end
+		-- Hawaii's islands are specks: its inset box is filled like a chip, so
+		-- the state's color reads (D-079).
+		local inset = insetFrames[node.id]
+		if node.id == "HI" and inset then
+			inset.BackgroundColor3 = shown
+			inset.BackgroundTransparency = math.max(fade, INSET_FILL)
 		end
 		local faded = dim or quiet
 		node.label.TextTransparency = if faded then DIM_TEXT else 0
@@ -1526,6 +1549,8 @@ function ShapeMap.new(): MapInterface.Map
 	-- covers a code or a value row; pins and preview tags cover no mark at all.
 	type Box = { x0: number, y0: number, x1: number, y1: number }
 	type Dir = { number }
+	-- A compact label's shape to try (D-079).
+	type Try = { kind: "line" | "stack" | "value" | "code", reach: number?, far: boolean? }
 	local BELOW: { Dir } =
 		{ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } }
 	local BESIDE: { Dir } =
@@ -1544,6 +1569,7 @@ function ShapeMap.new(): MapInterface.Map
 	local NEAR = { 1, 1.6 }
 	local PIN_REACH = { 1, 1.6, 2.3, 3.2, 4.2 } -- pins go farther rather than cover a code or a value
 	local PIN_GAP = 2 -- px between pins that share a state
+	local PIN_CLEAR = 3 -- px kept clear above and below a pin
 	local occupied: { Box } = {} -- the codes and the marks of the last layout
 	local grid: { [number]: { number } } = {} -- occupied indices by GRID px cell
 	local stamp: { number } = {} -- occupied index -> the last query that saw it
@@ -1642,12 +1668,18 @@ function ShapeMap.new(): MapInterface.Map
 		y: number,
 		w: number,
 		h: number,
-		reach: number?
+		reach: number?,
+		far: boolean?
 	): (number, number, boolean, number)
 		local best, bx, by, covers = math.huge, x, y, true
 		-- Tested a little bigger than drawn: text widths are estimates.
 		local hw, hh = w / 2 + UNIT_MARGIN, h / 2 + UNIT_MARGIN
 		local function try(px: number, py: number, moved: number)
+			-- A value alone stands off its state's anchor, so its leader shows
+			-- whose it is (D-079).
+			if far and math.abs(px - x) < w / 2 + 2 and math.abs(py - y) < h / 2 + 2 then
+				return
+			end
 			local score, bad = cost({ x0 = px - hw, y0 = py - hh, x1 = px + hw, y1 = py + hh }, #occupied)
 			score += moved * NUDGE_COST
 			if score < best then
@@ -1655,7 +1687,8 @@ function ShapeMap.new(): MapInterface.Map
 			end
 		end
 		try(x, y, 0)
-		for _, d in NUDGES do
+		local steps: { number } = if far then FAR_NUDGES else NUDGES
+		for _, d in steps do
 			if not covers or d > (reach or math.huge) then
 				break -- a clean spot nearer the anchor already (or as far as this label may go)
 			end
@@ -1786,73 +1819,124 @@ function ShapeMap.new(): MapInterface.Map
 			end)
 			for _, node in byEV do
 				local lh = labelPx(node)
-				local codeW = textW(node.id, math.min(lh, Kit.size.heading) * CODE_CHAR)
-					+ 2
-					+ (if node.arrow.Visible then ARROW_PX else 0)
+				local function codeWidthAt(h: number): number
+					return textW(node.id, math.min(h, Kit.size.heading) * CODE_CHAR)
+						+ 2
+						+ (if node.arrow.Visible then ARROW_PX else 0)
+				end
+				local codeW = codeWidthAt(lh)
+				local stackW = codeWidthAt(COMPACT_MIN)
 				local ax, ay = node.lx * bw, node.ly * bh
 				-- Alaska and Hawaii keep their codes: the inset's title.
 				local small = roomPx(node) < LENS_ROOM and geo.insets[node.id] == nil
-				-- A small state tries its full line only on or right by its anchor
-				-- (where the map is quiet: Money's few values, Close), else its value.
-				local tries: { { code: boolean, row: boolean, reach: number? } } = {}
+				-- What to try, in order (D-079): the line "PA 19" (a small state only
+				-- on or right by its anchor, after the narrower stack); the code at
+				-- 12 px stacked over the value; last, the value alone, up to 55 px
+				-- off with a leader to its state, else wherever it covers least.
+				-- Never the code alone: beside a neighbor's value it would read as
+				-- that value's, and the value is what the lens is for.
+				local tries: { Try } = {}
 				if node.wantRow then
-					table.insert(
-						tries,
-						{ code = true, row = true, reach = if small then SMALL_REACH else nil }
-					)
-					table.insert(tries, { code = false, row = true })
+					-- A small state tries the narrow stack first: it leaves its
+					-- neighbors room for theirs.
+					if small then
+						table.insert(tries, { kind = "stack", reach = SMALL_REACH })
+					end
+					table.insert(tries, { kind = "line", reach = if small then SMALL_REACH else nil })
+					table.insert(tries, { kind = "stack" })
+					table.insert(tries, { kind = "value", far = true })
 				else
-					-- With a value, the last resort is the value alone: a code alone
-					-- beside a neighbor's value would read as that value's.
-					table.insert(tries, { code = true, row = false })
+					table.insert(tries, { kind = "code" })
 				end
-				-- The plan preview's number rides at the end of the line (D-071's
-				-- tag, D-075's place for it on a phone): never dropped.
+				-- The plan's badge leads the line and the plan preview's number
+				-- ends it (D-071's tag; on a phone it rides on its state's line):
+				-- neither is ever dropped.
 				local tag = node.preview
 				local tagW = if tag and tag.Visible then textW(tag.Text, TAG_CHAR) + 2 * TAG_PAD else 0
+				local planBadge = node.hit:FindFirstChild("PlanBadge") :: GuiObject?
+				local badgeW = if planBadge then PLAN_BADGE_PX + UNIT_GAP else 0
+				-- A reveal's tag (a flip's ▲ / ▼, a move's points) ends the line too,
+				-- so it never lands on a neighbor's value.
+				local mark = node.badge
+				local markW = if mark.Visible then textW(mark.Text, TAG_CHAR) + 2 * TAG_PAD else 0
+				local tailW = (if tagW > 0 then UNIT_GAP + tagW else 0)
+					+ (if markW > 0 then UNIT_GAP + markW else 0)
 				local chosen: Place? = nil
+				local core: Box? = nil
 				local box: Box? = nil
 				for k, try in tries do
-					local w = (if try.code then codeW else 0)
-						+ (if try.code and try.row then UNIT_GAP else 0)
-						+ (if try.row then node.rowW else 0)
-					local lineW = w + (if tagW > 0 then UNIT_GAP + tagW else 0)
+					local coreW, coreH
+					if try.kind == "line" then
+						coreW, coreH = codeW + UNIT_GAP + node.rowW, math.max(lh, node.rowH)
+					elseif try.kind == "stack" then
+						coreW, coreH = math.max(stackW, node.rowW), COMPACT_MIN + ROW_GAP + node.rowH
+					elseif try.kind == "value" then
+						coreW, coreH = node.rowW, node.rowH
+					else
+						coreW, coreH = codeW, lh
+					end
+					local lineW = badgeW + coreW + tailW
 					local h = math.max(
-						if try.code then lh else 0,
-						if try.row then node.rowH else 0,
-						if tagW > 0 then TAG_H else 0
+						coreH,
+						if tailW > 0 then TAG_H else 0,
+						if planBadge then PLAN_BADGE_PX else 0
 					)
-					-- (Nothing fits: the last try takes its least crowded spot.)
-					local x, y, covers = nudgeSpot(ax, ay, lineW, h, try.reach)
+					local x, y, covers = nudgeSpot(ax, ay, lineW, h, try.reach, try.far)
 					if not covers or k == #tries then
 						-- Never off the map, whatever it covers.
-						x = math.clamp(x, lineW / 2, math.max(lineW / 2, bw - lineW / 2))
+						-- (A little in from the edge: text widths are estimates.)
+						local edge = lineW / 2 + EDGE_CLEAR
+						x = math.clamp(x, edge, math.max(edge, bw - edge))
 						y = math.clamp(y, h / 2, math.max(h / 2, bh - h / 2))
 						local place = placeOf(node)
-						place.code = try.code
-						place.row = try.row
 						local left = x - lineW / 2
-						place.codeX = left + codeW / 2 - ax
-						place.codeY = y - ay
-						place.rowX = (if try.code then left + codeW + UNIT_GAP else left) + node.rowW / 2 - ax
-						place.rowY = y - ay
+						local coreLeft = left + badgeW
+						local cx = coreLeft + coreW / 2
+						place.code = try.kind ~= "value"
+						place.row = try.kind ~= "code"
+						place.codeY, place.rowY = y - ay, y - ay
+						if try.kind == "line" then
+							place.codeX = coreLeft + codeW / 2 - ax
+							place.rowX = coreLeft + codeW + UNIT_GAP + node.rowW / 2 - ax
+						elseif try.kind == "stack" then
+							place.codeH = COMPACT_MIN
+							place.codeX, place.rowX = cx - ax, cx - ax
+							place.codeY = y - coreH / 2 + COMPACT_MIN / 2 - ay
+							place.rowY = y + coreH / 2 - node.rowH / 2 - ay
+						else
+							place.codeX, place.rowX = cx - ax, cx - ax
+						end
+						local tail = coreLeft + coreW
 						if tag and tagW > 0 then
 							tag.AnchorPoint = Vector2.new(0.5, 0.5)
 							tag.Position =
-								UDim2.new(node.lx, left + w + UNIT_GAP + tagW / 2 - ax, node.ly, y - ay)
+								UDim2.new(node.lx, tail + UNIT_GAP + tagW / 2 - ax, node.ly, y - ay)
+							tail += UNIT_GAP + tagW
+						end
+						if markW > 0 then
+							mark.AnchorPoint = Vector2.new(0.5, 0.5)
+							mark.Position =
+								UDim2.new(node.lx, tail + UNIT_GAP + markW / 2 - ax, node.ly, y - ay)
+						end
+						if planBadge then
+							planBadge.Position = onAnchorAt(node, left + PLAN_BADGE_PX / 2 - ax, y - ay)
 						end
 						chosen = place
-						box = { x0 = x - lineW / 2, y0 = y - h / 2, x1 = x + lineW / 2, y1 = y + h / 2 }
+						core =
+							{ x0 = coreLeft, y0 = y - coreH / 2, x1 = coreLeft + coreW, y1 = y + coreH / 2 }
+						box = { x0 = left, y0 = y - h / 2, x1 = left + lineW, y1 = y + h / 2 }
 						break
 					end
 				end
 				local b = box :: Box
+				local c = core :: Box
 				node.place = chosen
 				codes[node.id] = b
 				occupy(b)
-				-- Moved off its state's anchor: a thin leader back to it.
-				if ax < b.x0 - 1 or ax > b.x1 + 1 or ay < b.y0 - 1 or ay > b.y1 + 1 then
-					leader(ax, ay, math.clamp(ax, b.x0, b.x1), math.clamp(ay, b.y0, b.y1))
+				-- Moved off its state's anchor: a thin leader from the code or value
+				-- (not the badge or the preview number) back to it.
+				if ax < c.x0 - 1 or ax > c.x1 + 1 or ay < c.y0 - 1 or ay > c.y1 + 1 then
+					leader(ax, ay, math.clamp(ax, c.x0, c.x1), math.clamp(ay, c.y0, c.y1))
 				end
 				applyPlace(node)
 			end
@@ -1966,7 +2050,9 @@ function ShapeMap.new(): MapInterface.Map
 				fx, fy = node.shape.lx, node.shape.ly
 				c = { x0 = fx * bw, y0 = fy * bh, x1 = fx * bw, y1 = fy * bh }
 			end
-			local dx, dy = placeAround(c, fx, fy, w, h, BESIDE, PIN_REACH, false, #occupied)
+			-- (Searched with a little clearance: a value's plate may draw taller than its estimate.)
+			local dx, dy =
+				placeAround(c, fx, fy, w + 2, h + 2 * PIN_CLEAR, BESIDE, PIN_REACH, false, #occupied)
 			-- Left to right in the group; each frame's AnchorPoint is the pointer
 			-- under its face: move it there.
 			local left = dx - w / 2
@@ -1989,14 +2075,16 @@ function ShapeMap.new(): MapInterface.Map
 					node.badge.Position = UDim2.new(node.lx, dx, node.ly, dy)
 				end
 			else
-				if node.badge.Visible then
+				-- (On a compact map the tag already ends its state's line.)
+				if node.badge.Visible and not isCompact then
 					local w = textW(node.badge.Text, TAG_CHAR) + 2 * TAG_PAD
 					local dx, dy = place(node, w, TAG_H, ABOVE, false, #occupied)
 					node.badge.AnchorPoint = Vector2.new(0.5, 0.5)
 					node.badge.Position = UDim2.new(node.lx, dx, node.ly, dy)
 				end
 				local planBadge = node.hit:FindFirstChild("PlanBadge") :: GuiObject?
-				if planBadge then
+				-- (On a compact map it already leads its state's line.)
+				if planBadge and not isCompact then
 					local dx, dy = place(node, PLAN_BADGE_PX, PLAN_BADGE_PX, CORNER, false, values)
 					planBadge.Position = onAnchorAt(node, dx, dy)
 				end
@@ -2149,6 +2237,11 @@ function ShapeMap.new(): MapInterface.Map
 								{ TextTransparency = 0, BackgroundTransparency = resting },
 								LENS_FADE
 							)
+							local icon = part.label:FindFirstChild("IssueIcon") :: ImageLabel?
+							if icon then
+								icon.ImageTransparency = 1
+								Motion.tween(icon, { ImageTransparency = 0 }, LENS_FADE)
+							end
 						end
 					end
 				end

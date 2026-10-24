@@ -20,6 +20,10 @@
 --                  title (it stops short of the buttons) shows the time left at a
 --                  glance, with a glowing dot at its end (TimerBar; loss under
 --                  the critical mark)
+--   header:setNoTimer(text?)                     -- a step with no deadline (the
+--                  tutorial, D-075): the timer's place reads "No timer"
+--                  (Header.NO_TIMER), muted, no bar, no warning, no ticks;
+--                  attribute NoTimer = true until the next setTimer
 --   header:setTimerLabel(label?)                 -- "Results in" -> "Results in 0:32"
 --   header:setNow(text?)                         -- the "what to do now" line (needs
 --                  opts.now); nil or "" leaves the row empty but keeps its space
@@ -41,6 +45,8 @@ local Kit = require(script.Parent.Kit)
 local Motion = require(script.Parent.Motion)
 
 local Header = {}
+
+Header.NO_TIMER = "No timer" -- what the timer's place reads in a step without a deadline (D-075)
 
 local TIMER_W = 72 -- px, room for "10:00" at heading size
 local LABELED_TIMER_W = 150 -- px, room for "Results in 0:32" (after setTimerLabel)
@@ -72,6 +78,7 @@ export type Header = {
 	setTitle: (self: Header, text: string) -> (),
 	setSubtitle: (self: Header, text: string?) -> (),
 	setTimer: (self: Header, secondsLeft: number?, warnBelow: number?, total: number?) -> (),
+	setNoTimer: (self: Header, text: string?) -> (),
 	setTimerLabel: (self: Header, label: string?) -> (),
 	setNow: (self: Header, text: string?) -> (),
 }
@@ -248,6 +255,7 @@ function Header.new(parent: Instance, options: Options): Header
 	end
 
 	local timerLabel: string? = nil
+	local timerWraps = timer.TextWrapped -- as built; "No timer" turns wrapping off
 	local lastShown: number? = nil -- the whole seconds shown last (for the tick)
 
 	-- Lays the right side out for a timer `width` px wide; returns rightWidth.
@@ -313,6 +321,8 @@ function Header.new(parent: Instance, options: Options): Header
 			self.subtitle.Visible = (text or "") ~= ""
 		end,
 		setTimer = function(self: Header, secondsLeft: number?, warnBelow: number?, total: number?)
+			self.timer:SetAttribute("NoTimer", nil)
+			self.timer.TextWrapped = timerWraps
 			if secondsLeft == nil then
 				self.timer.Visible = false
 				track.Visible = false
@@ -341,6 +351,17 @@ function Header.new(parent: Instance, options: Options): Header
 				Audio.play("tick")
 			end
 			lastShown = shown
+		end,
+		setNoTimer = function(self: Header, text: string?)
+			self.timer.Text = text or Header.NO_TIMER
+			-- One line, scaled down to the clock's place, never two stacked words.
+			self.timer.TextWrapped = false
+			self.timer.TextColor3 = Kit.colors.muted
+			self.timer:SetAttribute("Warn", false)
+			self.timer:SetAttribute("NoTimer", true)
+			self.timer.Visible = true
+			track.Visible = false
+			lastShown = nil
 		end,
 		setTimerLabel = function(self: Header, label: string?)
 			timerLabel = if label == "" then nil else label

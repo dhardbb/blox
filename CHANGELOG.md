@@ -4,14 +4,56 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
-### Map polish (D-075)
+### Map polish (D-079)
 
-- **A bigger, readable map on phones (D-075):** in portrait the map stands up (390x312 on a 390 px phone, was 390x244), its land fills the width and the nine small Northeast states sit in one row of chips under it. Every state shows its number on one line ("PA 19", or just "19" where a state is tiny), nudged so no two overlap; the chips show code over value. iPad and desktop keep their layout.
+- **A bigger, readable map on phones (D-079):** in portrait the map stands up (390x312 on a 390 px phone, was 390x244), its land fills the width and the nine small Northeast states sit in one row of chips under it. Every state shows its number on one line ("PA 19"), or its code stacked over its number where it is tiny, nudged so no two overlap (a number that has to move gets a thin line to its state); the chips show code over value. The plan's badge and preview number sit on their state's line. iPad and desktop keep their layout.
 - **Polls in one pill:** the lead, ▲ momentum and the ground-game dots sit together ("+8 ▲ ●●"); nothing floats on its own.
 - **Fewer, better labels:** a reveal, a debate and a stance preview never show more than 8 tags; a flip is an outline in the new leader's color plus ▲ (your way) or ▼ (away from you) on the 5 biggest. Fills fade to each step's polls as the week plays. A stance preview outlines what it helps in green and what it hurts in orange, matching its key.
-- **Calmer marks:** candidate pins are faces (yours a little bigger); the name shows in week 1 and when you tap the state. One thin bracket replaces the nine Northeast leader lines; a chip's line shows when you tap it. Alaska and Hawaii sit in small boxes, Hawaii bigger. Money shows the 8 richest states with a coin. Results marks a missed poll with a dashed outline and "×" instead of a MISS tag. Election night draws uncalled states hollow, shakes each call, and outlines the state that will decide it in white.
+- **Calmer marks:** candidate pins are faces (yours a little bigger); the name shows in week 1 and when you tap the state. One thin bracket replaces the nine Northeast leader lines; a chip's line shows when you tap it. Alaska and Hawaii sit in small boxes, Hawaii bigger. Money marks the 8 richest states with 1 to 3 coins (more coins, more money; the dollars are on the card). Hawaii's box is filled in its color. The Polls legend explains ▲▲ (strong momentum). Issues show their symbols on a round disc. Results marks a missed poll with a dashed outline and "×" instead of a MISS tag. Election night draws uncalled states hollow, shakes each call, and outlines the state that will decide it in white.
 - **Close filter:** a "Close" chip beside the lenses fades every state more than 8 points from close, so only the races still in play show their numbers. Remembered for the session; off by default.
 - Studio checklist: `docs/TESTING.md`, "Map polish". Nothing needed from the humans.
+
+## Unreleased: the tutorial, slower bot matches, corner settings (D-075)
+
+Studio checklist: `docs/TESTING.md`, "The tutorial, bot timers and corner settings". Nothing needed from the humans.
+
+- **Your first bot match is a tutorial with no timers (D-075).** Every choice (pick your candidate, the draft, stances, debate rounds, every week's plan) waits until you lock in; the clock's place reads "No timer" and there is no "+15 s". Reveals and election night still play by themselves (Skip still works). Coach tips show as before. It counts as done when that match ends (a win, a loss or Leave match) and is saved with your profile; players who have played before never get it unasked.
+- **Replay it any time** from **How to play**: "Play the tutorial" under the pages starts it again against the Easy bot, with every coach tip back.
+- **More time against easier bots (D-075).** Every choice timer is ×2 against the Easy bot and ×1.5 against Medium (a 100 s / 75 s plan instead of 50 s); Hard and Extreme, and matches against people, are unchanged. New `Config.BOT_TIME_MULT_EASY` (2) and `BOT_TIME_MULT_MEDIUM` (1.5).
+- **Sound and Reduce motion are in the Lobby's top-right corner** as two small icon toggles (outlined while on, with a short label on hover and after a tap). The in-match settings are where they were.
+## Unreleased
+
+### Issue symbols (D-076)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Issue symbols".
+
+**Needed from the humans:** upload the eight PNGs in `assets/issues/` (`jobs.png`, `health.png`, `schools.png`, `environment.png`, `safety.png`, `transit.png`, `technology.png`, `farms.png`) and send their ids (until then the game shows the old codes and names).
+
+- **Issues have symbols:** a briefcase for Jobs, a heart with a pulse for Health, a graduation cap for Schools, a leaf for Environment, a shield for Safety, a bus for Roads & Transit, a microchip for Technology, wheat for Farms & Rural.
+- **Map, Issues tab:** each state shows its top issue's symbol instead of a code (filled in your color when it is one of yours). The row under the map names the symbols on it, the Map key lists all eight, and tapping a state shows its top issues with symbols and names.
+- The symbols also sit beside the names on the issue cards when you pick your platform, the message chips, the event strip for an issue event, the debate's rounds, and the How to play pages, which get a new page, "Your issues".
+## Unreleased
+
+### Fixes
+
+- **Reporting a name from Results hides it at once:** after **Report** on the opponent's card, the banner, both cards, the Map and Graph tabs switch to the candidate's own name and the Report button goes away. (The match is over, so the server sends no new screen; the client now hides the name itself when the server confirms the report.)
+- **The LANDSLIDE shine stays on the stamp:** the light that sweeps the winner's tilted LANDSLIDE stamp no longer shows outside it. Roblox does not clip inside a rotated frame or to rounded corners, so the light is now a gradient on a layer the stamp's own shape. The primary button's shine moves the same way.
+- **Long custom names fit the debate on a phone:** the clash and verdict stamps never run past the column; with a name over 10 letters they say "THEY WIN BY 3" / "THEY WON THE CROWD", and the crowd meter "Them +2". The names over the faces shrink to fit instead of cutting off.
+- **A held debate move no longer sticks:** the map preview of a held move ends when the finger slides off and lifts, when a touch is cancelled, or when the mouse leaves the button.
+- **Results cleans up after itself:** the LANDSLIDE shine, the glow's breathing and the Map tab's map stop when the screen closes (no animations left running in the lobby).
+- **No error on a payload without your seat** after Lock in on the debate, plan and decision screens.
+- **Server and saved-data fixes** (Studio checklist: `docs/TESTING.md`, "Server and saved-data fixes (unreleased)"):
+  - **A loss follows a player to another server.** Leaving a rated match and joining another server used to skip the loss: the result was dropped or overwritten. A result for a player whose data another server holds now waits in their saved record, and that server adds it (once) on its next save, within about a minute; the leaderboard follows.
+  - **Saved data:** a server refreshes each player's lock every minute, merges instead of overwriting, writes changes in a batch every 15 s and skips profiles that did not change. A match result is still saved at once.
+  - **Win trading (D-077):** a forfeit or a drop before week 1 makes the match unrated for both players, and one pair of players gets at most 3 rated games a day; the next is unrated. Both are announced.
+  - **Spam:** SetColor (1 s) and SetName (2 s) have cooldowns, and re-saving the name already in use skips the text filter.
+  - **Name review (D-078):** a removed name blocks itself as whole words only ("Ann" no longer blocks "Hannah"); only the exact removed name is cleared from saved data. Keep and Remove act only on the name the admin saw. A failed blocklist save changes nothing, and a reload never brings a removed name back. Until the blocklist has loaded, no new name is accepted.
+  - **Reports:** the daily report limit is saved (rejoining no longer resets it), and the review queue is split over eight keys.
+  - **Debates:** a drop during the reveal before a debate no longer uses up that debate's one grace period.
+  - **Rejoins:** after a rejoin mid-round the Debate screen shows the move and Zinger you locked in (the server now sends them as `view.debate.yourMove`); custom names no longer vanish for the rest of the match after a rejoin or a slow chat check.
+  - **Reveal timer:** the week's reveal no longer runs longer when the opponent bought internal polls.
+  - **More than two players:** forfeits, the bot's opponent and the plan preview no longer assume two players (two-player play is unchanged).
+
 
 ## 0.13.0: Landslide (Oct 24, 2026)
 
