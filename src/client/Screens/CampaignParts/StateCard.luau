@@ -324,6 +324,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			TextWrapped = true,
 			Parent = chipGrid,
 		})
+		Kit.issueLead(button, issue) -- the issue's symbol before its name (D-076)
 		issueChips[issue] = button
 	end
 	local moreChip: TextButton
@@ -408,7 +409,26 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 	internalValue.TextColor3 = Kit.colors.good
 	-- Their ground game, as your polls saw it (D-049), or the hint that a poll shows it.
 	local scoutNote = Kit.caption("", { Name = "CardScout", LayoutOrder = 6, Parent = details })
-	local issuesLine = Kit.caption("", { Name = "CardIssues", LayoutOrder = 7, Parent = details })
+	-- The state's top issues (D-076): "Top issues:", then each one's symbol and name.
+	local issuesRow = Kit.box({
+		Name = "CardIssueRow",
+		LayoutOrder = 7,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = details,
+	})
+	local issuesFlow = Kit.list("Horizontal", Kit.space.sm)
+	issuesFlow.Wraps = true
+	issuesFlow.VerticalAlignment = Enum.VerticalAlignment.Center
+	issuesFlow.Parent = issuesRow
+	Kit.caption("Top issues:", {
+		Name = "CardIssues",
+		LayoutOrder = 0,
+		Size = UDim2.fromOffset(0, Kit.size.caption + 4),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextWrapped = false,
+		Parent = issuesRow,
+	})
 	-- What each button would do here, worked out by Shared/UI/Explain: one line
 	-- per button, the full math.
 	local preview =
@@ -633,7 +653,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		end
 		for k = 1, #choices do
 			local issue: Issue = choices[k]
-			Kit.chip(Model.issueName(issue), function()
+			local chip = Kit.chip(Model.issueName(issue), function()
 				if model.pivotStage == "drop" then
 					model.pivotDrop = issue
 					model.pivotStage = "add"
@@ -653,6 +673,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 				TextWrapped = true,
 				Parent = pivotChoices,
 			})
+			Kit.issueLead(chip, issue)
 		end
 	end
 
@@ -695,6 +716,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		moreChip.Text = if model.moreIssues then `Fewer {Kit.glyph.minus}` else "More +"
 		Kit.setEnabled(moreChip, canEdit)
 		moreGrid.Visible = model.moreIssues and extra > 0
+		Kit.refitIssueLeads(chipsBox)
 	end
 
 	local function renderActions(p: Payload, id: string, canEdit: boolean)
@@ -925,11 +947,14 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		scoutNote.TextColor3 = if scout and (scout.gotv[rival] or 0) > 0
 			then Kit.colors.danger
 			else Kit.colors.muted
-		local issueNames: { string } = {}
-		for _, issue in IssueMap.of(view.issueMap, id) do
-			table.insert(issueNames, Model.issueName(issue))
+		for _, child in issuesRow:GetChildren() do
+			if child:IsA("GuiObject") and child.Name ~= "CardIssues" then
+				child:Destroy()
+			end
 		end
-		issuesLine.Text = `Top issues: {table.concat(issueNames, ", ")}`
+		for k, issue in IssueMap.of(view.issueMap, id) do
+			Kit.issueTag(issue, { LayoutOrder = k, Parent = issuesRow })
+		end
 	end
 
 	local shownId: string? = nil -- the state the card showed at the last render

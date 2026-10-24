@@ -740,11 +740,30 @@ local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
 local newInstance: (world: World, className: string, name: string?) -> any
 local addPresentationServices: (world: World, peer: Peer) -> ()
 
+-- A text object's UIPadding as (left, top, right, bottom) px of its box (all
+-- 0 without one). Only a text's padding moves its children here (an icon a
+-- label leads with sits in it, Kit.issueLead); other padding is ignored, as before.
+local function textPadding(parent: any, w: number, h: number): (number, number, number, number)
+	if not TEXT_CLASSES[parent.ClassName] then
+		return 0, 0, 0, 0
+	end
+	for _, child in rawget(parent, "_children") do
+		if child.ClassName == "UIPadding" then
+			local p = rawget(child, "_props")
+			local function px(u: any, along: number): number
+				return if u then along * u.Scale + u.Offset else 0
+			end
+			return px(p.PaddingLeft, w), px(p.PaddingTop, h), px(p.PaddingRight, w), px(p.PaddingBottom, h)
+		end
+	end
+	return 0, 0, 0, 0
+end
+
 -- Rough layout: size from UDim2 against the parent's size, fitted by a child
 -- UIAspectRatioConstraint (Roblox's default FitWithinMaxSize: the largest box
 -- of that ratio inside the size) and clamped by a child UISizeConstraint
--- (padding and list layouts ignored), enough for the UI audit's 44 px,
--- truncation and on-screen checks.
+-- (list layouts ignored; padding only inside a text object, textPadding),
+-- enough for the UI audit's 44 px, truncation and on-screen checks.
 local function absoluteSize(world: World, inst: any): (number, number)
 	local raw = rawget(inst, "_props")
 	local parent = rawget(inst, "_parent")
@@ -756,6 +775,8 @@ local function absoluteSize(world: World, inst: any): (number, number)
 	if size == nil then
 		return px, py
 	end
+	local left, top, right, bottom = textPadding(parent, px, py)
+	px, py = px - left - right, py - top - bottom
 	local x = px * size.X.Scale + size.X.Offset
 	local y = py * size.Y.Scale + size.Y.Offset
 	if raw.AutomaticSize ~= nil and raw.AutomaticSize.Name ~= "None" then
@@ -804,6 +825,9 @@ local function absolutePosition(world: World, inst: any): (number, number)
 		return ox, oy
 	end
 	local pw, ph = absoluteSize(world, parent)
+	local left, top, right, bottom = textPadding(parent, pw, ph)
+	ox, oy = ox + left, oy + top
+	pw, ph = pw - left - right, ph - top - bottom
 	local w, h = absoluteSize(world, inst)
 	local position, anchor = raw.Position, raw.AnchorPoint
 	local x, y = ox, oy

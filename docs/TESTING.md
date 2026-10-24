@@ -1023,3 +1023,16 @@ Server and client. Agents: `lune run tests D-075`, `lune run tests/ui/snap.luau 
 5. **Bot timers.** Pick **Easy**, Play vs Bot: Select starts at 1:16, a draft round at 0:40, the plan at 1:40. **Medium**: 0:57, 0:30, 1:15. **Hard** and **Extreme**: 0:38, 0:20, 0:50, as before. The week's reveal and election night are as long as before. A match against a person is unchanged.
 6. **Corner settings.** In the Lobby (phone size, iPad, Mac window), Sound and Reduce motion are two small square buttons in the top-right corner, not in the column, clear of Roblox's own buttons and of the leaderboard. Tap Sound: the icon turns grey and crossed, and a small label "Sound off" shows beside them for a moment; tap again for "Sound on". Same for Reduce motion ("Reduce motion on" outlines it). On the Mac, hovering a button shows its label. In a match, the **?** sheet's settings and the header's sound button still work and the corner follows them. *Send back:* a phone and an iPad screenshot of the Lobby.
 7. **No errors** from `Session`, `MatchService`, `Header`, `Settings` or `HowTo` in the Output window.
+## Issue symbols (unreleased, D-076)
+
+Client only. Agents: `lune run tests "D-076"`, `lune run tests "Map lenses"`, `lune run tests/ui/snap.luau -- issues`, `-- 04-select`, `-- 10g`, `-- debate`, `-- howto`, `-- help` (0 audit findings at all three sizes). Before the upload, the game shows the old codes ("JOB") on the map and the names alone elsewhere: check that first, then again after the ids are in `src/client/UI/IssueIcons.luau`.
+
+1. **Play vs Bot** on the iPad. On the issue step, **Expect:** each issue card shows its symbol before the name (briefcase, heart with a pulse, cap, leaf, shield, bus, chip, wheat).
+2. In the campaign, tap **Issues** above the map. **Expect:** every state shows a small white symbol on its plate; states whose issue is one of yours have the plate filled in your color. Under the map, a row names the symbols of your issues (on the Mac also the others).
+3. Tap **Key**. **Expect:** "The mark is the state's top issue, below…" and all eight symbols with their names in two columns.
+4. Tap a state. **Expect:** the message chips show symbol + name (on a narrow chip only the name); under **Details +**, "Top issues:" with symbols and names.
+5. Reach a week with a spotlight or a stance event and a debate. **Expect:** the event's gold plate shows the issue's symbol; the debate intro lists the three rounds with symbols; each round's label starts with its symbol.
+6. Lobby → **How to play**: page 4 of 6 is "Your issues" with the eight symbols. In a match, **?** → **Actions** ends with the same list.
+7. At 16-20 px on the phone and the Mac: is each symbol recognizable? Does any look like a real logo or a party sign?
+
+**Send back:** screenshots of the Issues map (iPad and phone), the Map key, a message chip row, and which symbols (if any) were hard to tell apart or to read small.

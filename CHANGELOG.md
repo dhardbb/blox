@@ -10,6 +10,17 @@ Studio checklist: `docs/TESTING.md`, "The tutorial, bot timers and corner settin
 - **Replay it any time** from **How to play**: "Play the tutorial" under the pages starts it again against the Easy bot, with every coach tip back.
 - **More time against easier bots (D-075).** Every choice timer is ×2 against the Easy bot and ×1.5 against Medium (a 100 s / 75 s plan instead of 50 s); Hard and Extreme, and matches against people, are unchanged. New `Config.BOT_TIME_MULT_EASY` (2) and `BOT_TIME_MULT_MEDIUM` (1.5).
 - **Sound and Reduce motion are in the Lobby's top-right corner** as two small icon toggles (outlined while on, with a short label on hover and after a tap). The in-match settings are where they were.
+## Unreleased
+
+### Issue symbols (D-076)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Issue symbols".
+
+**Needed from the humans:** upload the eight PNGs in `assets/issues/` (`jobs.png`, `health.png`, `schools.png`, `environment.png`, `safety.png`, `transit.png`, `technology.png`, `farms.png`) and send their ids (until then the game shows the old codes and names).
+
+- **Issues have symbols:** a briefcase for Jobs, a heart with a pulse for Health, a graduation cap for Schools, a leaf for Environment, a shield for Safety, a bus for Roads & Transit, a microchip for Technology, wheat for Farms & Rural.
+- **Map, Issues tab:** each state shows its top issue's symbol instead of a code (filled in your color when it is one of yours). The row under the map names the symbols on it, the Map key lists all eight, and tapping a state shows its top issues with symbols and names.
+- The symbols also sit beside the names on the issue cards when you pick your platform, the message chips, the event strip for an issue event, the debate's rounds, and the How to play pages, which get a new page, "Your issues".
 
 ## 0.13.0: Landslide (Oct 24, 2026)
 

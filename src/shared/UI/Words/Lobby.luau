@@ -93,6 +93,11 @@ function Lobby.howTo(config: Config): { Page }
 			text = `You get {config.AP_PER_WEEK} actions a week. Tap a state, pick an action, then Lock in. Rallies and ads count extra on your 3 issues.`,
 		},
 		{
+			id = "issues",
+			title = "Your issues",
+			text = "Pick 3 of these 8 issues at the start. Rallies and ads on them count extra where states care. On the map, a symbol shows each state's top issue.",
+		},
+		{
 			id = "events",
 			title = "Debates and events",
 			text = "Some weeks bring an event: pick a side, A, B or C. Debates are three quick rounds: Defend, Attack or Pivot. Win a round and its states swing your way.",

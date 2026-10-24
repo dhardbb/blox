@@ -54,6 +54,7 @@ local LABEL_SHARE = 0.4 -- the label's height, share of the state's inner circle
 local PART_H = Kit.size.caption + 2 -- px, a lens plate's height
 local PART_PAD = 3 -- px, a lens pill's side padding
 local PART_GAP = 2 -- px, between two lens pills
+local PART_ICON = PART_H -- px, an issue symbol on a lens plate (D-076)
 local ROW_GAP = 1 -- px, between the label and the rows under it
 local EXTRA_H = 12 -- px, the Polls extras row (▲ and pips)
 local PIP = 6 -- px, one ground-game pip on a phone's map
@@ -827,10 +828,16 @@ function ShapeMap.new(): MapInterface.Map
 			local color = spec.color or Kit.colors.text
 			part.label.Visible = true
 			local star = string.sub(spec.text, 1, #Kit.STAR) == Kit.STAR
-			part.label.Text = if star and not starRoom
-				then string.sub(spec.text, #Kit.STAR + 1)
+			local ink = if spec.filled then onFill(color) else color
+			-- An issue's symbol in place of its code once the game can draw it (D-076).
+			local icon = Kit.setIssueIcon(part.label, spec.icon, PART_ICON, ink)
+			part.label.Text = if icon
+				then ""
+				elseif star and not starRoom then string.sub(spec.text, #Kit.STAR + 1)
 				else spec.text
-			part.label.TextColor3 = if spec.filled then onFill(color) else color
+			part.label.AutomaticSize = if icon then Enum.AutomaticSize.None else Enum.AutomaticSize.X
+			part.label.Size = UDim2.fromOffset(if icon then PART_ICON + 2 * PART_PAD else 0, PART_H)
+			part.label.TextColor3 = ink
 			part.label.BackgroundColor3 = if spec.filled then color else Kit.colors.field
 			part.edge.Color = if spec.filled
 				then edgeOf(color)
@@ -1240,7 +1247,11 @@ function ShapeMap.new(): MapInterface.Map
 			if node.lensRow.Visible then
 				for _, part in node.parts do
 					if part.label.Visible then
-						table.insert(bits, part.label.Text)
+						local icon = part.label:FindFirstChild("IssueIcon")
+						table.insert(
+							bits,
+							if icon then `i{icon:GetAttribute("IssueIcon")}` else part.label.Text
+						)
 					end
 				end
 			end
@@ -1364,7 +1375,9 @@ function ShapeMap.new(): MapInterface.Map
 				if node.lensRow.Visible then
 					for _, part in node.parts do
 						if part.label.Visible then
-							lensW += textW(part.label.Text, PART_CHAR) + 2 * PART_PAD + PART_GAP
+							lensW += if part.label:FindFirstChild("IssueIcon")
+								then PART_ICON + 2 * PART_PAD + PART_GAP
+								else textW(part.label.Text, PART_CHAR) + 2 * PART_PAD + PART_GAP
 						end
 					end
 				end
@@ -1559,6 +1572,11 @@ function ShapeMap.new(): MapInterface.Map
 								{ TextTransparency = 0, BackgroundTransparency = PART_BG },
 								LENS_FADE
 							)
+							local icon = part.label:FindFirstChild("IssueIcon") :: ImageLabel?
+							if icon then
+								icon.ImageTransparency = 1
+								Motion.tween(icon, { ImageTransparency = 0 }, LENS_FADE)
+							end
 						end
 					end
 				end

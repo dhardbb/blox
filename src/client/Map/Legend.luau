@@ -14,6 +14,7 @@ local Legend = {}
 local GAP = 6 -- px between items
 local CHAR_W = 8 -- px, an estimated caption character (to drop items on a phone)
 local PIP = 8 -- px, a pip mark
+local ICON = Kit.MIN_ICON -- px, an issue symbol mark (D-076)
 local ROW_H = Kit.size.caption + 2 -- px
 
 export type Rect = { x: number, y: number, w: number, h: number }
@@ -48,7 +49,7 @@ function Legend.fill(frame: Frame, items: { MapInterface.LegendItem }?)
 	local function width(): number
 		local w = 0
 		for k, item in list do
-			local mark = if item.mark == "none" then 0 else PIP + 3
+			local mark = if item.mark == "none" then 0 elseif item.mark == "issue" then ICON + 3 else PIP + 3
 			w += (utf8.len(item.text) or #item.text) * CHAR_W + mark + (if k > 1 then GAP else 0)
 		end
 		return w
@@ -93,6 +94,11 @@ function Legend.fill(frame: Frame, items: { MapInterface.LegendItem }?)
 				TextWrapped = false,
 				Parent = row,
 			})
+		elseif item.mark == "issue" then
+			local icon = Kit.issueIcon(item.issue or "", ICON, color)
+			icon.Name = "Mark"
+			icon.LayoutOrder = 1
+			icon.Parent = row
 		elseif item.mark ~= "none" then
 			local hollow = item.mark == "hollow"
 			local pip = Kit.new("Frame", {

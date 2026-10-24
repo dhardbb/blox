@@ -36,7 +36,8 @@ local function mapOf(peer: FakeRoblox.Peer, screen: string): any
 	return Rig.need(peer, screen, "NodeMap")
 end
 
--- The texts of state `id`'s visible lens pills, in order.
+-- The texts of state `id`'s visible lens pills, in order; a pill showing an
+-- issue's symbol (D-076) as "symbol:<issue>".
 local function pills(peer: FakeRoblox.Peer, screen: string, id: string): { string }
 	local row = mapOf(peer, screen).Nodes:FindFirstChild(id):FindFirstChild("Lens")
 	local out = {}
@@ -48,7 +49,8 @@ local function pills(peer: FakeRoblox.Peer, screen: string, id: string): { strin
 		if part == nil or part.Visible == false then
 			break
 		end
-		table.insert(out, part.Text)
+		local icon = part:FindFirstChild("IssueIcon")
+		table.insert(out, if icon then `symbol:{icon:GetAttribute("IssueIcon")}` else part.Text)
 	end
 	return out
 end
@@ -193,7 +195,7 @@ describe("Map lenses", function()
 		Rig.noErrors(world)
 	end)
 
-	it("Issues: the state's top issue as a code, one of yours filled in your color", function()
+	it("Issues: the state's top issue as its symbol, one of yours filled in your color", function()
 		local world, peer = Rig.fixture("Plan")
 		local Lens, Kit = modules(world, peer)
 		Rig.tap(world, peer, "Campaign", "LensIssues")
@@ -214,7 +216,7 @@ describe("Map lenses", function()
 					break
 				end
 			end
-			expect(pills(peer, "Campaign", s.id)):toEqual({ Lens.issueCode(shownIssue) })
+			expect(pills(peer, "Campaign", s.id)):toEqual({ `symbol:{shownIssue}` })
 			local part = pill(peer, "Campaign", s.id, 1)
 			if table.find(platform, shownIssue) then
 				filledSeen += 1

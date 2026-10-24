@@ -29,9 +29,11 @@ export type Mark = {
 	haloStrong: boolean?,
 }
 
--- One short pill in a state's lens row (Map/Lens): "17", "JOB", "+3", "$2.4".
+-- One short pill in a state's lens row (Map/Lens): "17", "+3", "$2.4", or an
+-- issue's symbol (D-076).
 export type LensPart = {
-	text: string,
+	text: string, -- with `icon`: what the pill says while the symbol is missing ("JOB")
+	icon: string?, -- an issue: the pill shows its symbol (Kit.issueIcon) instead of `text`
 	color: Color3?, -- the text's color (default: the text color)
 	filled: boolean?, -- fill the pill in `color` instead (e.g. an issue on your platform)
 	outlined: boolean?, -- the battleground mark (D-058): field fill, a white outline, white text
@@ -68,10 +70,12 @@ export type Pin = {
 }
 
 -- One item of the map's small legend row (D-070): a mark and a word or two.
--- "none": the text alone. When the row is too narrow (a phone), items with
--- the highest `drop` go first, a whole level at a time (nil: always shown).
+-- "none": the text alone; "issue": the symbol of `issue` (D-076). When the row
+-- is too narrow (a phone), items with the highest `drop` go first, a whole
+-- level at a time (nil: always shown).
 export type LegendItem = {
-	mark: "up" | "pip" | "hollow" | "none",
+	mark: "up" | "pip" | "hollow" | "none" | "issue",
+	issue: string?, -- mark "issue": which one
 	color: Color3?,
 	text: string,
 	drop: number?,

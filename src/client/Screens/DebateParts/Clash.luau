@@ -34,6 +34,7 @@ local Clash = {}
 local CARD_H = 56 -- px, one side's card in the clash
 local STAMP_ROW = 56 -- px, the row the stamp sits in
 local MAX_LINES = 3
+local ROUNDS_WORD = { "One round:", "Two rounds:", "Three rounds:" } -- the intro's line over its topics
 
 export type Clash = {
 	root: Frame,
@@ -97,10 +98,12 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = root,
 	})
+	-- The intro's rounds, one row each: "1." and the topic's symbol and name (D-076).
+	local topicRows = Kit.stack({ Name = "RoundTopics", LayoutOrder = 5, Visible = false, Parent = root })
 	local extra: { TextLabel } = {}
 	for k = 1, MAX_LINES do
 		extra[k] =
-			Kit.caption("", { Name = `ClashExtra{k}`, LayoutOrder = 4 + k, Visible = false, Parent = root })
+			Kit.caption("", { Name = `ClashExtra{k}`, LayoutOrder = 5 + k, Visible = false, Parent = root })
 	end
 
 	local stamp: Frame? = nil
@@ -144,6 +147,7 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 			local view = p.view
 			local me, them = view.you, Model.opponentOf(view)
 			local theirName = Model.firstName(config, view, them)
+			topicRows.Visible = false
 			if kind == "DebateIntro" then
 				cards.Visible = false
 				counter.Visible = false
@@ -152,16 +156,45 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 				local topics = if live then live.topics else {}
 				local mine: { SharedTypes.Issue } = view.players[me].platform or {}
 				local theirs: { SharedTypes.Issue } = view.players[them].platform or {}
-				local parts: { string } = {}
+				for _, child in topicRows:GetChildren() do
+					if child:IsA("GuiObject") then
+						child:Destroy()
+					end
+				end
 				for k = 1, #topics do
 					local topic: SharedTypes.Issue = topics[k]
 					local tag = if table.find(mine, topic)
 						then " (your issue)"
 						elseif table.find(theirs, topic) then " (their issue)"
 						else ""
-					table.insert(parts, `{k}. {Model.issueName(topic)}{tag}`)
+					local row = Kit.box({
+						Name = `RoundTopic{k}`,
+						LayoutOrder = k,
+						Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
+						Parent = topicRows,
+					})
+					local flow = Kit.list("Horizontal", Kit.space.sm)
+					flow.VerticalAlignment = Enum.VerticalAlignment.Center
+					flow.Parent = row
+					Kit.text(`{k}.`, {
+						Name = "Number",
+						LayoutOrder = 1,
+						Size = UDim2.fromOffset(0, Kit.size.body + 6),
+						AutomaticSize = Enum.AutomaticSize.X,
+						TextWrapped = false,
+						Parent = row,
+					})
+					Kit.issueTag(topic, {
+						LayoutOrder = 2,
+						text = `{Model.issueName(topic)}{tag}`,
+						textSize = Kit.size.body,
+						iconSize = Kit.ISSUE_ICON,
+						font = Kit.font.body,
+						Parent = row,
+					})
 				end
-				line.Text = `Three rounds: {table.concat(parts, " · ")}`
+				topicRows.Visible = #topics > 0
+				line.Text = ROUNDS_WORD[#topics] or `{#topics} rounds:`
 				setLines({ "Each round: pick Defend, Attack or Pivot. Your buttons show every outcome." })
 				return nil
 			end

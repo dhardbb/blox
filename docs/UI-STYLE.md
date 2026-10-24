@@ -191,6 +191,8 @@ No emoji. Glyphs: only those in `Kit.glyph` (`·` `•` `×` `+` `−` `▲` `�
 
 Icons (D-053): twelve Lucide icons (ISC, `docs/CREDITS.md`) in `UI/Icons.luau` (`megaphone` Rally, `coins` Fundraise, `tv` Ad, `zap` Attack ad, `search` Poll, `footprints` Ground game, `vote`, `clock`, `volume-2`, `volume-x`, `sparkles` reduce motion, `plane` flight). `Kit.icon(name, size?, color?)` draws the uploaded image tinted with `ImageColor3`, or the icon's glyph while its id is "" (all twelve are uploaded; the glyph stays for a replaced or moderated image). `Kit.actionIcon(kind)` names the icon for a plan action. An icon never carries meaning alone: an action chip keeps its word.
 
+Issue symbols (D-076): eight original glyphs in `UI/IssueIcons.luau` (`assets/issues/make.py`), one per issue. `Kit.issueIcon(issue, size?, color?)` is the symbol alone (the old code, "JOB", until its image is uploaded); use it alone only where the screen also names it (the map, with its legend row, the Map key and the state card). `Kit.issueTag(issue, props?)` is symbol + full name; `Kit.issueLead(label, issue?, size?)` puts the symbol before a label's or a button's own text and steps aside when the box is too narrow for both, so the word stays. Never under `Kit.MIN_ICON` (14 px, audit rule `iconFloor`); tinted with a token or a player color.
+
 ### 2.7 Motion and sound (`UI/Motion`, `UI/Audio`; D-053)
 
 Short and purposeful, and never in the way. Every animation goes through `UI/Motion` and every sound through `UI/Audio` (`Tokens.spec` forbids `TweenService` and `Sound`s elsewhere). Their timings and volumes are presentation numbers and live in those modules, not `Sim/Config`.

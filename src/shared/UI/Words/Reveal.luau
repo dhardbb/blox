@@ -719,4 +719,7 @@ Words.ACTIONS = table.freeze({
 	{ name = "Ground game", text = "Extra votes on election night" },
 })
 
+-- Over the eight issues' symbols in the Help "Actions" picture (D-076).
+Words.ISSUES_KEY = "The eight issues: you pick 3. The map shows each state's top issue by its symbol."
+
 return table.freeze(Words)

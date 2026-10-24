@@ -105,6 +105,17 @@
 --   Kit.icon(name, size?, color?) -> ImageLabel | TextLabel   (UI/Icons)
 --   Kit.actionIcon(kind) -> string?   the icon name for a plan action kind
 --
+-- Issue symbols (docs/DESIGN.md D-076; UI/IssueIcons):
+--   Kit.issueIcon(issue, size?, color?) -> ImageLabel | TextLabel   the symbol
+--     alone ("IssueIcon"); its short code as text until the image is uploaded
+--   Kit.issueTag(issue, props?) -> Frame   symbol + full name (the name alone before)
+--   Kit.issueLead(label, issue?, size?) -> GuiObject?   the symbol in front of a
+--     label's or button's text, hiding while the box is too narrow for both;
+--     again to swap, nil to remove. Kit.refitIssueLeads(root) re-checks the room
+--   Kit.setIssueIcon(plate, issue?, size, color) -> GuiObject?   a map lens plate's symbol
+--   Kit.issueName(issue), Kit.issueCode(issue), Kit.hasIssueIcon(issue)
+--   Kit.ISSUE_ICON 20 (default size), Kit.MIN_ICON 14 (audit rule iconFloor)
+--
 -- Front-page foundation (docs/DESIGN.md D-056; docs/UI-STYLE.md §2):
 --   Navy neutrals; orange `loss` (= warn = danger = bad) is the only "against
 --   you" color; red is a player color and never means bad.
@@ -171,6 +182,8 @@ local Audio = require(script.Parent.Audio)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Icons = require(script.Parent.Icons)
+local IssueIcons = require(script.Parent.IssueIcons)
+local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
 local Motion = require(script.Parent.Motion)
 
 local Kit = {}
@@ -1208,6 +1221,265 @@ local ACTION_ICONS: { [string]: string } = {
 
 function Kit.actionIcon(kind: string): string?
 	return ACTION_ICONS[kind]
+end
+
+-- ---------------------------------------------------------------- issue symbols (D-076)
+
+Kit.ISSUE_ICON = 20 -- px, an issue symbol's default size
+Kit.MIN_ICON = 14 -- px, the smallest issue symbol a screen may show (UI audit iconFloor)
+local ISSUE_GAP = 4 -- px between a symbol and its name
+
+local issueNames: { [string]: string } = Issues.displayName :: any
+
+-- An issue's full name ("Roads & Transit"); an unknown one as it is.
+function Kit.issueName(issue: string): string
+	return issueNames[issue] or issue
+end
+
+-- The short code a symbol alone falls back to before its upload ("JOB"); an
+-- issue without one gets its first three letters.
+function Kit.issueCode(issue: string): string
+	local icon = IssueIcons.icons[issue]
+	return if icon then icon.code else string.upper(string.sub(issue, 1, 3))
+end
+
+-- Whether the game can draw `issue`'s symbol (its image is uploaded, or the
+-- tests preview it); if not, every helper below shows text instead.
+function Kit.hasIssueIcon(issue: string): boolean
+	local icon = IssueIcons.icons[issue]
+	return icon ~= nil and (icon.id ~= "" or IssueIcons.preview == true)
+end
+
+-- An issue's symbol alone, `size` px square (default Kit.ISSUE_ICON), tinted
+-- `color` (default text): ImageLabel "IssueIcon" with attributes IssueIcon =
+-- the issue and IssueName = its name (the snapshot renderer draws
+-- assets/issues/<file>.png). Use it alone only where the screen also says the
+-- name (a tap, the map key). Without the image: a TextLabel "IssueIcon" with
+-- the issue's code, `size` tall and as wide as the code (attribute IconFallback).
+function Kit.issueIcon(issue: string, size: number?, color: Color3?): GuiObject
+	local px = size or Kit.ISSUE_ICON
+	local tint = color or Kit.colors.text
+	local inst: GuiObject
+	if Kit.hasIssueIcon(issue) then
+		inst = Kit.new("ImageLabel", {
+			Name = "IssueIcon",
+			Size = UDim2.fromOffset(px, px),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Image = IssueIcons.icons[issue].id,
+			ImageColor3 = tint,
+			ScaleType = Enum.ScaleType.Fit,
+		})
+	else
+		inst = Kit.text(Kit.issueCode(issue), {
+			Name = "IssueIcon",
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, px),
+			Font = Kit.font.display,
+			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextColor3 = tint,
+			TextXAlignment = Enum.TextXAlignment.Center,
+		})
+		inst:SetAttribute("IconFallback", true)
+	end
+	inst:SetAttribute("IssueIcon", issue)
+	inst:SetAttribute("IssueName", Kit.issueName(issue))
+	return inst
+end
+
+-- Puts `issue`'s symbol in front of a label's or a button's own text: the
+-- symbol at the left of its padded box, `size` px (default: the text size,
+-- at least Kit.MIN_ICON), tinted like the text (and following it), the text
+-- left-aligned after it; centered on a one-line box, beside the first line of
+-- a box that grows with its text (AutomaticSize Y). A word stays readable
+-- first (docs/UI-STYLE.md §2.6): while the box is too narrow for the symbol and
+-- the text at Kit.MIN_TEXT (ISSUE_EM estimate; wrapped lines count when the
+-- text wraps), the symbol hides and the text keeps its old place; it is checked
+-- again when the box, its text or its parent changes, and by
+-- Kit.refitIssueLeads. Calling it again replaces the symbol; `issue` nil
+-- removes it. Returns the symbol, or nil (the text alone) while the image is
+-- missing: the text already names the issue.
+local ISSUE_EM = 0.55 -- an average character's advance, in em (the fit estimate)
+
+type Lead = {
+	icon: GuiObject,
+	fit: () -> (),
+	left: number, -- the box's own left padding
+	alignment: Enum.TextXAlignment, -- the text's own alignment
+	connections: { RBXScriptConnection },
+}
+local leads: { [Instance]: Lead } = setmetatable({}, { __mode = "k" }) :: any
+
+-- Checks again whether each issueLead label under `root` has room for its
+-- symbol (call it after a layout change the label cannot see, such as its
+-- grid being resized).
+function Kit.refitIssueLeads(root: Instance)
+	for _, inst in root:GetDescendants() do
+		local lead = leads[inst]
+		if lead then
+			lead.fit()
+		end
+	end
+end
+
+function Kit.issueLead(inst: TextLabel | TextButton, issue: string?, size: number?): GuiObject?
+	local target: any = inst
+	local pad = inst:FindFirstChildOfClass("UIPadding")
+	local old = leads[inst]
+	if old then
+		for _, connection in old.connections do
+			connection:Disconnect()
+		end
+		old.icon:Destroy()
+		if pad then
+			pad.PaddingLeft = UDim.new(0, old.left)
+		end
+		target.TextXAlignment = old.alignment
+		leads[inst] = nil
+	end
+	if issue == nil or not Kit.hasIssueIcon(issue) then
+		return nil
+	end
+	local px = size or math.max(Kit.MIN_ICON, target.TextSize)
+	if pad == nil then
+		pad = Kit.new("UIPadding", { PaddingLeft = UDim.new(0, 0), Parent = inst })
+	end
+	local padding = pad :: UIPadding
+	local function offset(u: UDim?): number
+		return if u then u.Offset else 0
+	end
+	local left = offset(padding.PaddingLeft)
+	local alignment = target.TextXAlignment
+	local icon = Kit.issueIcon(issue, px, target.TextColor3)
+	-- It sits in the label's own left padding: UIPadding moves children too.
+	local auto: EnumItem? = target.AutomaticSize
+	local autoName = if auto then auto.Name else "None"
+	local grows = autoName == "Y" or autoName == "XY" -- the box grows with its lines
+	if grows then
+		icon.Position =
+			UDim2.fromOffset(-(px + ISSUE_GAP), math.max(0, math.floor((target.TextSize + 4 - px) / 2)))
+	else
+		icon.AnchorPoint = Vector2.new(0, 0.5)
+		icon.Position = UDim2.new(0, -(px + ISSUE_GAP), 0.5, 0)
+	end
+	icon.ZIndex = target.ZIndex
+	icon.Parent = inst
+	local image = icon :: ImageLabel
+	local function tint()
+		image.ImageColor3 = target.TextColor3
+		image.ImageTransparency = target.TextTransparency
+	end
+	-- Room for the symbol and the text (at the smallest size) in the box?
+	local function roomy(): boolean
+		local box = target.AbsoluteSize
+		if box.X <= 0 then
+			return true -- not laid out yet
+		end
+		local room = box.X - left - offset(padding.PaddingRight) - px - ISSUE_GAP
+		local em = Kit.MIN_TEXT * ISSUE_EM
+		local text = tostring(target.Text)
+		for word in string.gmatch(text, "%S+") do
+			if (utf8.len(word) or #word) * em > room then
+				return false
+			end
+		end
+		local high = box.Y - offset(padding.PaddingTop) - offset(padding.PaddingBottom)
+		local lines = if grows
+			then math.huge
+			elseif target.TextWrapped then math.max(1, math.floor(high / (Kit.MIN_TEXT + 2)))
+			else 1
+		return (utf8.len(text) or #text) * em <= room * lines
+	end
+	local function fit()
+		local show = roomy()
+		image.Visible = show
+		padding.PaddingLeft = UDim.new(0, if show then left + px + ISSUE_GAP else left)
+		target.TextXAlignment = if show then Enum.TextXAlignment.Left else alignment
+	end
+	local connections = {
+		inst:GetPropertyChangedSignal("TextColor3"):Connect(tint),
+		inst:GetPropertyChangedSignal("TextTransparency"):Connect(tint),
+	}
+	for _, name in { "AbsoluteSize", "Text", "Parent" } do
+		table.insert(connections, inst:GetPropertyChangedSignal(name):Connect(fit))
+	end
+	leads[inst] = { icon = icon, fit = fit, left = left, alignment = alignment, connections = connections }
+	fit()
+	return icon
+end
+
+-- Shows `issue`'s symbol, `size` px, centered in `label` (a map's lens plate)
+-- and returns it; the caller clears the label's text and sizes the plate. Nil
+-- `issue`, or a symbol the game cannot draw yet: removes the symbol and
+-- returns nil (the caller shows its text). Repaints in place when called again.
+function Kit.setIssueIcon(label: GuiObject, issue: string?, size: number, color: Color3): GuiObject?
+	local old = label:FindFirstChild("IssueIcon") :: GuiObject?
+	if issue == nil or not Kit.hasIssueIcon(issue) then
+		if old then
+			old:Destroy()
+		end
+		return nil
+	end
+	local icon: GuiObject
+	if old and old:GetAttribute("IssueIcon") == issue and old.Size.X.Offset == size then
+		icon = old
+	else
+		if old then
+			old:Destroy()
+		end
+		icon = Kit.issueIcon(issue, size, color)
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.fromScale(0.5, 0.5)
+		icon.ZIndex = label.ZIndex
+		icon.Parent = label
+	end
+	(icon :: ImageLabel).ImageColor3 = color
+	return icon
+end
+
+-- An issue's symbol and full name in a row, as wide as they are ("[leaf]
+-- Environment"): Frame "IssueTag_<issue>" with the symbol ("IssueIcon") and the
+-- name ("IssueText"). props: Name, LayoutOrder, Parent, Visible, `text` (a
+-- label other than the name), `color` (text and symbol; default text),
+-- `textSize` (default caption), `iconSize` (default the text size + 2, at
+-- least Kit.MIN_ICON), `font` (default medium). Without the image: the name alone.
+function Kit.issueTag(issue: string, props: { [string]: any }?): Frame
+	local o: { [string]: any } = props or {}
+	local textSize: number = o.textSize or Kit.size.caption
+	local iconSize: number = o.iconSize or math.max(Kit.MIN_ICON, textSize + 2)
+	local color: Color3 = o.color or Kit.colors.text
+	local height = math.max(iconSize, textSize + 4)
+	local row = Kit.box({
+		Name = o.Name or `IssueTag_{issue}`,
+		LayoutOrder = o.LayoutOrder or 0,
+		Visible = if o.Visible == nil then true else o.Visible,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, height),
+	})
+	local list = Kit.list("Horizontal", ISSUE_GAP)
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Parent = row
+	if Kit.hasIssueIcon(issue) then
+		local icon = Kit.issueIcon(issue, iconSize, color)
+		icon.LayoutOrder = 1
+		icon.Parent = row
+	end
+	Kit.text(o.text or Kit.issueName(issue), {
+		Name = "IssueText",
+		LayoutOrder = 2,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, height),
+		TextSize = textSize,
+		Font = o.font or Kit.font.medium,
+		TextColor3 = color,
+		TextWrapped = false,
+		Parent = row,
+	})
+	if o.Parent then
+		row.Parent = o.Parent
+	end
+	return row
 end
 
 -- ---------------------------------------------------------------- front page (D-056)

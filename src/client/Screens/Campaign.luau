@@ -30,6 +30,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
+local Issues = require(Shared.Sim.Issues)
 local MapLayout = require(Shared.UI.MapLayout)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
@@ -308,8 +309,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	for k = 1, 6 do
 		keyLines[k] = Kit.text("", {
 			Name = `KeyLine{k}`,
-			-- The color steps come right after the first line (what color means).
-			LayoutOrder = if k == 1 then 1 else 10 + k,
+			-- The color steps come right after the first line (what color means);
+			-- the issue symbols (KeyIssues) right after the third (the Issues lens's).
+			LayoutOrder = if k == 1 then 1 else 10 + 2 * k,
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = key.body,
@@ -351,8 +353,41 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		})
 		table.insert(keyBands, { name = band.name, mine = mine, theirs = theirs })
 	end
+	-- The Issues lens (D-076): every issue's symbol with its name, two columns.
+	local keyIssues = Kit.box({
+		Name = "KeyIssues",
+		LayoutOrder = 17,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Visible = false,
+		Parent = key.body,
+	})
+	Kit.new("UIGridLayout", {
+		CellSize = UDim2.new(0.5, -Kit.space.xs, 0, KEY_ROW_H),
+		CellPadding = UDim2.fromOffset(Kit.space.sm, Kit.space.xs),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = keyIssues,
+	})
+	for k, issue in Issues.list do
+		local cell = Kit.box({ Name = `KeyIssue_{issue}`, LayoutOrder = k, Parent = keyIssues })
+		local row = Kit.list("Horizontal", Kit.space.sm)
+		row.VerticalAlignment = Enum.VerticalAlignment.Center
+		row.Parent = cell
+		local icon = Kit.issueIcon(issue, SWATCH)
+		icon.LayoutOrder = 1
+		icon.Parent = cell
+		Kit.text(Kit.issueName(issue), {
+			Name = "IssueText",
+			LayoutOrder = 2,
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, KEY_ROW_H),
+			TextWrapped = false,
+			Parent = cell,
+		})
+	end
 	keySheet = key
 	local function renderKey(p: Payload)
+		keyIssues.Visible = Lens.current() == "Issues"
 		local lines = Words.key(Lens.current())
 		for k, label in keyLines do
 			label.Text = lines[k] or ""
