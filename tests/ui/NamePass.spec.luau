@@ -330,8 +330,8 @@ describe("Name Pass: filtered per viewer, like chat (D-069)", function()
 	end
 
 	it("a viewer whose own filter level hides the name sees the candidate's own", function()
-		local world, own, seen = duel(15, function(world, b)
-			world.text.hiddenFor[b] = { "wave" }
+		local world, own, seen = duel(15, function(w, b)
+			w.text.hiddenFor[b] = { "wave" }
 		end)
 		expect(own):toBe("Big Wave")
 		expect(seen):toBe(nil)
@@ -339,8 +339,8 @@ describe("Name Pass: filtered per viewer, like chat (D-069)", function()
 	end)
 
 	it("a viewer whose filter call fails sees the candidate's own", function()
-		local world, own, seen = duel(16, function(world)
-			world.text.userFailures = 1
+		local world, own, seen = duel(16, function(w)
+			w.text.userFailures = 1
 		end)
 		expect(own):toBe("Big Wave")
 		expect(seen):toBe(nil)

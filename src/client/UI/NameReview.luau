@@ -114,7 +114,7 @@ function NameReview.new(screen: Instance, ctx: any, props: { [string]: any }?): 
 				variant = "danger",
 				Name = "ReviewRemove",
 				AnchorPoint = Vector2.new(1, 1),
-				Position = UDim2.new(1, 0, 1, 0),
+				Position = UDim2.fromScale(1, 1),
 				Size = UDim2.new(ACTION_W, -Kit.space.sm / 2, 0, Kit.MIN_TOUCH),
 				Parent = row,
 			})

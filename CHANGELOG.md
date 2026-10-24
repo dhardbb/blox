@@ -57,7 +57,7 @@ Debates were "glorified stance questions". Now each debate is its own event: a s
 - **No move in time** is a weak Defend (2) that can't be countered. The debate focus screen is gone. A Choice week's stance still comes after the debate, on its own screen.
 - **Bots** read the same board: Medium plays the move whose worst outcome is best; Hard and Extreme also read you (Extreme remembers what you played).
 - **Debug and duel:** `defend`, `attack`, `pivot`, each optionally followed by `zinger`. The board prints every result cell.
-- **Timing:** a debate takes about 40 s when both pick quickly (it was about 18 s). With every timer run out it takes 65 s. Together with the longer reveals of busy weeks, a match with every timer run out now takes 18 min 42 s on the main steps (21 min 22 s with every stance screen too), past the old 17.5-minute line: D-074 lists the levers for the designers. Typical matches are unchanged in the harness (see D-074).
+- **Timing:** a debate takes about 40 s when both pick quickly (it was about 18 s). With every timer run out it takes 65 s. Together with the longer reveals of busy weeks, a match with every timer run out now takes 18 min 42 s on the main steps (21 min 22 s with every stance screen too), past the old 17.5-minute line: D-074 lists the levers for the designers. A typical match still takes about 12½ minutes (D-074).
 - Wire: `{ move, zinger }`; new reasons `BadMove`, `ZingerSpent`, `UnexpectedMove`; `view.debate`; reveals `DebateIntro`, `Clash`, `Verdict`.
 
 ### The week's results tally up move by move (D-066)
