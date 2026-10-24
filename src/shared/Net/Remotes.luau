@@ -24,6 +24,7 @@ export type Op =
 	| "Leave" -- leave the queue or a hosted code (not a match in progress)
 	| "PrePick" -- remember a candidate and platform for Select: { pick }
 	| "SetColor" -- save a chosen color (Color Pass owners, D-055): { color? } (absent = auto)
+	| "SetName" -- name your candidate (Name Pass owners, verified 16+, D-063): { name? } (absent = its own name)
 	| "Claim" -- Select step 1: claim a candidate (D-048): { matchId, step, input = candidate id }
 	| "ClaimColor" -- Select, Color Pass owners: claim a color, first come first served (D-061): { matchId, step, color }
 	| "Submit" -- lock in this stage's input: { matchId, step, input }
@@ -43,6 +44,7 @@ export type Request = {
 	events: boolean?, -- Host: false turns the event deck off for this private match
 	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue). ClaimColor: the color (required)
 	difficulty: string?, -- Practice: "Easy" | "Medium" | "Hard" | "Extreme"; absent or anything else = "Medium" (D-057)
+	name: string?, -- SetName: the custom name as typed; absent = back to the candidate's own name
 }
 
 -- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while

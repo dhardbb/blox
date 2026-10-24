@@ -28,6 +28,14 @@
 -- PromptGamePassPurchaseFinished). FakeRoblox.setModuleField changes a constant
 -- in a shared module on every peer (FakeRoblox.setColorPass: Net/Products).
 --
+-- TextService (custom names, docs/DESIGN.md D-063): FilterStringAsync(text,
+-- fromUserId, context) waits the DataStore latency, fails while
+-- world.text.failures > 0, and returns a result whose
+-- GetNonChatStringForBroadcastAsync() writes "#" over every word in
+-- world.text.hidden (case ignored), as Roblox's filter does; world.text.calls
+-- counts the calls. FakeRoblox.setNamePass sets Net/Products.NAME_PASS_ID and
+-- FakeRoblox.setVerifiedAge makes server/NameEligibility report an age.
+--
 -- Presentation stubs (client polish, docs/DESIGN.md D-053): TweenService
 -- (Create returns a tween whose Play applies the goals at once and fires
 -- Completed on the next step; Cancel fires it as Cancelled), TweenInfo,
@@ -105,6 +113,7 @@ export type World = {
 	sounds: { SoundPlay }, -- every Sound:Play() on any client, in order
 	brokenAssets: { [string]: boolean }, -- content ids PreloadAsync reports as Failure
 	market: MarketState,
+	text: TextState,
 	overrides: { [string]: { [string]: any } }, -- module path (from the root) -> fields set after it loads
 	userNames: { [number]: string }, -- usernames GetNameFromUserIdAsync knows besides joined players
 	nameFailures: number, -- the next N GetNameFromUserIdAsync calls fail
@@ -117,6 +126,14 @@ export type MarketState = {
 	failures: number, -- the next N UserOwnsGamePassAsync calls fail
 	checks: number, -- UserOwnsGamePassAsync calls so far
 	prompts: { { userId: number, passId: number } }, -- PromptGamePassPurchase calls, in order
+}
+
+-- The fake TextService's world-level state (D-063). Tests flip the switches.
+export type TextState = {
+	hidden: { string }, -- words the filter hides ("#" for each character)
+	failures: number, -- the next N FilterStringAsync calls fail
+	calls: number, -- FilterStringAsync calls so far
+	contexts: { string }, -- the TextFilterContext name of each call, in order
 }
 
 -- One Sound:Play() in the fake engine (world.sounds).
@@ -495,6 +512,39 @@ local function newMarketplaceService(world: World): any
 			table.insert(world.market.prompts, { userId = player.UserId, passId = passId })
 		end,
 		PromptGamePassPurchaseFinished = newSignal(world),
+	}
+end
+
+-- TextService for one peer: FilterStringAsync only (see the header).
+local function newTextService(world: World): any
+	return {
+		FilterStringAsync = function(_self: any, text: string, _fromUserId: number, context: any): any
+			local state = world.text
+			state.calls += 1
+			table.insert(state.contexts, if context then tostring(context.Name) else "PrivateChat")
+			requestDelay(world)
+			if state.failures > 0 then
+				state.failures -= 1
+				error("HTTP 500 (simulated TextService failure)", 0)
+			end
+			local shown = text
+			for _, word in state.hidden do
+				local lower = string.lower(shown)
+				local at = string.find(lower, string.lower(word), 1, true)
+				while at do
+					shown = string.sub(shown, 1, at - 1)
+						.. string.rep("#", #word)
+						.. string.sub(shown, at + #word)
+					lower = string.lower(shown)
+					at = string.find(lower, string.lower(word), at + #word, true)
+				end
+			end
+			return {
+				GetNonChatStringForBroadcastAsync = function(_result: any): string
+					return shown
+				end,
+			}
+		end,
 	}
 end
 
@@ -1261,6 +1311,7 @@ local function newGame(world: World, isServer: boolean): any
 	services.ReplicatedStorage = world.shared
 	services.DataStoreService = newDataStoreService(world)
 	services.MarketplaceService = newMarketplaceService(world)
+	services.TextService = newTextService(world)
 	rawget(game, "_props").JobId = if isServer then world.jobId else ""
 	if isServer then
 		local spsParent = newInstance(world, "StarterPlayerScripts", "StarterPlayerScripts")
@@ -1420,6 +1471,7 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		sounds = {},
 		brokenAssets = {},
 		market = { owned = {}, failures = 0, checks = 0, prompts = {} },
+		text = { hidden = { "zork" }, failures = 0, calls = 0, contexts = {} },
 		overrides = {},
 		userNames = {},
 		nameFailures = 0,
@@ -1614,6 +1666,24 @@ end
 -- Sets up the Color Pass (Net/Products.COLOR_PASS_ID) for this world; 0 turns it off.
 function FakeRoblox.setColorPass(world: World, passId: number)
 	FakeRoblox.setModuleField(world, "src/shared/Net/Products.luau", "COLOR_PASS_ID", passId)
+end
+
+-- Sets up the Name Pass (Net/Products.NAME_PASS_ID) for this world; 0 turns it off.
+function FakeRoblox.setNamePass(world: World, passId: number)
+	FakeRoblox.setModuleField(world, "src/shared/Net/Products.luau", "NAME_PASS_ID", passId)
+end
+
+-- Makes server/NameEligibility report a verified age (D-063): `ages` maps a
+-- user id to an age; anyone else stays unknown (not eligible).
+function FakeRoblox.setVerifiedAge(world: World, ages: { [number]: number })
+	FakeRoblox.setModuleField(
+		world,
+		"src/server/NameEligibility.luau",
+		"verifiedAge",
+		function(player: any): number?
+			return ages[player.UserId]
+		end
+	)
 end
 
 -- Gives (or takes back) a pass outside the game, as a purchase on the website would.

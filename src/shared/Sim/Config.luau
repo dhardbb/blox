@@ -182,6 +182,11 @@ local Config = {
 	BOT_FORESIGHT_CASH = { 2, 7, 13 }, -- Hard and up: the opponent's cash guessed from its Low / Medium / High money bracket
 	BOT_FOCUS_READ = 0.5, -- Hard and up: weight on the opponent focusing where the standard bot would (rest spread evenly)
 
+	-- Custom candidate names (the Name Pass, D-063). Not rules: who may name a
+	-- candidate, and how long a name may be.
+	NAME_MAX_LENGTH = 16, -- characters in a custom name, after trimming (the "16" the designers asked for)
+	NAME_MIN_AGE = 16, -- a custom name needs a Roblox-verified age of at least this (the user's decision, D-063)
+
 	-- Meta
 	ELO_K = 32, -- rating K-factor
 	ELO_START = 1000, -- starting rating

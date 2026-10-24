@@ -21,6 +21,7 @@ local OPS: { [string]: boolean } = {
 	Leave = true,
 	PrePick = true,
 	SetColor = true,
+	SetName = true,
 	Claim = true,
 	ClaimColor = true,
 	Submit = true,
@@ -113,6 +114,15 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 				return false, "BadShape", nil
 			end
 			request.color = raw.color
+		end
+	elseif op == "SetName" then
+		-- Optional: absent means the candidate's own name. Cleaning, the length
+		-- limit and the text filter are the server's checks (D-063).
+		if raw.name ~= nil then
+			if type(raw.name) ~= "string" then
+				return false, "BadShape", nil
+			end
+			request.name = raw.name
 		end
 	elseif op == "Forfeit" then
 		-- The match being left: a stale request can never end a newer match.

@@ -11,12 +11,15 @@ local RunService = game:GetService("RunService")
 local Bot = require(ReplicatedStorage.Shared.Sim.Bot)
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
+local CustomName = require(ReplicatedStorage.Shared.Net.CustomName)
 local Lobby = require(ReplicatedStorage.Shared.Net.Lobby)
 local Profile = require(ReplicatedStorage.Shared.Net.Profile)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local DataService = require(script.Parent.DataService)
 local LeaderboardService = require(script.Parent.LeaderboardService)
+local NameEligibility = require(script.Parent.NameEligibility)
+local NameService = require(script.Parent.NameService)
 local PassService = require(script.Parent.PassService)
 local Replication = require(script.Parent.Replication)
 
@@ -31,6 +34,7 @@ local lobby = Lobby.new(config)
 local sessions: { [string]: Session.Session } = {}
 local matchOf: { [string]: string } = {} -- player id -> match id
 local prePicks: { [string]: any } = {}
+local approvedNames: { [string]: string } = {} -- player id -> their saved custom name, filtered this visit (D-063)
 local ratingsAtStart: { [string]: { [string]: number } } = {} -- match id -> player id -> rating; rated matches only
 local random = Random.new()
 local matchCount = 0
@@ -60,19 +64,63 @@ local function sendLobby(id: string)
 	Replication.send(id, { kind = "Lobby", lobby = status })
 end
 
+local function playerOf(id: string): Player?
+	local userId = tonumber(id)
+	return if userId then Players:GetPlayerByUserId(userId) else nil
+end
+
+-- Whether this player may buy, set and see custom names (D-063): a
+-- Roblox-verified 16+ account (server/NameEligibility; today nobody, as no
+-- engine API reports a verified age).
+local function eligible(id: string): boolean
+	local player = playerOf(id)
+	return player ~= nil and NameEligibility.isEligible(player)
+end
+
+-- The Name Pass as this player may use it, or nil (not set up, or not eligible).
+local function namePassOf(id: string): Session.NamePass?
+	local passId = PassService.namePassId()
+	if passId == nil or not eligible(id) then
+		return nil
+	end
+	return { id = passId, owned = PassService.ownsNamePass(id) }
+end
+
+-- Filters a player's saved custom name once per visit (when their profile
+-- loads), so a match can start without waiting on the filter. A name the filter
+-- now turns down, or a filter that cannot be reached, leaves no name. Yields.
+local function approveSavedName(id: string)
+	approvedNames[id] = nil
+	local player = playerOf(id)
+	local profile = DataService.profile(id)
+	if player == nil or profile == nil or profile.customName == nil or namePassOf(id) == nil then
+		return
+	end
+	local name = NameService.check(player, profile.customName)
+	if name and playerOf(id) == player then
+		approvedNames[id] = name
+	end
+end
+
 -- A human seat for a match. Color Pass ownership is the server's own check as
 -- it knows it now (no waiting, D-055): an owner may claim colors during Select
 -- and their saved color is claimed for them as Select opens (D-061). Anyone
--- else, or an owner whose check failed, is dealt red or blue.
+-- else, or an owner whose check failed, is dealt red or blue. The Name Pass
+-- (D-063): an eligible player gets the pass's state; an owner's saved name,
+-- already filtered, names their candidate; only eligible players see names.
 local function humanSpec(id: string): Session.SeatSpec
 	local owns = PassService.ownsColorPass(id)
 	local profile = if owns then DataService.profile(id) else nil
+	local namePass = namePassOf(id)
 	return {
 		id = id,
 		kind = "Human",
 		prePick = prePicks[id],
 		colorPass = owns,
 		color = if profile then profile.color else nil,
+		seesNames = eligible(id),
+		namePass = namePass,
+		customName = if namePass and namePass.owned then approvedNames[id] else nil,
 	}
 end
 
@@ -231,6 +279,58 @@ local function guard(session: Session.Session, call: () -> ()): boolean
 		warn(`[270] match {session.id} could not be aborted cleanly: {abortErr}`)
 	end
 	return false
+end
+
+-- SetName (D-063): names the player's candidate (nil = its own name). Needs the
+-- Name Pass and an eligible (verified 16+) account; the name is checked and
+-- filtered (server/NameService), saved in the profile, and, during Select,
+-- used in the player's match at once. Returns a reason code when it is turned
+-- down (CustomName.Reason); the old name stays. May yield (the filter, a
+-- fresh pass check).
+local function setName(player: Player, text: string?): string?
+	local id = idOf(player)
+	if PassService.namePassId() == nil then
+		return CustomName.Reason.NoNamePass
+	end
+	if not eligible(id) then
+		return CustomName.Reason.NotEligible
+	end
+	-- Not known to own it: ask Roblox again, never the client.
+	if not PassService.ownsNamePass(id) and not PassService.refreshName(player) then
+		return CustomName.Reason.NoNamePass
+	end
+	local name: string? = nil
+	if text ~= nil then
+		local checked, reason = NameService.check(player, text)
+		if checked == nil then
+			return reason
+		end
+		name = checked
+	end
+	if playerOf(id) ~= player then
+		return nil -- they left while the filter ran
+	end
+	if name then
+		approvedNames[id] = name
+	else
+		approvedNames[id] = nil
+	end
+	local how = DataService.update(id, function(profile: Profile.Profile): Profile.Profile
+		return Profile.withCustomName(profile, name)
+	end)
+	local session = sessions[matchOf[id] or ""]
+	if session then
+		local seat = Session.seatOf(session, id) :: number
+		guard(session, function()
+			Session.setNamePass(session, seat, namePassOf(id))
+			Session.setName(session, seat, name)
+		end)
+		flush(session)
+	elseif how == "Skipped" then
+		return CustomName.Reason.NotSaved
+	end
+	print(`[270] player {id} name: {name or "(the candidate's own)"} ({how})`)
+	return nil
 end
 
 local function newCode(): string
@@ -404,6 +504,14 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 		matchRequest(player, request)
 	elseif op == "Forfeit" then
 		forfeit(player, request)
+	elseif op == "SetName" then
+		local reason = setName(player, request.name)
+		if reason then
+			Replication.reject(player, op, reason)
+		end
+		if matchOf[idOf(player)] == nil then
+			sendLobby(idOf(player))
+		end
 	elseif op == "Leaderboard" then
 		LeaderboardService.request(idOf(player))
 	elseif op == "Resync" then
@@ -436,6 +544,7 @@ function MatchService.start()
 		if matchOf[id] == nil then
 			sendLobby(id)
 		end
+		task.spawn(approveSavedName, id)
 		-- Ratings saved before the board existed join it on the player's next visit.
 		local profile = DataService.profile(id)
 		if profile and profile.games > 0 and DataService.rating(id) ~= nil then
@@ -446,6 +555,19 @@ function MatchService.start()
 	PassService.onChanged(function(id: string)
 		if matchOf[id] == nil then
 			sendLobby(id)
+			return
+		end
+		-- Bought the Name Pass during a match: Select offers the name at once.
+		local session = sessions[matchOf[id] or ""]
+		if session then
+			local seat = Session.seatOf(session, id) :: number
+			guard(session, function()
+				Session.setNamePass(session, seat, namePassOf(id))
+			end)
+			flush(session)
+		end
+		if approvedNames[id] == nil then
+			task.spawn(approveSavedName, id)
 		end
 	end)
 	for _, player in Players:GetPlayers() do
@@ -469,6 +591,7 @@ function MatchService.start()
 		local before = Lobby.state(lobby, id)
 		Lobby.leave(lobby, id)
 		prePicks[id] = nil
+		approvedNames[id] = nil
 		if before == "Queued" or before == "Hosting" then
 			broadcastLobby()
 		end

@@ -9,6 +9,7 @@
 
 local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
+local CustomName = require("./CustomName")
 local Rating = require("./Rating")
 
 type Config = ConfigModule.Config
@@ -45,6 +46,11 @@ export type Profile = {
 	-- Saved for anyone, used only while they own the Color Pass (D-055). Added
 	-- after version 1 without a bump: older profiles simply have none.
 	color: string?,
+	-- The player's custom name for their candidate (the Name Pass, D-063), as they
+	-- typed it after CustomName.normalize. Saved for anyone, used only while they
+	-- own the pass and are eligible, and filtered again (TextService) every time
+	-- a match uses it. Optional, like `color`: no version bump.
+	customName: string?,
 }
 
 -- What the lobby shows.
@@ -98,6 +104,7 @@ function Profile.new(config: Config?): Profile
 		recent = {},
 		practice = { games = 0, wins = 0, losses = 0 },
 		color = nil,
+		customName = nil,
 	}
 end
 
@@ -204,6 +211,9 @@ function Profile.migrate(raw: any, config: Config?): Profile
 	if Profile.isColor(raw.color) then
 		out.color = raw.color
 	end
+	if raw.customName ~= nil then
+		out.customName = (CustomName.normalize(raw.customName, c))
+	end
 	return out
 end
 
@@ -288,6 +298,14 @@ function Profile.withColor(profile: Profile, color: string?): (Profile, boolean)
 	local out = copy(profile)
 	out.color = color
 	return out, true
+end
+
+-- The profile with `name` as the custom candidate name (nil = the candidate's
+-- own name). The caller has already normalized and filtered it (server/NameService).
+function Profile.withCustomName(profile: Profile, name: string?): Profile
+	local out = copy(profile)
+	out.customName = name
+	return out
 end
 
 function Profile.summary(profile: Profile): Summary

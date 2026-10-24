@@ -11,6 +11,11 @@
 -- D-035), or anyone's debate focus or Choice stance but your own before the debate
 -- or the week resolves (they are taken in the Decision phase, D-044, and live in
 -- the hidden player state until then). tests/sim/View.spec enforces it.
+--
+-- Custom candidate names (the Name Pass, D-063) are not match state: the server
+-- keeps them, already filtered, and passes `names` (player index -> name) only
+-- when building the view of a player who may see them (a Roblox-verified 16+
+-- account). Every other view shows each candidate's own name.
 
 local ConfigModule = require("./Config")
 local Debate = require("./Debate")
@@ -55,6 +60,7 @@ export type PlayerView = {
 	frontrunner: boolean,
 	pivotUsed: boolean,
 	card: State.WeekCard?,
+	customName: string?, -- the player's custom candidate name, only in a view the server lets see it (D-063)
 }
 
 -- One stance of a Choice event, as shown on its button (D-039). The per-state
@@ -121,8 +127,9 @@ end
 
 local copy = State.deepCopy
 
--- The view for player `you`.
-function View.build(config: Config, match: MatchState, you: number): View
+-- The view for player `you`. `names`: custom candidate names this viewer may see
+-- (D-063), by player index; nil = none.
+function View.build(config: Config, match: MatchState, you: number, names: { [number]: string }?): View
 	assert(match.players[you], `unknown player {you}`)
 	local selected = match.phase ~= "Select"
 	local mapShown = selected -- leans are revealed with the map, after Select
@@ -145,6 +152,7 @@ function View.build(config: Config, match: MatchState, you: number): View
 			frontrunner = player.frontrunner,
 			pivotUsed = player.pivotUsed,
 			card = copy(player.card),
+			customName = if names then names[p] else nil,
 		}
 	end
 

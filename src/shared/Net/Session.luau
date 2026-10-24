@@ -21,6 +21,7 @@ local Match = require("../Sim/Match")
 local Rng = require("../Sim/Rng")
 local State = require("../Sim/State")
 local View = require("../Sim/View")
+local CustomName = require("./CustomName")
 
 type Config = ConfigModule.Config
 
@@ -46,6 +47,25 @@ export type Seat = {
 	botStyle: Bot.Style?,
 	botDifficulty: Bot.Difficulty?, -- practice difficulty (D-057); nil for a harness bot with an explicit style
 	botRng: Rng.Rng?,
+	-- Custom names (the Name Pass, D-063). The server fills these from its own
+	-- checks; a bot seat never has any.
+	customName: string?, -- this player's candidate name for the match, already filtered
+	seesNames: boolean, -- this player may see custom names (a Roblox-verified 16+ account)
+	namePass: NamePass?, -- this player may use the Name Pass (it is set up and they are eligible)
+}
+
+-- The Name Pass as one seat sees it (D-063): present only for a player who is
+-- eligible while the pass is set up.
+export type NamePass = {
+	id: number, -- the pass id, for MarketplaceService:PromptGamePassPurchase
+	owned: boolean, -- the server's check
+}
+
+-- What the Select screen needs to offer a custom name (StatePayload.naming).
+export type Naming = {
+	id: number, -- the pass id
+	owned: boolean,
+	name: string?, -- the custom name in use this match; nil = the candidate's own
 }
 
 export type Result = {
@@ -76,6 +96,7 @@ export type StatePayload = {
 	events: { State.Event },
 	seats: { SeatInfo },
 	result: Result?,
+	naming: Naming?, -- the Name Pass for this seat (D-063); absent unless they may use it
 }
 
 export type Message = {
@@ -114,6 +135,9 @@ export type SeatSpec = {
 	prePick: any?, -- Human: optional lobby pre-pick
 	colorPass: boolean?, -- Human: owns the Color Pass (the server's check, D-055): may claim colors in Select (D-061)
 	color: string?, -- Human: a Color Pass owner's saved favorite, claimed as Select opens (D-061); ignored without colorPass
+	customName: string?, -- Human: a Name Pass owner's saved name, filtered for this match (D-063)
+	seesNames: boolean?, -- Human: may see custom names (D-063); default false
+	namePass: NamePass?, -- Human: may use the Name Pass (D-063)
 	candidate: string?, -- Bot: candidate to play
 	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
 	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
@@ -183,7 +207,19 @@ function Session.payload(session: Session, p: number): StatePayload
 	local deadline = if session.stage == "Input"
 		then seatDeadline(session, session.seats[p])
 		else session.skippedTo or session.deadline
-	local view = View.build(session.config, session.match, p)
+	-- Custom names reach only a viewer who may see them (D-063).
+	local seat = session.seats[p]
+	local names: { [number]: string }? = nil
+	if seat.seesNames then
+		local found: { [number]: string } = {}
+		for q, other in session.seats do
+			if other.customName ~= nil then
+				found[q] = other.customName
+			end
+		end
+		names = found
+	end
+	local view = View.build(session.config, session.match, p, names)
 	-- Week 12's resolve reveal already runs in phase Election, and a forfeit after
 	-- it leaves a computed result nobody saw: the result is sent only from election
 	-- night on (the Show stage, then the end of a match decided by it).
@@ -205,6 +241,9 @@ function Session.payload(session: Session, p: number): StatePayload
 		events = View.events(session.events, p),
 		seats = seats,
 		result = if session.result then table.clone(session.result) else nil,
+		naming = if seat.namePass
+			then { id = seat.namePass.id, owned = seat.namePass.owned, name = seat.customName }
+			else nil,
 	}
 end
 
@@ -540,6 +579,9 @@ function Session.new(
 			botStyle = spec.style or (if difficulty then Bot.styleFor(difficulty) else nil),
 			botDifficulty = difficulty,
 			botRng = if spec.kind == "Bot" then Rng.new(seed * 31 + p) else nil,
+			customName = if spec.kind == "Human" then spec.customName else nil,
+			seesNames = spec.kind == "Human" and spec.seesNames == true,
+			namePass = if spec.kind == "Human" and spec.namePass then table.clone(spec.namePass) else nil,
 		}
 	end
 	local session: Session = {
@@ -703,6 +745,44 @@ function Session.claimColor(
 	end
 	session.pendingColorClaims[p] = color
 	return true, nil
+end
+
+-- A Name Pass owner names their candidate for this match (D-063); nil goes back
+-- to the candidate's own name. The server has already checked the pass and
+-- filtered the name (server/NameService): this only stores it. Allowed only
+-- during Select (the name is part of who you are this match), also after
+-- locking in; never for a bot seat. Everyone who may see custom names gets a
+-- fresh State at once.
+function Session.setName(session: Session, p: number, name: string?): (boolean, string?)
+	local seat = session.seats[p]
+	if seat == nil or seat.kind ~= "Human" then
+		return false, Session.Reason.NotInput
+	end
+	if session.stage == "Over" then
+		return false, Session.Reason.Over
+	end
+	if session.match.phase ~= "Select" then
+		return false, Session.Reason.NotSelect
+	end
+	if seat.namePass == nil or not seat.namePass.owned then
+		return false, CustomName.Reason.NoNamePass
+	end
+	seat.customName = name
+	broadcast(session)
+	return true, nil
+end
+
+-- The server learned that a seat owns the Name Pass (bought during the match)
+-- or that it may use it at all; sends that seat a fresh State.
+function Session.setNamePass(session: Session, p: number, pass: NamePass?)
+	local seat = session.seats[p]
+	if seat == nil or seat.kind ~= "Human" or session.stage == "Over" then
+		return
+	end
+	seat.namePass = if pass then table.clone(pass) else nil
+	if seat.connected then
+		table.insert(session.outbox, { seat = p, kind = "State", state = Session.payload(session, p) })
+	end
 end
 
 -- A player takes one chunk of their time bank during a Plan stage.
