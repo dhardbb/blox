@@ -2,6 +2,18 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### A short tutorial (D-080)
+
+Studio checklist: `docs/TESTING.md`, "The short tutorial". Nothing needed from the humans.
+
+- **The tutorial is now a short 4-week race** against the Easy bot instead of a full 12-week match: pick a candidate and issues, a 3-round draft, week 1 to learn the plan, a stance in week 2, a 3-round debate in week 3, a last push in week 4, then election night. About 5 to 6 minutes for a brisk new player (it was about 13½). Still no timers, still unrated, still marks the tutorial done.
+- **Coach tips walk through it in order**, with short tutorial wording ("Week 1 of 4. Tap any state to see who's ahead.") and a new last-week tip on ground game.
+- **A clear end:** after the tutorial, Results says **"You're ready!"** (what a real match adds: 12 weeks, 2 debates, timers) and the main button is **Play a real match**.
+- **Always the Easy bot:** the first tutorial no longer uses the level picked in the Lobby. How to play's **Play the tutorial** starts the short version ("A short 4-week match against the Easy bot, with tips and no timers.").
+- Help in the tutorial follows its schedule (election after week 4, the debate in week 3, one stance event). A normal match is unchanged (balance harness identical). New `Config` keys: `TUTORIAL_WEEKS` 4, `TUTORIAL_CHOICE_WEEK` 2, `TUTORIAL_DEBATE_WEEKS` {3}, `TUTORIAL_CLOSING_FROM_WEEK` 4, `TUTORIAL_START_CASH` 8, `EVENT_CHOICE_ONLY` false; new harness `tests/harness/tutorial.luau`.
+
 ## 0.14.0: Map polish, issue symbols, the tutorial, fixes (Oct 24, 2026)
 
 A clearer map (bigger on phones, every state's votes, a Close filter), symbols for issues, an untimed first bot match with more time against easier bots, the Lobby's settings in the corner, and fixes from a full bug review (rated results across servers, win trading, name review safety, debate reconnects). Needed from the humans: nothing new (the 0.13.0 list still applies).

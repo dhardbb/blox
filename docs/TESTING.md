@@ -1078,3 +1078,17 @@ Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests "M
 11. **iPad and desktop.** **Expect:** the map looks as in 0.13.0 apart from the bracket, the quieter pins, the insets and the items above.
 
 **Send back:** a phone screenshot of Votes, Polls and Money, one with Close on, one of the end of a busy week's results, one of election night, and whether you would want Close on by default on a phone; plus any Output errors from `ShapeMap`, `Lens` or `SwingMarks`.
+
+## The short tutorial (unreleased, D-080)
+
+Server and client. Agents: `lune run tests Tutorial`, `lune run tests/harness/tutorial.luau 400` (the bot-vs-bot table and the length), `lune run tests/ui/snap.luau -- 30` at all three sizes: 0 audit findings. In Studio the first-match tutorial needs saved data (**Enable Studio Access to API Services**); the replay from How to play works without it.
+
+1. **Time it.** With a fresh account press **Play vs Bot** (or Lobby → **How to play** → **Play the tutorial**) and start a stopwatch on the candidate screen; stop it when Results appears. Play as a new player would: read each tip, do not hurry. **Expect:** about 5 to 6 minutes (the harness: 6:14 at a brisk pace watching everything, 5:33 skipping reveals, about 10 minutes when reading everything slowly). *Send back:* your time, and whether any step dragged.
+2. **The steps.** **Expect, in order:** the notice "Tutorial: 4 short weeks and no timer on any choice, so take your time."; Select's tip "4 quick weeks to learn…"; the draft (home, then two battlegrounds); week 1's plan reads **Week 1 of 4** (on a phone just "Week 1") with the tip "Week 1 of 4. Tap any state to see who's ahead."; week 2 opens with a stance (tip "Week 2: take a side…"); week 3 opens with the debate, three rounds; week 4's plan shows "Last week! Ground game in close states adds votes on election night."; then election night. No other weeks, no other events. The bot in the seat list is the Easy bot whatever level was picked.
+3. **Help in the tutorial.** During the tutorial tap **?** → **How to win**. **Expect:** "After week 4, election night counts them". Under **All the numbers**, debates say "week 3" and events "one event, a Choice, in week 2".
+4. **The end.** Win or lose, **Expect:** Results shows the card **You're ready!** ("That was the whole game in 4 weeks. A real match has 12 weeks, 2 debates and a timer on every choice.") and the big button **Play a real match**. Tap it: you join the queue for a match against a person. Back in the Lobby, **Play vs Bot** starts a normal 12-week match with timers.
+5. **A normal match is unchanged:** Play vs Bot (after the tutorial) or against a person: 12 weeks, debates in weeks 4 and 9, an event most weeks; Help says "After week 12"; the end screen has no "You're ready!" card.
+6. **No errors** from `Session`, `Router`, `CoachTip`, `Results` or `Help` in the Output window.
+
+**Send back:** your tutorial time, a phone or iPad screenshot of the "You're ready!" screen, and whether 4 weeks felt like enough to learn the game.
+

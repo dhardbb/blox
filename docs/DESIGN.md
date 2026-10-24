@@ -1367,3 +1367,59 @@ Pins also keep 3 px clear above and below when they look for a spot (the fake en
 *Constants* (ShapeMap, display only): `PLATE_SIZES` 14/13/12, `PLATE_PAD` 2, `PLATE_PAD_Y` 2, `PLATE_GAP` 2, `PLATE_REACH` 0.05, `VALUE_EM` 0.6, `CAPS_EM` (I, J, L, M, W), `FAR_NUDGES` up to 78 px; MapShape `TALL_ASPECT` 1.25 to 1.1, `TALL_CHIP_PX` 40 to 38, `TALL_CHIP_ROWS` 2. The map root carries `PlateSize`, `PlateLeaders` and `PlateMisses` attributes for the specs. Tests: `ShapeMap.spec` "gives every state the same plate" (every state at 390x360, 390x244, 620x388, 832x520: plate, code, then value 2 px after it on the same line, one text size, never under 12, no two plates overlap, the leader count matches), `MapShape.spec` (two chip rows in reading order, cells wide enough), `Lens.spec` (the Votes plate and its white battleground outline).
 
 **Tests.** `tests/sim/MapShape.spec` (both layouts: sprites, insets, chips and legend inside the box, no state's land in an inset, the tall chip row under all land at 36 px, taps by outline, `fit` and `heightFor` agree with themselves, the bracket), `tests/ui/ShapeMap.spec` (the bracket and the selected chip's leader, the tall layout and switching to it, every value on one line with no two labels overlapping at 390x312, the Polls pill, dashed / hollow / quiet, quiet pins, preview tags apart, strict audit at six sizes), new `tests/ui/MapLabels.spec` (8 tags at most in SwingMarks and at the end of every reveal fixture, the 5 biggest flips ▲ / ▼, green and orange previews, the Close filter on the map and remembered, election night hollow, white tipping outline, no tags, pins named in week 1), `Lens.spec` (Money's top 8 with 1 to 3 coins by the median, the pill, the ▲▲ legend), `ShapeMap.spec` (also: at most 3 values without their code on the phone, stacked codes, Hawaii's filled inset), `ResultsTabs.spec` (dashed outlines and ×), `Stances.spec` (outline colors, flip tags, the legend rings). Snapshots: new `14b-close-filter`, `14c-close-polls`; every shot 0 audit findings at phone, iPad and desktop.
+
+## The short tutorial
+
+### D-080 — The tutorial is a short scenario: 4 weeks, one stance, one debate (rule change for the tutorial only, Oct 24, 2026, branch `short-tutorial`)
+
+**Ask.** The user: "Shorten the tutorial." D-075's tutorial was a whole 12-week match against the Easy bot with no choice timers, about 13½ minutes for a brisk new player. Now it is a short scenario that still teaches every core idea and ends in about 5 to 6 minutes, then says "You're ready" and offers a real match.
+
+**The schedule (`Config.tutorial(config)`).** The same rules on a short schedule. It returns `config` with seven keys replaced; every other number, `EV_TO_WIN` 270 included, is the real game's:
+
+| Key | Real match | Tutorial | From |
+|---|---|---|---|
+| `WEEKS` | 12 | **4** | `TUTORIAL_WEEKS` |
+| `DEBATE_WEEKS` | 4, 9 | **3** (one debate, three live rounds) | `TUTORIAL_DEBATE_WEEKS` |
+| `EVENT_FIRST_WEEK` / `EVENT_LAST_WEEK` | 2 / 11 | **2 / 2** | `TUTORIAL_CHOICE_WEEK` |
+| `EVENT_CHOICE_ONLY` (new) | false | **true**: week 2's event is a Choice (a stance), drawn from the seed among the deck's Choice events | — |
+| `CLOSING_FROM_WEEK` | 10 | **4** (the last week's push) | `TUTORIAL_CLOSING_FROM_WEEK` |
+| `START_CASH` | 8 | **8** (the real economy; see the tuning) | `TUTORIAL_START_CASH` |
+
+The flow, one new idea a step: Select (candidate, 3 issues) → map reveal → the draft (home, two battlegrounds) → **week 1** plan (actions, money, the map) → **week 2** the stance, then the plan (the lenses) → **week 3** the debate's three rounds, then the plan → **week 4** the last plan (closing bonus; ground game) → election night → Results with "You're ready!". `EVENT_CHOICE_ONLY` is a new normal key (false): with it false, `Events.draw` deals exactly as before.
+
+**Where it applies.** `Session.new` with `options.tutorial` builds the session on `Config.tutorial(config)`, so the match, the View, the bot and the timers all read it (`session.config`); the match is deterministic from its seed like any other. Nothing new goes on the wire: the client already gets `tutorial = true` on every State (D-075), and the Router sets `ctx.config` to `Config.tutorial(Config.defaults)` while a tutorial screen is up (back to the defaults in the Lobby), so "Week 2 of 4", the debate week, Help ("After week 4, election night counts them", "Debates open week 3", "The tutorial has one event, a Choice, in week 2") and Graph follow it. Help's tab intros are now refilled at every open (they were built once at start).
+
+**Always the Easy bot.** The first tutorial now plays the Easy bot too (`Lobby.practice`); D-075 kept the level the player had picked. The short tutorial is tuned against Easy, and the user's ask names it. Unrated and the tutorial-done flag as in D-075.
+
+**Tuning: no map scale needed** (`lune run tests/harness/tutorial.luau 400`: 400 matches a pairing, seeds 500001 on, seats alternating; the "player" is a bot standing in for a new player, always against the Easy bot). "Decided on election night": before the votes are counted, the state that carries the winner to 270 (its tipping state) is within 5 points of true margin (ground game counted), so election night's swing could still decide it; "toss-up": within 2 (`ELECTION_SIGMA`).
+
+| Player vs Easy bot | Win | Decided on election night | Toss-up | Last poll's leader lost | Mean margin | Same on 12 weeks |
+|---|---|---|---|---|---|---|
+| Medium (a sharp new player) | 75.5 % | 99.8 % | 79.0 % | 20.0 % | 75 EV | 83.0 % · 76.0 % · 34.8 % · 12.5 % · 76 EV |
+| Easy (a careless one) | 50.8 % | 99.5 % | 85.0 % | 20.5 % | 63 EV | 46.2 % · 78.5 % · 42.0 % · 14.2 % · 53 EV |
+| Random (taps anything) | 0.0 % | 48.2 % | 3.5 % | 0.0 % | 215 EV | 0.0 % · 0 % · 0 % · 0 % · 316 EV |
+
+Four weeks move the map less than twelve, so the draft's symmetric bonuses and the balanced leans keep the race *closer*, not wider: a sharp player beats the Easy bot 3 times in 4 (it neither steamrolls nor gets crushed), a careless one about half the time, and nearly every match is still open on election night. So leans, draft bonuses and action effects stay the real game's. `TUTORIAL_START_CASH` 12 measured the same (74.5 % / 50.2 %), so the tutorial keeps the real $8. Bot heuristics (`Bot.tuning`) are unchanged: the bots buy paid polls from week 4 and ground game from week 6, so in the tutorial the Easy bot does neither; the player's last-week tip points at ground game.
+
+**Length** (the same harness, through `Net/Session` against the Easy bot; the player's choices after fixed think times; every reveal, clash, verdict and election night run to its end unless the profile skips):
+
+| Player | Think times (Select, draft round, plan (week 1), stance, debate round) | Tutorial | Old 12-week tutorial, same pace |
+|---|---|---|---|
+| Brisk | 30, 12, 35 (50), 15, 8 s | **6:14** | 13:28 |
+| Brisk, skipping the week's reveal after 6 s, the verdict after 3 s, election night after 20 s | same | **5:33** | — |
+| Careful | 60, 20, 60 (90), 30, 15 s | **9:39** | — |
+
+About 2 minutes of it is watching (the map reveal, three draft reveals, four week reveals, the debate's intro, clashes and verdict, 45 s of election night); the rest is the player's own pace.
+
+**Coach tips in order (`CoachTip.TUTORIAL`).** In the tutorial the tips use their tutorial copy where it differs (`CoachTip.setTutorial`, set by the Router), still at most 12 words: Select "4 quick weeks to learn. Pick a candidate: one strength, one weakness."; week 1 "Week 1 of 4. Tap any state to see who's ahead."; week 2 "Week 2: take a side, or stay out. States that care react."; the debate "Debate night: 3 rounds. Each move shows how it does against theirs."; and a new tip only the tutorial has, first in its last week: `campaign.ground` "Last week! Ground game in close states adds votes on election night." The rest (issues, the draft, Lock in, the reveal, the lenses, Safe, election night) keep their copy. `CoachTip.has(id)` lets Campaign skip a tip with no copy (a normal match's last week shows no ground tip).
+
+**The end.** After the tutorial, win or lose, Results shows a card under the score, **"You're ready!"** "That was the whole game in 4 weeks. A real match has 12 weeks, 2 debates and a timer on every choice." and the primary button reads **Play a real match**: it queues for a match against a person (the secondary is Back to lobby). How to play's hint: "A short 4-week match against the Easy bot, with tips and no timers."; the start notice: "Tutorial: 4 short weeks and no timer on any choice, so take your time."
+
+**The normal match is unchanged.** `lune run tests/harness/balance.luau 400` prints the same report as before this branch (only the timing lines differ), and `tests/sim/Tutorial.spec` pins a seeded 12-week bot match (its deck, every week's projected votes, the result) recorded before the change.
+
+**Tests.** New `tests/sim/Tutorial.spec` (the schedule; only those keys change; one Choice event in week 2 and debate topics for week 3 only, over 60 seeds; the Choice event drawn from the seed; the normal schedule and a pinned normal match; whole bot-vs-bot tutorials run Select, map reveal, draft, weeks 1 to 4 with the stance in week 2 and the debate in week 3, then election night; determinism; the session's config). `tests/net/Tutorial.spec`: a slow player's whole tutorial has exactly 12 choices (Select, 3 draft rounds, 4 plans, 1 stance, 3 debate rounds); the first tutorial plays Easy. `tests/e2e/Tutorial.spec`: the first bot match says "bot Easy, tutorial". `KitStyle.spec`: the tutorial's tips are short too. New harness `tests/harness/tutorial.luau`. Snapshots `30-tutorial-select`, `30a-tutorial-plan`, `30b-tutorial-stance`, `30c-tutorial-debate`, `30d-tutorial-last-week`, `30e-tutorial-election`, `30f-tutorial-results`, `30g-tutorial-help` (new fixture moments `Tutorial*`): 0 audit findings at phone, iPad and desktop.
+
+**For the designers.**
+1. Length: about 5½ to 6 minutes for a brisk new player, nearer 10 for a careful one. Levers if playtests run long: a pre-made draft (about −45 s, but the draft goes untaught), a shorter election night in the tutorial (45 → 25 s, −20 s), or 3 weeks (about −50 s, the stance and the debate in weeks 1 and 2).
+2. "Play a real match" queues for a person. If new players often wait alone, it could start a Medium bot match instead.
+3. The tutorial's Easy bot never buys ground game or polls (the bot's own schedule starts later); say if it should.
