@@ -10,6 +10,7 @@
 local Candidates = require("../Sim/Candidates")
 local ConfigModule = require("../Sim/Config")
 local CustomName = require("./CustomName")
+local Daily = require("./Daily")
 local Rating = require("./Rating")
 
 type Config = ConfigModule.Config
@@ -71,6 +72,10 @@ export type Profile = {
 	-- Reports this player sent since `at` (D-078: NAME_REPORTS_PER_DAY per
 	-- NAME_REPORT_WINDOW, kept here so a rejoin does not reset it). Optional.
 	reportLog: { at: number, count: number }?,
+	-- The Daily Race (D-080): the last counted run's day, its margin once it
+	-- ended, and the streak of consecutive days. Never touches the rating, the
+	-- practice record or the tutorial. Optional: no version bump.
+	daily: Daily.Record?,
 }
 
 -- What the lobby shows.
@@ -319,6 +324,7 @@ function Profile.migrate(raw: any, config: Config?): Profile
 			out.reportLog = { at = at, count = n }
 		end
 	end
+	out.daily = Daily.clean(raw.daily)
 	return out
 end
 
@@ -399,6 +405,9 @@ local function copy(profile: Profile): Profile
 	end
 	if profile.reportLog then
 		out.reportLog = table.clone(profile.reportLog)
+	end
+	if profile.daily then
+		out.daily = table.clone(profile.daily)
 	end
 	return out
 end
@@ -633,6 +642,26 @@ end
 function Profile.withTutorialDone(profile: Profile): Profile
 	local out = copy(profile)
 	out.tutorialDone = true
+	return out
+end
+
+-- The profile once day `day`'s counted Daily Race run begins (D-080; week 1).
+function Profile.withDailyBegun(profile: Profile, day: number): Profile
+	local out = copy(profile)
+	out.daily = Daily.begin(profile.daily, day)
+	return out
+end
+
+-- The profile once day `day`'s counted run ended (D-080). The first end only.
+function Profile.withDailyResult(
+	profile: Profile,
+	day: number,
+	margin: number,
+	behind: number,
+	score: number
+): Profile
+	local out = copy(profile)
+	out.daily = Daily.finish(profile.daily, day, margin, behind, score)
 	return out
 end
 

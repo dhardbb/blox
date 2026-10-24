@@ -33,6 +33,7 @@ export type Outcome = {
 	events: boolean?, -- Match from a private code: false if the host turned events off
 	difficulty: Bot.Difficulty?, -- Practice: the bot's difficulty (D-057)
 	tutorial: boolean?, -- Practice: the tutorial, no choice timers (D-075)
+	daily: number?, -- Practice: a Daily Race run on this day (D-080); never the tutorial
 }
 
 -- Why a practice match is the tutorial (D-075): "First", the player has not
@@ -160,6 +161,17 @@ function Lobby.practice(
 		tutorial = if tutorial ~= nil then true else nil,
 	},
 		nil
+end
+
+-- Starts a run of day `day`'s Daily Race against the bot at `level` (D-080:
+-- Config.DAILY_BOT_LEVEL). A Daily Race is never the tutorial.
+function Lobby.daily(lobby: Lobby, id: string, day: number, level: string?): (Outcome?, string?)
+	local reason = check(lobby, id)
+	if reason then
+		return nil, reason
+	end
+	start(lobby, { id })
+	return { kind = "Practice", players = { id }, difficulty = Bot.difficulty(level), daily = day }, nil
 end
 
 -- A match is over (or abandoned): its players are free again.
