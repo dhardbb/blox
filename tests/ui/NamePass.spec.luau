@@ -70,9 +70,10 @@ local function rejected(world: FakeRoblox.World, peer: FakeRoblox.Peer, reason: 
 	return false
 end
 
+-- Sends SetName and waits out its cooldown (Config.SET_NAME_COOLDOWN).
 local function setName(world: FakeRoblox.World, peer: FakeRoblox.Peer, name: string?)
 	FakeRoblox.fire(world, peer, { op = "SetName", name = name })
-	FakeRoblox.run(world, 1)
+	FakeRoblox.run(world, 2.1)
 end
 
 local function mine(world: FakeRoblox.World, peer: FakeRoblox.Peer): string?
@@ -81,7 +82,7 @@ local function mine(world: FakeRoblox.World, peer: FakeRoblox.Peer): string?
 end
 
 local function savedName(world: FakeRoblox.World, userId: number): string?
-	FakeRoblox.run(world, 2) -- let the save land
+	FakeRoblox.run(world, 16) -- let the batched save land (DataService.SAVE_INTERVAL)
 	local record = world.data.stores[STORE][`Player_{userId}`]
 	return if record then record.data.customName else nil
 end
@@ -418,6 +419,7 @@ describe("Name Pass: Select (D-069)", function()
 		expect(tostring(Rig.need(peer, "Select", "NameLine").Text)):toBe("Name: Captain Zed")
 		expect(Rig.need(peer, "Select", "NameSheet").Visible):toBe(false)
 		-- A filtered name: the sheet stays open and says why.
+		FakeRoblox.run(world, 2) -- past SetName's cooldown
 		Rig.tap(world, peer, "Select", "NameButton", 0.5)
 		Rig.need(peer, "Select", "NameBox").Text = "Zork"
 		Rig.tap(world, peer, "Select", "NameSave", 1)

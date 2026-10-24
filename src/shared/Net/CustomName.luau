@@ -28,6 +28,16 @@
 --     the whole name), exactly (after folding), for short or common words and
 --     surnames whose near misses are ordinary names ("you", "bush", "farage"
 --     would catch "garage")
+--   CustomName.reviewEntry(name) -> string
+--     the reviewed-blocklist entry for a name a reviewer removed (D-076):
+--     "=" and its folded words ("Captain Zed" -> "=captain zed")
+--   CustomName.blockedReviewed(name, entries, config) -> boolean
+--     the reviewed list's match (D-076): whole words only, as an "=" entry,
+--     never "contains" or "one edit away" ("Ann" does not block "Hannah"); an
+--     older entry without "=" counts as "=entry" (the exact folded name)
+--   CustomName.reviewedExact(name, entries) -> boolean
+--     the name is exactly a reviewed entry (after folding): the removed name
+--     itself, not just one that contains it
 --   CustomName.wasFiltered(name, filtered) -> boolean
 --     the filter changed the text or hid part of it
 --   CustomName.Reason   the reason codes a name is turned down with
@@ -340,6 +350,32 @@ local function words(name: string): { string }
 	return out
 end
 
+function CustomName.reviewEntry(name: string): string
+	local folded = words(name)
+	if #folded == 0 then
+		return ""
+	end
+	return "=" .. table.concat(folded, " ")
+end
+
+-- A reviewed entry in the "=" form (older entries were the folded name alone).
+local function wholeWords(entry: string): string
+	return if string.sub(entry, 1, 1) == "=" then entry else "=" .. entry
+end
+
+function CustomName.reviewedExact(name: string, entries: { string }): boolean
+	local plain = CustomName.fold(name)
+	if plain == "" then
+		return false
+	end
+	for _, entry in entries do
+		if table.concat(words(string.sub(wholeWords(entry), 2))) == plain then
+			return true
+		end
+	end
+	return false
+end
+
 function CustomName.blocked(name: string, entries: { string }, config: Config): boolean
 	local plain = CustomName.fold(name)
 	local tokens: { string }? = nil
@@ -382,6 +418,14 @@ function CustomName.blocked(name: string, entries: { string }, config: Config): 
 		end
 	end
 	return false
+end
+
+function CustomName.blockedReviewed(name: string, entries: { string }, config: Config): boolean
+	local whole: { string } = {}
+	for _, entry in entries do
+		table.insert(whole, wholeWords(entry))
+	end
+	return CustomName.blocked(name, whole, config)
 end
 
 return table.freeze(CustomName)
