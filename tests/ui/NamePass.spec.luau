@@ -276,6 +276,41 @@ describe("Name Pass: who sees a name (D-069)", function()
 		Rig.noErrors(world)
 	end)
 
+	it("an eligible opponent who rejoins mid-match sees A's name again", function()
+		local world, a, b = pair(15, true)
+		expect(nameOfA(world, b, a)):toBe("Captain Zed")
+		local userId = b.player.UserId
+		FakeRoblox.leave(world, b)
+		FakeRoblox.run(world, 2)
+		local again = FakeRoblox.join(world, "B", userId)
+		FakeRoblox.run(world, 12)
+		expect(nameOfA(world, again, a)):toBe("Captain Zed")
+		Rig.noErrors(world)
+	end)
+
+	it("an eligible opponent matched before their chat check returned sees A's name once it does", function()
+		local world = Rig.newWorld(16)
+		FakeRoblox.setNamePass(world, PASS)
+		local first = world.nextUserId
+		FakeRoblox.setCanChat(world, first, true)
+		FakeRoblox.setCanChat(world, first + 1, true)
+		local a = joinWith(world, "A", { owns = true, saved = { customName = "Captain Zed" } })
+		FakeRoblox.run(world, 12)
+		FakeRoblox.fire(world, a, { op = "Queue" })
+		FakeRoblox.run(world, 1)
+		-- B's chat check is slow: B is matched before it returns.
+		world.data.latency = 3
+		local b = joinWith(world, "B", {})
+		FakeRoblox.fire(world, b, { op = "Queue" })
+		FakeRoblox.run(world, 1)
+		check(Rig.payloadOf(world, b) ~= nil, "the match did not start")
+		expect(nameOfA(world, b, a)):toBe(nil)
+		world.data.latency = 0.2
+		FakeRoblox.run(world, 15)
+		expect(nameOfA(world, b, a)):toBe("Captain Zed")
+		Rig.noErrors(world)
+	end)
+
 	it("never sends A's name to an opponent Roblox does not let chat", function()
 		local world, a, b = pair(12, false)
 		expect(nameOfA(world, a, a)):toBe("Captain Zed")

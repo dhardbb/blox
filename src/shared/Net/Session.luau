@@ -899,15 +899,28 @@ function Session.showName(session: Session, viewer: number, setter: number, name
 end
 
 -- The server learned that a seat owns the Name Pass (bought during the match)
--- or that it may use it at all (eligible: then it may also see names; nil =
--- not eligible); sends that seat a fresh State.
+-- or whether it may use it at all (nil: not set up, or not eligible); sends
+-- that seat a fresh State. Who may see names is Session.setSeesNames: a pass
+-- that is not set up, or an answer that is not in yet, never hides them.
 function Session.setNamePass(session: Session, p: number, pass: NamePass?)
 	local seat = session.seats[p]
 	if seat == nil or seat.kind ~= "Human" or session.stage == "Over" then
 		return
 	end
 	seat.namePass = if pass then table.clone(pass) else nil
-	seat.seesNames = pass ~= nil
+	if seat.connected then
+		table.insert(session.outbox, { seat = p, kind = "State", state = Session.payload(session, p) })
+	end
+end
+
+-- The server's eligibility check for a seat came back (D-069): whether this
+-- player may see custom names. Sends that seat a fresh State when it changes.
+function Session.setSeesNames(session: Session, p: number, sees: boolean)
+	local seat = session.seats[p]
+	if seat == nil or seat.kind ~= "Human" or session.stage == "Over" or seat.seesNames == sees then
+		return
+	end
+	seat.seesNames = sees
 	if seat.connected then
 		table.insert(session.outbox, { seat = p, kind = "State", state = Session.payload(session, p) })
 	end

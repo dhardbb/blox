@@ -403,6 +403,8 @@ local function setName(player: Player, text: string?): string?
 	if session then
 		local seat = Session.seatOf(session, id) :: number
 		guard(session, function()
+			-- Eligible: checked just above, so seeing names follows too.
+			Session.setSeesNames(session, seat, eligible(id))
 			Session.setNamePass(session, seat, namePassOf(id))
 			Session.setName(session, seat, name)
 		end)
@@ -814,10 +816,25 @@ function MatchService.start()
 			NameReview.refreshCount() -- the Review names button's count
 		end
 		NameEligibility.refresh(player)
-		approveSavedName(idOf(player))
-		if matchOf[idOf(player)] == nil then
-			sendLobby(idOf(player))
+		local id = idOf(player)
+		approveSavedName(id)
+		if playerOf(id) ~= player then
+			return -- they left meanwhile
 		end
+		local session = sessions[matchOf[id] or ""]
+		if session == nil then
+			sendLobby(id)
+			return
+		end
+		-- Matched (or back in a match) before the check returned: their seat
+		-- follows it now, and the names in the match are shared with them.
+		local seat = Session.seatOf(session, id) :: number
+		guard(session, function()
+			Session.setSeesNames(session, seat, eligible(id))
+			Session.setNamePass(session, seat, namePassOf(id))
+		end)
+		flush(session)
+		task.spawn(shareNames, session)
 	end
 	for _, player in Players:GetPlayers() do
 		sendLobby(idOf(player))
