@@ -362,6 +362,9 @@ describe("Name Pass: Select (D-063)", function()
 		check(Rig.shown(Rig.need(peer, "Select", "NameRow"), "Select"), "no name line for an eligible player")
 		local button = Rig.need(peer, "Select", "NameButton")
 		expect(tostring(button.Text)):toBe("Get the Name Pass")
+		local rules = Rig.need(peer, "Select", "NameRules")
+		check(Rig.shown(rules, "Select"), "no Community Standards note under the offer")
+		check(string.find(tostring(rules.Text), "Community Standards", 1, true) ~= nil, "the note is wrong")
 		Rig.tap(world, peer, "Select", "NameButton", 0.5)
 		expect(#world.market.prompts):toBe(1)
 		expect(world.market.prompts[1].passId):toBe(PASS)
@@ -372,6 +375,8 @@ describe("Name Pass: Select (D-063)", function()
 		-- Rename, type, save: the real server filters it and the line follows.
 		Rig.tap(world, peer, "Select", "NameButton", 0.5)
 		check(Rig.need(peer, "Select", "NameSheet").Visible == true, "the name sheet did not open")
+		check(Rig.need(peer, "Select", "NameSheetRules").Visible ~= false, "no note on the sheet")
+		expect(Rig.need(peer, "Select", "NameRules").Visible):toBe(false) -- an owner: no offer
 		Rig.need(peer, "Select", "NameBox").Text = "Captain Zed"
 		Rig.tap(world, peer, "Select", "NameSave", 1)
 		expect(mine(world, peer)):toBe("Captain Zed")

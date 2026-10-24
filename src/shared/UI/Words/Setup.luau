@@ -59,6 +59,8 @@ Setup.NAME_TITLE = "Name your candidate" -- the name sheet's title
 function Setup.nameHint(max: number): string
 	return `Up to {max} characters. Age-checked players 16+ see it; everyone else sees the candidate's own name.`
 end
+-- Under the Name Pass offer and on the name sheet: names follow Roblox's rules.
+Setup.NAME_RULES = "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
 Setup.NAME_SAVE = "Save name"
 Setup.NAME_RESET = "Use the candidate's name"
 Setup.NAME_SAVING = "Checking the name…"

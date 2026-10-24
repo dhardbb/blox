@@ -740,6 +740,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		"UITextSizeConstraint",
 		{ MaxTextSize = Kit.size.body, MinTextSize = Kit.MIN_TEXT, Parent = nameLine }
 	)
+	-- Under the offer (eligible, without the pass): names follow Roblox's rules.
+	local nameRules = Kit.caption(Words.NAME_RULES, {
+		Name = "NameRules",
+		LayoutOrder = 12,
+		Visible = false,
+		Parent = content,
+	})
 	local nameSheet = Sheet.new(parent, { title = Words.NAME_TITLE, name = "NameSheet", height = 0.5 })
 	local openNameSheet: (current: string?) -> ()
 	local nameButton = Kit.button("", function()
@@ -795,7 +802,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		LayoutOrder = 2,
 		Parent = nameSheet.body,
 	})
-	local nameStatus = Kit.caption("", { Name = "NameStatus", LayoutOrder = 3, Parent = nameSheet.body })
+	Kit.caption(Words.NAME_RULES, { Name = "NameSheetRules", LayoutOrder = 3, Parent = nameSheet.body })
+	local nameStatus = Kit.caption("", { Name = "NameStatus", LayoutOrder = 4, Parent = nameSheet.body })
 	local namePending = false -- a SetName sent and not yet answered
 	local nameWanted: string? = nil -- the name it asked for, cleaned as the server cleans it
 	local messageAtName = 0 -- id of the newest message when it was sent
@@ -814,7 +822,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 	local nameActions = Kit.box({
 		Name = "NameActions",
-		LayoutOrder = 4,
+		LayoutOrder = 5,
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = nameSheet.body,
 	})
@@ -851,6 +859,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local current = payload
 		local naming = if current then current.naming else nil
 		nameRow.Visible = naming ~= nil
+		nameRules.Visible = naming ~= nil and not naming.owned
 		if naming == nil then
 			if nameSheet:isOpen() then
 				nameSheet:close()
