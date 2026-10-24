@@ -38,6 +38,7 @@ local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Explain = require(ReplicatedStorage.Shared.UI.Explain)
 local LobbyWords = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
+local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
 local Audit = require(script.Parent.Audit)
 local Kit = require(script.Parent.Kit)
@@ -427,13 +428,27 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		Visible = false,
 		Parent = sheet.body,
 	})
+	-- Reporting the opponent's custom name (D-063), when one is showing.
+	local reportSeat: number? = nil
+	local report = Kit.button(
+		"",
+		function()
+			local openReport = ctx.report
+			local seat = reportSeat
+			sheet:close()
+			if openReport and seat then
+				openReport(seat)
+			end
+		end,
+		{ variant = "secondary", Name = "HelpReport", LayoutOrder = 10, Visible = false, Parent = sheet.body }
+	)
 	local leave = Kit.button(LobbyWords.LEAVE, function()
 		local openLeave = ctx.leave
 		sheet:close()
 		if openLeave then
 			openLeave()
 		end
-	end, { variant = "danger", Name = "HelpLeave", LayoutOrder = 10, Visible = false, Parent = sheet.body })
+	end, { variant = "danger", Name = "HelpLeave", LayoutOrder = 11, Visible = false, Parent = sheet.body })
 
 	-- The numbers behind each tab, from Explain (refilled at every open).
 	local function fillNumbers()
@@ -528,7 +543,17 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 		fillNumbers()
 		local live = ctx.store.get().payload
 		leave.Visible = ctx.leave ~= nil and live ~= nil and live.stage ~= "Over"
-		leaveRule.Visible = leave.Visible
+		reportSeat = nil
+		if ctx.report and live then
+			for seat, player in live.view.players do
+				if seat ~= live.you and player.customName then
+					reportSeat = seat
+					report.Text = SetupWords.reportButton(player.customName)
+				end
+			end
+		end
+		report.Visible = reportSeat ~= nil
+		leaveRule.Visible = leave.Visible or report.Visible
 		-- Five tabs in a row on a wide screen, three per row on a phone.
 		local size = root.AbsoluteSize
 		local columns = if size.Y > size.X then 3 else #tabs

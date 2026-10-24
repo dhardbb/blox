@@ -78,6 +78,12 @@ local REASONS: { [string]: string } = {
 	NameFiltered = "That name isn't allowed. Try another.",
 	NameFilterFailed = "Names can't be checked right now. Try again in a minute.",
 	NameNotSaved = "Your saved data didn't load, so your name can't be saved.",
+	ReportSelf = "That's your own name.",
+	ReportNoName = "There's no custom name to report there.",
+	ReportTooSoon = "Wait a few seconds before reporting again.",
+	ReportLimit = "You've sent a lot of reports. Thanks! Try again later.",
+	NotAdmin = "Only the game's owners can review names.",
+	ReviewFailed = "The review list couldn't be saved. Try again in a minute.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -91,6 +97,8 @@ local NOTICES: { [string]: string } = {
 	OpponentReconnected = "Your opponent is back.",
 	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
 	OpponentForfeited = "Your opponent left the match. You win by forfeit.",
+	NameReported = "Thanks for the report. You'll see the candidate's own name instead.",
+	NameRemoved = "Your custom name was removed after a review. You can pick a new one.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,
@@ -145,6 +153,8 @@ function Net.start()
 			Store.setLobby(message.lobby)
 		elseif message.kind == "Rating" and message.rating then
 			Store.setRating(message.rating)
+		elseif message.kind == "Review" and message.review then
+			Store.setReview(message.review)
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Notice" then
@@ -209,6 +219,11 @@ end
 -- text filter itself.
 function Net.setName(name: string?)
 	Net.send("SetName", { name = name })
+end
+
+-- Reports the custom name this player was shown for `userId` (D-063).
+function Net.reportName(userId: string)
+	Net.send("ReportName", { userId = userId })
 end
 
 -- Opens Roblox's purchase prompt for a pass (a LocalScript may, per the

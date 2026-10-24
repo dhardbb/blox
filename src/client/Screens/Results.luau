@@ -36,6 +36,7 @@ local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
 local Swing = require(ReplicatedStorage.Shared.UI.Swing)
+local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
@@ -227,6 +228,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				TextSize = Kit.size.caption,
 				TextColor3 = Kit.colors.muted,
 				TextXAlignment = center,
+			})
+		end
+		-- The opponent's custom name (D-063): a quiet way to report it.
+		local report = ctx.report
+		if not mine and report and entry and entry.customName then
+			Kit.button(SetupWords.REPORT, function()
+				report(player)
+			end, {
+				variant = "ghost",
+				Name = "ReportName",
+				LayoutOrder = 7,
+				Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+				Parent = card,
 			})
 		end
 		return votes

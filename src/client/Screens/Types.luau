@@ -27,6 +27,7 @@ export type State = {
 	rating: any?, -- Remotes.RatingChange after the last rated match
 	leaderboard: any?, -- Net/Leaderboard.Board, the global leaderboard (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
+	review: any?, -- Remotes.ReviewBoard: admins' reported names (D-063)
 }
 
 export type Net = {
@@ -37,6 +38,7 @@ export type Net = {
 	setColor: ((color: string?) -> ())?, -- save a chosen color, nil = auto (D-055)
 	buyPass: ((passId: number) -> ())?, -- Roblox's purchase prompt for a pass (D-055)
 	setName: ((name: string?) -> ())?, -- name your candidate, nil = its own name (D-063)
+	reportName: ((userId: string) -> ())?, -- report a custom name you were shown (D-063)
 	bank: () -> (),
 	skip: () -> (),
 	forfeit: (() -> ())?, -- leave the current match and lose it (D-059)
@@ -59,6 +61,7 @@ export type Ctx = {
 	portrait: () -> boolean, -- true when the screen is taller than wide (phones)
 	help: (() -> ())?, -- opens the "How it works" overlay (UI/Help), when App mounted one
 	leave: (() -> ())?, -- opens the "Leave match" confirmation (UI/LeaveMatch, D-059)
+	report: ((seat: number) -> ())?, -- opens the "Report name" confirmation for a seat (UI/ReportName, D-063)
 }
 
 export type Screen = {
