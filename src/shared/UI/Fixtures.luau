@@ -158,6 +158,10 @@ local function selectName(config: Config, s: number, owned: boolean): Session.St
 	local ok, reason = Session.claim(session, 2, session.step, "calloway", 0)
 	assert(ok, `fixture claim rejected: {reason}`)
 	Session.update(session, 0)
+	if owned then
+		-- The server shares each name once it is filtered for the viewer.
+		Session.showName(session, 1, 2, Fixtures.THEIR_NAME, Fixtures.THEIR_NAME)
+	end
 	Session.drain(session)
 	return Session.payload(session, 1)
 end

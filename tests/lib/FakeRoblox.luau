@@ -34,7 +34,10 @@
 -- GetNonChatStringForBroadcastAsync() writes "#" over every word in
 -- world.text.hidden (case ignored), as Roblox's filter does; world.text.calls
 -- counts the calls. FakeRoblox.setNamePass sets Net/Products.NAME_PASS_ID and
--- FakeRoblox.setVerifiedAge makes server/NameEligibility report an age.
+-- TextChatService (name eligibility, D-063): CanUserChatAsync(userId) answers
+-- world.chat.allowed[userId] (default false), CanUsersChatAsync(from, to) is
+-- true unless world.chat.blocked["from:to"]; both wait the DataStore latency
+-- and fail while world.chat.failures > 0 (FakeRoblox.setCanChat, blockChat).
 --
 -- Presentation stubs (client polish, docs/DESIGN.md D-053): TweenService
 -- (Create returns a tween whose Play applies the goals at once and fires
@@ -114,6 +117,7 @@ export type World = {
 	brokenAssets: { [string]: boolean }, -- content ids PreloadAsync reports as Failure
 	market: MarketState,
 	text: TextState,
+	chat: ChatState,
 	overrides: { [string]: { [string]: any } }, -- module path (from the root) -> fields set after it loads
 	userNames: { [number]: string }, -- usernames GetNameFromUserIdAsync knows besides joined players
 	nameFailures: number, -- the next N GetNameFromUserIdAsync calls fail
@@ -134,6 +138,14 @@ export type TextState = {
 	failures: number, -- the next N FilterStringAsync calls fail
 	calls: number, -- FilterStringAsync calls so far
 	contexts: { string }, -- the TextFilterContext name of each call, in order
+}
+
+-- The fake TextChatService's world-level state (D-063).
+export type ChatState = {
+	allowed: { [number]: boolean }, -- user id -> CanUserChatAsync's answer (absent: false)
+	blocked: { [string]: boolean }, -- "from:to" -> CanUsersChatAsync answers false
+	failures: number, -- the next N calls fail
+	calls: number, -- calls so far
 }
 
 -- One Sound:Play() in the fake engine (world.sounds).
@@ -512,6 +524,29 @@ local function newMarketplaceService(world: World): any
 			table.insert(world.market.prompts, { userId = player.UserId, passId = passId })
 		end,
 		PromptGamePassPurchaseFinished = newSignal(world),
+	}
+end
+
+-- TextChatService for one peer: the two chat-permission checks (see the header).
+local function newTextChatService(world: World): any
+	local function begin()
+		local state = world.chat
+		state.calls += 1
+		requestDelay(world)
+		if state.failures > 0 then
+			state.failures -= 1
+			error("HTTP 500 (simulated TextChatService failure)", 0)
+		end
+	end
+	return {
+		CanUserChatAsync = function(_self: any, userId: number): boolean
+			begin()
+			return world.chat.allowed[userId] == true
+		end,
+		CanUsersChatAsync = function(_self: any, from: number, to: number): boolean
+			begin()
+			return world.chat.blocked[`{from}:{to}`] ~= true
+		end,
 	}
 end
 
@@ -1312,6 +1347,7 @@ local function newGame(world: World, isServer: boolean): any
 	services.DataStoreService = newDataStoreService(world)
 	services.MarketplaceService = newMarketplaceService(world)
 	services.TextService = newTextService(world)
+	services.TextChatService = newTextChatService(world)
 	rawget(game, "_props").JobId = if isServer then world.jobId else ""
 	if isServer then
 		local spsParent = newInstance(world, "StarterPlayerScripts", "StarterPlayerScripts")
@@ -1472,6 +1508,7 @@ function FakeRoblox.world(options: { root: string, seed: number?, screen: { x: n
 		brokenAssets = {},
 		market = { owned = {}, failures = 0, checks = 0, prompts = {} },
 		text = { hidden = { "zork" }, failures = 0, calls = 0, contexts = {} },
+		chat = { allowed = {}, blocked = {}, failures = 0, calls = 0 },
 		overrides = {},
 		userNames = {},
 		nameFailures = 0,
@@ -1673,17 +1710,15 @@ function FakeRoblox.setNamePass(world: World, passId: number)
 	FakeRoblox.setModuleField(world, "src/shared/Net/Products.luau", "NAME_PASS_ID", passId)
 end
 
--- Makes server/NameEligibility report a verified age (D-063): `ages` maps a
--- user id to an age; anyone else stays unknown (not eligible).
-function FakeRoblox.setVerifiedAge(world: World, ages: { [number]: number })
-	FakeRoblox.setModuleField(
-		world,
-		"src/server/NameEligibility.luau",
-		"verifiedAge",
-		function(player: any): number?
-			return ages[player.UserId]
-		end
-	)
+-- Sets what TextChatService:CanUserChatAsync answers for a user (D-063: the
+-- Name Pass's eligibility stand-in).
+function FakeRoblox.setCanChat(world: World, userId: number, allowed: boolean)
+	world.chat.allowed[userId] = allowed
+end
+
+-- Makes CanUsersChatAsync(from, to) answer false (blocked, parental controls).
+function FakeRoblox.blockChat(world: World, from: number, to: number)
+	world.chat.blocked[`{from}:{to}`] = true
 end
 
 -- Gives (or takes back) a pass outside the game, as a purchase on the website would.

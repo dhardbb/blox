@@ -50,8 +50,9 @@ export type Seat = {
 	-- Custom names (the Name Pass, D-063). The server fills these from its own
 	-- checks; a bot seat never has any.
 	customName: string?, -- this player's candidate name for the match, already filtered
-	seesNames: boolean, -- this player may see custom names (a Roblox-verified 16+ account)
+	seesNames: boolean, -- this player may see custom names (eligible: Roblox lets them chat)
 	namePass: NamePass?, -- this player may use the Name Pass (it is set up and they are eligible)
+	shownNames: { [number]: string? }, -- other seats' names as filtered for THIS viewer (Session.showName)
 }
 
 -- The Name Pass as one seat sees it (D-063): present only for a player who is
@@ -207,14 +208,16 @@ function Session.payload(session: Session, p: number): StatePayload
 	local deadline = if session.stage == "Input"
 		then seatDeadline(session, session.seats[p])
 		else session.skippedTo or session.deadline
-	-- Custom names reach only a viewer who may see them (D-063).
+	-- Custom names reach only a viewer who may see them (D-063): their own,
+	-- and each other seat's as the server filtered it for this viewer.
 	local seat = session.seats[p]
 	local names: { [number]: string }? = nil
 	if seat.seesNames then
 		local found: { [number]: string } = {}
 		for q, other in session.seats do
-			if other.customName ~= nil then
-				found[q] = other.customName
+			local shown = if q == p then other.customName else seat.shownNames[q]
+			if shown ~= nil and other.customName ~= nil then
+				found[q] = shown
 			end
 		end
 		names = found
@@ -582,6 +585,7 @@ function Session.new(
 			customName = if spec.kind == "Human" then spec.customName else nil,
 			seesNames = spec.kind == "Human" and spec.seesNames == true,
 			namePass = if spec.kind == "Human" and spec.namePass then table.clone(spec.namePass) else nil,
+			shownNames = {},
 		}
 	end
 	local session: Session = {
@@ -768,18 +772,46 @@ function Session.setName(session: Session, p: number, name: string?): (boolean, 
 		return false, CustomName.Reason.NoNamePass
 	end
 	seat.customName = name
+	-- Nobody else sees the new name until the server has filtered it for them.
+	for _, other in session.seats do
+		other.shownNames[p] = nil
+	end
 	broadcast(session)
 	return true, nil
 end
 
+-- Shows seat `setter`'s name `name` to seat `viewer` as `text`: the name as the
+-- server filtered it for that viewer, or nil to show them the candidate's own
+-- name (D-063). Ignored when the setter's name has changed since (`name` is
+-- what the server filtered). Sends the viewer a fresh State when it changes.
+function Session.showName(session: Session, viewer: number, setter: number, name: string, text: string?)
+	local seat = session.seats[viewer]
+	local from = session.seats[setter]
+	if seat == nil or from == nil or viewer == setter or session.stage == "Over" then
+		return
+	end
+	if from.customName ~= name or seat.shownNames[setter] == text then
+		return
+	end
+	seat.shownNames[setter] = text
+	if seat.kind == "Human" and seat.connected then
+		table.insert(
+			session.outbox,
+			{ seat = viewer, kind = "State", state = Session.payload(session, viewer) }
+		)
+	end
+end
+
 -- The server learned that a seat owns the Name Pass (bought during the match)
--- or that it may use it at all; sends that seat a fresh State.
+-- or that it may use it at all (eligible: then it may also see names; nil =
+-- not eligible); sends that seat a fresh State.
 function Session.setNamePass(session: Session, p: number, pass: NamePass?)
 	local seat = session.seats[p]
 	if seat == nil or seat.kind ~= "Human" or session.stage == "Over" then
 		return
 	end
 	seat.namePass = if pass then table.clone(pass) else nil
+	seat.seesNames = pass ~= nil
 	if seat.connected then
 		table.insert(session.outbox, { seat = p, kind = "State", state = Session.payload(session, p) })
 	end

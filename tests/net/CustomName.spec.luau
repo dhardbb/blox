@@ -60,16 +60,6 @@ describe("CustomName limits", function()
 		expect(CustomName.fitsLength("Abcd", short)):toBe(true)
 		expect(CustomName.fitsLength("Abcde", short)):toBe(false)
 	end)
-
-	it("eligibleAge needs a verified age of NAME_MIN_AGE (16) or more; unknown is no", function()
-		expect(C.NAME_MIN_AGE):toBe(16)
-		expect(CustomName.eligibleAge(nil, C)):toBe(false)
-		expect(CustomName.eligibleAge(13, C)):toBe(false)
-		expect(CustomName.eligibleAge(15, C)):toBe(false)
-		expect(CustomName.eligibleAge(16, C)):toBe(true)
-		expect(CustomName.eligibleAge(40, C)):toBe(true)
-		expect(CustomName.eligibleAge(17, Config.with(C, { NAME_MIN_AGE = 18 }))):toBe(false)
-	end)
 end)
 
 describe("CustomName filter and blocklist checks", function()
@@ -144,6 +134,22 @@ describe("Session custom names (D-063)", function()
 		expect(Session.payload(s, 3).naming):toBe(nil)
 		-- View.build without names never carries one.
 		expect(View.build(C, s.match, 1).players[1].customName):toBe(nil)
+	end)
+
+	it("shows another seat's name only as filtered for the viewer (showName)", function()
+		local s = Session.new(C, "m2", 7, {
+			{ id = "a", kind = "Human", seesNames = true, customName = "Captain Zed" },
+			{ id = "b", kind = "Human", seesNames = true, namePass = { id = 1, owned = true } },
+		}, 0)
+		expect(Session.payload(s, 2).view.players[1].customName):toBe(nil) -- not shared yet
+		Session.showName(s, 2, 1, "Captain Zed", "Captain Zed")
+		expect(Session.payload(s, 2).view.players[1].customName):toBe("Captain Zed")
+		Session.showName(s, 2, 1, "Old Name", nil) -- stale: ignored
+		expect(Session.payload(s, 2).view.players[1].customName):toBe("Captain Zed")
+		-- A's view of B follows B's new name only once it is shared.
+		Session.setName(s, 2, "Big Wave")
+		expect(Session.payload(s, 1).view.players[2].customName):toBe(nil)
+		expect(Session.payload(s, 2).view.players[2].customName):toBe("Big Wave")
 	end)
 
 	it("setName needs Select, the pass and a human seat", function()

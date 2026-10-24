@@ -2,10 +2,11 @@
 -- The Name Pass (docs/DESIGN.md D-063) end to end on the fake engine: the real
 -- server (MatchService, PassService, NameService, NameEligibility, DataService)
 -- and the real client Select screen. Ownership comes from the fake
--- MarketplaceService, eligibility from server/NameEligibility (faked with
--- FakeRoblox.setVerifiedAge: no engine API reports a verified age, so by
--- default nobody is eligible), the filter from the fake TextService (it hides
--- "zork"). A custom name reaches only viewers who are eligible themselves.
+-- MarketplaceService, eligibility from the fake TextChatService (the stand-in
+-- for 16+: CanUserChatAsync, and CanUsersChatAsync per pair; by default nobody
+-- may chat), the filter from the fake TextService (it hides "zork"). A custom
+-- name reaches only viewers who are eligible themselves and may receive the
+-- setter's messages.
 
 local Test = require("@testlib/Test")
 local FakeRoblox = require("@testlib/FakeRoblox")
@@ -27,11 +28,11 @@ local check = Rig.check
 type Options = {
 	passId: number?, -- default PASS; 0 turns the pass off
 	owns: boolean?,
-	age: number?, -- the verified age NameEligibility reports; nil = unknown (not eligible)
+	chat: boolean?, -- what CanUserChatAsync answers for this player (default false: not eligible)
 	saved: any?,
 }
 
--- Sets up one player's pass, age and saved profile before they join, then joins them.
+-- Sets up one player's pass, chat permission and saved profile before they join, then joins them.
 local function joinWith(world: FakeRoblox.World, name: string, options: Options): FakeRoblox.Peer
 	local userId = world.nextUserId
 	if options.owns then
@@ -47,7 +48,7 @@ end
 local function live(seed: number, options: Options): (FakeRoblox.World, FakeRoblox.Peer)
 	local world = Rig.newWorld(seed)
 	FakeRoblox.setNamePass(world, options.passId or PASS)
-	FakeRoblox.setVerifiedAge(world, if options.age then { [world.nextUserId] = options.age } else {})
+	FakeRoblox.setCanChat(world, world.nextUserId, options.chat == true)
 	local peer = joinWith(world, "A", options)
 	FakeRoblox.run(world, 12) -- loads, checks, the saved name's filter
 	return world, peer
@@ -88,7 +89,7 @@ end
 describe("Name Pass: who may use it (D-063)", function()
 	it("is hidden everywhere while the pass id is 0", function()
 		local world, peer =
-			live(1, { passId = 0, owns = true, age = 30, saved = { customName = "Captain Zed" } })
+			live(1, { passId = 0, owns = true, chat = true, saved = { customName = "Captain Zed" } })
 		local payload = practice(world, peer)
 		expect(payload.naming):toBe(nil)
 		expect(mine(world, peer)):toBe(nil)
@@ -99,7 +100,7 @@ describe("Name Pass: who may use it (D-063)", function()
 		Rig.noErrors(world)
 	end)
 
-	it("fails closed: with no verified age, an owner cannot buy, set or see a name", function()
+	it("an owner Roblox does not let chat cannot buy, set or see a name", function()
 		local world, peer = live(2, { owns = true, saved = { customName = "Captain Zed" } })
 		local payload = practice(world, peer)
 		expect(payload.naming):toBe(nil)
@@ -111,18 +112,39 @@ describe("Name Pass: who may use it (D-063)", function()
 		Rig.noErrors(world)
 	end)
 
-	it("turns down a verified 15-year-old", function()
-		local world, peer = live(3, { owns = true, age = 15 })
+	it("fails closed when the chat check errors, and asks again on SetName", function()
+		local world = Rig.newWorld(3)
+		FakeRoblox.setNamePass(world, PASS)
+		FakeRoblox.setCanChat(world, world.nextUserId, true)
+		world.chat.failures = 1
+		local peer = joinWith(world, "A", { owns = true })
+		FakeRoblox.run(world, 12)
 		expect(practice(world, peer).naming):toBe(nil)
+		-- The next ask succeeds: SetName checks again before turning anyone down.
 		setName(world, peer, "Big Wave")
-		expect(rejected(world, peer, "NameNotEligible")):toBe(true)
+		expect(rejected(world, peer, "NameNotEligible")):toBe(false)
+		expect(mine(world, peer)):toBe("Big Wave")
 		Rig.noErrors(world)
+	end)
+
+	it("Studio override: everyone eligible in Studio, ignored in a live server", function()
+		for _, studio in { true, false } do
+			local world = Rig.newWorld(if studio then 30 else 31)
+			world.studio = studio
+			FakeRoblox.setNamePass(world, PASS)
+			FakeRoblox.setModuleField(world, "src/server/NameEligibility.luau", "STUDIO_OVERRIDE", true)
+			local peer = joinWith(world, "A", { owns = true })
+			FakeRoblox.run(world, 12)
+			local naming = practice(world, peer).naming
+			expect(naming ~= nil):toBe(studio)
+			Rig.noErrors(world)
+		end
 	end)
 end)
 
 describe("Name Pass: setting a name (D-063)", function()
 	it("names an eligible owner's candidate, saves it, and never names the bot", function()
-		local world, peer = live(4, { owns = true, age = 16 })
+		local world, peer = live(4, { owns = true, chat = true })
 		local payload = practice(world, peer)
 		check(payload.naming ~= nil, "no naming for an eligible owner")
 		expect(payload.naming.id):toBe(PASS)
@@ -142,7 +164,7 @@ describe("Name Pass: setting a name (D-063)", function()
 	end)
 
 	it("turns down filtered, empty, too long and bad names, and keeps the old one", function()
-		local world, peer = live(5, { owns = true, age = 20 })
+		local world, peer = live(5, { owns = true, chat = true })
 		practice(world, peer)
 		setName(world, peer, "Captain Zed")
 		local before = world.text.calls
@@ -165,7 +187,7 @@ describe("Name Pass: setting a name (D-063)", function()
 	end)
 
 	it("fails closed when the filter cannot be reached", function()
-		local world, peer = live(6, { owns = true, age = 20 })
+		local world, peer = live(6, { owns = true, chat = true })
 		practice(world, peer)
 		world.text.failures = 1
 		setName(world, peer, "Captain Zed")
@@ -175,7 +197,7 @@ describe("Name Pass: setting a name (D-063)", function()
 	end)
 
 	it("turns down a name on the server's blocklist before the filter", function()
-		local world, peer = live(7, { owns = true, age = 20 })
+		local world, peer = live(7, { owns = true, chat = true })
 		FakeRoblox.setModuleField(world, "src/server/NameService.luau", "BLOCKLIST", { "Grumble" })
 		practice(world, peer)
 		local before = world.text.calls
@@ -187,10 +209,10 @@ describe("Name Pass: setting a name (D-063)", function()
 	end)
 
 	it("filters a saved name again when the player joins", function()
-		local world, peer = live(8, { owns = true, age = 20, saved = { customName = "Zork" } })
+		local world, peer = live(8, { owns = true, chat = true, saved = { customName = "Zork" } })
 		expect(practice(world, peer).naming.name):toBe(nil)
 		expect(mine(world, peer)):toBe(nil)
-		local other, again = live(9, { owns = true, age = 20, saved = { customName = "Captain Zed" } })
+		local other, again = live(9, { owns = true, chat = true, saved = { customName = "Captain Zed" } })
 		expect(practice(other, again).naming.name):toBe("Captain Zed")
 		expect(mine(other, again)):toBe("Captain Zed")
 		Rig.noErrors(world)
@@ -198,7 +220,7 @@ describe("Name Pass: setting a name (D-063)", function()
 	end)
 
 	it("only changes the match during Select; later it is saved for the next match", function()
-		local world, peer = live(10, { owns = true, age = 20 })
+		local world, peer = live(10, { owns = true, chat = true })
 		practice(world, peer)
 		Rig.tap(world, peer, "Select", "Candidate_hale")
 		Rig.tap(world, peer, "Select", "LockIn", 1)
@@ -217,11 +239,19 @@ end)
 
 describe("Name Pass: who sees a name (D-063)", function()
 	-- Two players queue into one match: A eligible and named, B as given.
-	local function pair(seed: number, bAge: number?): (FakeRoblox.World, FakeRoblox.Peer, FakeRoblox.Peer)
+	local function pair(
+		seed: number,
+		bChats: boolean,
+		blocked: boolean?
+	): (FakeRoblox.World, FakeRoblox.Peer, FakeRoblox.Peer)
 		local world = Rig.newWorld(seed)
 		FakeRoblox.setNamePass(world, PASS)
 		local first = world.nextUserId
-		FakeRoblox.setVerifiedAge(world, { [first] = 30, [first + 1] = bAge :: any })
+		FakeRoblox.setCanChat(world, first, true)
+		FakeRoblox.setCanChat(world, first + 1, bChats)
+		if blocked then
+			FakeRoblox.blockChat(world, first, first + 1)
+		end
 		local a = joinWith(world, "A", { owns = true, saved = { customName = "Captain Zed" } })
 		local b = joinWith(world, "B", {})
 		FakeRoblox.run(world, 12)
@@ -238,7 +268,7 @@ describe("Name Pass: who sees a name (D-063)", function()
 	end
 
 	it("shows A's name to A and to an eligible opponent", function()
-		local world, a, b = pair(11, 18)
+		local world, a, b = pair(11, true)
 		expect(nameOfA(world, a, a)):toBe("Captain Zed")
 		expect(nameOfA(world, b, a)):toBe("Captain Zed")
 		-- B may use the pass too (eligible), but does not own it.
@@ -246,8 +276,8 @@ describe("Name Pass: who sees a name (D-063)", function()
 		Rig.noErrors(world)
 	end)
 
-	it("never sends A's name to an opponent who is not verified 16+", function()
-		local world, a, b = pair(12, nil)
+	it("never sends A's name to an opponent Roblox does not let chat", function()
+		local world, a, b = pair(12, false)
 		expect(nameOfA(world, a, a)):toBe("Captain Zed")
 		expect(nameOfA(world, b, a)):toBe(nil)
 		expect(Rig.payloadOf(world, b).naming):toBe(nil)
@@ -259,9 +289,31 @@ describe("Name Pass: who sees a name (D-063)", function()
 	end)
 end)
 
+describe("Name Pass: who sees a name, pairs (D-063)", function()
+	it("hides A's name from an eligible opponent who may not receive A's messages", function()
+		local world = Rig.newWorld(14)
+		FakeRoblox.setNamePass(world, PASS)
+		local first = world.nextUserId
+		FakeRoblox.setCanChat(world, first, true)
+		FakeRoblox.setCanChat(world, first + 1, true)
+		FakeRoblox.blockChat(world, first, first + 1)
+		local a = joinWith(world, "A", { owns = true, saved = { customName = "Captain Zed" } })
+		local b = joinWith(world, "B", { owns = true, saved = { customName = "Big Wave" } })
+		FakeRoblox.run(world, 12)
+		FakeRoblox.fire(world, a, { op = "Queue" })
+		FakeRoblox.fire(world, b, { op = "Queue" })
+		FakeRoblox.run(world, 2)
+		local pa, pb = Rig.payloadOf(world, a), Rig.payloadOf(world, b)
+		expect(pb.view.players[pa.you].customName):toBe(nil) -- A -> B is blocked
+		expect(pa.view.players[pb.you].customName):toBe("Big Wave") -- B -> A is not
+		expect(pa.view.players[pa.you].customName):toBe("Captain Zed")
+		Rig.noErrors(world)
+	end)
+end)
+
 describe("Name Pass: Select (D-063)", function()
 	it("offers the pass to an eligible player without it, and Rename after the purchase", function()
-		local world, peer = live(13, { owns = false, age = 25 })
+		local world, peer = live(13, { owns = false, chat = true })
 		practice(world, peer)
 		Rig.tap(world, peer, "Select", "Candidate_okafor")
 		check(Rig.shown(Rig.need(peer, "Select", "NameRow"), "Select"), "no name line for an eligible player")

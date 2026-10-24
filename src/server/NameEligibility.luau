@@ -1,47 +1,101 @@
 --!strict
--- Who may buy, set and see custom candidate names (the Name Pass, D-063): only
--- accounts Roblox has verified as at least Config.NAME_MIN_AGE (16) years old.
--- Everyone else, and anyone whose age the game cannot read, is not eligible:
--- this fails closed.
+-- Who may buy, set and see custom candidate names (the Name Pass, D-063).
 --
--- What the Roblox engine docs offer a game script (checked Oct 2026 in
--- creator-docs, reference/engine), and why none of it is used:
---   Player.AgeChecked (Enum.AgeCheckStatus Unchecked | Checked): whether the
---     player finished an age check (Player:PromptAgeCheck). It does not say
---     which age the check found, so it cannot tell 16+ from 9-15.
---   Player:IsVerified(Enum.VerifiedLevel.Low | High): "real-world signals"
---     such as a phone number or government ID; not an age. Always false in Studio.
---   PolicyService:GetPolicyInfoForPlayerAsync: policy flags (AreAdsAllowed,
---     ArePaidRandomItemsRestricted, IsContentSharingAllowed, IsPhotoToAvatarAllowed
---     "reflects age (for example, users under 13)", ...). No age or 16+ flag.
---   TextChatService:CanUserChatAsync / CanUsersChatAsync / GetChatGroupsAsync:
---     whether players may chat (age checks and parental controls feed it); not an age.
---   Players / Player have no age, age group or birthday.
--- The one exact 16+ guarantee is outside scripts: a game whose maturity label
--- is "Content May Vary" is only open to age-checked users 16+
--- (production/promotion/content-maturity, production/publishing/kids-and-select).
+-- The designers asked for "16+". Roblox exposes no age to scripts, so the
+-- user chose a stand-in: Roblox's own chat permission. Text chat now needs an
+-- age check, but a parent can also allow it, so this is close to, not the same
+-- as, "age-checked 16+".
+--   eligible(player)     TextChatService:CanUserChatAsync(player.UserId)
+--   canSee(setter, viewer)  TextChatService:CanUsersChatAsync(setter, viewer):
+--                        a viewer sees a setter's name only if the two may
+--                        exchange chat messages (parental controls, blocks).
+-- Docs (reference/engine/classes/TextChatService): both yield; CanUserChatAsync
+-- errors when the user is not in this server; CanUsersChatAsync is server-only
+-- and errors unless both are in this server. Every call is pcall'd and an
+-- error counts as "no": this fails closed.
 --
--- So `verifiedAge` returns nil for everyone until Roblox offers an API; plug it
--- in here and nowhere else. The specs replace `verifiedAge` to test the rest.
+-- Answers are cached per player for their visit: `refresh` asks when they join
+-- (MatchService), `forget` drops them when they leave, so a rejoin asks again.
+-- `isEligible` only reads the cache (never yields: a match start must not wait
+-- on it); while unknown it is false. `canSee` is cached per pair.
+--
+-- Studio: the chat APIs may not answer there. Set STUDIO_OVERRIDE = true (in
+-- this file, never committed as true) to make everyone eligible and every pair
+-- allowed, only while RunService:IsStudio() is true; a live server ignores it.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage.Shared.Sim.Config)
-local CustomName = require(ReplicatedStorage.Shared.Net.CustomName)
+local RunService = game:GetService("RunService")
+local TextChatService = game:GetService("TextChatService")
 
 local NameEligibility = {}
 
--- The player's age as Roblox has verified it, or nil when the game cannot know.
--- No engine API returns it today (see the header), so: nil.
-function NameEligibility.verifiedAge(_player: Player): number?
-	return nil
+-- Server-only test switch for Studio (see the header). Has no effect in a live server.
+NameEligibility.STUDIO_OVERRIDE = false
+
+local eligible: { [number]: boolean } = {} -- user id -> may chat (absent: not asked yet)
+local pairs_: { [string]: boolean } = {} -- "from:to" -> may exchange messages
+
+local function studioOverride(): boolean
+	return NameEligibility.STUDIO_OVERRIDE == true and RunService:IsStudio()
 end
 
--- True only for an account verified as NAME_MIN_AGE or older. Never yields
--- longer than verifiedAge does; never throws (a failure is "not eligible").
+-- Asks Roblox again whether `player` may chat and caches the answer (yields).
+-- An error is "no".
+function NameEligibility.refresh(player: Player): boolean
+	if studioOverride() then
+		eligible[player.UserId] = true
+		return true
+	end
+	local ok, result = pcall(function(): boolean
+		return TextChatService:CanUserChatAsync(player.UserId)
+	end)
+	local answer = ok and result == true
+	if not ok then
+		warn(`[270] name eligibility check failed for {player.UserId}: {tostring(result)}`)
+	end
+	eligible[player.UserId] = answer
+	return answer
+end
+
+-- The cached answer; false while unknown. Never yields.
 function NameEligibility.isEligible(player: Player): boolean
-	local ok, age = pcall(NameEligibility.verifiedAge, player)
-	return ok and CustomName.eligibleAge(age, Config.defaults)
+	return studioOverride() or eligible[player.UserId] == true
+end
+
+-- Whether `viewer` may see a name `setter` wrote: both eligible and allowed to
+-- exchange messages. Cached per pair; yields the first time. An error is "no".
+function NameEligibility.canSee(setter: Player, viewer: Player): boolean
+	if not NameEligibility.isEligible(setter) or not NameEligibility.isEligible(viewer) then
+		return false
+	end
+	if setter == viewer or studioOverride() then
+		return true
+	end
+	local key = `{setter.UserId}:{viewer.UserId}`
+	local cached = pairs_[key]
+	if cached ~= nil then
+		return cached
+	end
+	local ok, result = pcall(function(): boolean
+		return TextChatService:CanUsersChatAsync(setter.UserId, viewer.UserId)
+	end)
+	if not ok then
+		warn(`[270] name visibility check failed for {key}: {tostring(result)}`)
+	end
+	local answer = ok and result == true
+	pairs_[key] = answer
+	return answer
+end
+
+-- Drops everything cached about a player who left.
+function NameEligibility.forget(player: Player)
+	local id = player.UserId
+	eligible[id] = nil
+	for key in pairs_ do
+		local from, to = string.match(key, "^(%-?%d+):(%-?%d+)$")
+		if tonumber(from) == id or tonumber(to) == id then
+			pairs_[key] = nil
+		end
+	end
 end
 
 return NameEligibility

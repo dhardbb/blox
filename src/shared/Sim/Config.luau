@@ -185,7 +185,6 @@ local Config = {
 	-- Custom candidate names (the Name Pass, D-063). Not rules: who may name a
 	-- candidate, and how long a name may be.
 	NAME_MAX_LENGTH = 16, -- characters in a custom name, after trimming (the "16" the designers asked for)
-	NAME_MIN_AGE = 16, -- a custom name needs a Roblox-verified age of at least this (the user's decision, D-063)
 
 	-- Meta
 	ELO_K = 32, -- rating K-factor

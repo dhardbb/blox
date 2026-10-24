@@ -1,9 +1,9 @@
 --!strict
 -- Custom candidate names (the Name Pass, docs/DESIGN.md D-063), the pure part:
--- cleaning up what a player typed, the length limit and the age rule, each a
+-- cleaning up what a player typed and the length limit, each a
 -- small function of its own so the server and the specs share them. The text
 -- filter (TextService) and the server-only blocklist live in server/NameService;
--- reading a player's verified age lives in server/NameEligibility.
+-- who may use names lives in server/NameEligibility.
 --
 --   CustomName.normalize(text, config) -> (name?, reason?)
 --     trims, collapses every run of whitespace to one space, and turns down
@@ -11,8 +11,6 @@
 --     a "#" (Roblox's filter writes "#" over what it hides), is empty, or is
 --     too long. Never throws.
 --   CustomName.fitsLength(name, config) -> boolean   at most NAME_MAX_LENGTH characters
---   CustomName.eligibleAge(verifiedAge?, config) -> boolean
---     true only for a verified age of at least NAME_MIN_AGE; nil (unknown) is false
 --   CustomName.wasFiltered(name, filtered) -> boolean
 --     the filter changed the text or hid part of it
 --   CustomName.blocked(name, list) -> boolean
@@ -27,7 +25,7 @@ local CustomName = {}
 
 CustomName.Reason = table.freeze({
 	NoNamePass = "NoNamePass", -- the pass is not set up, or the player does not own it
-	NotEligible = "NameNotEligible", -- not a Roblox-verified 16+ account
+	NotEligible = "NameNotEligible", -- not eligible (Roblox does not let them chat)
 	BadText = "NameBadText", -- not text, not UTF-8, a control character or "#"
 	Empty = "NameEmpty", -- nothing left after trimming
 	TooLong = "NameTooLong", -- over NAME_MAX_LENGTH characters
@@ -44,10 +42,6 @@ end
 function CustomName.fitsLength(name: string, config: Config): boolean
 	local n = length(name)
 	return n ~= nil and n <= config.NAME_MAX_LENGTH
-end
-
-function CustomName.eligibleAge(verifiedAge: number?, config: Config): boolean
-	return type(verifiedAge) == "number" and verifiedAge >= config.NAME_MIN_AGE
 end
 
 function CustomName.normalize(text: any, config: Config): (string?, string?)

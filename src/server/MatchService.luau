@@ -69,9 +69,8 @@ local function playerOf(id: string): Player?
 	return if userId then Players:GetPlayerByUserId(userId) else nil
 end
 
--- Whether this player may buy, set and see custom names (D-063): a
--- Roblox-verified 16+ account (server/NameEligibility; today nobody, as no
--- engine API reports a verified age).
+-- Whether this player may buy, set and see custom names (D-063): Roblox lets
+-- them chat (server/NameEligibility, the stand-in for 16+; cached, checked on join).
 local function eligible(id: string): boolean
 	local player = playerOf(id)
 	return player ~= nil and NameEligibility.isEligible(player)
@@ -107,7 +106,8 @@ end
 -- and their saved color is claimed for them as Select opens (D-061). Anyone
 -- else, or an owner whose check failed, is dealt red or blue. The Name Pass
 -- (D-063): an eligible player gets the pass's state; an owner's saved name,
--- already filtered, names their candidate; only eligible players see names.
+-- already filtered, names their candidate; only eligible players see names,
+-- and another player's only once it is filtered for them (shareNames).
 local function humanSpec(id: string): Session.SeatSpec
 	local owns = PassService.ownsColorPass(id)
 	local profile = if owns then DataService.profile(id) else nil
@@ -281,8 +281,38 @@ local function guard(session: Session.Session, call: () -> ()): boolean
 	return false
 end
 
+-- Shows each custom name in a match to every other player allowed to see it
+-- (D-063): an eligible viewer whom Roblox lets receive the setter's messages
+-- (NameEligibility.canSee). Everyone else keeps the candidate's own name.
+-- Yields (the checks); a match that ended meanwhile is left alone.
+local function shareNames(session: Session.Session)
+	for q, setter in session.seats do
+		local name = setter.customName
+		local from = playerOf(setter.id)
+		if setter.kind ~= "Human" or name == nil or from == nil then
+			continue
+		end
+		for p, viewer in session.seats do
+			if p == q or viewer.kind ~= "Human" or not viewer.seesNames then
+				continue
+			end
+			local to = playerOf(viewer.id)
+			local allowed = to ~= nil and NameEligibility.canSee(from, to)
+			if sessions[session.id] ~= session then
+				return
+			end
+			guard(session, function()
+				Session.showName(session, p, q, name, if allowed then name else nil)
+			end)
+		end
+	end
+	if sessions[session.id] == session then
+		flush(session)
+	end
+end
+
 -- SetName (D-063): names the player's candidate (nil = its own name). Needs the
--- Name Pass and an eligible (verified 16+) account; the name is checked and
+-- Name Pass and an eligible account (Roblox lets them chat); the name is checked and
 -- filtered (server/NameService), saved in the profile, and, during Select,
 -- used in the player's match at once. Returns a reason code when it is turned
 -- down (CustomName.Reason); the old name stays. May yield (the filter, a
@@ -292,7 +322,7 @@ local function setName(player: Player, text: string?): string?
 	if PassService.namePassId() == nil then
 		return CustomName.Reason.NoNamePass
 	end
-	if not eligible(id) then
+	if not eligible(id) and not NameEligibility.refresh(player) then
 		return CustomName.Reason.NotEligible
 	end
 	-- Not known to own it: ask Roblox again, never the client.
@@ -326,6 +356,7 @@ local function setName(player: Player, text: string?): string?
 			Session.setName(session, seat, name)
 		end)
 		flush(session)
+		task.spawn(shareNames, session)
 	elseif how == "Skipped" then
 		return CustomName.Reason.NotSaved
 	end
@@ -402,6 +433,7 @@ local function startMatch(outcome: Lobby.Outcome)
 	local against = if outcome.kind == "Practice" then `, bot {Bot.difficulty(outcome.difficulty)}` else ""
 	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
 	flush(session)
+	task.spawn(shareNames, session)
 end
 
 local function lobbyRequest(player: Player, request: Remotes.Request)
@@ -570,10 +602,21 @@ function MatchService.start()
 			task.spawn(approveSavedName, id)
 		end
 	end)
+	-- Name eligibility (D-063) is asked once per visit, then the saved name is
+	-- filtered for it.
+	local function checkNames(player: Player)
+		NameEligibility.refresh(player)
+		approveSavedName(idOf(player))
+		if matchOf[idOf(player)] == nil then
+			sendLobby(idOf(player))
+		end
+	end
 	for _, player in Players:GetPlayers() do
 		sendLobby(idOf(player))
+		task.spawn(checkNames, player)
 	end
 	Players.PlayerAdded:Connect(function(player)
+		task.spawn(checkNames, player)
 		local id = idOf(player)
 		local session = sessions[matchOf[id] or ""]
 		if session then
@@ -592,6 +635,7 @@ function MatchService.start()
 		Lobby.leave(lobby, id)
 		prePicks[id] = nil
 		approvedNames[id] = nil
+		NameEligibility.forget(player)
 		if before == "Queued" or before == "Hosting" then
 			broadcastLobby()
 		end
