@@ -1011,3 +1011,21 @@ Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`
 6. **Phone size (390x844) and the Mac.** **Expect:** each tab fits without scrolling; nothing overlaps; the lines look straight and joined (no gaps or stray pieces sticking out of the chart).
 7. **Rejoin:** leave the game on the Results screen and rejoin (if the match result is still shown). **Expect:** the Graph still shows every week.
 8. **Send back:** an iPad screenshot of each tab, whether the MISS tags made the polling errors easy to spot, whether the graph was readable on a phone, and any Output errors from `Results`, `MapTab` or `GraphTab`.
+
+## Map polish (unreleased, D-075)
+
+Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests "Map labels"`, `lune run tests "Close filter"`, `lune run tests Lens`, `lune run tests Stances`, `lune run tests/ui/snap.luau -- --size phone` (every map shot; 0 audit findings at all three sizes).
+
+1. **Phone in portrait (390x844 in Studio's device emulator, or a real phone).** Play vs Bot to the first plan. **Expect:** the map is taller than before (about 390x312), the nine small Northeast states are a row of chips under the map, every state shows its votes on one line ("PA 19", "19" on the tiny ones), the chips show code over number, and no two labels overlap. Rotate to landscape: the map goes back to the wide layout with the chip column.
+2. **Lenses on the phone.** Tap Polls. **Expect:** every state shows its lead; where there is momentum or ground game it sits in the same pill ("+8 ▲ ●●"), never on its own. Money: only 8 states show a coin and a dollar amount.
+3. **Close.** Tap **Close**. **Expect:** states more than 8 points from close fade and lose their numbers; the chip stays on when you switch lenses and on the next week; tap it again to turn it off. On a phone the Key chip shows only its icon.
+4. **Pins.** **Expect:** in week 1 both pins have their name tabs; from week 2 only faces (yours a little bigger). Tap the state your candidate is in: your "You" tab appears; tap away: it goes.
+5. **Northeast.** **Expect:** one thin bracket from the chips to the coast, no fan of lines. Tap the RI chip: a line from the chip to Rhode Island; on the Mac, hovering a chip shows it too.
+6. **Alaska and Hawaii.** **Expect:** each in a small box under California; Hawaii's islands are visible, its label beside them.
+7. **Week results.** Play a busy week. **Expect:** the fills fade to each step's polls; at most 8 tags at a time; a flip is an outline in the new leader's color and a ▲ (it came your way) or ▼ (it went away) on the biggest ones. With Reduce motion on, the fills change at once.
+8. **Stance week.** On the Decision screen pick a stance. **Expect:** helped states outlined green, hurt states orange, a few green "+" tags, and the key's two rings in the same green and orange.
+9. **Election night.** **Expect:** uncalled states are dark outlines (not grey); each call shakes its state (not with Reduce motion); the state that will decide 270 is outlined in white before it is called; no tags on the map.
+10. **Results → Map.** **Expect:** missed states have a dashed outline in the real winner's color and "×" after the number; no MISS tags.
+11. **iPad and desktop.** **Expect:** the map looks as in 0.13.0 apart from the bracket, the quieter pins, the insets and the items above.
+
+**Send back:** a phone screenshot of Votes, Polls and Money, one with Close on, one of the end of a busy week's results, one of election night, and whether you would want Close on by default on a phone; plus any Output errors from `ShapeMap`, `Lens` or `SwingMarks`.

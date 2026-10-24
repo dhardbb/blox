@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Map polish (D-075)
+
+- **A bigger, readable map on phones (D-075):** in portrait the map stands up (390x312 on a 390 px phone, was 390x244), its land fills the width and the nine small Northeast states sit in one row of chips under it. Every state shows its number on one line ("PA 19", or just "19" where a state is tiny), nudged so no two overlap; the chips show code over value. iPad and desktop keep their layout.
+- **Polls in one pill:** the lead, ▲ momentum and the ground-game dots sit together ("+8 ▲ ●●"); nothing floats on its own.
+- **Fewer, better labels:** a reveal, a debate and a stance preview never show more than 8 tags; a flip is an outline in the new leader's color plus ▲ (your way) or ▼ (away from you) on the 5 biggest. Fills fade to each step's polls as the week plays. A stance preview outlines what it helps in green and what it hurts in orange, matching its key.
+- **Calmer marks:** candidate pins are faces (yours a little bigger); the name shows in week 1 and when you tap the state. One thin bracket replaces the nine Northeast leader lines; a chip's line shows when you tap it. Alaska and Hawaii sit in small boxes, Hawaii bigger. Money shows the 8 richest states with a coin. Results marks a missed poll with a dashed outline and "×" instead of a MISS tag. Election night draws uncalled states hollow, shakes each call, and outlines the state that will decide it in white.
+- **Close filter:** a "Close" chip beside the lenses fades every state more than 8 points from close, so only the races still in play show their numbers. Remembered for the session; off by default.
+- Studio checklist: `docs/TESTING.md`, "Map polish". Nothing needed from the humans.
+
 ## 0.13.0: Landslide (Oct 24, 2026)
 
 The game is now **Landslide** ("Race to 270"). This release puts a real US map under the campaign, turns debates into three live rounds on their own screen, gives every candidate an illustrated portrait, lets eligible players name their candidate (the Name Pass), plays the week's results move by move, deepens the colors, and adds Map and Graph tabs to the end screen. Polls cost half. Studio checklists: `docs/TESTING.md`, "0.13.0: Landslide".
