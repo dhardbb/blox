@@ -126,7 +126,7 @@ Five tokens plus the Lobby's wordmark; **a screen shows at most four** (`Kit.MAX
 | `heading` | 20 | `bold`; `display` for the primary's label and the timer | header title, card titles, the primary's label |
 | `title` | 28 | `display` (`Kit.title`) | the one big number or headline on a screen (EV totals, stamps) |
 | `hero` | 48 | `display` | "You won" / "You lost", the private code. Lobby and Results only |
-| `wordmark` | 72 | `display` | the Lobby's "270" only (`Kit.wordmark`; the audit allows it on a text with attribute `Wordmark`, and the Lobby drops `title` for it) |
+| `wordmark` | 72 | `display` | the Lobby's "LANDSLIDE" only (`Kit.wordmark`, scaled down to fit a phone; the audit allows it on a text with attribute `Wordmark`, and the Lobby drops `title` for it) |
 
 **Hero numbers are display type.** Fredoka One for vote totals, the timer, stamps, the wordmark and the primary's label; Builder Sans for everything you read. `Kit.eyebrow(text)` is a caption in upper case and medium weight over a title ("JUST CALLED", "WEEK 3 RESULTS"); Roblox has no letter spacing, upper case alone gives the broadcast feel. Display text on a colored fill (a stamp, the wordmark) gets a 2-3 px `Contextual` outline in the fill's edge color; display text on the navy gets none.
 
@@ -178,7 +178,7 @@ Every one is in the `00-kit` snap. Signatures in the header of `Kit.luau`.
 - `Kit.stamp(text, color, { size })`: the big moments only (CALLED, 270!, You won / You lost, the debate headline). A plate of `color` tilted −6°, Fredoka label in its readable color with an outline, 2 px edge, glow; `Overhang`. `Motion.stamp` lands it from 1.6.
 - `Kit.monogram(name, color, px)`: initials on a lit circle (gradient, darker edge, sheen): 56 on Select cards, 64 on Results, 24 inline, 36 in the color sheet (the player's own initial in each color).
 - `Kit.raceBar(parent, { h, mark, caption })`: the race to 270: a raised track, each player's segment from their end, the tick (3 px, overhanging 4 px each way) and an optional caption. `bar:set(l, r)`, `bar:setColors(l, r)`, `bar:cross()` (tick flash + glow pulse).
-- `Kit.wordmark(px?)`: "270" in Fredoka, lit from the top, 3 px slate `accentLip` outline, 6 px `line` drop, a soft white glow.
+- `Kit.wordmark(px?, props?, opts?)`: the game's lockup (D-064). "LANDSLIDE" in Fredoka (up to `px`, scaled down to fit a narrow column), lit from the top, 3 px slate `accentLip` outline, 6 px `line` drop, a soft white glow; under it, riding up over the name's foot, the tagline "RACE TO 270" on a ribbon tilted −3°, split Cobalt | Crimson (the two default player colors: the race), Fredoka at heading size with a navy outline and edge and a shadow. The ribbon carries attribute `Lockup`: its text size does not count toward the screen's four. `Kit.wordmarkHeight(px?, tagline?)` gives its height.
 - `Kit.iconPlate(name, px?)`: an icon in a round `field` plate (state-card actions, help rows, settings chips).
 - `Kit.eyebrow`, `Kit.bevel`, `Kit.paintPill`, `Kit.playerText`, `Kit.textColor`, `Kit.outer`: above.
 

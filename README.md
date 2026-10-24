@@ -1,6 +1,8 @@
-# 270
+# Landslide
 
-A 12-minute, turn-based, online 1v1 strategy game on Roblox: two fictional candidates fight over the electoral map. Draft your strongholds, plan each week in secret, read noisy polls, and win 270 electoral votes on election night.
+**Race to 270.** A 12-minute, turn-based, online 1v1 strategy game on Roblox: two fictional candidates fight over the electoral map. Draft your strongholds, plan each week in secret, read noisy polls, and win 270 electoral votes on election night.
+
+The game was called "270" until v0.13 (`docs/DESIGN.md` D-064). The repo, the module names, the `[270]` log prefix and the place file `build/270.rbxl` keep the old name.
 
 - Design and build plan: [`docs/PLAN.md`](docs/PLAN.md)
 - Decisions log: [`docs/DESIGN.md`](docs/DESIGN.md)

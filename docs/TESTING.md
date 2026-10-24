@@ -852,6 +852,12 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 
 ## Landslide (unreleased, D-062 to D-064)
 
+**The new name (D-064). Needed from the humans, once:**
+1. Studio: **File → Game Settings → Basic Info**: set **Name** to `Landslide`, and start the description with "Race to 270." **Save**, then **File → Publish to Roblox**.
+2. Creator Hub (create.roblox.com → Creations → the experience → **Configure** / Basic Info): check the name reads `Landslide`, update the description there too if it differs, and **Save**. Icons and thumbnails that still show "270" can be swapped later.
+3. Press Play. **Expect:** the Lobby shows "A 1V1 ELECTION STRATEGY GAME", then a big white outlined **LANDSLIDE** with a soft glow, and under it a small tilted ribbon, blue on the left and red on the right, reading **RACE TO 270**. On a phone the word fits the screen with room to spare and nothing below it moves off screen. "270 to win" still shows on the score bar in a match.
+4. **Send back:** a Lobby screenshot on the iPad and on the Mac, and whether it looks like a front-page Roblox logo.
+
 **The Landslide stamp (D-062).** A landslide is rare between two good players, so check it offline first:
 1. Workspace → Attributes → add `DebugScreen` (string) = `Landslide`, press Play. **Expect:** Results with the green "You won" stamp, under it "YOU WON BY A" and a big **LANDSLIDE** stamp in your color, tilted the other way, landing a moment after "You won", with lots of confetti, a second sound and a light sweeping across it; under it "You took … of 538 votes, over 70%." Set `DebugScreen` = `LandslideLoss`: the orange "You lost", then "REX WON BY A" and LANDSLIDE in Rex's color, no confetti. Remove the attribute afterwards.
 2. In a real practice match, beat the Easy bot by a lot (377 votes or more). **Expect:** the same stamp on your Results. A closer win (under 377) shows no stamp.

@@ -485,8 +485,12 @@ describe("Lobby design system", function()
 		expect(need(peer, "Lobby", "Host"):GetAttribute("Variant")):toBe("secondary")
 		expect(need(peer, "Lobby", "Join"):GetAttribute("Variant")):toBe("secondary")
 		expect(need(peer, "Lobby", "Cancel"):GetAttribute("Variant")):toBe("danger")
-		-- The "270" is the wordmark lockup (Kit.wordmark), its label at the wordmark size.
-		expect(need(peer, "Lobby", "Title"):FindFirstChild("Mark").TextSize):toBe(Kit.size.wordmark)
+		-- The name is the wordmark lockup (Kit.wordmark, D-064), its label at the
+		-- wordmark size, with the tagline on the ribbon under it.
+		local mark = need(peer, "Lobby", "Title"):FindFirstChild("Mark")
+		expect(mark.TextSize):toBe(Kit.size.wordmark)
+		expect(mark.Text):toBe("LANDSLIDE")
+		expect(textOf(peer, "Lobby", "Tagline")):toBe("RACE TO 270")
 		noErrors(world)
 	end)
 
@@ -531,7 +535,7 @@ describe("Lobby style v2", function()
 	it("says what the game is in at most 8 words, and opens How to play", function()
 		local world, peer = mountFixture("Lobby", PHONE)
 		local words = 0
-		for _ in string.gmatch(textOf(peer, "Lobby", "Pitch"), "%S+") do
+		for _ in string.gmatch(textOf(peer, "Lobby", "Tagline"), "%S+") do
 			words += 1
 		end
 		check(words <= 8, `the tagline has {words} words`)
@@ -620,7 +624,7 @@ describe("Lobby polish", function()
 		local scale = need(peer, "Lobby", "Title"):FindFirstChild("MotionScale")
 		check(scale == nil or scale.Scale == 1, "the hero is still popping")
 		for _, name in
-			{ "Mark", "Eyebrow", "Pitch", "Record", "Practice", "FindMatch", "PlayFriend", "HowToPlay" }
+			{ "Mark", "Eyebrow", "Tagline", "Record", "Practice", "FindMatch", "PlayFriend", "HowToPlay" }
 		do
 			-- (the fake engine reads a property never set as nil; Roblox reads 0)
 			expect(need(peer, "Lobby", name).TextTransparency or 0):toBe(0)

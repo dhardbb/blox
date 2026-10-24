@@ -1,6 +1,6 @@
 # Credits
 
-Third-party assets and fonts used by 270, with their licenses. Add a line when you add an asset.
+Third-party assets and fonts used by Landslide (formerly 270), with their licenses. Add a line when you add an asset.
 
 ## Fonts
 

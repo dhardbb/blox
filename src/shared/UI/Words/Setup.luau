@@ -14,7 +14,8 @@ local Setup = {}
 
 -- ---------------------------------------------------------------- Lobby
 
-Setup.TAGLINE = "Win the race to 270 votes."
+Setup.GAME_NAME = "Landslide" -- the game's name (D-064); the wordmark sets it in capitals
+Setup.TAGLINE = "Race to 270" -- under the name, on the wordmark's ribbon (in capitals)
 Setup.EYEBROW = "A 1v1 election strategy game" -- over the wordmark, in capitals
 Setup.HOSTING_TITLE = "Your private match"
 Setup.FRIEND_MAKE = "Make a code and send it to a friend."

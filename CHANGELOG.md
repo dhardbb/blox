@@ -6,6 +6,7 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 The game is now called **Landslide** ("Race to 270"), a landslide win gets its own stamp on Results, the week's event sits under the score, and polls cost half. Studio checklist: `docs/TESTING.md`, "Landslide". Needed from the humans: rename the experience (see the checklist).
 
+- **New name: Landslide, "Race to 270" (D-064).** The Lobby's logo is a big outlined "LANDSLIDE" with the tagline "RACE TO 270" on a tilted red-and-blue ribbon under it (scaled to fit a phone). 270 as the votes to win is unchanged everywhere. **Needed from the humans:** rename the experience in Studio and on the Creator Hub (`docs/TESTING.md`, "Landslide").
 - **Landslide stamp (D-062):** win with more than 70% of the votes (377 of 538 or more) and Results stamps a big **LANDSLIDE** in your color under "You won", with extra confetti, a second hit and a light sweeping across it. Your opponent sees "REX WON BY A / LANDSLIDE" in Rex's color under "You lost". New `Config.LANDSLIDE_EV_SHARE` (0.70); the rules of winning do not change.
 - **Polls cost half (D-063):** a state poll is $0.5 (was $1), a region poll $1.5 (was $3). Every price on screen follows. In the bot-vs-bot harness the bots buy about as many polls and put the saved money into ads and ground game; win rates moved within noise.
 

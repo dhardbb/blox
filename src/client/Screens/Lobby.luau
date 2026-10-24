@@ -5,7 +5,8 @@
 -- flips Visible and text, so a half-typed code survives server messages.
 --
 -- Layout (docs/UI-STYLE.md §4.1): one centered column, at most 480 px wide, that
--- does not scroll: the "270" hero, a one-line tagline, the record, then Play vs
+-- does not scroll: the "LANDSLIDE" wordmark with its "RACE TO 270" ribbon
+-- (Kit.wordmark, D-064), the record, then Play vs
 -- Bot (the one primary) with the bot level chips under it (UI/BotLevel, D-059),
 -- "Find match" and "Play a friend" side by side, and a ghost "How to play"
 -- (UI/HowTo, five short pages, D-059), then the Sound and Reduce motion chips
@@ -18,12 +19,12 @@
 -- "Make a code" (Host) and the code field + Join. Messages (rejections,
 -- notices, a bad code) go to the global toast.
 --
--- Motion (docs/UI-STYLE.md §2.7.1): on mount the "270" pops and the column
+-- Motion (docs/UI-STYLE.md §2.7.1): on mount the wordmark pops and the column
 -- fades in top to bottom (Motion.stagger); nothing waits on it.
 --
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
--- WaitingHint, Cancel, Record, ServerFull, Title, Pitch, Settings (SoundChip,
+-- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, Settings (SoundChip,
 -- MotionChip), ColorButton, ColorSheet, BotLevel (Level_<level>), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet.
 
@@ -46,7 +47,7 @@ local Screen = {}
 
 local MAX_WIDTH = 480 -- px
 local CODE_LENGTH = 5
-local SHORT_SCREEN = 420 -- px; below this the tagline is dropped to make room
+local SHORT_SCREEN = 420 -- px; below this the eyebrow is dropped to make room
 local BOARD_W = 300 -- px, the leaderboard card beside the column
 local BOARD_GAP = Kit.space.lg -- px between the column and the card
 local SIDE_MIN_W = MAX_WIDTH + BOARD_W + BOARD_GAP + 2 * Kit.space.xl -- px of width for the card beside the column
@@ -91,15 +92,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = content,
 	})
-	-- The "270" lockup (Kit.wordmark): Fredoka at 72 with its glow and lip.
+	-- The lockup (Kit.wordmark, D-064): "LANDSLIDE" in Fredoka at up to 72 with
+	-- its glow and lip, the "RACE TO 270" ribbon under it.
 	local title = Kit.wordmark(nil, { Name = "Title", LayoutOrder = nextOrder(), Parent = content })
-	local pitch = Kit.text(Words.TAGLINE, {
-		Name = "Pitch",
-		LayoutOrder = nextOrder(),
-		TextColor3 = Kit.colors.muted,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Parent = content,
-	})
 	-- Always there (empty until the profile arrives), so nothing jumps.
 	local record = Kit.caption("", {
 		Name = "Record",
@@ -330,7 +325,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local cardShadow: ImageLabel? = nil -- the card's shadow while it stands beside the column
 	local function relayout()
 		local size = parent.AbsoluteSize
-		pitch.Visible = size.Y >= SHORT_SCREEN
+		eyebrow.Visible = size.Y >= SHORT_SCREEN
 		-- The leaderboard: beside the column when there is room, else at its end.
 		local card = board.card
 		if size.X >= SIDE_MIN_W then
@@ -409,8 +404,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Arrive top to bottom: the hero pops, then each line fades in.
 	Motion.pop(title, Motion.POP_FROM)
-	local arriving: { Instance } =
-		{ eyebrow, title, pitch, record, practice, findMatch, playFriend, howToPlay }
+	local arriving: { Instance } = { eyebrow, title, record, practice, findMatch, playFriend, howToPlay }
 	for _, child in botLevel.root:GetChildren() do
 		if child:IsA("TextButton") then
 			table.insert(arriving, child)

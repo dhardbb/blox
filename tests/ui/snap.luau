@@ -140,8 +140,12 @@ local function kitGallery(world: World, peer: Peer)
 	local cobalt = Kit.color({ r = 52, g = 104, b = 214 })
 	local crimson = Kit.color({ r = 206, g = 52, b = 72 })
 	local split = if wide then 0.5 else 0.62 -- the spotlight's share of the row
-	local show =
-		Kit.box({ Name = "Showcase", LayoutOrder = 10, Size = UDim2.new(1, 0, 0, 112), Parent = columnB })
+	local show = Kit.box({
+		Name = "Showcase",
+		LayoutOrder = 10,
+		Size = UDim2.new(1, 0, 0, Kit.wordmarkHeight() + Kit.space.sm),
+		Parent = columnB,
+	})
 	local spot = Kit.card({
 		Name = "Spotlight",
 		Position = UDim2.fromOffset(0, Kit.space.lg),
@@ -163,7 +167,7 @@ local function kitGallery(world: World, peer: Peer)
 	})
 	Kit.wordmark(nil, {
 		Position = UDim2.new(split, Kit.space.lg, 0, Kit.space.sm),
-		Size = UDim2.new(1 - split, -Kit.space.lg, 0, Kit.size.wordmark + 2 * Kit.space.sm),
+		Size = UDim2.new(1 - split, -Kit.space.lg, 0, Kit.wordmarkHeight()),
 		Parent = show,
 	})
 	local race = Kit.raceBar(columnB, { h = 14, mark = 270 / 538, caption = "270", order = 11 })

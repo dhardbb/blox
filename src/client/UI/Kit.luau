@@ -109,7 +109,7 @@
 --   Navy neutrals; orange `loss` (= warn = danger = bad) is the only "against
 --   you" color; red is a player color and never means bad.
 --   Kit.radius   + button 12 (primary, secondary) · sheet 16 (sheets, help)
---   Kit.size     + wordmark 72 (the Lobby's "270" only; texts carry attribute Wordmark)
+--   Kit.size     + wordmark 72 (the Lobby's "LANDSLIDE" only; texts carry attribute Wordmark)
 --   Kit.colors   + loss, lossEdge, onLoss, goodEdge, accentLip, raisedLip, glow
 --   Kit.tone     + "loss" (preferred over "bad"/"warn") · "white" (text; the battleground pill)
 --   Kit.playerText(view, p) -> Color3   a player color readable as text (Colors.textOn)
@@ -143,7 +143,9 @@
 --   Kit.monogram(name, color, px) -> Frame "Monogram"   a candidate's initials in
 --     a lit circle of `color` (dataColor); the label is "Initials"
 --   Kit.raceBar(parent, opts) -> RaceBar   the two-sided vote bar with the 270 tick
---   Kit.wordmark(px?) -> Frame "Wordmark"   the "270" lockup: glow, lip, outline
+--   Kit.wordmark(px?, props?, opts?) -> Frame "Wordmark"   the "LANDSLIDE" lockup: glow,
+--     lip, outline, and the "RACE TO 270" ribbon (opts.tagline = false: none);
+--     Kit.wordmarkHeight(px?, tagline?) is its height (D-064)
 --   Kit.iconPlate(name, px?) -> Frame "IconPlate"   an icon in a field circle
 --   Kit.pill(text, tone, { filled = true, fill = Color3? })   a filled tag: tone
 --     (or `fill`, a data color) fill, readable text, a 1 px edge. Tone "white"
@@ -163,6 +165,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Assets = require(script.Parent.Assets)
 local Audio = require(script.Parent.Audio)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
+local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Icons = require(script.Parent.Icons)
 local Motion = require(script.Parent.Motion)
 
@@ -244,7 +247,7 @@ Kit.size = {
 	heading = 20, -- panel titles, state name, timer
 	title = 28, -- screen titles, EV counters
 	hero = 48, -- "You won", the private match code
-	wordmark = 72, -- the Lobby's "270" only (Kit.wordmark; the audit allows it on a Wordmark text)
+	wordmark = 72, -- the Lobby's "LANDSLIDE" only (Kit.wordmark; the audit allows it on a Wordmark text, scaled down to fit)
 }
 
 Kit.space = {
@@ -1225,7 +1228,12 @@ local RACE_OVERHANG = 4 -- px the 270 tick reaches above and below the bar
 local RACE_TICK_W = 3 -- px
 local RACE_SHADE = 0.82 -- the bottom of a race bar segment's gradient
 local RACE_CAPTION_W = 40 -- px, the "270" over the tick
-local WORDMARK_TEXT = "270"
+local RIBBON_H = Kit.size.heading + 2 * 6 -- px, the tagline ribbon under the wordmark
+local RIBBON_PAD_X = 18 -- px, the ribbon's text inset
+local RIBBON_RADIUS = 8 -- px
+local RIBBON_TILT = -3 -- degrees: a touch of motion, half a stamp's tilt
+local RIBBON_OVERLAP = 12 -- px the ribbon rides up over the name's (empty) foot
+local RIBBON_SLACK = 6 -- px under the ribbon: room for its tilt and shadow
 local WORDMARK_DROP = 6 -- px, the lip under the wordmark
 local WORDMARK_STROKE = 3 -- px
 local WORDMARK_GLOW = 2.4
@@ -1740,25 +1748,34 @@ function Kit.raceBar(parent: Instance, opts: RaceBarOptions?): RaceBar
 	return bar
 end
 
--- The "270" lockup (the Lobby, any title moment): Fredoka One at `px` (default
--- Kit.size.wordmark) in `text`, lit from the top, a 3 px slate (accentLip)
--- outline, a 6 px `line` drop under it (the button lip, in type) and a soft
--- white glow behind (D-058). Returns the Frame "Wordmark" (full width, px + 16 tall); the label is
--- "Mark" (attribute Wordmark, so the audit knows its size).
-function Kit.wordmark(px: number?, props: { [string]: any }?): Frame
+-- The game's lockup (D-064): the name "LANDSLIDE" in Fredoka One at up to `px`
+-- (default Kit.size.wordmark; scaled down to fit a narrow column, never under
+-- Kit.size.title) in `text`, lit from the top, a 3 px slate (accentLip) outline,
+-- a 6 px `line` drop under it (the button lip, in type) and a soft white glow
+-- behind (D-058). Under it, overlapping the name's foot, the tagline "RACE TO
+-- 270" on a ribbon tilted -3°: split Cobalt | Crimson (the two default player
+-- colors: the race), Fredoka at heading size with a navy outline, a navy edge
+-- and a shadow. Returns the Frame "Wordmark" (full width, Kit.wordmarkHeight(px)
+-- tall); the name is "Mark" (attribute Wordmark, so the audit knows its size),
+-- the ribbon "Ribbon" with its label "Tagline". opts.tagline = false leaves the
+-- ribbon out (the frame is then px + 16 tall, as before).
+function Kit.wordmark(px: number?, props: { [string]: any }?, opts: { tagline: boolean? }?): Frame
 	local size = px or Kit.size.wordmark
+	local withTagline = not (opts and opts.tagline == false)
+	local markH = size + 2 * Kit.space.sm
 	local root = Kit.box(merged({
 		Name = "Wordmark",
-		Size = UDim2.new(1, 0, 0, size + 2 * Kit.space.sm),
+		Size = UDim2.new(1, 0, 0, Kit.wordmarkHeight(size, withTagline)),
 	}, props))
 	Kit.glow(root, Kit.colors.accent, { scale = WORDMARK_GLOW, transparency = WORDMARK_GLOW_TRANSPARENCY })
 	local function line(name: string, color: Color3, dy: number, stroke: Color3, z: number): TextLabel
-		local label = Kit.text(WORDMARK_TEXT, {
+		local label = Kit.text(string.upper(SetupWords.GAME_NAME), {
 			Name = name,
 			Position = UDim2.fromOffset(0, dy),
-			Size = UDim2.fromScale(1, 1),
+			Size = UDim2.new(1, 0, 0, markH),
 			Font = Kit.font.display,
 			TextSize = size,
+			TextScaled = true,
 			TextWrapped = false,
 			TextColor3 = color,
 			TextXAlignment = Enum.TextXAlignment.Center,
@@ -1766,6 +1783,11 @@ function Kit.wordmark(px: number?, props: { [string]: any }?): Frame
 			Parent = root,
 		})
 		label:SetAttribute("Wordmark", true)
+		Kit.new("UITextSizeConstraint", {
+			MinTextSize = Kit.size.title,
+			MaxTextSize = size,
+			Parent = label,
+		})
 		Kit.new("UIStroke", {
 			Name = "Outline",
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
@@ -1789,7 +1811,79 @@ function Kit.wordmark(px: number?, props: { [string]: any }?): Frame
 		),
 		Parent = mark,
 	})
+	if not withTagline then
+		return root
+	end
+	-- The ribbon: a white face the split gradient colors (data colors, so the
+	-- audit's palette check skips the fill; the label stays a token).
+	local text = string.upper(SetupWords.TAGLINE)
+	local chars = utf8.len(text) or #text
+	local tagSize = Kit.size.heading
+	local ribbon = Kit.dataColor(Kit.new("Frame", {
+		Name = "Ribbon",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, markH - RIBBON_OVERLAP),
+		Size = UDim2.fromOffset(math.ceil(chars * tagSize * DISPLAY_EM) + 2 * RIBBON_PAD_X, RIBBON_H),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Rotation = RIBBON_TILT,
+		ZIndex = 3,
+		Parent = root,
+	})) :: Frame
+	ribbon:SetAttribute("Overhang", true)
+	-- Part of the logo: its size is not one of the screen's text sizes (UI audit).
+	ribbon:SetAttribute("Lockup", true)
+	Kit.corner(RIBBON_RADIUS).Parent = ribbon
+	local left = Kit.color(Colors.player.Cobalt)
+	local right = Kit.color(Colors.player.Crimson)
+	Kit.new("UIGradient", {
+		Name = "Split",
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, left),
+			ColorSequenceKeypoint.new(0.5, left),
+			ColorSequenceKeypoint.new(0.502, right),
+			ColorSequenceKeypoint.new(1, right),
+		}),
+		Parent = ribbon,
+	})
+	Kit.new("UIStroke", {
+		Name = "Edge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = Kit.colors.background,
+		Thickness = 2,
+		Parent = ribbon,
+	})
+	local tagline = Kit.text(text, {
+		Name = "Tagline",
+		Size = UDim2.fromScale(1, 1),
+		Font = Kit.font.display,
+		TextSize = tagSize,
+		TextWrapped = false,
+		TextColor3 = Kit.colors.text,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 4,
+		Parent = ribbon,
+	})
+	Kit.new("UIStroke", {
+		Name = "Outline",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		Color = Kit.colors.background,
+		Thickness = 2,
+		Transparency = 0.15,
+		Parent = tagline,
+	})
+	Kit.shadow(ribbon)
 	return root
+end
+
+-- The height of Kit.wordmark(px) (default Kit.size.wordmark), with the tagline
+-- ribbon unless `tagline` is false.
+function Kit.wordmarkHeight(px: number?, tagline: boolean?): number
+	local markH = (px or Kit.size.wordmark) + 2 * Kit.space.sm
+	if tagline == false then
+		return markH
+	end
+	return markH - RIBBON_OVERLAP + RIBBON_H + RIBBON_SLACK
 end
 
 -- An icon in a round `field` plate (default 24 px): the state card's action

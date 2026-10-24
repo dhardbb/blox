@@ -36,7 +36,8 @@
 --                 instance with attribute DataColor = true (Kit.dataColor): map
 --                 fills, feed tints and EV bars are data, not chrome
 --   textSizes     more than Kit.MAX_TEXT_SIZES (4) distinct text sizes on the screen
---                 (a monogram's initials do not count)
+--                 (a monogram's initials and the wordmark's tagline ribbon, attribute
+--                 Lockup, do not count: they are part of a picture)
 --   labelWords    a button label longer than Kit.MAX_LABEL_WORDS (8) words
 --   wallOfText    a text longer than Kit.MAX_TEXT_WORDS (30) words outside a details
 --                 area (attribute Details = true: Kit.details, Sheet and
@@ -368,8 +369,9 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 				end
 				local px = textSizeOf(inst)
 				local monogram = marked(inst, "Monogram")
-				if not monogram then
-					-- A monogram's initials are a picture, not a text size.
+				if not monogram and not marked(inst, "Lockup") then
+					-- A monogram's initials and the wordmark's tagline ribbon are
+					-- pictures, not text sizes.
 					sizes[px] = true
 				end
 				local wordmark = px == Kit.size.wordmark and inst:GetAttribute("Wordmark") == true
