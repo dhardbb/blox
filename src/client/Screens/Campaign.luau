@@ -1,6 +1,8 @@
 --!strict
 -- The campaign screen, where most of a match is played (docs/UI-STYLE.md §4.5).
--- The header runs across the top with the "what to do now" line; the map is the
+-- The header runs across the top with the "what to do now" line; right under it,
+-- full width, the week's event strip (CampaignParts/EventCard.strip, D-065:
+-- seen without scrolling on every screen; a tap opens its details); the map is the
 -- hero (left on 16:9, top on phones) with the lens chips and a "Map key" button
 -- over it; beside it (below on phones) a scrolling side column and, pinned under
 -- it, the action bar with Lock in. The same screen plays the resolve reveal and
@@ -8,10 +10,9 @@
 --
 -- Side column, top to bottom: the reveal panel (during reveals), a first-match
 -- coach tip, the state card (only once a state is tapped), the plan list, the
--- event card, the week card, the full state list. The debate focus and a Choice
--- stance are not here: they have their own Decision screen before the plan
--- (Screens/Decision, D-044); the event card repeats the stance you took in one
--- line. The parts live in Screens/CampaignParts; this file owns the model, the
+-- week card, the full state list. The debate focus and a Choice stance are not
+-- here: they have their own Decision screen before the plan (Screens/Decision,
+-- D-044); the event strip repeats the stance you took in one line. The parts live in Screens/CampaignParts; this file owns the model, the
 -- layout, the map, the action bar, and the routing between moments.
 --
 -- Motion and sound (docs/DESIGN.md D-053, UI/Motion, UI/Audio): tapping a state
@@ -81,7 +82,6 @@ local ORDER = {
 	card = 2,
 	tipAfter = 3, -- a coach tip once the plan has an action
 	plan = 4,
-	event = 5,
 	week = 6,
 	list = 7,
 }
@@ -127,12 +127,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local autoLock = AutoLock.new()
 	local portrait: boolean? = nil
 	local lastBodySize = Vector2.new(-1, -1)
+	local placedStrip = -1 -- the event strip's height when the body was last placed
 	local away = false -- the opponent's seat was disconnected at the last look
 	local backUntil = 0 -- "Opponent: back" shows until then
 
 	-- ------------------------------------------------------------ build: frame
 
 	local top = TopBar.new(parent, model)
+	-- The week's event, right under the score (D-065); its details sheet opens over the screen.
+	local eventStrip = EventCard.strip(parent, parent, model)
 
 	local body = Kit.box({ Name = "Body", Parent = parent })
 
@@ -288,7 +291,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end,
 		map = map,
 	})
-	local eventCard = EventCard.new(side, model)
 	local card = StateCard.new(side, model, ORDER.card, ORDER.list)
 	local planList = PlanList.new(side, model, ORDER.plan)
 	local weekCard = EventCard.week(side, model, ORDER.week)
@@ -404,8 +406,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- ------------------------------------------------------------ layout
 
 	local function placeBody(isPortrait: boolean, topHeight: number)
-		body.Position = UDim2.fromOffset(0, topHeight + GAP)
-		body.Size = UDim2.new(1, 0, 1, -(topHeight + GAP))
+		-- The event strip under the header, then the body under it.
+		local stripHeight = eventStrip:height()
+		placedStrip = stripHeight
+		eventStrip.root.Position = UDim2.fromOffset(0, topHeight + GAP)
+		local bodyTop = topHeight + GAP + (if stripHeight > 0 then stripHeight + GAP else 0)
+		body.Position = UDim2.fromOffset(0, bodyTop)
+		body.Size = UDim2.new(1, 0, 1, -bodyTop)
 		if isPortrait then
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
@@ -430,9 +437,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			placeBody(isPortrait, top:place(isPortrait))
 			weekCard:setPortrait(isPortrait)
 		elseif
-			isPortrait and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
+			eventStrip:height() ~= placedStrip
+			or isPortrait
+				and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
 		then
-			placeBody(true, top:place(true))
+			placeBody(isPortrait, top:place(isPortrait))
 		end
 	end
 
@@ -642,7 +651,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		syncBadges(p)
 		reveal:render(p)
 		card:render(p)
-		eventCard:render(p, ORDER.event)
+		eventStrip:render(p)
 		if p.reveal == nil or p.reveal == "Debate" then
 			paintMapFor(view, view)
 			map:select(model.selected)
@@ -654,7 +663,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		renderKey(p)
 		lensToggle.refresh()
 		renderBar(p, now)
-		if top:render(now) then
+		if top:render(now) or eventStrip:height() ~= placedStrip then
 			relayout(true)
 		end
 	end

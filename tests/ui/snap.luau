@@ -22,6 +22,7 @@ local process = require("@lune/process")
 
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
+local Events = require("@sim/Events")
 local Fixtures = require("@ui/Fixtures")
 local Snapshot = require("@testlib/Snapshot")
 local Rig = require("./Rig")
@@ -49,6 +50,38 @@ local function tapIf(world: World, peer: Peer, screen: string, name: string, wai
 		Rig.tap(world, peer, screen, name, wait)
 	else
 		print(`  (no {name} on {screen})`)
+	end
+end
+
+-- Steps that put deck event `id` in the shown week (or, with `upcoming`, only
+-- in next week's preview, as for Helen Strand) on the Plan fixture.
+local function withEvent(id: string, upcoming: boolean?): (World, Peer) -> ()
+	return function(world: World, peer: Peer)
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		local found: any = nil
+		for _, definition in Events.deck do
+			if definition.id == id then
+				found = definition
+			end
+		end
+		assert(found, `no deck event {id}`)
+		local view = payload.view
+		local event = {
+			week = view.week + (if upcoming then 1 else 0),
+			id = found.id,
+			kind = found.kind,
+			name = found.name,
+			text = found.text,
+			issue = found.issue,
+			region = found.region,
+		}
+		if upcoming then
+			view.event = nil
+			view.nextEvent = event
+		else
+			view.event = event
+		end
+		Rig.push(world, peer, payload)
 	end
 end
 
@@ -447,6 +480,25 @@ local SHOTS: { Shot } = {
 	{ name = "07-decision-stance", moment = "Stance", screen = "Decision" },
 	{ name = "08-decision-focus", moment = "Focus", screen = "Decision" },
 	{ name = "09-campaign-plan", moment = "Plan", screen = "Campaign" },
+	-- D-065: the event strip under the score for every kind of week (the Plan
+	-- fixture is a Windfall week, 15 a Choice week), next week's event alone,
+	-- and the details sheet a tap opens.
+	{ name = "09b-event-spotlight", moment = "Plan", screen = "Campaign", steps = withEvent("bridges") },
+	{ name = "09c-event-regional", moment = "Plan", screen = "Campaign", steps = withEvent("regatta") },
+	{
+		name = "09d-event-next-week",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = withEvent("bridges", true),
+	},
+	{
+		name = "09e-event-sheet",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "EventCard")
+		end,
+	},
 	{
 		name = "10-campaign-state-card",
 		moment = "Plan",

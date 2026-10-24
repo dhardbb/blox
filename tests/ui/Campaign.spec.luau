@@ -307,16 +307,26 @@ describe("Campaign screen", function()
 		noErrors(world)
 	end)
 
-	it("says the stance you took in one line in a Choice week's plan (D-044)", function()
+	it("says the stance you took in one line in a Choice week's plan (D-044, D-065)", function()
 		local world, peer = mountsCleanly("ChoiceWeek")
 		local view = Fixtures.payload(C, "ChoiceWeek").view
 		check(view.stance ~= nil, "the fixture took no stance")
-		check(shown(find(peer, "ChoiceTaken")), "no stance line on the plan screen")
+		-- The event strip's line is the stance, and its sheet says it in full.
+		check(shown(find(peer, "EventLine")), "no stance line on the plan screen")
+		check(
+			string.find(text(peer, "EventLine"), `Stance {view.stance}`, 1, true) ~= nil,
+			"stance line: " .. text(peer, "EventLine")
+		)
+		press(world, peer, "EventCard")
+		check(find(peer, "EventSheet").Visible, "the event's details did not open")
 		check(
 			string.find(text(peer, "ChoiceTaken"), `Your stance: {view.stance}`, 1, true) ~= nil,
 			"stance line: " .. text(peer, "ChoiceTaken")
 		)
-		check(not shown(find(peer, "ChoicePayHead")), "the per-state stance lists crowd the plan screen")
+		check(
+			FakeRoblox.find(peer, "ChoicePayHead") == nil,
+			"the per-state stance lists crowd the plan screen"
+		)
 		noErrors(world)
 	end)
 
@@ -363,31 +373,93 @@ describe("Campaign screen", function()
 		noErrors(world)
 	end)
 
-	it("shows the week's event under the plan, with its effect in plain words", function()
-		-- The Plan fixture is a Windfall week.
-		local _, peer = mountsCleanly("Plan")
-		local event = Fixtures.payload(C, "Plan").view.event
-		check(event ~= nil and event.kind == "Windfall", "the Plan fixture is no longer a Windfall week")
-		local banner = find(peer, "EventCard")
-		check(shown(banner), "no event card")
-		expect(banner:GetAttribute("EventName")):toBe((event :: any).name)
-		check(
-			string.find(text(peer, "EventToggle"), (event :: any).name, 1, true) ~= nil,
-			"title: " .. text(peer, "EventToggle")
+	for _, size in
+		{
+			{ name = "16:9", screen = nil },
+			{ name = "iPad", screen = { x = 1024, y = 768 } },
+			{ name = "phone", screen = PHONE },
+		}
+	do
+		it(
+			`shows the week's event right under the score, in one line, without scrolling ({size.name}, D-065)`,
+			function()
+				-- The Plan fixture is a Windfall week.
+				local world, peer = mountsCleanly("Plan", size.screen)
+				local event = Fixtures.payload(C, "Plan").view.event :: any
+				check(
+					event ~= nil and event.kind == "Windfall",
+					"the Plan fixture is no longer a Windfall week"
+				)
+				local strip = find(peer, "EventCard")
+				check(shown(strip), "no event strip")
+				expect(strip:GetAttribute("EventName")):toBe(event.name)
+				expect(strip:GetAttribute("EventKind")):toBe("Windfall")
+				expect(text(peer, "EventTitle")):toBe(`Windfall · {event.name}`)
+				expect(text(peer, "EventLine")):toBe("Fundraisers where you trail +20%")
+				-- Right under the header, above the map and the side column, and not in
+				-- the scrolling column: seen without scrolling.
+				local top, body = find(peer, "TopBar"), find(peer, "Body")
+				local stripTop = strip.AbsolutePosition.Y
+				check(
+					stripTop >= top.AbsolutePosition.Y + top.AbsoluteSize.Y,
+					"the strip overlaps the header"
+				)
+				check(
+					stripTop + strip.AbsoluteSize.Y <= body.AbsolutePosition.Y,
+					"the strip overlaps the map"
+				)
+				check(
+					stripTop - (top.AbsolutePosition.Y + top.AbsoluteSize.Y) <= 12,
+					"the strip is not right under the score"
+				)
+				local node = strip.Parent
+				while node ~= nil do
+					check(not node:IsA("ScrollingFrame"), "the strip is inside a scrolling column")
+					node = node.Parent
+				end
+				-- The details are one tap away.
+				check(not find(peer, "EventSheet").Visible, "the details sheet opened by itself")
+				press(world, peer, "EventCard")
+				check(find(peer, "EventSheet").Visible, "a tap did not open the details")
+				expect(text(peer, "EventText")):toBe(event.text)
+				expect(text(peer, "EventEffect")):toBe(
+					"Fundraisers in states where you trail in the public poll raise 20% more this week"
+				)
+				check(not shown(find(peer, "EventMapNote")), "a Windfall marks no states")
+				check(not shown(find(peer, "ChoiceTaken")), "a stance line in a Windfall week")
+				noErrors(world)
+			end
 		)
-		expect(text(peer, "EventText")):toBe((event :: any).text)
-		-- Collapsed in a Windfall week, but the effect line still shows (two lines).
-		check(not shown(find(peer, "EventText")), "the Windfall card is not collapsed")
-		check(shown(find(peer, "EventEffect")), "the effect line is hidden on the collapsed card")
-		expect(text(peer, "EventEffect")):toBe(
-			"Fundraisers in states where you trail in the public poll raise 20% more this week"
-		)
-		check(not shown(find(peer, "ChoiceRow")), "answer buttons show in a Windfall week")
-		check(not shown(find(peer, "ChoiceNote")), "the Choice note shows in a Windfall week")
-		check(not shown(find(peer, "EventMapNote")), "a Windfall marks no states")
-		local card, plan = find(peer, "StateCard"), find(peer, "PlanList")
-		check(card.LayoutOrder < plan.LayoutOrder, "the state card is not above the plan")
-		check(plan.LayoutOrder < banner.LayoutOrder, "the plan is not above the event card")
+	end
+
+	it("fits every event in the deck on one line on a phone (D-065)", function()
+		local world, peer = mountsCleanly("Plan", PHONE)
+		local base = Rig.payloadOf(world, peer)
+		for _, definition in Events.deck do
+			for _, upcoming in { false, true } do
+				local payload = Rig.deepCopy(base)
+				local event = {
+					week = payload.view.week + (if upcoming then 1 else 0),
+					id = definition.id,
+					kind = definition.kind,
+					name = definition.name,
+					text = definition.text,
+					issue = (definition :: any).issue,
+					region = (definition :: any).region,
+					stances = (definition :: any).stances,
+				}
+				payload.view.event = if upcoming then nil else event
+				payload.view.nextEvent = if upcoming then event else nil
+				payload.view.stance = if definition.kind == "Choice" and not upcoming then "A" else nil
+				Rig.push(world, peer, payload)
+				local line, title = find(peer, "EventLine"), find(peer, "EventTitle")
+				check(shown(find(peer, "EventCard")), `no strip for {definition.id}`)
+				check(title.TextFits ~= false, `{definition.id}: the title "{title.Text}" does not fit`)
+				check(line.TextFits ~= false, `{definition.id}: the line "{line.Text}" does not fit`)
+				check(not string.find(line.Text, "×", 1, true), `{definition.id}: a × in "{line.Text}"`)
+			end
+		end
+		noErrors(world)
 	end)
 
 	it("hides the banner during the resolve reveal, which carries next week's view", function()
@@ -405,16 +477,18 @@ describe("Campaign screen", function()
 		upcoming.week = payload.view.week + 1
 		payload.view.nextEvent = upcoming
 		Rig.push(world, peer, payload)
+		press(world, peer, "EventCard")
 		check(shown(find(peer, "NextEvent")), "no next-week line for a previewing candidate")
 		check(
 			string.find(text(peer, "NextEvent"), upcoming.name, 1, true) ~= nil,
 			"next-week line: " .. text(peer, "NextEvent")
 		)
-		-- Also when there is no event this week (week 1 sees week 2's).
+		-- Also when there is no event this week (week 1 sees week 2's): the
+		-- strip itself says it.
 		payload.view.event = nil
 		Rig.push(world, peer, payload)
-		check(shown(find(peer, "EventCard")), "the card hides when only next week's event is known")
-		check(shown(find(peer, "NextEvent")), "no next-week line without an event this week")
+		check(shown(find(peer, "EventCard")), "the strip hides when only next week's event is known")
+		expect(text(peer, "EventTitle")):toBe(`Next week: {upcoming.name}`)
 		payload.view.nextEvent = nil
 		Rig.push(world, peer, payload)
 		check(not shown(find(peer, "EventCard")), "an empty event card shows")
@@ -583,7 +657,8 @@ describe("Campaign screen", function()
 		end
 		check(walk(rig, peer, singled, 900), "no Spotlight or Regional week came up")
 		local event = definition(tostring(find(peer, "EventCard"):GetAttribute("EventName")))
-		check(shown(find(peer, "EventText")), "the Spotlight/Regional card is not expanded")
+		Support.press(rig, peer, "EventCard")
+		check(shown(find(peer, "EventText")), "a tap on the strip did not open the details")
 		local view: any = { week = 0, id = event.id, kind = event.kind, name = event.name, text = event.text }
 		view.issue, view.region = event.issue, event.region
 		local expected = PlanDraft.eventStates(view, Rig.payloadOf(rig.world, peer).view.issueMap)

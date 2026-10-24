@@ -1,7 +1,24 @@
 --!strict
--- The two cards about the week (UI overhaul §3.4):
+-- The week's event and the week's news (UI overhaul §3.4):
 --
--- The event card, a Collapsible under a "THIS WEEK" eyebrow (EventEyebrow):
+-- The event strip (D-065), on the plan screen: one compact, tappable card
+-- right under the header's score, full width, so the week's event is seen
+-- without scrolling on a phone, an iPad or a desktop. A gold plate with the
+-- event's icon (Spotlight tv, Regional megaphone, Windfall coins, Choice vote),
+-- the title "Windfall · Small-dollar surge" (EventTitle) and one line of what
+-- it does, "Fundraisers where you trail: 20% more" (EventLine; in a Choice
+-- week the stance you took), then an arrow. A tap opens the EventSheet with
+-- the details: the full effect (EventEffect), the story (EventText), what the
+-- map's * marks (EventMapNote), the stance taken (ChoiceTaken) and, for a
+-- candidate who previews the deck, next week's event (NextEvent). With only
+-- next week's event known, the strip shows that ("Next week: …"). Hidden
+-- during every reveal (B1). It pulses once when a new week's event arrives.
+--
+--   local strip = EventCard.strip(parent, sheetParent, model)
+--   strip:render(p); strip:height() -> number (0 when hidden)
+--
+-- The event card, used by the Decision screen in a Choice week, a Collapsible
+-- under a "THIS WEEK" eyebrow (EventEyebrow):
 -- "Windfall · Donor retreat +" with the
 -- effect line always under it (so collapsed it is still two lines), and the
 -- flavor text and the map note in its body. Expanded by default in Spotlight
@@ -54,9 +71,12 @@ local ViewModule = require(SharedFolder.Sim.View)
 
 local Words = require(SharedFolder.UI.Words.Campaign)
 
+local Colors = require(SharedFolder.UI.Colors)
 local Collapsible = require(script.Parent.Parent.Parent.UI.Collapsible)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Model = require(script.Parent.Model)
+local Motion = require(script.Parent.Parent.Parent.UI.Motion)
+local Sheet = require(script.Parent.Parent.Parent.UI.Sheet)
 
 type View = ViewModule.View
 
@@ -66,11 +86,31 @@ local FEED_MESSAGES = 3 -- latest messages listed in the week card
 local STANCE_H = 60 -- px, one stance chip: its name over what it does
 local STANCE_BAR = 4 -- px, the bar at a stance chip's left: white when it is the pick
 local STANCE_INSET = Kit.space.md + Kit.space.sm -- px, the chip's text inset (room for the bar)
+local STRIP_ICON = 32 -- px, the event strip's icon plate
+local STRIP_GLYPH = 22 -- px, the icon on the plate (two thirds of it)
+local STRIP_ARROW = 28 -- px, the arrow at the strip's right end
+local STRIP_H = 52 -- px, the strip: a touch target with two one-line texts
+local STRIP_TITLE_H = Kit.size.body + 4 -- px, its title line (bold body)
+local STRIP_LINE_H = Kit.size.caption + 4 -- px, its effect line (caption)
+local STRIP_SHEET_H = 0.5 -- share of the screen the details sheet takes
+local EVENT_ICONS: { [string]: string } = {
+	Spotlight = "tv", -- the issue is on every channel
+	Regional = "megaphone", -- rallies in one region
+	Windfall = "coins", -- fundraisers
+	Choice = "vote", -- take a stance
+}
 
 export type EventCard = {
 	root: Frame,
 	render: (self: EventCard, p: Model.Payload, order: number) -> (),
 	showsStances: (self: EventCard) -> boolean,
+}
+
+export type EventStrip = {
+	root: TextButton,
+	sheet: Sheet.Sheet,
+	render: (self: EventStrip, p: Model.Payload) -> (),
+	height: (self: EventStrip) -> number,
 }
 
 export type WeekCard = {
@@ -392,6 +432,172 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		end,
 	}
 	return eventCard
+end
+
+-- The event strip under the header (D-065): see the top of this file.
+function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.Model): EventStrip
+	local config = model.config
+	local sheet = Sheet.new(sheetParent, { title = "This week", name = "EventSheet", height = STRIP_SHEET_H })
+	local root = Kit.cardButton(function()
+		sheet:open()
+	end, {
+		Name = "EventCard",
+		-- A fixed height, so the map under it never jumps: two one-line texts.
+		Size = UDim2.new(1, 0, 0, STRIP_H),
+		AutomaticSize = Enum.AutomaticSize.None,
+		Visible = false,
+		Parent = parent,
+	})
+	-- One row, placed by hand (not the card's column): the plate at the left,
+	-- the two lines beside it, the arrow at the right; all centered in height.
+	local column = root:FindFirstChildOfClass("UIListLayout")
+	if column then
+		column:Destroy()
+	end
+	local pad = root:FindFirstChildOfClass("UIPadding")
+	if pad then
+		pad.PaddingTop = UDim.new(0, Kit.space.sm)
+		pad.PaddingBottom = UDim.new(0, Kit.space.sm)
+		pad.PaddingLeft = UDim.new(0, Kit.space.sm + Kit.space.xs)
+		pad.PaddingRight = UDim.new(0, Kit.space.sm + Kit.space.xs)
+	end
+	-- The gold plate: news, like the leaderboard's gold coin (a data color).
+	local plate = Kit.dataColor(Kit.iconPlate("vote", STRIP_ICON, Kit.colors.background))
+	plate.Name = "EventIcon"
+	plate.AnchorPoint = Vector2.new(0, 0.5)
+	plate.Position = UDim2.fromScale(0, 0.5)
+	plate.BackgroundColor3 = Kit.color(Colors.player.Amber)
+	plate.Parent = root
+	local textX = STRIP_ICON + Kit.space.sm + Kit.space.xs
+	local textW = -(textX + STRIP_ARROW + Kit.space.xs)
+	-- One line each; a name too long for a narrow phone ends in "…" rather than
+	-- pushing the map down (the snapshot audit checks the whole deck at 390 px).
+	local title = Kit.text("", {
+		Name = "EventTitle",
+		Position = UDim2.new(0, textX, 0.5, -STRIP_TITLE_H),
+		Size = UDim2.new(1, textW, 0, STRIP_TITLE_H),
+		AutomaticSize = Enum.AutomaticSize.None,
+		Font = Kit.font.bold,
+		TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextYAlignment = Enum.TextYAlignment.Bottom,
+		Parent = root,
+	})
+	local line = Kit.caption("", {
+		Name = "EventLine",
+		Position = UDim2.new(0, textX, 0.5, 0),
+		Size = UDim2.new(1, textW, 0, STRIP_LINE_H),
+		AutomaticSize = Enum.AutomaticSize.None,
+		Font = Kit.font.medium,
+		TextColor3 = Kit.colors.text,
+		TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Parent = root,
+	})
+	Kit.text(Kit.glyph.arrow, {
+		Name = "EventMore",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromOffset(STRIP_ARROW, STRIP_ICON),
+		TextColor3 = Kit.colors.muted,
+		TextWrapped = false,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = root,
+	})
+
+	-- The details, one tap away.
+	local function detail(name: string, order: number, caption: boolean): TextLabel
+		local props = {
+			Name = name,
+			LayoutOrder = order,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = sheet.body,
+		}
+		return if caption then Kit.caption("", props) else Kit.text("", props)
+	end
+	local effect = detail("EventEffect", 1, false)
+	effect.Font = Kit.font.medium
+	local flavor = detail("EventText", 2, true)
+	local mapNote = detail("EventMapNote", 3, true)
+	local taken = detail("ChoiceTaken", 4, false)
+	local nextLine = detail("NextEvent", 5, true)
+	nextLine.TextColor3 = Kit.colors.text
+
+	local pulsedFor: string? = nil -- the event the strip last pulsed for
+	local iconKind: string? = nil -- the kind whose icon the plate shows
+
+	local strip: EventStrip = {
+		root = root,
+		sheet = sheet,
+		height = function(_self: EventStrip): number
+			if not root.Visible then
+				return 0
+			end
+			return STRIP_H
+		end,
+		render = function(_self: EventStrip, p: Model.Payload)
+			local view = p.view
+			local event = Model.shownEvent(p)
+			local upcoming = if p.reveal == nil then view.nextEvent else nil
+			local shown = event or upcoming
+			root.Visible = shown ~= nil
+			root:SetAttribute("EventKind", if event then event.kind else nil)
+			root:SetAttribute("EventName", if event then event.name else nil)
+			if shown == nil then
+				sheet:close()
+				return
+			end
+			local key = `{shown.week}:{shown.id}`
+			if pulsedFor ~= key then
+				pulsedFor = key
+				Motion.pulseOnce(root)
+			end
+			if iconKind ~= shown.kind then
+				-- The plate's icon follows the event's kind.
+				iconKind = shown.kind
+				for _, child in plate:GetChildren() do
+					if child:IsA("GuiObject") then
+						child:Destroy()
+					end
+				end
+				local icon = Kit.icon(EVENT_ICONS[shown.kind] or "vote", STRIP_GLYPH, Kit.colors.background)
+				icon.Name = "Icon"
+				icon.AnchorPoint = Vector2.new(0.5, 0.5)
+				icon.Position = UDim2.fromScale(0.5, 0.5)
+				icon.Parent = plate
+			end
+			title.Text = Words.eventTitle(shown, event == nil)
+			line.Text = Words.eventLine(config, shown, if event then view.stance else nil)
+			sheet:setTitle(Words.eventTitle(shown, event == nil))
+			effect.Text = Words.percent(PlanDraft.eventEffect(config, shown))
+			flavor.Text = shown.text
+			local note = PlanDraft.eventMapNote(shown)
+			mapNote.Text = note or ""
+			mapNote.Visible = note ~= nil
+			local mine: SharedTypes.Choice? = if event then view.stance else nil
+			taken.Visible = event ~= nil and event.kind == "Choice" and mine ~= nil
+			if event and mine ~= nil then
+				local name = ""
+				local stances: { ViewModule.StanceView } = event.stances or {}
+				for _, entry in stances do
+					if entry.id == mine then
+						name = ` · {entry.name}`
+					end
+				end
+				taken.Text = `Your stance: {mine}{name}. Secret until the week resolves.`
+			end
+			nextLine.Visible = event ~= nil and upcoming ~= nil
+			if event and upcoming then
+				nextLine.Text =
+					`Next week, from your pollster: {upcoming.kind} · {upcoming.name}. {Words.percent(
+						PlanDraft.eventEffect(config, upcoming)
+					)}`
+			end
+		end,
+	}
+	return strip
 end
 
 -- What the opponent did in public last week.

@@ -864,6 +864,13 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 3. Turn on Reduce motion and repeat step 1: the stamp is simply there, nothing slams or sweeps.
 4. **Send back:** an iPad screenshot of each, and whether it feels like a reward.
 
+**The week's event at the top (D-065).**
+1. Play a practice match to week 2 or later on the iPad, then on the Mac. **Expect:** right under the score bar and the "Tap a state…" line, a strip across the screen: a gold circle with an icon, the event's name in bold ("Windfall · Small-dollar surge") and one line under it ("Fundraisers where you trail +20%"), and an arrow at the right. The map starts right under it. Nothing about the event is left in the side column.
+2. Tap the strip. **Expect:** a "This week" sheet with the full effect, the story and, in a Spotlight or Regional week, "States marked * …". Close it with × or by tapping outside.
+3. Play through each kind of week you meet (Spotlight, Regional, Windfall, a Choice week after you take a stance: the line says "Stance A: …"). With Helen Strand, week 1 shows "Next week: <name>". During the week's results the strip goes away and comes back with the next week's event, with a small pulse.
+4. On a phone-sized window (or the iPad in portrait): the strip is one row and the whole map is still visible without scrolling.
+5. **Send back:** a screenshot of the plan screen on the iPad and on the Mac, and whether you noticed the event sooner than before.
+
 **Polls at half price (D-063).**
 1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Helen Strand still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
 2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.

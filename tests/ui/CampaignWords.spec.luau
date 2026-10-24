@@ -175,3 +175,36 @@ describe("Words.Campaign", function()
 		expect(Words.percent("no multiplier")):toBe("no multiplier")
 	end)
 end)
+
+describe("Campaign words: the event strip (D-065)", function()
+	local function event(kind: string, extra: { [string]: any }?): any
+		local e: { [string]: any } = { week = 3, id = "x", kind = kind, name = "Test week", text = "Story." }
+		for k, v in extra or {} do
+			e[k] = v
+		end
+		return e
+	end
+
+	it("titles this week's event by kind and name, next week's by name", function()
+		expect(Words.eventTitle(event("Windfall"))):toBe("Windfall · Test week")
+		expect(Words.eventTitle(event("Windfall"), true)):toBe("Next week: Test week")
+	end)
+
+	it("says what each kind does in one short line, as a signed percent", function()
+		expect(Words.eventLine(C, event("Windfall"))):toBe("Fundraisers where you trail +20%")
+		expect(Words.eventLine(C, event("Spotlight", { issue = "Transit" }))):toBe(
+			"Roads & Transit rallies and ads +30%"
+		)
+		expect(Words.eventLine(C, event("Regional", { region = "SouthAtlantic" }))):toBe(
+			"Rallies in the South Atlantic +50%"
+		)
+		local stances =
+			{ { id = "A", name = "Side with the staff" }, { id = "B", name = "Side with the board" } }
+		expect(Words.eventLine(C, event("Choice", { issue = "Health", stances = stances }), "A")):toBe(
+			"Stance A: Side with the staff"
+		)
+		expect(Words.eventLine(C, event("Choice", { issue = "Health", stances = stances }))):toBe(
+			"Take a stance on Health"
+		)
+	end)
+end)

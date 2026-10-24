@@ -20,6 +20,8 @@
 --   Words.bands() -> { { name, text } }       the map key's four color steps
 --   Words.gain(effect) -> string?             "+4.1" from "+4.1 support" (the map's ghost tag)
 --   Words.percent(text) -> string             "×1.2" said as "20% more" (an event's effect)
+--   Words.eventTitle(event, next?) -> string  "Windfall · Small-dollar surge" ("Next week: <name>")
+--   Words.eventLine(config, event, stance?) -> string   the event strip's one line (D-065)
 
 local Colors = require("../Colors")
 local ConfigModule = require("../../Sim/Config")
@@ -253,6 +255,49 @@ function Words.percent(text: string): string
 			return if value >= 1 then `{pct}% more` else `{pct}% less`
 		end)
 	)
+end
+
+-- ---------------------------------------------------------------- the event strip (D-065)
+
+-- A multiplier as a signed percent: 1.3 -> "+30%", 0.8 -> "−20%".
+local function plusPercent(mult: number): string
+	local pct = math.floor(math.abs(mult - 1) * 100 + 0.5)
+	return if mult >= 1 then `+{pct}%` else `−{pct}%`
+end
+
+-- The event strip's title: "Windfall · Small-dollar surge"; with `upcoming`,
+-- next week's event for a candidate who previews the deck ("Next week:
+-- Infrastructure week": the line under it says what it does).
+function Words.eventTitle(event: ViewModule.EventView, upcoming: boolean?): string
+	return if upcoming then `Next week: {event.name}` else `{event.kind} · {event.name}`
+end
+
+-- The event strip's one line: what the event does, short enough for one line
+-- on a phone ("Fundraisers where you trail +20%"). A Choice week says the
+-- stance taken on the Decision screen ("Stance A: Side with the staff"), or
+-- the question before one is taken. The full sentence is behind a tap.
+function Words.eventLine(config: Config, event: ViewModule.EventView, stance: Types.Choice?): string
+	if event.kind == "Spotlight" then
+		local issue = Issues.displayName[event.issue :: Types.Issue] or "?"
+		return `{issue} rallies and ads {plusPercent(config.EVENT_SPOTLIGHT_MULT)}`
+	elseif event.kind == "Regional" then
+		local region = Issues.regionName[event.region :: Types.Region] or "?"
+		return `Rallies in the {region} {plusPercent(config.EVENT_REGIONAL_MULT)}`
+	elseif event.kind == "Windfall" then
+		return `Fundraisers where you trail {plusPercent(config.EVENT_WINDFALL_MULT)}`
+	end
+	if stance ~= nil then
+		local name = ""
+		local stances: { ViewModule.StanceView } = event.stances or {}
+		for _, entry in stances do
+			if entry.id == stance then
+				name = `: {entry.name}`
+			end
+		end
+		return `Stance {stance}{name}`
+	end
+	local issue = Issues.displayName[event.issue :: Types.Issue] or "?"
+	return `Take a stance on {issue}`
 end
 
 -- ---------------------------------------------------------------- the map key
