@@ -728,6 +728,21 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
 
+## Real US map (unreleased, D-062)
+
+Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests Lens`, `lune run tests/ui/snap.luau -- lens` (and `-- draft`, `-- decision`, `-- election`); 0 audit findings at all three sizes.
+
+Before testing: upload the three map images and put their ids in `src/client/UI/Assets.luau` (`assets/map/README.md`). Test once **before** the upload too: the old circle map must still show and work, with no errors.
+
+1. **Campaign map (iPad, Mac, phone).** A real US map: every state its true shape, colored by who leads, thin dark lines between states, Alaska and Hawaii bottom left, and a column of chips VT, NH, MA, RI, CT, NJ, DE, MD, DC at the right edge with thin lines to the real states. *Send back:* a screenshot on each device. Is any state's code hard to read (look at Florida, Michigan, Louisiana, Idaho, Oklahoma, West Virginia)?
+2. **Tapping.** Tap the middle of Ohio, then near the Ohio/Indiana border on each side, then West Virginia, Delaware's chip and Rhode Island's chip. **Expect:** each tap opens the state you touched, never its neighbor. On the phone try the chips with a thumb. *Send back:* any tap that opened the wrong state, and where you touched.
+3. **Selection.** The tapped state gets a white outline and a soft breathing glow; a chip gets a white edge. Tap another: it moves.
+4. **Polls tab.** Leads ("+3") under each code as before. Some states show ▲ (or ▲▲) under the lead in red or blue: that side has momentum there. Do a Ground game action somewhere, end the week: filled dots in your color appear there. Run an internal poll in a state where the opponent placed ground game: hollow dots in their color appear. A line under the map reads "▲ momentum ● ○ ground game". Switch to Votes: the ▲, dots and that line are gone. *Send back:* a Polls screenshot on the phone and the iPad; are the dots big enough?
+5. **Pins.** Your candidate's pin (your initials on your color, a "You" flag) stands on the state you are in; the opponent's has their first name. Plan a route: after the week, the pin is in the new state. If you are both in neighboring states the pins stand side by side. *Send back:* can you find yourself at a glance?
+6. **Stance week and debate.** Moved states get an outline and a plate behind their code in the mover's color, tags "+1.0" / "-0.5" as before; FLIP still shows.
+7. **Draft and election night.** Home "H", picks "1"/"2" and the battleground ★ tags sit above the state codes; on election night each called state fills in its winner's color.
+8. **No errors** from `ShapeMap`, `NodeMap`, `MapShape`, `Pins` or `Lens` in the Output window, before and after the upload. *Send back:* the Output log.
+
 ## Claiming colors (unreleased, D-061)
 
 Agents: `lune run tests "D-061"`, `lune run tests "Select color picker"`, `lune run tests/ui/snap.luau -- select-color` (shots `03b`, `03c`, `04b`; 0 audit findings at all three sizes).

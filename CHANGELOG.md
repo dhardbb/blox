@@ -2,6 +2,18 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### The real US map (D-062)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Real US map". **Needed from the humans:** upload `assets/map/map-states-1.png`, `assets/map/map-states-2.png` and `assets/map/map-borders.png` and send the three ids (`assets/map/README.md`); until then the game keeps the circle map.
+
+- **The map is a real map of the United States:** every state in its true shape, filled by who leads its poll as before, with thin dark borders. Alaska and Hawaii sit in the bottom left. The nine small Northeast states (VT, NH, MA, RI, CT, NJ, DE, MD, DC) are labeled chips in a column at the right edge, each with a thin line to where it really is.
+- Tap anywhere inside a state to pick it, even a small one next to a big neighbor; tap a chip for the small Northeast states. The selected state gets a white outline.
+- **Polls tab:** under each lead, ▲ in a player's color shows who has momentum there (▲▲: a lot), filled dots are your ground-game units, hollow dots the opponent's as your internal polls last saw them. A legend under the map says so, and the Map key explains it. The other tabs are unchanged.
+- **Candidate pins:** your candidate stands on the state you are in, with your initials and a "You" flag; the opponent's pin has their first name. On every tab, on the plan and stance screens.
+- The map's images and their data are made by `scripts/mapgen/make.py` from public-domain Census boundaries (us-atlas, ISC).
+
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 
 A new look (navy stage, white accent, orange losses, chunky buttons, a lit map, stamps for the big moments), a global leaderboard, Easy to Extreme bots, Leave match, How to play, and Color Pass colors claimed first come, first served. Needed from the humans: the Color Pass id (see 0.11.0).
