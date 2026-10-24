@@ -32,6 +32,7 @@ local Colors = require(Shared.UI.Colors)
 local MapLayout = require(Shared.UI.MapLayout)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
+local PlanPreview = require(Shared.UI.PlanPreview)
 local Session = require(Shared.Net.Session)
 local ViewModule = require(Shared.Sim.View)
 
@@ -463,7 +464,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			lensFade
 		)
 		-- Polls explains its extra marks in the legend row; the pins show in every lens (D-062).
-		map:setLegend(Lens.mapLegend({ config = config, view = shown }, Lens.current()))
+		local legend = Lens.mapLegend({ config = config, view = shown }, Lens.current()) or {}
+		-- The plan preview (D-063): while you draft, what the plan would move.
+		local tags = {}
+		if live and shown == view and Model.planning(live) and not Model.isLocked(model, live) then
+			local line
+			tags, line = PlanPreview.build(config, view, model.draft)
+			if line then
+				table.insert(legend, 1, { mark = "none", text = line })
+				table.insert(
+					legend,
+					2,
+					{ mark = "none", text = PlanPreview.CAVEAT, color = Kit.colors.muted, optional = true }
+				)
+			end
+		end
+		map:setLegend(legend)
+		map:setPreview(tags)
 		map:setPins(MapPins.of(config, shown))
 		-- A reveal shows what moved (D-042); the stance preview is on the Decision screen (D-044).
 		local swing = model.revealSwing

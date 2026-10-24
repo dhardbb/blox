@@ -247,6 +247,42 @@ describe("ShapeMap", function()
 		expect(#m.map.root.MapLegend:GetChildren() >= 2):toBe(true)
 	end)
 
+	it("shows the plan preview's faint tags on top: green gains, orange losses (D-063)", function()
+		local m = mount(390, 244)
+		m.map:setLens({
+			TX = {
+				parts = { { text = "+5" } },
+				momentum = rgb(m, 220, 70, 80),
+				pips = { { count = 2, color = rgb(m, 70, 110, 220) } },
+			},
+		})
+		m.map:setPreview({
+			TX = { text = "+4.1" },
+			OH = { text = "-0.6", negative = true },
+			RI = { text = "+1.2" },
+		})
+		local layer = m.map.root.Preview
+		check(layer.ZIndex > m.map.root.Pins.ZIndex, "the preview is not on top")
+		local tx, oh, ri = layer.TX, layer.OH, layer.RI
+		expect(tx.Text):toBe("+4.1")
+		check(same(tx.TextColor3, m.Kit.colors.good), "a gain is not green")
+		check(same(oh.TextColor3, m.Kit.colors.loss), "a loss is not orange")
+		-- Under Texas's whole stack (code, lead, Polls row), so the marks stay readable.
+		local extras = button(m, "TX").Extras
+		check(
+			tx.AbsolutePosition.Y >= extras.AbsolutePosition.Y + extras.AbsoluteSize.Y - 1,
+			"the tag covers the Polls row"
+		)
+		-- A callout's tag stands left of its chip.
+		check(
+			ri.AbsolutePosition.X + ri.AbsoluteSize.X <= button(m, "RI").Chip.AbsolutePosition.X + 1,
+			"RI's tag covers its chip"
+		)
+		m.map:setPreview(nil)
+		expect(tx.Visible):toBe(false)
+		expect(oh.Visible):toBe(false)
+	end)
+
 	it("passes the strict audit on phone, iPad and smaller maps", function()
 		for _, size in { { 390, 244 }, { 620, 388 }, { 832, 520 }, { 300, 188 } } do
 			local m = mount(size[1], size[2])
@@ -267,7 +303,17 @@ describe("ShapeMap", function()
 				{ state = "WA", name = "Rex Calloway", color = red, tag = "Rex" },
 				{ state = "FL", name = "Dana Okafor", color = blue, tag = "You", you = true },
 			})
-			m.map:setLegend({ { mark = "up", text = "momentum" } })
+			m.map:setLegend({
+				{ mark = "none", text = "Plan: 268 → 281 votes" },
+				{ mark = "none", text = "if nothing else changes", optional = true },
+				{ mark = "up", text = "momentum" },
+			})
+			m.map:setPreview({
+				TX = { text = "+4.1" },
+				FL = { text = "-0.6", negative = true },
+				DC = { text = "+1.0" },
+				WA = { text = "+2.0" },
+			})
 			m.map:setRoute({ "OH", "PA", "NJ", "NY" }, { false, false, true, false })
 			m.map:select("RI")
 			m.map:badge("TX", "megaphone")

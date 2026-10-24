@@ -134,6 +134,7 @@ local PART_BG = 0 -- a lens plate's backing transparency at rest
 local GHOST_STROKE = 0.5 -- the ghost tag's outline transparency
 local GHOST_BG = 0.3 -- the ghost tag's backing transparency
 local PIN_PX = 22 -- px, a candidate pin's face on the circle map
+local PREVIEW_LOW = 0.85 -- a circle whose bottom is below this (box heights) shows its plan preview over it
 local LEGEND_RECT = { x = 0.3, y = 0.9, w = 0.5, h = 0.09 } -- the legend strip (under the Gulf)
 
 type Node = {
@@ -945,6 +946,48 @@ function NodeMap.circles(): MapInterface.Map
 				frame.Position = UDim2.new(node.x, (k - 1) * PIN_PX, top, 0)
 				frame.ZIndex = if pin.you then 2 else 1
 				frame.Parent = pinLayer
+			end
+		end
+	end
+
+	-- The plan preview (D-063): a faint tag under each circle it moves, on top.
+	local previewLayer = Kit.box({ Name = "Preview", ZIndex = 7, Parent = root })
+	function map.setPreview(_self: any, tags: { [string]: MapInterface.PreviewTag }?)
+		for _, child in previewLayer:GetChildren() do
+			child:Destroy()
+		end
+		local list: { [string]: MapInterface.PreviewTag } = tags or {}
+		for id, spec in list do
+			local node = byId[id]
+			if node then
+				local color = if spec.negative then Kit.colors.loss else Kit.colors.good
+				-- Under the circle; over it near the map's bottom (Alaska, Hawaii).
+				local ry = node.r * CIRCLE_SHARE * MapLayout.ASPECT
+				local low = node.y + ry > PREVIEW_LOW
+				local tag = Kit.text(spec.text, {
+					Name = id,
+					AutomaticSize = Enum.AutomaticSize.X,
+					Size = UDim2.fromOffset(0, TAG_H),
+					AnchorPoint = Vector2.new(0.5, if low then 1 else 0),
+					Position = if low
+						then UDim2.new(node.x, 0, node.y - ry, TAG_DIP)
+						else UDim2.new(node.x, 0, node.y + ry, -TAG_DIP),
+					TextSize = Kit.size.caption,
+					Font = Kit.font.display,
+					TextColor3 = color,
+					BackgroundColor3 = Kit.colors.field,
+					BackgroundTransparency = GHOST_BG,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					TextWrapped = false,
+					Parent = previewLayer,
+				})
+				Kit.dataColor(tag)
+				Kit.new("UICorner", { CornerRadius = UDim.new(0, TAG_RADIUS), Parent = tag })
+				Kit.new("UIPadding", {
+					PaddingLeft = UDim.new(0, TAG_PAD),
+					PaddingRight = UDim.new(0, TAG_PAD),
+					Parent = tag,
+				})
 			end
 		end
 	end

@@ -104,6 +104,10 @@ local PIN_MIN, PIN_MAX = 18, 28 -- px, a pin's face
 local PIN_SHARE = 0.045 -- the face's size, share of the map's width
 local PIN_SPREAD = 0.2 -- two close pins stand at least (1 + this) faces apart
 local ARROWS = { up = "▲", down = "▼" }
+local PREVIEW_BG = 0.35 -- the plan preview tag's backing transparency (a ghost)
+local PREVIEW_TEXT = 0.1 -- ... its number's transparency
+local PREVIEW_EDGE = 0.45 -- ... its edge's transparency
+local PREVIEW_GAP = 2 -- px between the label stack and the preview tag
 local ARROW_PX = 18 -- px, a mark's arrow box
 local ARROW_GAP = 12 -- px from the code's middle to its arrow
 
@@ -282,6 +286,8 @@ function ShapeMap.new(): MapInterface.Map
 	local tagLayer = Kit.box({ Name = "Tags", ZIndex = 7, Parent = root })
 	local pinLayer = Kit.box({ Name = "Pins", ZIndex = 8, Parent = root })
 	local legendLayer = Legend.new(root, data.legend)
+	-- The plan preview (D-063) on top of everything, so it reads in every lens.
+	local previewLayer = Kit.box({ Name = "Preview", ZIndex = 9, Parent = root })
 
 	local selectGlow =
 		Kit.glow(glowLayer, Kit.colors.accent, { transparency = SELECT_GLOW_FADE, stretch = true })
@@ -315,6 +321,7 @@ function ShapeMap.new(): MapInterface.Map
 	local lens: { [string]: MapInterface.LensLine } = {}
 	local fills: { [string]: Color3 } = {}
 	local pins: { MapInterface.Pin } = {}
+	local previews: { [string]: MapInterface.PreviewTag } = {}
 	local lastWidth = -1
 
 	local function widthPx(): number
@@ -631,6 +638,8 @@ function ShapeMap.new(): MapInterface.Map
 			badgeStroke = badgeStroke,
 			outline = nil,
 			outlineParts = {},
+			stackH = LABEL_MIN,
+			preview = nil,
 			bloom = nil,
 		}
 		table.insert(nodes, node)
@@ -882,6 +891,7 @@ function ShapeMap.new(): MapInterface.Map
 		for k, row in rows do
 			total += row.h + (if k > 1 then ROW_GAP else 0)
 		end
+		node.stackH = total
 		node.halo.Size = UDim2.fromOffset(HALO_W, total + 2 * HALO_PAD)
 		node.halo.Position = onAnchor(node, 0.5, 0)
 		local y = -total / 2
@@ -1015,9 +1025,9 @@ function ShapeMap.new(): MapInterface.Map
 		-- Two pins that would cover each other (the same state, or neighbors)
 		-- stand side by side, each half the overlap away.
 		local wide = px * (1 + PIN_SPREAD)
-		for a = 1, #spots do
-			for b = a + 1, #spots do
-				local p, q = spots[a], spots[b]
+		for i = 1, #spots do
+			for j = i + 1, #spots do
+				local p, q = spots[i], spots[j]
 				local dx = q.x - p.x
 				if math.abs(dx) < wide and math.abs(q.y - p.y) < px * 2 then
 					local push = (wide - math.abs(dx)) / 2
@@ -1031,16 +1041,85 @@ function ShapeMap.new(): MapInterface.Map
 		for _, spot in spots do
 			local x = if bw > 0 then math.clamp(spot.x, half, bw - half) else spot.x
 			spot.frame.Position = if bw > 0
-				then UDim2.new(x / bw, 0, spot.y / bh, 0)
+				then UDim2.fromScale(x / bw, spot.y / bh)
 				else UDim2.fromScale(0.5, 0.5)
 			spot.frame.ZIndex = if spot.pin.you then 2 else 1
 			spot.frame.Parent = pinLayer
 		end
 	end
 
+	-- The plan preview's tag: just under the state's label stack (a chip: left
+	-- of it, past its badge), turned over the code near the map's bottom.
+	local function paintPreview(node: Node)
+		local spec = previews[node.id]
+		local tag = node.preview
+		if spec == nil then
+			if tag then
+				tag.Visible = false
+			end
+			return
+		end
+		if tag == nil then
+			local made = Kit.text("", {
+				Name = node.id,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, TAG_H),
+				TextSize = Kit.size.caption,
+				Font = Kit.font.display,
+				BackgroundColor3 = Kit.colors.field,
+				BackgroundTransparency = PREVIEW_BG,
+				TextTransparency = PREVIEW_TEXT,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextWrapped = false,
+				Parent = previewLayer,
+			})
+			Kit.new("UICorner", { CornerRadius = UDim.new(0, TAG_RADIUS), Parent = made })
+			Kit.new("UIPadding", {
+				PaddingLeft = UDim.new(0, TAG_PAD),
+				PaddingRight = UDim.new(0, TAG_PAD),
+				Parent = made,
+			})
+			local stroke = Kit.stroke(Kit.colors.line, 1)
+			stroke.Name = "Edge"
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			stroke.Parent = made
+			Kit.dataColor(made)
+			node.preview = made
+			tag = made
+		end
+		local label = tag :: TextLabel
+		label.Visible = true
+		label.Text = spec.text
+		local color = if spec.negative then Kit.colors.loss else Kit.colors.good
+		label.TextColor3 = color
+		local edge = label:FindFirstChild("Edge") :: UIStroke?
+		if edge then
+			edge.Color = color
+			edge.Transparency = PREVIEW_EDGE
+		end
+		if node.ladder then
+			local chip = node.shape.chip :: MapShape.Rect
+			local past = if node.badge.Visible then node.badge.AbsoluteSize.X + 2 else 0
+			label.AnchorPoint = Vector2.new(1, 0.5)
+			label.Position = UDim2.new(chip.x, -2 - past, node.ly, 0)
+			return
+		end
+		local _, bh = boxPx()
+		local below = node.stackH / 2 + PREVIEW_GAP
+		if bh > 0 and node.ly * bh + below + TAG_H > bh then
+			-- Near the bottom: over the code instead.
+			label.AnchorPoint = Vector2.new(0.5, 1)
+			label.Position = UDim2.new(node.lx, 0, node.ly, -below)
+		else
+			label.AnchorPoint = Vector2.new(0.5, 0)
+			label.Position = UDim2.new(node.lx, 0, node.ly, below)
+		end
+	end
+
 	local function paintAll()
 		for _, node in nodes do
 			paint(node)
+			paintPreview(node)
 		end
 		paintPins()
 	end
@@ -1074,6 +1153,7 @@ function ShapeMap.new(): MapInterface.Map
 			local node = byId[s.id]
 			if node then
 				paint(node)
+				paintPreview(node)
 			end
 		end
 	end
@@ -1082,6 +1162,7 @@ function ShapeMap.new(): MapInterface.Map
 		marks = newMarks
 		for _, node in nodes do
 			paint(node)
+			paintPreview(node)
 		end
 	end
 
@@ -1089,6 +1170,7 @@ function ShapeMap.new(): MapInterface.Map
 		lens = newLens
 		for _, node in nodes do
 			paint(node)
+			paintPreview(node)
 			if fade and node.lensRow.Visible then
 				for _, part in node.parts do
 					if part.label.Visible then
@@ -1304,6 +1386,13 @@ function ShapeMap.new(): MapInterface.Map
 
 	function map.setLegend(_self: any, items: { MapInterface.LegendItem }?)
 		Legend.fill(legendLayer, items)
+	end
+
+	function map.setPreview(_self: any, tags: { [string]: MapInterface.PreviewTag }?)
+		previews = tags or {}
+		for _, node in nodes do
+			paintPreview(node)
+		end
 	end
 
 	function map.destroy(_self: any)

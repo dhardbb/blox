@@ -12,6 +12,7 @@ local MapInterface = require(script.Parent.MapInterface)
 local Legend = {}
 
 local GAP = 8 -- px between items
+local CHAR_W = 6.8 -- px, an estimated caption character (to drop optional items on a phone)
 local PIP = 8 -- px, a pip mark
 local ROW_H = Kit.size.caption + 2 -- px
 
@@ -40,7 +41,30 @@ function Legend.fill(frame: Frame, items: { MapInterface.LegendItem }?)
 			child:Destroy()
 		end
 	end
-	local list: { MapInterface.LegendItem } = items or {}
+	local all: { MapInterface.LegendItem } = items or {}
+	-- Drop optional items, last first, until the row fits the strip.
+	local list = table.clone(all)
+	local function width(): number
+		local w = 0
+		for k, item in list do
+			w += (utf8.len(item.text) or #item.text) * CHAR_W + (if item.mark == "none" then 0 else PIP + 3) + (if k
+					> 1
+				then GAP
+				else 0)
+		end
+		return w
+	end
+	local room = frame.AbsoluteSize.X
+	if room > 0 then
+		for k = #list, 1, -1 do
+			if width() <= room then
+				break
+			end
+			if list[k].optional then
+				table.remove(list, k)
+			end
+		end
+	end
 	frame.Visible = #list > 0
 	for k, item in list do
 		local row = Kit.box({
@@ -66,7 +90,7 @@ function Legend.fill(frame: Frame, items: { MapInterface.LegendItem }?)
 				TextWrapped = false,
 				Parent = row,
 			})
-		else
+		elseif item.mark ~= "none" then
 			local hollow = item.mark == "hollow"
 			local pip = Kit.new("Frame", {
 				Name = "Mark",
@@ -89,7 +113,7 @@ function Legend.fill(frame: Frame, items: { MapInterface.LegendItem }?)
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromOffset(0, ROW_H),
 				TextSize = Kit.size.caption,
-				TextColor3 = Kit.colors.muted,
+				TextColor3 = if item.mark == "none" then color else Kit.colors.muted,
 				TextWrapped = false,
 				Parent = row,
 			})

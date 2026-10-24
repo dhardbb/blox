@@ -49,7 +49,7 @@ local data: Data = {
 		{ file = "assets/map/map-states-2.png", w = 926, h = 281 },
 	},
 	borders = { file = "assets/map/map-borders.png", x = 0.0055, y = 0.0088, w = 0.8686, h = 0.8755, pw = 1023, ph = 645 },
-	legend = { x = 0.3097, y = 0.8888, w = 0.5644, h = 0.1068 },
+	legend = { x = 0.0055, y = 0.8888, w = 0.8686, h = 0.1068 },
 	shapes = {
 		{
 			id = "AL",

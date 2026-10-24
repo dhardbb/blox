@@ -447,10 +447,11 @@ def main():
         f'\tborders = {{ file = "assets/map/map-borders.png", x = {fmt(fx(gx0))}, y = {fmt(fy(gy0))}, '
         f"w = {fmt((gx1 - gx0) / bw)}, h = {fmt((gy1 - gy0) / bh)}, pw = {border.size[0]}, ph = {border.size[1]} }},"
     )
+    # The legend strip: under all the land (Alaska and Hawaii end above it), left of the chips.
     legend_top = gy1 + PAD / 2
     out(
-        f"\tlegend = {{ x = {fmt(fx(gx0 + 330))}, y = {fmt(fy(legend_top))}, "
-        f"w = {fmt((col_x - GAP - gx0 - 330) / bw)}, h = {fmt((top + bh - PAD / 2 - legend_top) / bh)} }},"
+        f"\tlegend = {{ x = {fmt(fx(gx0))}, y = {fmt(fy(legend_top))}, "
+        f"w = {fmt((col_x - GAP - gx0) / bw)}, h = {fmt((top + bh - PAD / 2 - legend_top) / bh)} }},"
     )
     out("\tshapes = {")
     for sid in order:
