@@ -139,7 +139,8 @@
 --     transparency 0.6, stretch? }. Nil in a parent with a list or grid layout
 --   Kit.stamp(text, color, props?) -> Frame "Stamp"   a tilted plate (−6°) with a
 --     Fredoka label (props.size: a Kit.size token, default title) and a glow;
---     attribute Overhang. Animate it with Motion.stamp
+--     attribute Overhang; props.fit = px keeps it inside its parent (long
+--     names: it narrows and its label scales). Animate it with Motion.stamp
 --   Kit.monogram(name, color, px) -> Frame "Monogram"   a candidate's initials in
 --     a lit circle of `color` (dataColor); the label is "Initials"
 --   Kit.portrait(id, name, px, opts?) -> Frame "Portrait"   a candidate's illustrated
@@ -1463,13 +1464,19 @@ end
 -- token (default title); other props go on the returned Frame "Stamp" (Name,
 -- Position, AnchorPoint, LayoutOrder, ZIndex, Parent). Attribute Overhang, so
 -- it may sit over an edge. The plate is "Plate", the label "Label".
+-- props.fit (px): the stamp is never wider than its parent less `fit` on each
+-- side (a long name on a phone): it spans that width up to its words' own
+-- (a UISizeConstraint) and the label scales down to fit.
 function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Frame
 	local size = Kit.size.title
+	local fit: number? = nil
 	local rest: { [string]: any } = {}
 	if props then
 		for key, value in props do
 			if key == "size" then
 				size = value
+			elseif key == "fit" then
+				fit = value
 			else
 				rest[key] = value
 			end
@@ -1491,6 +1498,10 @@ function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Fram
 		}, rest)
 	) :: Frame
 	root:SetAttribute("Overhang", true)
+	if fit then
+		root.Size = UDim2.new(1, -2 * fit, 0, height)
+		Kit.new("UISizeConstraint", { MaxSize = Vector2.new(width, height), Parent = root })
+	end
 	Kit.glow(root, color, { scale = STAMP_GLOW, transparency = STAMP_GLOW_TRANSPARENCY })
 	local edge = edgeOf(color)
 	local plate = Kit.dataColor(Kit.new("Frame", {
