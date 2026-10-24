@@ -11,13 +11,16 @@
 -- a player who is not known to own a pass tries to use it, e.g. after a failed
 -- check or a purchase made outside the game).
 --
--- While a pass id is 0 nothing is checked for it and nobody owns it.
+-- While a pass id is 0 nothing is checked for it and nobody owns it, except
+-- admins (server/Admins: the owner and Config.ADMIN_USER_IDS), who own both
+-- passes for free, always, without asking MarketplaceService (D-063).
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Products = require(ReplicatedStorage.Shared.Net.Products)
+local Admins = require(script.Parent.Admins)
 
 local PassService = {}
 
@@ -61,14 +64,27 @@ function PassService.namePassId(): number?
 	return passId("Name")
 end
 
--- True if the server knows this player owns the Color Pass. Never yields.
-function PassService.ownsColorPass(id: string): boolean
-	return passId("Color") ~= nil and owns["Color"][id] == true
+local function isAdmin(id: string): boolean
+	local userId = tonumber(id)
+	return userId ~= nil and Admins.isAdminId(userId)
 end
 
--- True if the server knows this player owns the Name Pass. Never yields.
+-- True if the server knows this player owns the Color Pass (an admin always
+-- does). Never yields.
+function PassService.ownsColorPass(id: string): boolean
+	return isAdmin(id) or (passId("Color") ~= nil and owns["Color"][id] == true)
+end
+
+-- True if the server knows this player owns the Name Pass (an admin always
+-- does). Never yields.
 function PassService.ownsNamePass(id: string): boolean
-	return passId("Name") ~= nil and owns["Name"][id] == true
+	return isAdmin(id) or (passId("Name") ~= nil and owns["Name"][id] == true)
+end
+
+-- Whether this player is offered a pass's feature at all: it is set up, or
+-- they are an admin (who has it free even while the id is 0).
+function PassService.offered(kind: string, id: string): boolean
+	return passId(kind) ~= nil or isAdmin(id)
 end
 
 -- Asks Roblox whether the player owns a pass and caches the answer (yields).
@@ -76,6 +92,9 @@ end
 local function refresh(kind: Kind, player: Player): boolean
 	local pass = passId(kind)
 	local id = idOf(player)
+	if isAdmin(id) then
+		return true
+	end
 	if pass == nil then
 		return false
 	end

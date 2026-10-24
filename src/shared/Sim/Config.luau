@@ -188,6 +188,15 @@ local Config = {
 	NAME_SIMILAR_DISTANCE = 1, -- a name within this many letter edits of a blocklist entry counts as that entry (D-063)
 	NAME_SIMILAR_MIN_LETTERS = 5, -- shorter blocklist entries must match exactly (one edit away from a short word is too many names)
 
+	-- Admins (D-063): free Color and Name Passes and the name review panel. The
+	-- experience owner (game.CreatorId, or for a group-owned game its members of
+	-- at least ADMIN_GROUP_RANK) always counts; these user ids count too.
+	ADMIN_USER_IDS = {
+		5618560436, -- the experience owner (also covered by game.CreatorId)
+		479739965, -- "originalyellowboss", the partner
+	},
+	ADMIN_GROUP_RANK = 255, -- group-owned games: a role of this rank or above makes an admin (255 = the group owner)
+
 	-- Meta
 	ELO_K = 32, -- rating K-factor
 	ELO_START = 1000, -- starting rating

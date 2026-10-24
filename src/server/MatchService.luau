@@ -17,6 +17,7 @@ local Profile = require(ReplicatedStorage.Shared.Net.Profile)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local DataService = require(script.Parent.DataService)
+local Admins = require(script.Parent.Admins)
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local NameEligibility = require(script.Parent.NameEligibility)
 local NameService = require(script.Parent.NameService)
@@ -59,7 +60,10 @@ local function sendLobby(id: string)
 		profile = DataService.summary(id),
 		color = if profile then profile.color else nil,
 		-- Absent while the pass is not set up: the client then shows no color option.
-		colorPass = if passId then { id = passId, owned = PassService.ownsColorPass(id) } else nil,
+		-- Admins have it free even while the id is 0 (D-063).
+		colorPass = if PassService.offered("Color", id)
+			then { id = passId or 0, owned = PassService.ownsColorPass(id) }
+			else nil,
 	}
 	Replication.send(id, { kind = "Lobby", lobby = status })
 end
@@ -78,11 +82,10 @@ end
 
 -- The Name Pass as this player may use it, or nil (not set up, or not eligible).
 local function namePassOf(id: string): Session.NamePass?
-	local passId = PassService.namePassId()
-	if passId == nil or not eligible(id) then
+	if not PassService.offered("Name", id) or not eligible(id) then
 		return nil
 	end
-	return { id = passId, owned = PassService.ownsNamePass(id) }
+	return { id = PassService.namePassId() or 0, owned = PassService.ownsNamePass(id) }
 end
 
 -- Filters a player's saved custom name once per visit (when their profile
@@ -132,7 +135,7 @@ local function setColor(player: Player, color: string?): string?
 		if not Profile.isColor(color) then
 			return "UnknownColor"
 		end
-		if PassService.colorPassId() == nil then
+		if not PassService.offered("Color", id) then
 			return "NoColorPass"
 		end
 		-- Not known to own it: ask Roblox again (a failed check at join, or a
@@ -323,7 +326,7 @@ end
 -- fresh pass check).
 local function setName(player: Player, text: string?): string?
 	local id = idOf(player)
-	if PassService.namePassId() == nil then
+	if not PassService.offered("Name", id) then
 		return CustomName.Reason.NoNamePass
 	end
 	if not eligible(id) and not NameEligibility.refresh(player) then
@@ -609,6 +612,7 @@ function MatchService.start()
 	-- Name eligibility (D-063) is asked once per visit, then the saved name is
 	-- filtered for it.
 	local function checkNames(player: Player)
+		Admins.refresh(player)
 		NameEligibility.refresh(player)
 		approveSavedName(idOf(player))
 		if matchOf[idOf(player)] == nil then
@@ -640,6 +644,7 @@ function MatchService.start()
 		prePicks[id] = nil
 		approvedNames[id] = nil
 		NameEligibility.forget(player)
+		Admins.forget(player)
 		NameService.forget(player)
 		if before == "Queued" or before == "Hosting" then
 			broadcastLobby()
