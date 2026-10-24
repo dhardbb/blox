@@ -532,6 +532,8 @@ Keep the layout (race bar, map, call feed, "Skip to results"). Changes: header s
 ```
 Four sizes: hero, heading, body, caption (drop the 28 px EV numbers to heading, or keep title and drop heading). Player color on the dot and the bar, not on big numbers next to the primary. "What decided it" collapses into 3 bullets + a sheet.
 
+Tabs (D-066): once the election is in, a pinned row of three chips **Summary | Map | Graph** sits above the column; Summary is the view above. Map: a two-chip switch "Final polls" | "Real results", the map (lead pills in the leader's color, a MISS tag on each state the polls called wrong) and one line naming the misses. Graph: projected votes week by week drawn from Frames (`Shared/UI/EVChart`), the white 270 line, the result set apart, "D"/"S" marker chips (44 px targets) that explain their week. Each tab is sized to fit without scrolling.
+
 ### 4.10 Help (WP-C)
 
 Replace the rulebook with a "How to play" sheet (`UI/Sheet`) of five short cards, each ≤ 30 words with one example: **Goal** (270 votes), **Each week** (actions, money, Lock in), **Actions** (one line each: Rally, Fundraise, Ad, Attack ad, Poll, Ground game), **Debates and stances**, **Election night**. Then one expander per topic ("All the numbers: actions", "…: debates", …) holding today's exact text from `Shared/UI/Explain` (a details area, so the long text is allowed there). Close is the sheet's `×` and a secondary "Close", never a primary. Opened from the `?` in every header and from the Lobby's "How to play". `Help.mount(parent, ctx)` and `ctx.help` keep their signatures (App.client.luau is frozen).
