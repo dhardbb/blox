@@ -97,6 +97,10 @@ local function sendLobby(id: string)
 			else nil,
 		-- Admins only: the review button's count (D-069).
 		review = if Admins.isAdminId(tonumber(id) or 0) then { count = NameReview.pendingCount() } else nil,
+		-- Admins only: the corner's "Timers off" toggle as saved (D-080).
+		admin = if Admins.isAdminId(tonumber(id) or 0)
+			then { timersOff = profile ~= nil and profile.adminTimersOff == true }
+			else nil,
 	}
 	Replication.send(id, { kind = "Lobby", lobby = status })
 end
@@ -168,7 +172,12 @@ local function humanSpec(id: string): Session.SeatSpec
 	local owns = PassService.ownsColorPass(id)
 	local profile = if owns then DataService.profile(id) else nil
 	local namePass = namePassOf(id)
+	-- Admins (D-080), checked here on the server: their saved "Timers off".
+	local admin = Admins.isAdminId(tonumber(id) or 0)
+	local saved = if admin then DataService.profile(id) else nil
 	return {
+		admin = admin,
+		timersOff = saved ~= nil and saved.adminTimersOff == true,
 		id = id,
 		kind = "Human",
 		prePick = prePicks[id],
@@ -245,12 +254,17 @@ local function settle(session: Session.Session)
 		end
 	end
 	if result.unrated and starts then
-		-- A forfeit or a drop before week 1 counts for no one (D-077).
+		-- A forfeit or a drop before week 1 counts for no one (D-077); nor does a
+		-- match where an admin had the timers off (D-080).
 		starts = nil
-		print(`[270] match {session.id} is unrated: it ended before week 1`)
+		local why = if result.timersOff then "an admin turned the timers off" else "it ended before week 1"
+		print(`[270] match {session.id} is unrated: {why}`)
 		for _, seat in session.seats do
 			if seat.kind == "Human" then
-				Replication.send(seat.id, { kind = "Notice", notice = "ForfeitUnrated" })
+				Replication.send(seat.id, {
+					kind = "Notice",
+					notice = if result.timersOff then "AdminUnrated" else "ForfeitUnrated",
+				})
 			end
 		end
 	end
@@ -838,6 +852,58 @@ local function forfeit(player: Player, request: Remotes.Request)
 	flush(session)
 end
 
+-- SetTimersOff (D-080): an admin's "Timers off" toggle. Admins only, checked
+-- here on every request (never the client's word); cooled down like the other
+-- saved settings. Saved in their profile and applied to their match at once
+-- (Session.setTimersOff: only where every human is an admin). Returns a reason
+-- code when it is turned down.
+local function setTimersOff(player: Player, on: boolean): string?
+	local id = idOf(player)
+	if not Admins.isAdmin(player) then
+		return Session.Reason.AdminOnly
+	end
+	if not cooled(id, "SetTimersOff", config.SET_TIMERS_OFF_COOLDOWN) then
+		return "RateLimited"
+	end
+	local how = DataService.update(id, function(profile: Profile.Profile): Profile.Profile
+		return Profile.withTimersOff(profile, on)
+	end)
+	local session = sessions[matchOf[id] or ""]
+	local reason: string? = nil
+	if session then
+		local seat = Session.seatOf(session, id) :: number
+		local accepted, why = false, nil
+		local ran = guard(session, function()
+			accepted, why = Session.setTimersOff(session, seat, on, now())
+		end)
+		if not ran then
+			reason = "Internal"
+		elseif not accepted then
+			reason = why or "Rejected"
+		end
+		flush(session)
+	else
+		if how == "Skipped" then
+			reason = "TimersNotSaved"
+		end
+		sendLobby(id)
+	end
+	print(`[270] admin {id} timers {if on then "off" else "on"} ({how})`)
+	return reason
+end
+
+-- Sends a player their current screen again (their match's State, or the
+-- lobby), so a toggle painted ahead of the server's answer goes back (D-080).
+local function resend(id: string)
+	local session = sessions[matchOf[id] or ""]
+	if session then
+		local seat = Session.seatOf(session, id) :: number
+		Replication.send(id, { kind = "State", state = Session.payload(session, seat) })
+	else
+		sendLobby(id)
+	end
+end
+
 -- Handles one schema-checked request.
 function MatchService.handle(player: Player, request: Remotes.Request)
 	local op = request.op
@@ -862,6 +928,12 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 		local reason = review(player, request)
 		if reason then
 			Replication.reject(player, op, reason)
+		end
+	elseif op == "SetTimersOff" then
+		local reason = setTimersOff(player, request.on == true)
+		if reason then
+			Replication.reject(player, op, reason)
+			resend(idOf(player))
 		end
 	elseif op == "Leaderboard" then
 		LeaderboardService.request(idOf(player))
