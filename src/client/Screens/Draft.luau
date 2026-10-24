@@ -781,6 +781,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		map:setMarks(marks)
 		map:setLens(Lens.lines(Lens.current(), { config = config, view = view }))
+		map:setLegend(Lens.mapLegend({ config = config, view = view }, Lens.current()))
 		map:select(if mode == "Input" then choices.first elseif mine then mine.state else nil)
 
 		-- A round's picks arriving: both cards pop, each state rings once.

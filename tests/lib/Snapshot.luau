@@ -21,7 +21,9 @@
 -- box of its tint; a decoration image (attribute Asset, UI/Assets) as a
 -- stand-in: "shadow" four stacked rounded rects (a fake blur: qlmanage drops
 -- SVG filters) under the object named by its Follow attribute, "glow" a radial
--- gradient in ImageColor3, "dots" a dot pattern; any other image as a labeled
+-- gradient in ImageColor3, "dots" a dot pattern, "mapShape" the state's
+-- outline (attribute MapShape, from Shared/UI/MapShape) filled in ImageColor3,
+-- "mapBorders" every state's outline stroked in ImageColor3; any other image as a labeled
 -- dashed box. Text widths are estimated (Builder Sans, Gotham and Fredoka One
 -- are drawn as Helvetica), so line breaks are close to Studio, not exact.
 --
@@ -35,6 +37,7 @@
 --                     only renders square thumbnails; snap.luau crops it back)
 
 local Icons = require("../../src/client/UI/Icons")
+local MapShape = require("../../src/shared/UI/MapShape")
 
 local Snapshot = {}
 
@@ -889,6 +892,58 @@ local function drawAsset(
 				num(rx),
 				num(ry),
 				id
+			)
+		)
+	elseif a.Asset == "mapShape" and type(a.MapShape) == "string" then
+		-- The state's outline in its sprite rect, filled like the tinted image.
+		local shape = MapShape.get(a.MapShape)
+		if shape then
+			local d = {}
+			for _, ring in shape.rings do
+				for i = 1, #ring, 2 do
+					local x = ax + (ring[i] - shape.x) / shape.w * w
+					local y = ay + (ring[i + 1] - shape.y) / shape.h * h
+					table.insert(d, string.format("%s%s %s", if i == 1 then "M" else "L", num(x), num(y)))
+				end
+				table.insert(d, "Z")
+			end
+			local gradient = enabledChild(inst, "UIGradient")
+			local paint
+			if gradient then
+				local id = gradientDef(out, gradient, ax, ay, w, h, p.ImageColor3, alpha)
+				paint = string.format('fill="url(#%s)"', id)
+			else
+				paint =
+					string.format('fill="%s" fill-opacity="%s"', hex(p.ImageColor3, "#ffffff"), num(alpha))
+			end
+			emit(out, string.format('<path d="%s" fill-rule="evenodd" %s/>', table.concat(d, " "), paint))
+		end
+	elseif a.Asset == "mapBorders" then
+		-- The border overlay: every state's outline over the land rect, as thick
+		-- as the image's lines come out at this size.
+		local b = MapShape.data.borders
+		local boxW, boxH = w / b.w, h / b.h
+		local ox0, oy0 = ax - b.x * boxW, ay - b.y * boxH
+		local width = math.max(0.6, 2.2 * w / b.pw)
+		local d = {}
+		for _, shape in MapShape.list() do
+			for _, ring in shape.rings do
+				for i = 1, #ring, 2 do
+					local x = ox0 + ring[i] * boxW
+					local y = oy0 + ring[i + 1] * boxH
+					table.insert(d, string.format("%s%s %s", if i == 1 then "M" else "L", num(x), num(y)))
+				end
+				table.insert(d, "Z")
+			end
+		end
+		emit(
+			out,
+			string.format(
+				'<path d="%s" fill="none" stroke="%s" stroke-opacity="%s" stroke-width="%s" stroke-linejoin="round"/>',
+				table.concat(d, " "),
+				hex(p.ImageColor3, "#000000"),
+				num(alpha),
+				string.format("%.2f", width)
 			)
 		)
 	elseif a.Asset == "dots" then

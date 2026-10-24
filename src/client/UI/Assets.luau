@@ -6,20 +6,28 @@
 --   shadow  ui-shadow.png, 96x96: a 9-slice soft shadow (Kit.shadow)
 --   glow    ui-glow.png, 256x256: a white radial glow, tinted (Kit.glow)
 --   dots    ui-dots.png, 64x64: one dot, tiled (optional, unused for now)
+--   mapStates1, mapStates2   assets/map/map-states-<k>.png: the real map's state
+--           fill atlases (D-062, scripts/mapgen/make.py), tinted per state
+--   mapBorders  assets/map/map-borders.png: the state border lines, tinted dark
 --
+-- The map's ids start empty: until all three are uploaded the game keeps the
+-- circle map (Map/NodeMap), so nothing breaks before the upload.
 -- While an id is "" the helpers still build their ImageLabel (attribute Asset
 -- names it, so the headless snapshots draw a stand-in) but it shows nothing in
 -- the game. After the upload, put each "rbxassetid://<number>" here.
 
 export type Asset = {
 	id: string, -- "rbxassetid://…" or "" (not uploaded: draws nothing)
-	kind: string, -- "slice" | "radial" | "tile"
+	kind: string, -- "slice" | "radial" | "tile" | "atlas" | "overlay"
 }
 
 local Assets: { [string]: Asset } = {
 	shadow = { id = "rbxassetid://81207934470509", kind = "slice" },
 	glow = { id = "rbxassetid://109577761634341", kind = "radial" },
 	dots = { id = "rbxassetid://77034414001634", kind = "tile" },
+	mapStates1 = { id = "", kind = "atlas" },
+	mapStates2 = { id = "", kind = "atlas" },
+	mapBorders = { id = "", kind = "overlay" },
 }
 
 return table.freeze(Assets)

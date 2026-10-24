@@ -475,6 +475,29 @@ local SHOTS: { Shot } = {
 	{ name = "11-lens-ev", moment = "Plan", screen = "Campaign", steps = lens("EV") },
 	{ name = "12-lens-issues", moment = "Plan", screen = "Campaign", steps = lens("Issues") },
 	{ name = "13-lens-polls", moment = "Plan", screen = "Campaign", steps = lens("Polls") },
+	{
+		-- The Polls lens with ground game on the map (D-062): your units in PA, WI
+		-- and GA, and what your polls saw of theirs in PA and AZ.
+		name = "13b-lens-polls-ground",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Fixtures.payload(Config.defaults, "Plan")
+			local units = { PA = 3, WI = 2, GA = 1 }
+			for _, s in payload.view.states do
+				s.gotv = units[s.id] or s.gotv
+			end
+			payload.view.scouted = {
+				{ state = "PA", week = 2, gotv = { 3, 2 } },
+				{ state = "AZ", week = 2, gotv = { 0, 3 } },
+			}
+			local shift = world.clock - payload.stageStart
+			payload.stageStart += shift
+			payload.deadline += shift
+			Rig.push(world, peer, payload)
+			tapIf(world, peer, "Campaign", "LensPolls")
+		end,
+	},
 	{ name = "14-lens-money", moment = "Plan", screen = "Campaign", steps = lens("Money") },
 	{ name = "15-campaign-choice-week", moment = "ChoiceWeek", screen = "Campaign" },
 	{

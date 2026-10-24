@@ -1,6 +1,8 @@
 --!strict
--- What every map implementation offers. The MVP is NodeMap (circles); a later
--- ShapeMap with real state shapes implements the same interface (PLAN.md).
+-- What every map implementation offers: ShapeMap (real state shapes, D-062)
+-- and NodeMap's circles (the fallback until the shape images are uploaded).
+-- NodeMap.new() picks one. setPins and setLegend came with the real map; the
+-- rest is unchanged, so screens drive either map the same way.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -35,10 +37,40 @@ export type LensPart = {
 	outlined: boolean?, -- the battleground mark (D-058): field fill, a white outline, white text
 }
 
+-- A run of ground-game pips: `count` dots in `color`, hollow when it is the
+-- opponent's ground game as your internal polls saw it (D-049).
+export type Pips = {
+	count: number,
+	color: Color3,
+	hollow: boolean?,
+}
+
 -- What the current lens shows under a state's label. Empty `parts` shows nothing.
 export type LensLine = {
 	parts: { LensPart },
 	dim: boolean?, -- fade the node (e.g. a pool your plan already empties)
+	-- Polls lens only (D-062): a small row under the parts. `momentum` is the
+	-- momentum leader's color (a chevron: their support drifts up each week;
+	-- `momentumStrong` doubles it); `pips` are ground-game units.
+	momentum: Color3?,
+	momentumStrong: boolean?,
+	pips: { Pips }?,
+}
+
+-- A candidate's pin on the state they are in (D-062).
+export type Pin = {
+	state: string,
+	name: string, -- the candidate's name: their face (UI/Kit monogram for now) shows its initials
+	color: Color3,
+	tag: string, -- the word on the pin's flag: "You", or the rival's first name
+	you: boolean?, -- your own pin (drawn on top)
+}
+
+-- One item of the map's small legend row (D-062): a mark and a word or two.
+export type LegendItem = {
+	mark: "up" | "pip" | "hollow",
+	color: Color3?,
+	text: string,
 }
 
 export type Map = {
@@ -65,6 +97,10 @@ export type Map = {
 	-- see-through tag on the node; nil hides it. One ghost at a time.
 	ghost: (self: Map, id: string, text: string?) -> (),
 	onSelect: (self: Map, handler: (id: string) -> ()) -> (),
+	-- Candidate pins (replaces the previous set; empty removes them).
+	setPins: (self: Map, pins: { Pin }) -> (),
+	-- The small legend row under the map (nil or empty hides it).
+	setLegend: (self: Map, items: { LegendItem }?) -> (),
 	destroy: (self: Map) -> (),
 }
 

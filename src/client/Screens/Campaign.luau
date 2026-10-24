@@ -44,6 +44,7 @@ local Kit = require(script.Parent.Parent.UI.Kit)
 local Lens = require(script.Parent.Parent.Map.Lens)
 local LensToggle = require(script.Parent.Parent.Map.LensToggle)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
+local MapPins = require(script.Parent.Parent.Map.Pins)
 local Messages = require(script.Parent.Common.Messages)
 local Model = require(script.Parent.CampaignParts.Model)
 local Motion = require(script.Parent.Parent.UI.Motion)
@@ -461,6 +462,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Lens.lines(Lens.current(), { config = config, view = shown, draft = model.draft }),
 			lensFade
 		)
+		-- Polls explains its extra marks in the legend row; the pins show in every lens (D-062).
+		map:setLegend(Lens.mapLegend({ config = config, view = shown }, Lens.current()))
+		map:setPins(MapPins.of(config, shown))
 		-- A reveal shows what moved (D-042); the stance preview is on the Decision screen (D-044).
 		local swing = model.revealSwing
 		if swing then

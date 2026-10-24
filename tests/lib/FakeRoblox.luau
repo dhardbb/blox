@@ -720,6 +720,17 @@ function methods.FindFirstAncestor(self: any, name: string): any
 	return nil
 end
 
+function methods.FindFirstAncestorWhichIsA(self: any, className: string): any
+	local node = rawget(self, "_parent")
+	while node do
+		if node:IsA(className) then
+			return node
+		end
+		node = rawget(node, "_parent")
+	end
+	return nil
+end
+
 function methods.FindFirstChildOfClass(self: any, className: string): any
 	for _, child in rawget(self, "_children") do
 		if child.ClassName == className then
@@ -1321,6 +1332,10 @@ addPresentationServices = function(world: World, peer: Peer)
 	services.GuiService = setmetatable({
 		GetPropertyChangedSignal = function(_self: any, name: string): any
 			return if name == "ReducedMotionEnabled" then reducedSignal else newSignal(world)
+		end,
+		-- The top bar's inset (Snapshot draws the same 58 px strip).
+		GetGuiInset = function(_self: any): (any, any)
+			return vector2(0, 58), vector2(0, 0)
 		end,
 	}, {
 		__index = function(_, key: string): any

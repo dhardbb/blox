@@ -1,7 +1,9 @@
 --!strict
--- The node map (src/client/Map/NodeMap.luau) on the fake engine: 36 px tap
+-- The circle map (src/client/Map/NodeMap.luau, NodeMap.circles: the fallback
+-- until the real map's images are uploaded, D-062) on the fake engine: 36 px tap
 -- targets (B13), leaders for the Northeast ladder (B12), the momentum arrow
--- (Mark.arrow), and a clean strict audit on a phone-size map.
+-- (Mark.arrow), and a clean strict audit on a phone-size map. NodeMap.new()
+-- picks the real map or the circles (last block); the real map is ShapeMap.spec.
 
 local FakeRoblox = require("@testlib/FakeRoblox")
 local MapLayout = require("@ui/MapLayout")
@@ -22,7 +24,7 @@ type Mounted = {
 	map: any,
 }
 
--- A NodeMap filling a `w` x `h` frame on a client.
+-- The circle map filling a `w` x `h` frame on a client.
 local function mount(w: number, h: number): Mounted
 	local world, peer = Rig.fixture("Lobby", nil)
 	local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
@@ -31,7 +33,7 @@ local function mount(w: number, h: number): Mounted
 	local gui = Kit.new("ScreenGui", { Name = "TestGui" })
 	local stage = Kit.box({ Name = "Stage", Size = UDim2.fromOffset(w, h), Parent = gui })
 	stage:SetAttribute("PrimaryOptional", true)
-	local map = NodeMap.new()
+	local map = NodeMap.circles()
 	map.root.Parent = stage
 	return { world = world, peer = peer, Kit = Kit, Audit = Audit, stage = stage, map = map }
 end
@@ -235,5 +237,48 @@ describe("NodeMap", function()
 	it("is no longer pending in the audit", function()
 		local m = mount(390, 244)
 		expect(m.Audit.PENDING.NodeMap):toBe(nil)
+	end)
+
+	it("stands candidate pins on the circles and shows the legend row (D-062)", function()
+		local m = mount(390, 244)
+		local blue = m.Kit.color({ r = 70, g = 110, b = 220 })
+		m.map:setPins({ { state = "OH", name = "Dana Okafor", color = blue, tag = "You", you = true } })
+		local pin = m.map.root.Pins:FindFirstChild("PinOH")
+		check(pin ~= nil, "no pin on OH")
+		expect(pin.Flag.Text):toBe("You")
+		m.map:setPins({})
+		expect(#m.map.root.Pins:GetChildren()):toBe(0)
+		m.map:setLegend({ { mark = "up", text = "momentum" } })
+		expect(m.map.root.MapLegend.Visible):toBe(true)
+		m.map:setLegend(nil)
+		expect(m.map.root.MapLegend.Visible):toBe(false)
+	end)
+
+	it("shows the Polls lens's momentum as the arrow when no mark sets one", function()
+		local m = mount(390, 244)
+		local red = m.Kit.color({ r = 220, g = 70, b = 80 })
+		m.map:setLens({ PA = { parts = {}, momentum = red } })
+		local arrow = hit(m, "PA"):FindFirstChild("Arrow")
+		expect(arrow.Visible):toBe(true)
+		expect(arrow.TextColor3):toBe(red)
+	end)
+end)
+
+describe("NodeMap.new", function()
+	it("keeps the circles until the real map's images are uploaded", function()
+		local world = FakeRoblox.world({ root = require("@lune/process").cwd, seed = 3 })
+		local peer = FakeRoblox.join(world, "P", { DebugScreen = "Lobby" })
+		FakeRoblox.run(world, 1)
+		local NodeMap = FakeRoblox.require(world, peer, "src/client/Map/NodeMap.luau")
+		local ShapeMap = FakeRoblox.require(world, peer, "src/client/Map/ShapeMap.luau")
+		expect(ShapeMap.ready()):toBe(false)
+		expect(NodeMap.preview):toBe(false)
+		local circles = NodeMap.new()
+		expect(circles.root:GetAttribute("Shapes")):toBe(nil)
+		check(circles.root:FindFirstChild("Lines") ~= nil, "not the circle map")
+		NodeMap.preview = true
+		local shapes = NodeMap.new()
+		expect(shapes.root:GetAttribute("Shapes")):toBe(true)
+		expect(shapes.root.Name):toBe("NodeMap")
 	end)
 end)
