@@ -24,14 +24,14 @@ export type IssueIcon = {
 local IssueIcons = {
 	preview = false,
 	icons = {
-		Jobs = { id = "", code = "JOB", file = "jobs" }, -- a briefcase
-		Health = { id = "", code = "HLT", file = "health" }, -- a heart with a pulse line
-		Schools = { id = "", code = "SCH", file = "schools" }, -- a graduation cap
-		Environment = { id = "", code = "ENV", file = "environment" }, -- a leaf
-		Safety = { id = "", code = "SAF", file = "safety" }, -- a shield with a check mark
-		Transit = { id = "", code = "TRN", file = "transit" }, -- a bus
-		Technology = { id = "", code = "TEC", file = "technology" }, -- a microchip
-		Farms = { id = "", code = "FRM", file = "farms" }, -- a stalk of wheat
+		Jobs = { id = "rbxassetid://129246160048477", code = "JOB", file = "jobs" }, -- a briefcase
+		Health = { id = "rbxassetid://133912104511380", code = "HLT", file = "health" }, -- a heart with a pulse line
+		Schools = { id = "rbxassetid://92265969610964", code = "SCH", file = "schools" }, -- a graduation cap
+		Environment = { id = "rbxassetid://78788262685522", code = "ENV", file = "environment" }, -- a leaf
+		Safety = { id = "rbxassetid://105557277537440", code = "SAF", file = "safety" }, -- a shield with a check mark
+		Transit = { id = "rbxassetid://121281301250631", code = "TRN", file = "transit" }, -- a bus
+		Technology = { id = "rbxassetid://117112121570557", code = "TEC", file = "technology" }, -- a microchip
+		Farms = { id = "rbxassetid://72069409150745", code = "FRM", file = "farms" }, -- a stalk of wheat
 	} :: { [string]: IssueIcon },
 }
 
