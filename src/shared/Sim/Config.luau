@@ -11,6 +11,7 @@ local Config = {
 	WEEKS = 12, -- campaign weeks
 	DEBATE_WEEKS = { 4, 9 }, -- debates resolve at the start of these weeks
 	EV_TO_WIN = 270, -- electoral votes needed
+	LANDSLIDE_EV_SHARE = 0.70, -- a win with strictly more than this share of all EV is a landslide (538: 377+; D-062)
 	PLATFORM_SIZE = 3, -- issues each player picks out of eight
 
 	-- Resources

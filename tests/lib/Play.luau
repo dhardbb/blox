@@ -26,6 +26,7 @@ export type Record = {
 	platformTop3: { boolean }, -- each player's platform was the three highest-EV issues
 	winner: number,
 	ev: { number },
+	landslide: boolean, -- the winner took more than LANDSLIDE_EV_SHARE of the EV (D-062)
 	priorityA: number,
 	invalid: number, -- bot inputs the validator rejected (should be 0)
 	trueLeaderWeek8: number, -- 0 if tied
@@ -37,6 +38,8 @@ export type Record = {
 	underdogWrong: number, -- ... where that player was truly ahead by 20+ EV
 	gotvSpend: { number },
 	pollSpend: { number }, -- money each player paid for internal polls (free ones excluded)
+	statePolls: { number }, -- single-state internal polls each player ran (free ones included)
+	regionPolls: { number }, -- region polls each player ran
 	scoutedGotv: { number }, -- states where the player's own polls last saw opponent ground game (D-049)
 	gotvDecided: boolean, -- the winner changes if GOTV is removed
 	debateDecided: boolean, -- the winner changes if the debates' support shifts are removed
@@ -115,6 +118,7 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 	local projectedLeader = 0
 	local gotvSpend = { 0, 0 }
 	local pollSpend = { 0, 0 }
+	local statePolls, regionPolls = { 0, 0 }, { 0, 0 }
 	local raised = { 0, 0 }
 	local raisedByWeek = table.create(config.WEEKS, 0)
 	local draftRounds, draftClashes, homeClash = 0, 0, false
@@ -137,12 +141,14 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 						if action.kind == "Gotv" then
 							gotvSpend[p] += action.units * match.players[p].profile.gotvCost
 						elseif action.kind == "Poll" then
+							statePolls[p] += 1
 							if free > 0 then
 								free -= 1
 							else
 								pollSpend[p] += config.INTERNAL_POLL_COST
 							end
 						elseif action.kind == "RegionPoll" then
+							regionPolls[p] += 1
 							pollSpend[p] += config.REGION_POLL_COST
 						end
 					end
@@ -304,6 +310,7 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		platformTop3 = platformTop3,
 		winner = result.winner,
 		ev = result.ev,
+		landslide = Election.landslide(config, result) ~= nil,
 		priorityA = match.priorityA,
 		invalid = invalid,
 		trueLeaderWeek8 = trueLeaderWeek8,
@@ -315,6 +322,8 @@ function Play.match(config: Config, seed: number, candidates: { string }, styles
 		underdogWrong = underdogWrong,
 		gotvSpend = gotvSpend,
 		pollSpend = pollSpend,
+		statePolls = statePolls,
+		regionPolls = regionPolls,
 		scoutedGotv = scoutedGotv,
 		gotvDecided = noGotv.winner ~= result.winner,
 		debateDecided = noDebates.winner ~= result.winner,

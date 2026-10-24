@@ -100,7 +100,9 @@ end
 local priorityWins, comebacks, comebackEligible = 0, 0, 0
 local margins: { number } = {}
 local blowouts, routs, invalid = 0, 0, 0
+local landslides = 0
 local unspent, gotvSpend = 0, 0
+local pollSpend, statePolls, regionPolls = 0, 0, 0
 local raisedTotal = 0
 local raisedEarly, raisedLate = 0, 0 -- weeks 1-3 and 10-12, both players
 local tierChanges, underdogWeeks, underdogWrong = 0, 0, 0
@@ -156,9 +158,15 @@ for seed = 1, N do
 	if margin >= 100 then
 		routs += 1
 	end
+	if r.landslide then
+		landslides += 1
+	end
 	invalid += r.invalid
 	unspent += (r.unspent[1] + r.unspent[2]) / 2
 	gotvSpend += (r.gotvSpend[1] + r.gotvSpend[2]) / 2
+	pollSpend += (r.pollSpend[1] + r.pollSpend[2]) / 2
+	statePolls += (r.statePolls[1] + r.statePolls[2]) / 2
+	regionPolls += (r.regionPolls[1] + r.regionPolls[2]) / 2
 	raisedTotal += (r.raised[1] + r.raised[2]) / 2
 	for week = 1, 3 do
 		raisedEarly += r.raisedByWeek[week]
@@ -338,6 +346,10 @@ line(
 -- Revised target (D-024): winner-take-all makes "<= 15% by 40+ EV" unreachable.
 line("Decided by 40+ EV", pct(blowouts / N), "<= 65%", blowouts / N <= 0.65)
 line("Decided by 100+ EV", pct(routs / N), "<= 25%", routs / N <= 0.25)
+line(
+	`Landslides (winner over {math.floor(100 * config.LANDSLIDE_EV_SHARE + 0.5)}% of EV)`,
+	pct(landslides / N)
+)
 line("Average money unspent at the end", string.format("$%.1f", unspent / N))
 line("Average money raised per player", string.format("$%.1f", raisedTotal / N))
 -- D-034: flat, not front-loaded. Weeks 1-3 against weeks 10-12 (week 12's money is
@@ -444,6 +456,10 @@ line("Underdog tier changes per match", string.format("%.2f", tierChanges / N), 
 header("Mechanic impact")
 line("GOTV changes the winner", pct(gotvDecided / N), ">= 10%", gotvDecided / N >= 0.1)
 line("Average GOTV spend per player", string.format("$%.1f", gotvSpend / N))
+line(
+	"Polls per player: state / region / spend",
+	string.format("%.1f / %.1f / $%.1f", statePolls / N, regionPolls / N, pollSpend / N)
+)
 line("Week-12 projected leader loses", pct(projectionWrong / N))
 
 -- Debates: recount the final board with the debates' support shifts subtracted

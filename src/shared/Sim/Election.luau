@@ -155,6 +155,40 @@ function Election.count(
 	}
 end
 
+-- The landslide winner, or nil: the winner of `election` took strictly more than
+-- LANDSLIDE_EV_SHARE of the EV in play (every counted state's EV; 377 of 538 at
+-- 0.70). A tie on EV is never a landslide. Pure; the Results screen shows the
+-- LANDSLIDE graphic to both players from this (D-062).
+function Election.landslide(config: Config, election: State.ElectionResult?): number?
+	if election == nil then
+		return nil
+	end
+	local winner = election.winner
+	local won = election.ev[winner]
+	if won == nil then
+		return nil
+	end
+	local total = 0
+	for _, r in election.results do
+		local record = StateData.byId[r.state]
+		if record then
+			total += record.ev
+		end
+	end
+	if total <= 0 then
+		return nil
+	end
+	for p, ev in election.ev do
+		if p ~= winner and ev >= won then
+			return nil
+		end
+	end
+	if won > config.LANDSLIDE_EV_SHARE * total then
+		return winner
+	end
+	return nil
+end
+
 -- EV each player holds right now on true support alone (no noise, no GOTV).
 function Election.trueEV(config: Config, match: MatchState): { number }
 	return Election.count(config, match, { noise = false, gotv = false }).ev
