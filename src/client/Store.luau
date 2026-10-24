@@ -5,6 +5,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Daily = require(ReplicatedStorage.Shared.Net.Daily)
 local Leaderboard = require(ReplicatedStorage.Shared.Net.Leaderboard)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
@@ -28,6 +29,8 @@ export type State = {
 	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: Remotes.ReviewBoard?, -- admins: the reported names, as last sent (D-069)
+	daily: Daily.Info?, -- today's Daily Race, the streak and the day's board, as last sent (D-080)
+	dailyRun: Daily.Run?, -- the Daily Race run that ended last (its Results summary, D-080)
 }
 
 local Store = {}
@@ -45,6 +48,8 @@ local state: State = {
 	leaderboard = nil,
 	leaving = nil,
 	review = nil,
+	daily = nil,
+	dailyRun = nil,
 }
 local listeners: { (State) -> () } = {}
 
@@ -127,6 +132,16 @@ end
 
 function Store.setReview(board: Remotes.ReviewBoard)
 	state.review = board
+	changed()
+end
+
+-- Today's Daily Race as the server sent it (D-080). A message that carries a
+-- finished run also keeps that run for the Results screen.
+function Store.setDaily(info: Daily.Info)
+	state.daily = info
+	if info.run then
+		state.dailyRun = info.run
+	end
 	changed()
 end
 

@@ -29,13 +29,19 @@
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, CornerSettings
 -- (SoundToggle, MotionToggle, SettingsTip), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
--- LeaderboardCard, LeaderboardSheet.
+-- LeaderboardCard, LeaderboardSheet, DailyCard, DailySheet.
+--
+-- The Daily Race (UI/DailyRace, D-080) is one card in the column under How to
+-- play: today's candidate, the countdown, the streak, Play and Today's board.
+-- It takes the room the phone's leaderboard rows had, so a phone shows the
+-- top 3 only when it is at least PHONE_BOARD_H + DailyRace's card tall.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
 local BotLevel = require(script.Parent.Parent.UI.BotLevel)
+local DailyRace = require(script.Parent.Parent.UI.DailyRace)
 local ColorPick = require(script.Parent.Parent.UI.ColorPick)
 local HowTo = require(script.Parent.Parent.UI.HowTo)
 local NameReview = require(script.Parent.Parent.UI.NameReview)
@@ -57,6 +63,7 @@ local BOARD_GAP = Kit.space.lg -- px between the column and the card
 local SIDE_MIN_W = MAX_WIDTH + BOARD_W + BOARD_GAP + 2 * Kit.space.xl -- px of width for the card beside the column
 local TALL_BOARD_H = 560 -- px of height for the top 10 beside the column (else the top 3)
 local PHONE_BOARD_H = 740 -- px of height for the top 3 in a phone's column (else only "You" and See all)
+local DAILY_CARD_H = 130 -- px the Daily Race card takes in the column (D-080): added to PHONE_BOARD_H
 local STAGE_GLOW = 1.1 -- the stage glow's size, a share of the screen (an ellipse)
 local STAGE_FADE = 0.75 -- its transparency: a lit table, not a spotlight
 local CODE_PLATE_H = Kit.size.hero + 2 * Kit.space.lg -- px, the private match code's plate
@@ -200,6 +207,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- Sound and Reduce motion: the top-right corner (D-075), on every Lobby state.
 	local settings = Settings.corner({ Parent = parent })
 	local board = Leaderboard.new(parent, ctx)
+	-- The Daily Race (D-080): one card in the column.
+	local daily = DailyRace.new(parent, ctx, { LayoutOrder = 5, Parent = idle })
 
 	-- The sheet: make a code, or enter one.
 	local body = friend.body
@@ -356,7 +365,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			card.AnchorPoint = Vector2.new(0, 0)
 			card.Position = UDim2.new()
 			card.Size = UDim2.fromScale(1, 0)
-			board.setRows(if size.Y >= PHONE_BOARD_H then Leaderboard.COMPACT else 0)
+			board.setRows(if size.Y >= PHONE_BOARD_H + DAILY_CARD_H then Leaderboard.COMPACT else 0)
 		end
 	end
 
@@ -378,11 +387,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		colorPick.update(lobby)
 		review.update(lobby, state.review)
 		board.update(state.leaderboard)
+		daily.update(state.daily)
 		if status ~= "Idle" then
 			friend:close()
 			colorPick.sheet:close()
 			review.sheet:close()
 			howTo.sheet:close()
+			daily.sheet:close()
 		end
 		-- Only the idle Lobby has something to press first (UI audit rule "primary").
 		parent:SetAttribute("PrimaryOptional", status ~= "Idle")
@@ -424,6 +435,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			table.insert(arriving, child)
 		end
 	end
+	table.insert(arriving, daily.card)
 	table.insert(arriving, colorPick.button)
 	table.insert(arriving, board.card)
 	Motion.stagger(arriving, function(item, _index, delay)
@@ -432,8 +444,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	return {
 		update = update,
-		tick = function(_now: number)
+		tick = function(now: number)
 			relayout()
+			daily.tick(now)
 		end,
 		destroy = function() end,
 	}

@@ -419,6 +419,34 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- The Daily Race card (D-080) after today's counted run: the margin, and
+		-- Play becomes practice.
+		name = "01i-lobby-daily-played",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer)
+				.setDaily(Fixtures.daily({ now = world.clock, played = true, margin = 62, you = 7, streak = 4 }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		-- The day's board (D-080): the top 50 by margin, you at #7.
+		name = "02l-lobby-daily-sheet",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			Rig.storeOf(world, peer)
+				.setDaily(Fixtures.daily({ now = world.clock, played = true, margin = 184, you = 7 }))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			tapIf(world, peer, "Lobby", "DailyBoard")
+		end,
+	},
+	{
 		name = "02f-howto-1-goal",
 		moment = "Lobby",
 		screen = "Lobby",
@@ -924,6 +952,54 @@ local SHOTS: { Shot } = {
 	},
 	-- D-062: the same screen after a landslide, for the winner and for the loser
 	-- (23-results is the ordinary win: no stamp).
+	-- D-080: a Daily Race run's summary, counted and practice.
+	{
+		name = "23h-results-daily",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			payload.daily = { day = Fixtures.DAILY_DAY, counted = true }
+			Rig.push(world, peer, payload)
+			local you, them = payload.view.election.ev[payload.you], payload.view.election.ev[3 - payload.you]
+			world.current = peer
+			Rig.storeOf(world, peer).setDaily(Fixtures.daily({
+				now = world.clock,
+				played = true,
+				margin = you - them,
+				you = 7,
+				run = {
+					matchId = payload.matchId,
+					counted = true,
+					margin = you - them,
+					forfeit = false,
+					rank = 7,
+				},
+			}))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "23i-results-daily-practice",
+		moment = "Over",
+		screen = "Results",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			payload.daily = { day = Fixtures.DAILY_DAY, counted = false }
+			Rig.push(world, peer, payload)
+			local you, them = payload.view.election.ev[payload.you], payload.view.election.ev[3 - payload.you]
+			world.current = peer
+			Rig.storeOf(world, peer).setDaily(Fixtures.daily({
+				now = world.clock,
+				played = true,
+				margin = 62,
+				run = { matchId = payload.matchId, counted = false, margin = you - them, forfeit = false },
+			}))
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
 	{ name = "23b-results-landslide", moment = "Landslide", screen = "Results" },
 	{ name = "23c-results-landslide-loss", moment = "LandslideLoss", screen = "Results" },
 	-- D-073: the end screen's Map tab (final polls, then the real results with a

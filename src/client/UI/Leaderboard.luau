@@ -171,6 +171,10 @@ local function entryRow(parent: Instance, name: string, entry: any, mine: boolea
 	return line
 end
 
+-- One row as the Daily Race's board draws it too (D-080): `entry` has rank,
+-- name and `rating`, the value shown at the right (any text, e.g. "+62").
+Leaderboard.row = entryRow
+
 -- The line for a board with no rows to show, or nil when it has some.
 local function statusText(board: any?): string?
 	if board == nil or board.status == "Loading" then

@@ -5,6 +5,7 @@
 
 local Bot = require("../Sim/Bot")
 local ConfigModule = require("../Sim/Config")
+local Daily = require("../Sim/Daily")
 local Election = require("../Sim/Election")
 local Events = require("../Sim/Events")
 local Rng = require("../Sim/Rng")
@@ -316,6 +317,60 @@ function Fixtures.leaderboard(options: { count: number?, you: number?, status: s
 		status = if options and options.status then options.status else "Ok",
 		entries = entries,
 		you = mine,
+	}
+end
+
+-- Today's Daily Race as the server sends it (Net/Daily.Info, D-080), on
+-- 2026-10-24. `options.now` is the server time the countdown runs from (the
+-- race ends 5 h 12 m later); `played` / `margin`: today's counted run began /
+-- ended with that margin; `you`: the viewer's rank on the day's board (default
+-- none, or 0 for a run outside the top 50); `count` entries (default 50);
+-- `streak` (default 3); `status` overrides "Ok"; `run` adds a finished run.
+Fixtures.DAILY_DAY = 20750 -- 2026-10-24
+function Fixtures.daily(options: {
+	now: number?,
+	played: boolean?,
+	margin: number?,
+	you: number?,
+	count: number?,
+	streak: number?,
+	status: string?,
+	run: any?,
+}?): any
+	local o: any = options or {}
+	local day = Fixtures.DAILY_DAY
+	local race = Daily.race(ConfigModule.defaults, day)
+	local count = o.count or 50
+	local entries = {}
+	for k = 1, count do
+		local first = FIRST[(k * 3 - 1) % #FIRST + 1]
+		local second = SECOND[(k - 1) // #FIRST % #SECOND + 1]
+		local margin = 212 - 4 * k
+		table.insert(
+			entries,
+			{ rank = k, id = tostring(2000 + k), name = `{first}{second}{k}`, margin = margin, score = 0 }
+		)
+	end
+	local you: any = nil
+	if o.you and o.you > 0 and o.you <= count then
+		entries[o.you].name = "You"
+		you = { rank = o.you, margin = entries[o.you].margin }
+	elseif o.you == 0 and o.margin ~= nil then
+		you = { margin = o.margin }
+	end
+	return {
+		day = day,
+		date = race.date,
+		candidate = race.candidate,
+		botCandidate = race.botCandidate,
+		level = race.level,
+		endsAt = (o.now or 0) + 5 * 3600 + 12 * 60,
+		played = o.played == true,
+		margin = o.margin,
+		streak = o.streak or 3,
+		best = math.max(o.streak or 3, 5),
+		board = { status = o.status or "Ok", entries = entries, you = you },
+		run = o.run,
 	}
 end
 

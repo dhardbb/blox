@@ -108,6 +108,8 @@ local NOTICES: { [string]: string } = {
 	NameNotAllowed = "Your custom name isn't allowed anymore, so your candidate uses their own. You can pick a new one.",
 	MatchUnrated = `This match is unrated: you two already played {Config.defaults.RATED_PAIR_DAILY_MAX} rated matches today.`,
 	ForfeitUnrated = "The match ended before week 1, so it doesn't count for anyone's rating.",
+	DailyCounted = "Daily Race: this run counts once week 1 starts. Good luck!",
+	DailyPractice = "Practice run: today's Daily Race already counts. This one won't.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,
@@ -186,6 +188,8 @@ function Net.start()
 			Store.setReview(message.review)
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
+		elseif message.kind == "Daily" and message.daily then
+			Store.setDaily(message.daily)
 		elseif message.kind == "Notice" then
 			if message.notice == "NameReported" then
 				hideReported()

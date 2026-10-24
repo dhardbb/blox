@@ -18,6 +18,10 @@
 --                 538 votes, over 70%." (LandslideLine)
 --   Reason        "280 votes to 258" (or the tiebreak, a forfeit)
 --   RatingSlot    the rating change, once the server sends it (rated matches)
+--   DailySummary  a Daily Race run only (D-080): an eyebrow with the day,
+--                 DailyLine ("You won by 62 votes.", or "Practice run: …") and
+--                 DailyMore (rank today and streak, or why it did not count),
+--                 filled when the server's Daily message arrives
 --   EVBar         Kit.raceBar, 14 px: you from the left, them from the right,
 --                 the 270 tick (Marker270) with its caption (data colors)
 --   Versus        two player cards: a 64 px portrait (D-068) over the name, You /
@@ -54,6 +58,8 @@ local Session = require(ReplicatedStorage.Shared.Net.Session)
 local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local State = require(ReplicatedStorage.Shared.Sim.State)
 local Swing = require(ReplicatedStorage.Shared.UI.Swing)
+local DailyNet = require(ReplicatedStorage.Shared.Net.Daily)
+local DailyWords = require(ReplicatedStorage.Shared.UI.Words.Daily)
 local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
@@ -184,11 +190,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 
 	local againBot = false
+	local againDaily = false -- a Daily Race run: the primary plays today's race again (practice, D-080)
+	local dailyLine: TextLabel? = nil
+	local dailyMore: TextLabel? = nil
 	local bar = ActionBar.new(page.footer :: Frame, {
 		primary = "Play again",
 		onPrimary = function()
 			ctx.store.dismissResult()
-			if againBot then
+			if againDaily then
+				ctx.net.send("DailyRace")
+			elseif againBot then
 				ctx.net.send("Practice", { difficulty = BotLevel.get() }) -- the level picked in the Lobby (D-059)
 			else
 				ctx.net.send("Queue")
@@ -517,6 +528,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = "RatingSlot",
 			LayoutOrder = nextOrder(),
 			Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
+			Visible = current.daily == nil, -- a Daily Race never moves a rating (D-080)
 			Parent = column,
 		})
 		ratingLine = Kit.text("", {
@@ -527,6 +539,31 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Visible = false,
 			Parent = slot,
 		})
+		-- A Daily Race run (D-080): its own summary, filled by update().
+		dailyLine, dailyMore = nil, nil
+		local run = current.daily
+		if run then
+			local box = Kit.card({ Name = "DailySummary", LayoutOrder = nextOrder(), Parent = column })
+			Kit.eyebrow(`{DailyWords.EYEBROW} · {DailyWords.dateLabel(run.day)}`, {
+				Name = "DailyEyebrow",
+				LayoutOrder = 1,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				Parent = box,
+			})
+			dailyLine = label(box, DailyWords.SAVING, {
+				Name = "DailyLine",
+				LayoutOrder = 2,
+				Font = Kit.font.medium,
+				TextColor3 = Kit.colors.text,
+				TextXAlignment = Enum.TextXAlignment.Center,
+			})
+			dailyMore = label(box, "", {
+				Name = "DailyMore",
+				LayoutOrder = 3,
+				TextSize = Kit.size.caption,
+				TextXAlignment = Enum.TextXAlignment.Center,
+			})
+		end
 
 		-- The race to 270: you from the left, your opponent from the right (it
 		-- fills as the screen comes in).
@@ -608,7 +645,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 		local _, opponent = Data.opponent(current)
 		againBot = opponent ~= nil and opponent.kind == "Bot"
-		bar:setPrimary(if againBot then "Play vs Bot again" else "Play again", true)
+		againDaily = current.daily ~= nil
+		bar:setPrimary(
+			if againDaily
+				then DailyWords.RESULTS_AGAIN
+				elseif againBot then "Play vs Bot again"
+				else "Play again",
+			true
+		)
 
 		-- The tabs: a new match opens on Summary; a later payload of the same
 		-- match keeps the tab the player is on.
@@ -698,6 +742,22 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				rendered = current
 				render(current)
 				relayout()
+			end
+			-- A Daily Race run (D-080): the server's word on it, once it arrives.
+			local runLine, moreLine = dailyLine, dailyMore
+			local mine = state.dailyRun
+			if runLine and moreLine and current and mine and mine.matchId == current.matchId then
+				runLine.Text = DailyWords.resultLine(mine)
+				local info = state.daily
+				local today = info ~= nil and current.daily ~= nil and info.day == current.daily.day
+				if mine.counted then
+					local you = if today and info.board then info.board.you else nil
+					local rank = mine.rank or (if you then you.rank else nil)
+					local streak = if today then ` · {DailyWords.streak(info.streak)}` else ""
+					moreLine.Text = `{DailyWords.rankLine(rank, DailyNet.TOP)}{streak}`
+				else
+					moreLine.Text = DailyWords.practiceLine(if today then info.margin else nil)
+				end
 			end
 			-- Rated matches: "Rating 1000 → 1016 (+16)", once the server sends it.
 			local change = state.rating

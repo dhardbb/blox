@@ -978,6 +978,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setStatus(if claiming ~= nil then "Saving your pick…" else "Step 1 of 2", "muted")
 		elseif isReady() and prePickLoaded then
 			bar:setStatus("Your last pick is loaded", "muted")
+		elseif payload ~= nil and payload.daily ~= nil and claimed() ~= nil then
+			-- The Daily Race (D-080): the candidate is today's, for everyone.
+			local name = Words.firstName(Candidates.profile(ctx.config, claimed() :: string).name)
+			bar:setStatus(`Daily Race: everyone is {name} today`, "muted")
 		else
 			bar:setStatus("Step 2 of 2", "muted")
 		end
