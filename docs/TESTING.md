@@ -728,36 +728,6 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 
 **Send back:** a screenshot of the sheet before and after buying (iPad and Mac), the Select screen from step 5, the colors from step 7's three matches, and the Output lines from step 9.
 
-## Plan preview (unreleased, D-071)
-
-Agents: `lune run tests "D-071"`, `lune run tests "Plan preview"`, `lune run tests/ui/snap.luau -- plan-preview` (shots `10c`, `10d`, `10e`; 0 audit findings at all three sizes).
-
-1. **Start a week's plan (phone and iPad).** No numbers on the map yet, nothing under it about the plan.
-2. **Add an Ad in a state.** **Expect:** a faint green "+2.2"-style number appears beside that state's code, and under the map "Plan: 310 → 310 EV" (or higher) with "if nothing else changes" beside it on the iPad.
-3. **Add a second action in the same state** (a Rally there). **Expect:** the state's number grows to the sum; it is the same number the state card showed for each action, added.
-4. **Add an action somewhere you trail by a little** (look for a close state). **Expect:** the votes after the arrow go up by that state's votes when the plan would put you ahead.
-5. **Remove an action** from the plan list. **Expect:** its number shrinks or disappears at once, and the votes line updates.
-6. **Switch tabs** (Votes, Issues, Polls, Money). **Expect:** the numbers stay and stay readable; on Polls they sit beside the lead, ▲ and dots, not on them. Around Ohio, Pennsylvania and West Virginia every state code stays readable: no pin, tag or number covers a code (a mark that had to move has a thin line back to its state).
-6b. **Both candidates in one state** (rally where the opponent is). **Expect:** two small pins side by side, neither on the state's code.
-7. **Attack ad** in a state where backlash is due (the card says so). **Expect:** if it costs you more than it takes from them, the number is orange with a minus sign.
-8. **Lock in.** **Expect:** the numbers and the plan line disappear.
-9. **No errors** from `Campaign`, `ShapeMap`, `PlanPreview` or `Legend`. *Send back:* a phone and an iPad screenshot of step 3, and whether the numbers are easy to read without hiding the map.
-
-## Real US map (unreleased, D-070)
-
-Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests Lens`, `lune run tests/ui/snap.luau -- lens` (and `-- draft`, `-- decision`, `-- election`); 0 audit findings at all three sizes.
-
-The three map images are uploaded (ids in `src/client/UI/Assets.luau`, `assets/map/README.md`). If the map shows circles instead of states, an image did not load: send back the Output log.
-
-1. **Campaign map (iPad, Mac, phone).** A real US map: every state its true shape, colored by who leads, thin dark lines between states, Alaska and Hawaii bottom left, and a column of chips VT, NH, MA, RI, CT, NJ, DE, MD, DC at the right edge with thin lines to the real states. *Send back:* a screenshot on each device. Is any state's code hard to read (look at Florida, Michigan, Louisiana, Idaho, Oklahoma, West Virginia)?
-2. **Tapping.** Tap the middle of Ohio, then near the Ohio/Indiana border on each side, then West Virginia, Delaware's chip and Rhode Island's chip. **Expect:** each tap opens the state you touched, never its neighbor. On the phone try the chips with a thumb. *Send back:* any tap that opened the wrong state, and where you touched.
-3. **Selection.** The tapped state gets a white outline and a soft breathing glow; a chip gets a white edge. Tap another: it moves.
-4. **Polls tab.** Leads ("+3") under each code as before. Some states show ▲ (or ▲▲) under the lead in red or blue: that side has momentum there. Do a Ground game action somewhere, end the week: filled dots in your color appear there. Run an internal poll in a state where the opponent placed ground game: hollow dots in their color appear. A line under the map reads "▲ momentum ● ○ ground game". Switch to Votes: the ▲, dots and that line are gone. *Send back:* a Polls screenshot on the phone and the iPad; are the dots big enough?
-5. **Pins.** Your candidate's pin (your initials on your color, a "You" flag) stands on the state you are in; the opponent's has their first name. Plan a route: after the week, the pin is in the new state. If you are both in neighboring states the pins stand side by side. *Send back:* can you find yourself at a glance?
-6. **Stance week and debate.** Moved states get an outline and a plate behind their code in the mover's color, tags "+1.0" / "-0.5" as before; FLIP still shows.
-7. **Draft and election night.** Home "H", picks "1"/"2" and the battleground ★ tags sit above the state codes; on election night each called state fills in its winner's color.
-8. **No errors** from `ShapeMap`, `NodeMap`, `MapShape`, `Pins` or `Lens` in the Output window. *Send back:* the Output log.
-
 ## Claiming colors (unreleased, D-061)
 
 Agents: `lune run tests "D-061"`, `lune run tests "Select color picker"`, `lune run tests/ui/snap.luau -- select-color` (shots `03b`, `03c`, `04b`; 0 audit findings at all three sizes).
@@ -880,33 +850,86 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 8. **Help (?).** The five tabs sit in one dark track (two rows on a phone), the open one raised with a white outline. "How to win" shows the race bar; "Actions" shows each icon on a round plate. At the end, under a thin line, **Leave match** is orange-outlined. **How to play** (Lobby): the step numbers are round, the election-night winners are tags filled blue / red.
 9. **No errors** from `Lobby`, `Leaderboard`, `Select`, `Draft`, `TopBar`, `StateCard`, `EventCard`, `Focus` or `Help` in the Output window. *Send back:* the Output log.
 
-## Landslide (unreleased, D-062 to D-064)
+## 0.13.0: Landslide (D-062 to D-074)
 
-**The new name (D-064). Needed from the humans, once:**
+Everything new in 0.13.0, one section per feature. One practice match against the Medium bot on the iPad, then one on the Mac (and a phone-sized window), covers most of it; the Name Pass needs two accounts on a live server. Agents: `lune run tests`, `lune run tests/ui/snap.luau -- --size phone` (and `ipad`, `desktop`): 0 audit findings.
+
+**Before you start (once):** rename the experience (below), turn on **Home → Game Settings → Security → Enable Studio Access to API Services** in the published place, and send the Color Pass and Name Pass ids when the passes exist (both are 0 for now; admins get both free).
+
+### The new name: Landslide (D-064)
+
+Needed from the humans, once:
 1. Studio: **File → Game Settings → Basic Info**: set **Name** to `Landslide`, and start the description with "Race to 270." **Save**, then **File → Publish to Roblox**.
 2. Creator Hub (create.roblox.com → Creations → the experience → **Configure** / Basic Info): check the name reads `Landslide`, update the description there too if it differs, and **Save**. Icons and thumbnails that still show "270" can be swapped later.
 3. Press Play. **Expect:** the Lobby shows "A 1V1 ELECTION STRATEGY GAME", then a big white outlined **LANDSLIDE** with a soft glow, and under it a small tilted ribbon, blue on the left and red on the right, reading **RACE TO 270**. On a phone the word fits the screen with room to spare and nothing below it moves off screen. "270 to win" still shows on the score bar in a match.
 4. **Send back:** a Lobby screenshot on the iPad and on the Mac, and whether it looks like a front-page Roblox logo.
 
-**The Landslide stamp (D-062).** A landslide is rare between two good players, so check it offline first:
+### The Landslide stamp (D-062)
+
+A landslide is rare between two good players, so check it offline first:
 1. Workspace → Attributes → add `DebugScreen` (string) = `Landslide`, press Play. **Expect:** Results with the green "You won" stamp, under it "YOU WON BY A" and a big **LANDSLIDE** stamp in your color, tilted the other way, landing a moment after "You won", with lots of confetti, a second sound and a light sweeping across it; under it "You took … of 538 votes, over 70%." Set `DebugScreen` = `LandslideLoss`: the orange "You lost", then "REX WON BY A" and LANDSLIDE in Rex's color, no confetti. Remove the attribute afterwards.
 2. In a real practice match, beat the Easy bot by a lot (377 votes or more). **Expect:** the same stamp on your Results. A closer win (under 377) shows no stamp.
 3. Turn on Reduce motion and repeat step 1: the stamp is simply there, nothing slams or sweeps.
 4. **Send back:** an iPad screenshot of each, and whether it feels like a reward.
 
-**The week's event at the top (D-065).**
+### The week's event under the score (D-065)
+
 1. Play a practice match to week 2 or later on the iPad, then on the Mac. **Expect:** right under the score bar and the "Tap a state…" line, a strip across the screen: a gold circle with an icon, the event's name in bold ("Windfall · Small-dollar surge") and one line under it ("Fundraisers where you trail +20%"), and an arrow at the right. The map starts right under it. Nothing about the event is left in the side column.
 2. Tap the strip. **Expect:** a "This week" sheet with the full effect, the story and, in a Spotlight or Regional week, "States marked * …". Close it with × or by tapping outside.
 3. Play through each kind of week you meet (Spotlight, Regional, Windfall, a Choice week after you take a stance: the line says "Stance A: …"). With Helen Strand, week 1 shows "Next week: <name>". During the week's results the strip goes away and comes back with the next week's event, with a small pulse.
 4. On a phone-sized window (or the iPad in portrait): the strip is one row and the whole map is still visible without scrolling.
 5. **Send back:** a screenshot of the plan screen on the iPad and on the Mac, and whether you noticed the event sooner than before.
 
-**Polls at half price (D-063).**
+### Polls at half price (D-063)
+
 1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Helen Strand still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
 2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.
 3. **Send back:** whether you polled more than before, and any price on screen that still says $1 or $3 for a poll.
 
-## The week's results, move by move (unreleased, D-066)
+### Real US map (D-070)
+
+Agents: `lune run tests MapShape`, `lune run tests ShapeMap`, `lune run tests Lens`, `lune run tests/ui/snap.luau -- lens` (and `-- draft`, `-- decision`, `-- election`); 0 audit findings at all three sizes.
+
+The three map images are uploaded (ids in `src/client/UI/Assets.luau`, `assets/map/README.md`). If the map shows circles instead of states, an image did not load: send back the Output log.
+
+1. **Campaign map (iPad, Mac, phone).** A real US map: every state its true shape, colored by who leads, thin dark lines between states, Alaska and Hawaii bottom left, and a column of chips VT, NH, MA, RI, CT, NJ, DE, MD, DC at the right edge with thin lines to the real states. *Send back:* a screenshot on each device. Is any state's code hard to read (look at Florida, Michigan, Louisiana, Idaho, Oklahoma, West Virginia)?
+2. **Tapping.** Tap the middle of Ohio, then near the Ohio/Indiana border on each side, then West Virginia, Delaware's chip and Rhode Island's chip. **Expect:** each tap opens the state you touched, never its neighbor. On the phone try the chips with a thumb. *Send back:* any tap that opened the wrong state, and where you touched.
+3. **Selection.** The tapped state gets a white outline and a soft breathing glow; a chip gets a white edge. Tap another: it moves.
+4. **Polls tab.** Leads ("+3") under each code as before. Some states show ▲ (or ▲▲) under the lead in red or blue: that side has momentum there. Do a Ground game action somewhere, end the week: filled dots in your color appear there. Run an internal poll in a state where the opponent placed ground game: hollow dots in their color appear. A line under the map reads "▲ momentum ● ○ ground game". Switch to Votes: the ▲, dots and that line are gone. *Send back:* a Polls screenshot on the phone and the iPad; are the dots big enough?
+5. **Pins.** Your candidate's pin (your portrait ringed in your color, a "You" flag) stands on the state you are in; the opponent's has their portrait and first name (or their custom name, D-069). Plan a route: after the week, the pin is in the new state. If you are both in neighboring states the pins stand side by side. *Send back:* can you find yourself at a glance?
+6. **Stance week and debate.** Moved states get an outline and a plate behind their code in the mover's color, tags "+1.0" / "-0.5" as before; FLIP still shows.
+7. **Draft and election night.** Home "H", picks "1"/"2" and the battleground ★ tags sit above the state codes; on election night each called state fills in its winner's color.
+8. **No errors** from `ShapeMap`, `NodeMap`, `MapShape`, `Pins` or `Lens` in the Output window. *Send back:* the Output log.
+
+### Plan preview (D-071)
+
+Agents: `lune run tests "D-071"`, `lune run tests "Plan preview"`, `lune run tests/ui/snap.luau -- plan-preview` (shots `10c`, `10d`, `10e`; 0 audit findings at all three sizes).
+
+1. **Start a week's plan (phone and iPad).** No numbers on the map yet, nothing under it about the plan.
+2. **Add an Ad in a state.** **Expect:** a faint green "+2.2"-style number appears beside that state's code, and under the map "Plan: 310 → 310 EV" (or higher) with "if nothing else changes" beside it on the iPad.
+3. **Add a second action in the same state** (a Rally there). **Expect:** the state's number grows to the sum; it is the same number the state card showed for each action, added.
+4. **Add an action somewhere you trail by a little** (look for a close state). **Expect:** the votes after the arrow go up by that state's votes when the plan would put you ahead.
+5. **Remove an action** from the plan list. **Expect:** its number shrinks or disappears at once, and the votes line updates.
+6. **Switch tabs** (Votes, Issues, Polls, Money). **Expect:** the numbers stay and stay readable; on Polls they sit beside the lead, ▲ and dots, not on them. Around Ohio, Pennsylvania and West Virginia every state code stays readable: no pin, tag or number covers a code (a mark that had to move has a thin line back to its state).
+6b. **Both candidates in one state** (rally where the opponent is). **Expect:** two small pins side by side, neither on the state's code.
+7. **Attack ad** in a state where backlash is due (the card says so). **Expect:** if it costs you more than it takes from them, the number is orange with a minus sign.
+8. **Lock in.** **Expect:** the numbers and the plan line disappear.
+9. **No errors** from `Campaign`, `ShapeMap`, `PlanPreview` or `Legend`. *Send back:* a phone and an iPad screenshot of step 3, and whether the numbers are easy to read without hiding the map.
+
+### Debates as live rounds (D-072)
+
+Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- debate --size phone` (also `ipad`, `desktop`; 0 audit findings), `lune run tests/harness/balance.luau` (the "Debate" lines). Duel: `defend`, `attack`, `pivot`, add `zinger`.
+
+1. **Play vs Bot (Medium), on the iPad and a phone.** In week 4 the Debate screen opens: both faces with the crowd meter between them, "WEEK 4 DEBATE · 3 ROUNDS" and the three topics, each tagged with whose issue it is. **Expect:** after 3 s, round 1.
+2. **A round.** The moderator asks a question; the pills say whose issue it is, who leads its states and the counter. There are three big buttons: "Defend 6" with "D +4 · A +3 · P −1" on the right, and so on (your score minus theirs against their Defend, Attack and Pivot). Pivot says which issue's states it would land on. In your first debate, a move that can't lose has a green "Safe" tag and a tip explains it. Tap a move: the map lights where a win would land. Hold a move to preview it without picking. **Why?** shows each strength in parts.
+3. **Lock in** stays greyed ("Pick a move") until you tap one. Tap **Stake Zinger**, then Lock in. **Expect:** "Pivot + Zinger · kept secret"; Rex shows "locked in ✓" when he is done. Let one round run out without picking: you get a weak Defend.
+4. **The clash** (4 s): both moves, the scores, "Your Defend beats Attack: +3", a stamp (YOU WIN BY 3 / REX WINS BY 3 / SPLIT), the line naming the states it swung and any FLIP on the map. The crowd meter slides. *Send back:* a screenshot of one clash.
+5. **The verdict:** who won the crowd, a line per round, the map showing the whole debate's moves; **Skip** works. Then the stance (in a Choice week) or the plan.
+6. **Week 9:** the same; the Zinger is back. Results' "What decided it" still lists the states debates flipped.
+
+**Send back:** did you know why you won or lost each round? Did you ever pick a move because of what the bot did last round? Did the map move where you expected? Did it feel like its own event, or still like a quiz? How long did each debate take?
+
+### The week's results, move by move (D-066)
 
 Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tally"`, `lune run tests/ui/snap.luau -- resolve` (shots `16b-resolve-step1`, `16c-resolve-mid`, `16d-resolve-settle`, `17-resolve-end`; 0 audit findings at all three sizes).
 
@@ -920,7 +943,7 @@ Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tall
 
 **Send back:** a phone and an iPad screenshot mid-reveal, whether each move's effect was easy to follow, whether "New polls are in" read as the polls updating (not as moves being undone), whether each move was on screen long enough to see it land, and any Output errors.
 
-## Richer colors (unreleased, D-067)
+### Richer colors (D-067)
 
 Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- select`, `-- election`, `-- results`); 0 audit findings. In Studio, play one match vs a bot on the iPad and look at:
 
@@ -928,28 +951,28 @@ Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- s
 2. **Names in color** (header, state card, election night): Rex's name is a vivid red, Dana's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
 3. **Color Pass colors** (if you have the pass): all six swatches look rich, and Amber still reads as gold, not orange. *Send back:* a screenshot of Select with the swatches.
 
-## Candidate portraits (unreleased, D-068)
+### Candidate portraits (D-068)
 
 Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `-- debate`, `-- reveal`, `-- election`, `-- results`, `-- howto`); the snapshots always draw the PNGs; 0 audit findings at all three sizes.
 
-### Uploading the portraits (once, for the lead or the humans)
+#### Uploading the portraits (once, for the lead or the humans)
 
 1. Upload the eight PNGs in `assets/portraits/` (okafor, calloway, venkat, hale, alvarado, reyes, strand, begay) as images: Creator Hub → Create → Development items → Images, or Studio's Asset Manager.
 2. Put each number in `src/client/UI/Assets.luau` under `portraits` (`okafor = 1234567890,` and so on). Until then every plate shows the candidate's initials instead of the face; nothing breaks.
 
-### In Studio (after the ids are in the build)
+#### In Studio (after the ids are in the build)
 
 1. **Play (F5) → Play vs Bot.** **Expect:** on Select, eight different faces on the same slate-blue plate, no colored rings. Rex Calloway's card (the bot's) is dimmed with a red ring. *Send back:* an iPad screenshot and a phone screenshot.
 2. Tap **Dana Okafor**. **Expect:** her face gets a ring in your color (blue). Tap another: the ring moves.
 3. **Faces at small sizes:** can you tell all eight apart on the phone cards (about the size of a fingertip)? *Send back:* which ones look alike, if any.
-4. **Map reveal:** the Strongholds card shows both faces, each ringed in its player's color. **A week's results:** "Your week" and "Rex's week" each start with the face. **Debate (week 4):** the two faces face off over the scoreboard with "vs" between. **Header (iPad, Mac):** a small face at each end of the score bar. **Election night:** the winner's face in the spotlight card. **Results:** a big face on each player card. **How to play** (Lobby), page 1: two faces over the race bar.
-5. **No errors** from `Kit`, `Select`, `TopBar`, `Reveal`, `Election`, `Results` or `HowTo` in the Output window. *Send back:* whether the faces feel friendly and fit the front-page look, and anything that looks off (cut-off hats, blurry edges).
+4. **Map reveal:** the Strongholds card shows both faces, each ringed in its player's color. **A week's results:** "Your week" and "Rex's week" each start with the face. **Debate (week 4):** the Debate screen's stage shows both faces, ringed in each player's color. **Map pins:** each candidate's pin on the map is their face. **Header (iPad, Mac):** a small face at each end of the score bar. **Election night:** the winner's face in the spotlight card. **Results:** a big face on each player card. **How to play** (Lobby), page 1: two faces over the race bar.
+5. **No errors** from `Kit`, `Select`, `TopBar`, `Reveal`, `Debate`, `Pins`, `Election`, `Results` or `HowTo` in the Output window. *Send back:* whether the faces feel friendly and fit the front-page look, and anything that looks off (cut-off hats, blurry edges).
 
-## The Name Pass (unreleased, D-069)
+### The Name Pass (D-069)
 
 A custom candidate name for players Roblox lets chat (the stand-in for 16+), filtered like chat, with reports and an owner review. Agents: `lune run tests "Name Pass"`, `lune run tests "reported names"`, shots `03d`–`03g`, `01g`, `02k`.
 
-### Setting up the Name Pass (once, for the humans)
+#### Setting up the Name Pass (once, for the humans)
 
 1. [Creator Dashboard](https://create.roblox.com/dashboard/creations) → the experience of place **133510178057620** → **Monetization → Passes → Create pass.** Name: **Name Your Candidate**. Description, for example: "Give your candidate a name of your own (up to 16 characters). Names must follow Roblox's Community Standards." Square icon (up to 512x512). **Create pass.**
 2. Put it **on sale** and set a price. **Save.**
@@ -957,7 +980,7 @@ A custom candidate name for players Roblox lets chat (the stand-in for 16+), fil
 4. **Admins:** the owner (5618560436) and originalyellowboss (479739965) are in `Config.ADMIN_USER_IDS` in `src/shared/Sim/Config.luau`. To add another admin, add their user id there with a comment naming them. Admins get the color picker and custom names free, and the **Review names** button.
 5. **Communication settings:** names need Roblox's chat permission, so chat must be on for the experience (Experience Settings → Communication).
 
-### In Studio
+#### In Studio
 
 Studio may not answer the chat-permission check, and its text filter is limited. To try the screens, set `NameEligibility.STUDIO_OVERRIDE = true` in `src/server/NameEligibility.luau` (it only works in Studio; never commit it as true). Purchases are test purchases.
 
@@ -965,7 +988,7 @@ Studio may not answer the chat-permission check, and its text filter is limited.
 2. **Rename**: the sheet shows the box (stops at 16 characters), the hint, the same rules note, **Use the candidate's name** and **Save name**. Type `  Captain   Zed ` and save. **Expect:** the line reads "Name: Captain Zed"; the header and reveals say "Captain Zed" (still Dana's portrait).
 3. Try `Zed 2024`, `zed.com`, `Zeee`, `A`, `Discord Zed`, `Donald Trump`. **Expect:** each is turned down with a short reason; the name does not change.
 
-### In a live server (two accounts; the filter only fully works live)
+#### In a live server (two accounts; the filter only fully works live)
 
 1. With a name set on account A, **Find match** with account B (both allowed to chat). **Expect:** B sees A's custom name. With B's chat turned off (Roblox settings), B sees "Dana Okafor".
 2. Try a few names on A that Roblox's chat would hide (a rude word, a phone-number-like name spelled out in words). **Expect:** "That name isn't allowed. Try another."
@@ -976,20 +999,7 @@ Studio may not answer the chat-permission check, and its text filter is limited.
 
 **Send back:** screenshots of the Select name line, the sheet, a refusal, B's view after reporting, and the review panel; and the Output lines from step 6.
 
-## Debates as live rounds (unreleased, D-072)
-
-Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- debate --size phone` (also `ipad`, `desktop`; 0 audit findings), `lune run tests/harness/balance.luau` (the "Debate" lines). Duel: `defend`, `attack`, `pivot`, add `zinger`.
-
-1. **Play vs Bot (Medium), on the iPad and a phone.** In week 4 the Debate screen opens: both faces with the crowd meter between them, "WEEK 4 DEBATE · 3 ROUNDS" and the three topics, each tagged with whose issue it is. **Expect:** after 3 s, round 1.
-2. **A round.** The moderator asks a question; the pills say whose issue it is, who leads its states and the counter. There are three big buttons: "Defend 6" with "D +4 · A +3 · P −1" on the right, and so on (your score minus theirs against their Defend, Attack and Pivot). Pivot says which issue's states it would land on. In your first debate, a move that can't lose has a green "Safe" tag and a tip explains it. Tap a move: the map lights where a win would land. Hold a move to preview it without picking. **Why?** shows each strength in parts.
-3. **Lock in** stays greyed ("Pick a move") until you tap one. Tap **Stake Zinger**, then Lock in. **Expect:** "Pivot + Zinger · kept secret"; Rex shows "locked in ✓" when he is done. Let one round run out without picking: you get a weak Defend.
-4. **The clash** (4 s): both moves, the scores, "Your Defend beats Attack: +3", a stamp (YOU WIN BY 3 / REX WINS BY 3 / SPLIT), the line naming the states it swung and any FLIP on the map. The crowd meter slides. *Send back:* a screenshot of one clash.
-5. **The verdict:** who won the crowd, a line per round, the map showing the whole debate's moves; **Skip** works. Then the stance (in a Choice week) or the plan.
-6. **Week 9:** the same; the Zinger is back. Results' "What decided it" still lists the states debates flipped.
-
-**Send back:** did you know why you won or lost each round? Did you ever pick a move because of what the bot did last round? Did the map move where you expected? Did it feel like its own event, or still like a quiz? How long did each debate take?
-
-## End screen: Map and Graph (unreleased, D-073)
+### End screen: Map and Graph (D-073)
 
 Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`, `lune run tests EVChart`, `lune run tests "Poll history"`, `lune run tests/ui/snap.luau -- 23` (shots `23d` to `23g`; 0 audit findings at all three sizes).
 

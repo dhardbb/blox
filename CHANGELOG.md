@@ -2,27 +2,63 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.13.0: Landslide (Oct 24, 2026)
 
-### The end screen: final polls vs the result, and votes week by week (D-073)
+The game is now **Landslide** ("Race to 270"). This release puts a real US map under the campaign, turns debates into three live rounds on their own screen, gives every candidate an illustrated portrait, lets eligible players name their candidate (the Name Pass), plays the week's results move by move, deepens the colors, and adds Map and Graph tabs to the end screen. Polls cost half. Studio checklists: `docs/TESTING.md`, "0.13.0: Landslide".
 
-Results only; no rule or Config changes. Studio checklist: `docs/TESTING.md`, "End screen: Map and Graph".
+**Needed from the humans:**
+1. **Rename the experience** to `Landslide` in Studio (Game Settings → Basic Info) and on the Creator Hub, description starting "Race to 270." (`docs/TESTING.md`, "The new name: Landslide").
+2. **Color Pass and Name Pass ids:** both are still 0 in `src/shared/Net/Products.luau`, so neither pass is on sale yet. Create the passes ("Setting up the Color Pass" and "Setting up the Name Pass" in `docs/TESTING.md`) and send both ids. Admins get both free meanwhile.
+3. **Studio API access:** Home → Game Settings → Security → **Enable Studio Access to API Services** (in the published place), so saved colors and names, reports, the review queue and the leaderboard work in Studio; and chat on in Experience Settings → Communication (custom names need it).
+4. Upload the eight portraits in `assets/portraits/` and send their ids (until then the plates show initials).
 
-- **Summary | Map | Graph tabs on the end screen.** Summary is the screen you know (who won, the Landslide stamp, why).
-- **Map:** switch between **Final polls** (each state's last public poll, as you saw it the last week) and **Real results** (election night's winner and margin). States the polls got wrong wear a **MISS** tag, and one line names them ("Polls missed 3 states: CA, SC, OK"). Tap a state to compare its poll and its result.
-- **Graph:** both players' projected votes week by week (the header's numbers), then the real result, with the 270 line and "D"/"S" chips on debate and stance weeks: tap one to see what happened that week.
-- The match now keeps its weekly projected votes and sends them with the final results, so the graph is there after a rejoin too.
+### The name: Landslide (D-064)
 
-## Unreleased: Landslide (branch `brand`)
+- **New name: Landslide, "Race to 270" (D-064).** The Lobby's logo is a big outlined "LANDSLIDE" with the tagline "RACE TO 270" on a tilted red-and-blue ribbon under it (scaled to fit a phone). 270 as the votes to win is unchanged everywhere.
 
-The game is now called **Landslide** ("Race to 270"), a landslide win gets its own stamp on Results, the week's event sits under the score, and polls cost half. Studio checklist: `docs/TESTING.md`, "Landslide". Needed from the humans: rename the experience (see the checklist).
+### The Landslide stamp (D-062)
 
-- **New name: Landslide, "Race to 270" (D-064).** The Lobby's logo is a big outlined "LANDSLIDE" with the tagline "RACE TO 270" on a tilted red-and-blue ribbon under it (scaled to fit a phone). 270 as the votes to win is unchanged everywhere. **Needed from the humans:** rename the experience in Studio and on the Creator Hub (`docs/TESTING.md`, "Landslide").
 - **Landslide stamp (D-062):** win with more than 70% of the votes (377 of 538 or more) and Results stamps a big **LANDSLIDE** in your color under "You won", with extra confetti, a second hit and a light sweeping across it. Your opponent sees "REX WON BY A / LANDSLIDE" in Rex's color under "You lost". New `Config.LANDSLIDE_EV_SHARE` (0.70); the rules of winning do not change.
+
+### The week's event under the score (D-065)
+
 - **The week's event is at the top (D-065):** on the plan screen it is a strip right under the score, above the map, on every screen size: a gold icon, the event's name and one line of what it does ("Fundraisers where you trail +20%"; in a Choice week, your stance). Tap it for the full story and effect. It no longer sits in the side column.
+
+### Polls at half price (D-063)
+
 - **Polls cost half (D-063):** a state poll is $0.5 (was $1), a region poll $1.5 (was $3). Every price on screen follows. In the bot-vs-bot harness the bots buy about as many polls and put the saved money into ads and ground game; win rates moved within noise.
 
-## Unreleased
+### The real US map (D-070)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Real US map". The three map images are uploaded and their ids are in `Assets.luau` (if one is ever emptied, the game falls back to the circle map).
+
+- **The map is a real map of the United States:** every state in its true shape, filled by who leads its poll as before, with thin dark borders. Alaska and Hawaii sit in the bottom left. The nine small Northeast states (VT, NH, MA, RI, CT, NJ, DE, MD, DC) are labeled chips in a column at the right edge, each with a thin line to where it really is.
+- Tap anywhere inside a state to pick it, even a small one next to a big neighbor; tap a chip for the small Northeast states. The selected state gets a white outline.
+- **Polls tab:** under each lead, ▲ in a player's color shows who has momentum there (▲▲: a lot), filled dots are your ground-game units, hollow dots the opponent's as your internal polls last saw them. A legend under the map says so, and the Map key explains it. The other tabs are unchanged.
+- **Candidate pins:** your candidate stands on the state you are in, with your portrait and a "You" flag; the opponent's pin has their portrait and first name (or custom name). On every tab, on the plan and stance screens.
+- The map's images and their data are made by `scripts/mapgen/make.py` from public-domain Census boundaries (us-atlas, ISC).
+
+### Plan preview on the map (D-071)
+
+Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Plan preview".
+
+- **While you plan a week, the map shows what your plan would do:** a faint number beside every state an action moves ("+4.1" green, "-0.6" orange), added up when several actions hit the same state, and under the map "Plan: 268 → 281 EV, if nothing else changes".
+- **A tidier map:** marks (values, tags, plan numbers, pins) are placed beside each state's code and never cover any code; far ones get a thin line back to their state. Pins are smaller (face and a "You" tab) and never overlap each other; the planned route is thinner and fainter.
+- It updates as you add or remove actions, shows in every map tab, and disappears when you lock in. It is your own estimate: the opponent's plan is unknown.
+
+### Debates as live rounds (D-072)
+
+Debates were "glorified stance questions". Now each debate is its own event: a stage, three quick rounds, a clash after each. Sim, server, payloads, bots, the debug and duel harnesses, and a new Debate screen. Studio checklist: `docs/TESTING.md`, "Debates as live rounds". The old debate scoreboard in the week's reveal is gone.
+
+- **Three rounds, one per topic.** In each round both players pick **Defend**, **Attack** or **Pivot** in 15 s, in secret. Defend beats Attack, Attack beats Pivot, Pivot beats Defend.
+- **Strengths are public.** They come from your platform and theirs, who leads the topic's states, the crowd, and your last move. Every button shows its strength and how it does against each of their moves ("D +4 · A +3 · P −1"). There is no dice roll.
+- **Results land on the map live.** A win is +0.8 in the topic's states (Pivot: in your own issue's states); a split gives +0.5 each; losing to a counter costs −0.5. The polls update after every round.
+- **One Zinger per debate:** stake it on a round, and a win counts ×2 (Marcus Hale ×4). A crowd meter fills as rounds are won; a lead of 8 is a standing ovation (+2 momentum in every battleground).
+- **No move in time** is a weak Defend (2) that can't be countered. The debate focus screen is gone. A Choice week's stance still comes after the debate, on its own screen.
+- **Bots** read the same board: Medium plays the move whose worst outcome is best; Hard and Extreme also read you (Extreme remembers what you played).
+- **Debug and duel:** `defend`, `attack`, `pivot`, each optionally followed by `zinger`. The board prints every result cell.
+- **Timing:** a debate takes about 40 s when both pick quickly (it was about 18 s). With every timer run out it takes 65 s. Together with the longer reveals of busy weeks, a match with every timer run out now takes 18 min 42 s on the main steps (21 min 22 s with every stance screen too), past the old 17.5-minute line: D-074 lists the levers for the designers. Typical matches are unchanged in the harness (see D-074).
+- Wire: `{ move, zinger }`; new reasons `BadMove`, `ZingerSpent`, `UnexpectedMove`; `view.debate`; reveals `DebateIntro`, `Clash`, `Verdict`.
 
 ### The week's results tally up move by move (D-066)
 
@@ -34,8 +70,6 @@ Client only: no rule, payload or Config changes. Studio checklist: `docs/TESTING
 - The header no longer jumps to the week's result when the reveal opens. Skip still ends it early.
 - **Busy weeks get a longer reveal** so each move is seen to land: 4.5 s + 0.55 s per step, between 8 and 14 s (9.4 s on average, about +16 s a match). New Config: `TIMER_RESOLVE_BASE`, `TIMER_RESOLVE_PER_STEP`, `TIMER_RESOLVE_MAX`.
 
-## Unreleased
-
 ### A deeper, richer palette (D-067)
 
 Client colors only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Richer colors".
@@ -45,15 +79,13 @@ Client colors only: no rule, sim, server, payload or Config changes. Studio chec
 - **Player names in color are vivid, not pink.** Readable text keeps the color's own hue (brightened just enough), instead of fading it toward white.
 - **Gains are a clear green, not mint**, and the navy stage, cards and buttons are a richer navy at the same brightness. Every contrast floor still holds.
 
-## Unreleased
-
 ### Candidate portraits (D-068)
 
 Client and assets only: no rule, sim, server or Config changes. Studio checklist: `docs/TESTING.md`, "Candidate portraits". Needed from the humans: upload the eight PNGs in `assets/portraits/` and send the ids (until then the game shows initials on the plates).
 
 - **Every candidate has an illustrated portrait:** a friendly flat bust with their own face, hair, outfit and a prop that hints at the perk (Rex's straw boater, Helen's glasses and pencil, Walt's field cap, Priya's headset, ...).
 - **Select:** the eight cards show the eight faces on the same neutral plate; a ring in your color marks your pick, a ring in your opponent's color (dimmed) marks theirs. Cards are a little taller for the bigger faces; a phone still fits step 1 without scrolling.
-- Portraits also on the map reveal's strongholds card, the Campaign header (wide screens), the week reveal, a new face-off over the debate scoreboard, the election spotlight, Results and How to play.
+- Portraits also on the map reveal's strongholds card, the Campaign header (wide screens), the week reveal, the Debate screen's stage, the candidate pins on the map (ringed in each player's color), the election spotlight, Results and How to play.
 - New `Kit.portrait`; `Kit.monogram` is unchanged. The headless snapshots draw the PNGs.
 
 ### The Name Pass: a custom name for your candidate (D-069)
@@ -69,39 +101,18 @@ Server, payload, Select, Help, Results and the Lobby. New Config values (name li
 - **Admins** (the owner and originalyellowboss) get the color picker and custom names free, even before the passes exist.
 - Wire: requests `SetName`, `ReportName`, `ReviewList`, `ReviewKeep`, `ReviewRemove`; message `Review`; DataStores `NameReports_v1`, `NameBlocklist_v1`; MessagingService topic `NameBlocklist`.
 
-## Unreleased
+### The end screen: final polls vs the result, and votes week by week (D-073)
 
-### Plan preview on the map (D-071)
+Results only; no rule or Config changes. Studio checklist: `docs/TESTING.md`, "End screen: Map and Graph".
 
-Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Plan preview".
+- **Summary | Map | Graph tabs on the end screen.** Summary is the screen you know (who won, the Landslide stamp, why).
+- **Map:** switch between **Final polls** (each state's last public poll, as you saw it the last week) and **Real results** (election night's winner and margin). States the polls got wrong wear a **MISS** tag, and one line names them ("Polls missed 3 states: CA, SC, OK"). Tap a state to compare its poll and its result.
+- **Graph:** both players' projected votes week by week (the header's numbers), then the real result, with the 270 line and "D"/"S" chips on debate and stance weeks: tap one to see what happened that week.
+- The match now keeps its weekly projected votes and sends them with the final results, so the graph is there after a rejoin too.
 
-- **While you plan a week, the map shows what your plan would do:** a faint number beside every state an action moves ("+4.1" green, "-0.6" orange), added up when several actions hit the same state, and under the map "Plan: 268 → 281 EV, if nothing else changes".
-- **A tidier map:** marks (values, tags, plan numbers, pins) are placed beside each state's code and never cover any code; far ones get a thin line back to their state. Pins are smaller (face and a "You" tab) and never overlap each other; the planned route is thinner and fainter.
-- It updates as you add or remove actions, shows in every map tab, and disappears when you lock in. It is your own estimate: the opponent's plan is unknown.
+### Timer budget (D-074)
 
-### The real US map (D-070)
-
-Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Real US map". The three map images are uploaded and their ids are in `Assets.luau` (if one is ever emptied, the game falls back to the circle map).
-
-- **The map is a real map of the United States:** every state in its true shape, filled by who leads its poll as before, with thin dark borders. Alaska and Hawaii sit in the bottom left. The nine small Northeast states (VT, NH, MA, RI, CT, NJ, DE, MD, DC) are labeled chips in a column at the right edge, each with a thin line to where it really is.
-- Tap anywhere inside a state to pick it, even a small one next to a big neighbor; tap a chip for the small Northeast states. The selected state gets a white outline.
-- **Polls tab:** under each lead, ▲ in a player's color shows who has momentum there (▲▲: a lot), filled dots are your ground-game units, hollow dots the opponent's as your internal polls last saw them. A legend under the map says so, and the Map key explains it. The other tabs are unchanged.
-- **Candidate pins:** your candidate stands on the state you are in, with your initials and a "You" flag; the opponent's pin has their first name. On every tab, on the plan and stance screens.
-- The map's images and their data are made by `scripts/mapgen/make.py` from public-domain Census boundaries (us-atlas, ISC).
-
-## Unreleased: debates are live rounds (D-072)
-
-Debates were "glorified stance questions". Now each debate is its own event: a stage, three quick rounds, a clash after each. Sim, server, payloads, bots, the debug and duel harnesses, and a new Debate screen. Studio checklist: `docs/TESTING.md`, "Debates as live rounds".
-
-- **Three rounds, one per topic.** In each round both players pick **Defend**, **Attack** or **Pivot** in 15 s, in secret. Defend beats Attack, Attack beats Pivot, Pivot beats Defend.
-- **Strengths are public.** They come from your platform and theirs, who leads the topic's states, the crowd, and your last move. Every button shows its strength and how it does against each of their moves ("D +4 · A +3 · P −1"). There is no dice roll.
-- **Results land on the map live.** A win is +0.8 in the topic's states (Pivot: in your own issue's states); a split gives +0.5 each; losing to a counter costs −0.5. The polls update after every round.
-- **One Zinger per debate:** stake it on a round, and a win counts ×2 (Marcus Hale ×4). A crowd meter fills as rounds are won; a lead of 8 is a standing ovation (+2 momentum in every battleground).
-- **No move in time** is a weak Defend (2) that can't be countered. The debate focus screen is gone. A Choice week's stance still comes after the debate, on its own screen.
-- **Bots** read the same board: Medium plays the move whose worst outcome is best; Hard and Extreme also read you (Extreme remembers what you played).
-- **Debug and duel:** `defend`, `attack`, `pivot`, each optionally followed by `zinger`. The board prints every result cell.
-- **Timing:** a debate takes about 40 s when both pick quickly (it was about 18 s). With every timer run out it takes 65 s, and a whole match takes 20 min 10 s at most.
-- Wire: `{ move, zinger }`; new reasons `BadMove`, `ZingerSpent`, `UnexpectedMove`; `view.debate`; reveals `DebateIntro`, `Clash`, `Verdict`.
+- No timer changed. With the reveal's longer busy weeks (+72 s) and live debates (+110 s) together, the worst case on the D-005 steps is 1,122 s (18 min 42 s), past the old 17.5-minute line; `Config.spec` now pins it under 19 minutes. **For the designers:** keep it, or pick a lever in D-074 (for example `TIMER_PLAN` 50 → 44 s).
 
 ## 0.12.0: Front-page look, leaderboard, bot levels, leaving, How to play (Oct 23, 2026)
 
