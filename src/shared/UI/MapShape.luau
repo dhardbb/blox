@@ -9,10 +9,10 @@
 --   wide  the box at ASPECT (1.6): the land on the left, the nine small
 --         Northeast states as callout chips in one column at the right edge
 --         (iPad, desktop, and any map that is short for its width)
---   tall  the box at TALL_ASPECT (1.25), for a phone in portrait: the land
---         fills the width (12 % bigger than in wide) and the chips stand in one
---         row under it, so a 390 px phone gets a 390 x 312 map instead of
---         390 x 244
+--   tall  the box at TALL_ASPECT (1.1), for a phone in portrait: the land
+--         fills the width (12 % bigger than in wide) and the chips stand in
+--         two rows under it (wide enough for a "VT +16" plate, D-079), so a
+--         390 px phone gets a 390 x 354 map instead of 390 x 244
 -- In both, Alaska and Hawaii sit in hairline inset boxes in the Pacific under
 -- California: Alaska at INSET_AK of its generated size over Hawaii at
 -- INSET_HI (its islands are specks otherwise). MapShape.fit picks the layout for a box of a given size.
@@ -63,7 +63,7 @@ local MapShape = {}
 
 MapShape.data = Data
 MapShape.ASPECT = Data.ASPECT
-MapShape.TALL_ASPECT = 1.25 -- the tall layout's box width / height
+MapShape.TALL_ASPECT = 1.1 -- the tall layout's box width / height (two chip rows under the land)
 MapShape.TALL_BELOW = 480 -- px: a map box narrower than this may stand up (a phone in portrait)
 MapShape.LADDER = MapLayout.LADDER
 
@@ -74,7 +74,8 @@ local INSET_GAP = 0.008 -- box widths between the two insets' boxes
 local INSET_PAD = 0.006 -- box widths between an inset's land and its hairline box
 local TALL_SIDE = 0.012 -- box widths of margin left and right of the land in tall
 local TALL_TOP = 0.004 -- box heights of margin over the land in tall
-local TALL_CHIP_PX = 40 -- px at MapLayout.PHONE_WIDTH: the chip row's height in tall (a 36 px target and a gap)
+local TALL_CHIP_PX = 38 -- px at MapLayout.PHONE_WIDTH: one chip row's height in tall (a 36 px target and a gap)
+local TALL_CHIP_ROWS = 2 -- chip rows in tall: wide enough cells for a "VT +16" plate (D-079)
 local TALL_GAP = 0.005 -- box heights between the land and the chip row, and the row and the legend
 local BRACKET_TICK = 0.012 -- box widths, the bracket's ends turning toward the coast
 local HI_LABEL_X, HI_LABEL_Y = 0.74, 0.3 -- Hawaii's label in its box, shares of the box (the free sea)
@@ -229,14 +230,18 @@ local function build(kind: Kind): Layout
 	local legend: Rect
 	if kind == "tall" then
 		local bottom = landRect.y + landRect.h
-		local chipH = TALL_CHIP_PX / MapLayout.PHONE_WIDTH * aspect -- box heights
+		local chipH = TALL_CHIP_PX / MapLayout.PHONE_WIDTH * aspect -- box heights, one row
 		local top = bottom + TALL_GAP
-		band = { x = TALL_SIDE, y = top, w = 1 - 2 * TALL_SIDE, h = chipH }
-		local pitch = band.w / #MapLayout.LADDER
+		band = { x = TALL_SIDE, y = top, w = 1 - 2 * TALL_SIDE, h = chipH * TALL_CHIP_ROWS }
+		-- North to south in reading order: VT NH MA RI CT / NJ DE MD DC.
+		local perRow = math.ceil(#MapLayout.LADDER / TALL_CHIP_ROWS)
+		local pitch = band.w / perRow
 		for i, id in MapLayout.LADDER do
-			chipRects[id] = { x = band.x + (i - 1) * pitch, y = top, w = pitch, h = chipH }
+			local row = (i - 1) // perRow
+			local col = (i - 1) % perRow
+			chipRects[id] = { x = band.x + col * pitch, y = top + row * chipH, w = pitch, h = chipH }
 		end
-		local legendTop = top + chipH + TALL_GAP
+		local legendTop = top + band.h + TALL_GAP
 		legend = { x = TALL_SIDE, y = legendTop, w = 1 - 2 * TALL_SIDE, h = 1 - legendTop - TALL_GAP / 2 }
 	else
 		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
@@ -379,8 +384,9 @@ local function build(kind: Kind): Layout
 		local best, bestD = nil, math.huge
 		for _, id in MapLayout.LADDER do
 			local chip = chipRects[id]
+			-- (Across a row of chips: the nearest by distance, y in box widths.)
 			local d = if layout.row
-				then math.abs(x - (chip.x + chip.w / 2))
+				then (x - (chip.x + chip.w / 2)) ^ 2 + ((y - (chip.y + chip.h / 2)) / aspect) ^ 2
 				else math.abs(y - (chip.y + chip.h / 2))
 			if d < bestD then
 				best, bestD = id, d

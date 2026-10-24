@@ -157,7 +157,7 @@ describe("ShapeMap", function()
 		end
 	end)
 
-	it("stands up on a phone in portrait: the tall layout, chips in a row under the land", function()
+	it("stands up on a phone in portrait: the tall layout, chips in two rows under the land", function()
 		local m = mount(390, 400)
 		m.map:setLens({})
 		settle(m)
@@ -169,10 +169,15 @@ describe("ShapeMap", function()
 		for _, id in MapLayout.LADDER do
 			table.insert(chips, button(m, id).Chip.AbsolutePosition)
 		end
+		-- Two rows, north to south in reading order (D-079: room for the plates).
 		for k = 2, #chips do
-			check(math.abs(chips[k].Y - chips[1].Y) < 1, "the chips are not in one row")
-			check(chips[k].X > chips[k - 1].X, "the chips are out of order")
+			local sameRow = math.abs(chips[k].Y - chips[k - 1].Y) < 1
+			check(
+				(sameRow and chips[k].X > chips[k - 1].X) or chips[k].Y > chips[k - 1].Y + 1,
+				"the chips are out of order"
+			)
 		end
+		check(chips[#chips].Y > chips[1].Y + 1, "the chips are not in two rows")
 		-- An iPad's map column keeps the wide layout.
 		local wide = mount(620, 600)
 		wide.map:setLens({})
@@ -190,65 +195,76 @@ describe("ShapeMap", function()
 		expect(hi.BackgroundColor3):toBe(wide.map.root.Shapes.ShapeHI.ImageColor3)
 	end)
 
-	it("labels every state on one line on a phone, and no two labels overlap", function()
-		local m = mount(390, 312)
-		local lines = {}
-		for _, record in StateData.list do
-			lines[record.id] = { parts = { { text = tostring(record.ev) } } }
-		end
-		m.map:setLens(lines)
-		settle(m)
-		local shown = {}
-		local values = 0
-		local stackedSeen = 0
+	-- One plate per state (D-079): the code, then the value right after it on
+	-- the same line, the same text size and spacing for every state, chips
+	-- and insets included; a plate that does not fit moves whole.
+	local function plateForm(m: Mounted, label: string): (number, number)
+		local size, offs = nil, 0
 		for _, record in StateData.list do
 			local node = button(m, record.id)
-			for _, name in { "Label", "Lens" } do
-				local inst = node:FindFirstChild(name)
-				if inst and inst.Visible then
-					table.insert(shown, { id = record.id, inst = inst })
-					if name == "Lens" then
-						values += 1
-						-- On the code's line, or right under it (the code at 12 px).
-						if node.Label.Visible and not MapShape.get(record.id).chip then
-							local l, r = node.Label, inst
-							local lx = l.AbsolutePosition.X + l.AbsoluteSize.X / 2
-							local ly = l.AbsolutePosition.Y + l.AbsoluteSize.Y / 2
-							local rx = r.AbsolutePosition.X + r.AbsoluteSize.X / 2
-							local ry = r.AbsolutePosition.Y + r.AbsoluteSize.Y / 2
-							local sameLine = math.abs(ry - ly) < 1
-							local stacked = math.abs(rx - lx) < 1 and ry > ly
-							check(
-								sameLine or stacked,
-								`{record.id}'s value is neither beside nor under its code`
-							)
-							if stacked then
-								stackedSeen += 1
-							end
-						end
+			local plate, code, row = node.Plate, node.Label, node.Lens
+			check(plate.Visible and code.Visible and row.Visible, `{label} {record.id}: no plate`)
+			local p, c, r = plate.AbsolutePosition, code.AbsolutePosition, row.AbsolutePosition
+			local ps, cs, rs = plate.AbsoluteSize, code.AbsoluteSize, row.AbsoluteSize
+			-- The code first, the value right after it, on one line, inside the plate.
+			check(
+				c.X >= p.X - 0.5 and r.X + rs.X <= p.X + ps.X + 0.5,
+				`{label} {record.id}: outside its plate`
+			)
+			check(math.abs((r.X - (c.X + cs.X)) - 2) < 0.6, `{label} {record.id}: not code then value`)
+			check(
+				math.abs((r.Y + rs.Y / 2) - (c.Y + cs.Y / 2)) < 0.6,
+				`{label} {record.id}: the value is not on its code's line`
+			)
+			size = size or cs.Y
+			check(math.abs(cs.Y - (size :: number)) < 0.5, `{label} {record.id}: a different size`)
+			check(cs.Y >= 12 - 1e-6, `{label} {record.id}: under the 12 px floor`)
+			if not MapShape.get(record.id).chip then
+				local root = m.map.root
+				local s = MapShape.layout(root:GetAttribute("Layout")).get(record.id) :: MapShape.Shape
+				local ax = root.AbsolutePosition.X + s.lx * root.AbsoluteSize.X
+				local ay = root.AbsolutePosition.Y + s.ly * root.AbsoluteSize.Y
+				if ax < p.X or ax > p.X + ps.X or ay < p.Y or ay > p.Y + ps.Y then
+					offs += 1
+				end
+			end
+		end
+		return size :: number, offs
+	end
+
+	it(
+		"gives every state the same plate, code then votes, and no two overlap (phone, iPad, desktop)",
+		function()
+			for _, size in { { 390, 360 }, { 390, 244 }, { 620, 388 }, { 832, 520 } } do
+				local m = mount(size[1], size[2])
+				local lines = {}
+				for _, record in StateData.list do
+					local s = record.ev
+					lines[record.id] = {
+						parts = {
+							{
+								text = if s >= 13 then m.Kit.STAR .. tostring(s) else tostring(s),
+								outlined = s >= 13,
+							},
+						},
+					}
+				end
+				m.map:setLens(lines)
+				settle(m)
+				local label = `{size[1]}x{size[2]}`
+				local px, offs = plateForm(m, label)
+				expect(m.map.root:GetAttribute("PlateSize")):toBe(math.floor(px + 0.5))
+				expect(m.map.root:GetAttribute("PlateLeaders")):toBe(offs)
+				for i, a in StateData.list do
+					for j = i + 1, #StateData.list do
+						local b = StateData.list[j]
+						local pa, pb = button(m, a.id).Plate, button(m, b.id).Plate
+						check(not overlaps(pa, pb), `{label}: {a.id}'s plate overlaps {b.id}'s`)
 					end
 				end
 			end
 		end
-		-- Every value shows on a phone (the audit counted 33 missing before D-079),
-		-- and almost every one with its code (D-079 review: no orphan values).
-		expect(values):toBe(#StateData.list)
-		local coded = 0
-		for _, record in StateData.list do
-			if button(m, record.id).Label.Visible then
-				coded += 1
-			end
-		end
-		check(coded >= #StateData.list - 3, `only {coded} codes beside their values`)
-		for i = 1, #shown do
-			for j = i + 1, #shown do
-				local a, b = shown[i], shown[j]
-				if a.id ~= b.id then
-					check(not overlaps(a.inst, b.inst), `{a.id}'s label overlaps {b.id}'s`)
-				end
-			end
-		end
-	end)
+	)
 
 	it("settles a tap by outline, not by whichever square was pressed", function()
 		local m = mount(390, 244)
@@ -319,8 +335,8 @@ describe("ShapeMap", function()
 		expect(tx.Lens.Momentum.Visible):toBe(true)
 		expect(tx.Lens.Momentum.Text):toBe("▲▲")
 		expect(tx.Lens.Momentum.TextColor3):toBe(red)
-		-- One pill: the row wears the plate around the lead and its suffix.
-		expect(tx.Lens.BackgroundTransparency):toBe(0)
+		-- One plate: the code, the lead and its suffix.
+		expect(tx.Plate.Visible):toBe(true)
 		local yours, theirs = 0, 0
 		for _, pip in tx.Lens.Pips:GetChildren() do
 			if pip.Name == "Yours" then

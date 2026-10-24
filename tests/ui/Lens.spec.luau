@@ -137,13 +137,17 @@ describe("Map lenses", function()
 			for _, s in view.states do
 				local ev = tostring(StateData.byId[s.id].ev)
 				local part = pill(peer, "Campaign", s.id, 1)
-				local edge = part:FindFirstChild("Edge")
-				-- The number is white on the dark plate everywhere (never orange).
+				local plate = mapOf(peer, "Campaign").Nodes:FindFirstChild(s.id).Plate
+				local edge = plate:FindFirstChild("Edge")
+				-- "PA 19": one dark plate, the number white on it (never orange).
 				check(same(part.TextColor3, Kit.colors.text), `{s.id}: the number is not the text color`)
-				check(same(part.BackgroundColor3, Kit.colors.field), `{s.id}: the plate is not the field`)
+				check(
+					plate.Visible and same(plate.BackgroundColor3, Kit.colors.field),
+					`{s.id}: no field plate`
+				)
 				if s.battleground then
 					-- D-056/D-058: a battleground is good news: a star and a white
-					-- outline, never a white fill (that means "selected").
+					-- outline on the same plate, never a white fill (that means "selected").
 					expect(pills(peer, "Campaign", s.id)):toEqual({ Kit.STAR .. ev })
 					check(
 						same(edge.Color, Kit.colors.text) and edge.Transparency == 0,
@@ -577,7 +581,9 @@ describe("Lens motion", function()
 			if string.match(inst.Name, "^Part%d") and inst.Visible ~= false then
 				shownPills += 1
 				expect(inst.TextTransparency):toBe(0)
-				check(math.abs(inst.BackgroundTransparency) < 1e-6, `{inst.Name} backing did not settle`)
+				-- (A value on its state's plate has no backing; a filled lead does.)
+				local b = inst.BackgroundTransparency
+				check(math.abs(b) < 1e-6 or math.abs(b - 1) < 1e-6, `{inst.Name} backing did not settle`)
 			end
 		end
 		check(shownPills > 10, `only {shownPills} lens pills`)

@@ -235,7 +235,7 @@ describe("MapShape layouts (D-079)", function()
 		end
 	end)
 
-	it("stands the tall layout's chips in one row under all land, north to south, 36 px wide", function()
+	it("stands the tall layout's chips in two rows under all land, north to south, 36 px each way", function()
 		local geo = MapShape.layout("tall")
 		local south = 0
 		for _, s in geo.list() do
@@ -249,8 +249,12 @@ describe("MapShape layouts (D-079)", function()
 		for _, id in MapLayout.LADDER do
 			local chip = (geo.get(id) :: MapShape.Shape).chip :: MapShape.Rect
 			check(chip.y > south, `{id}'s chip overlaps land`)
-			check(chip.x >= previous - 1e-6, `{id}'s chip is out of order`)
-			previous = chip.x + chip.w
+			-- Reading order: along a row, then the next row (D-079: two rows).
+			local key = chip.y * 100 + chip.x
+			check(key >= previous - 1e-6, `{id}'s chip is out of order`)
+			previous = key
+			-- Wide enough for a plate like "VT +16" at 12 px (about 54 px) on a phone.
+			check(chip.w * 390 >= 60, `{id}'s chip is too narrow for its plate`)
 			check(
 				chip.w * MapLayout.PHONE_WIDTH >= MapLayout.MIN_HIT - 1e-6,
 				`{id}'s chip is under 36 px wide`
@@ -262,7 +266,7 @@ describe("MapShape layouts (D-079)", function()
 			local cx, cy = geo.labelAt(id)
 			expect(geo.chipAt(cx, cy)):toBe(id)
 			expect(geo.resolve(chip.x + chip.w * 0.05, cy, nil)):toBe(id)
-			expect(geo.resolve(chip.x + chip.w * 0.95, chip.y + chip.h, "TX")):toBe(id)
+			expect(geo.resolve(chip.x + chip.w * 0.95, chip.y + chip.h * 0.9, "TX")):toBe(id)
 			-- Its leader runs from the chip to its state.
 			local path = geo.leader(id) :: { number }
 			check(#path >= 4, `{id} has no leader`)
@@ -302,7 +306,7 @@ describe("MapShape layouts (D-079)", function()
 
 	it("fits the layout to the room: tall on a phone in portrait, wide on an iPad or a short box", function()
 		expect((MapShape.fit(358, 400))):toBe("tall")
-		expect((MapShape.fit(390, 312))):toBe("tall")
+		expect((MapShape.fit(390, 360))):toBe("tall")
 		expect((MapShape.fit(358, 200))):toBe("wide") -- short: the wide map is bigger
 		expect((MapShape.fit(620, 600))):toBe("wide") -- an iPad's map column
 		expect((MapShape.fit(1000, 0))):toBe("wide")
