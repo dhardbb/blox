@@ -7,9 +7,10 @@
 -- Rallies and fundraisers form the candidate's route: each stop must be the current
 -- state or adjacent to the previous stop, otherwise it is a flight (FLIGHT_COST, no AP).
 --
--- The debate focus and Choice stances are not part of a plan: they have their own
--- Decision phase before it (Sim/Decision, D-044). A plan that carries `focus` or
--- `choice` is rejected (UnexpectedFocus, UnexpectedChoice).
+-- Choice stances and debate moves are not part of a plan: a stance has its own
+-- Decision phase before it (Sim/Decision, D-044) and a debate its own rounds
+-- (Sim/Debate, D-062). A plan that carries `focus`, `choice` or `move` is
+-- rejected (UnexpectedFocus, UnexpectedChoice, UnexpectedMove).
 
 local ConfigModule = require("./Config")
 local Issues = require("./Issues")
@@ -63,10 +64,14 @@ Plan.Reason = table.freeze({
 	NotEnoughAP = "NotEnoughAP",
 	NotEnoughMoney = "NotEnoughMoney",
 	-- Decision phase codes (Sim/Decision), and a plan that carries a focus or a stance.
-	BadFocus = "BadFocus",
+	BadFocus = "BadFocus", -- no longer sent: the debate focus is gone (D-062); kept so old clients' messages still map
 	UnexpectedFocus = "UnexpectedFocus",
 	BadChoice = "BadChoice",
 	UnexpectedChoice = "UnexpectedChoice",
+	-- Debate round codes (Sim/Debate, D-062), and a plan that carries a move.
+	BadMove = "BadMove",
+	ZingerSpent = "ZingerSpent",
+	UnexpectedMove = "UnexpectedMove",
 })
 
 local R = Plan.Reason
@@ -221,6 +226,9 @@ function Plan.validate(config: Config, match: MatchState, p: number, input: any)
 	end
 	if input.choice ~= nil then
 		return false, R.UnexpectedChoice, nil
+	end
+	if input.move ~= nil or input.zinger ~= nil then
+		return false, R.UnexpectedMove, nil
 	end
 	local raw = input.actions
 	local count = 0

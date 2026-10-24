@@ -29,6 +29,10 @@ export type EventKind = "Spotlight" | "Regional" | "Windfall" | "Choice"
 -- slots (Sim/Events.luau). "A" and "B" are the two opposed positions, "C" the hedge.
 export type Choice = "A" | "B" | "C"
 
+-- A debate move (Sim/Debate.luau, DESIGN.md D-062). Defend beats Attack, Attack
+-- beats Pivot, Pivot beats Defend.
+export type DebateMove = "Defend" | "Attack" | "Pivot"
+
 -- Static data for one state (see Sim/StateData.luau).
 export type StateRecord = {
 	id: string, -- postal code, e.g. "OH"

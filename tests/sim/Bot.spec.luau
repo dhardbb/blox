@@ -8,6 +8,7 @@ local Play = require("@testlib/Play")
 local Bot = require("@sim/Bot")
 local Candidates = require("@sim/Candidates")
 local Config = require("@sim/Config")
+local Debate = require("@sim/Debate")
 local IssueMap = require("@sim/IssueMap")
 local Election = require("@sim/Election")
 local Events = require("@sim/Events")
@@ -355,32 +356,79 @@ describe("Bot", function()
 		expect((Match.validate(C, match, 1, plan))):toBe(true)
 	end)
 
-	it("focuses on the topic whose states cover the EV it needs (D-040, D-044)", function()
-		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Decision", 4)
-		expect(match.decision):toBe("Focus")
-		local topics = match.debateTopics[4]
-		for t = 1, #topics do
-			local camp: { [string]: boolean } = {}
-			for i, record in StateData.list do
-				camp[record.id] = table.find(match.issueMap[i], topics[t]) ~= nil
+	-- A debate round 2 where both own the topic, seat 1 leads its states, and seat 2
+	-- pivoted last round: Defend wins against every reply.
+	local function sureDefend(): State.MatchState
+		local match = Fixtures.advanceTo(Fixtures.campaign({ seed = 4 }), "Debate", 4)
+		local live = match.debate :: State.LiveDebate
+		live.round = 2
+		local topic = live.topics[2]
+		match.players[1].platform = { topic }
+		match.players[2].platform = { topic }
+		for _, other in
+			{ "Jobs", "Health", "Schools", "Environment", "Safety", "Transit", "Technology", "Farms" }
+		do
+			if other ~= topic and #match.players[1].platform < 3 then
+				table.insert(match.players[1].platform, other :: Types.Issue)
 			end
-			-- Only this topic's states are close; the rest are decided.
-			for _, s in match.states do
-				s.poll = if camp[s.id]
-					then { support = { 35, 35 }, undecided = 30 }
-					else { support = { 60, 20 }, undecided = 20 }
-			end
-			local decided = Bot.decide(C, View.build(C, match, 1), Rng.new(1))
-			expect(decided.focus):toBe(topics[t])
-			expect((Match.validate(C, match, 1, decided))):toBe(true)
 		end
-		-- RandomFocus picks any of the three.
+		for _, other in
+			{ "Farms", "Technology", "Transit", "Safety", "Environment", "Schools", "Health", "Jobs" }
+		do
+			if
+				other ~= topic
+				and not table.find(match.players[1].platform, other :: Types.Issue)
+				and #match.players[2].platform < 3
+			then
+				table.insert(match.players[2].platform, other :: Types.Issue)
+			end
+		end
+		live.last = { [2] = "Pivot" }
+		for i, s in match.states do
+			s.poll = if table.find(match.issueMap[i], topic)
+				then { support = { 40, 34 }, undecided = 26 }
+				else { support = { 35, 35 }, undecided = 30 }
+		end
+		return match
+	end
+
+	it("plays the debate move that wins against every reply (D-062)", function()
+		local match = sureDefend()
+		local view = View.build(C, match, 1)
+		local board = (view.debate :: View.DebateView).board
+		for _, theirs in { "Defend", "Attack", "Pivot" } do
+			expect(Debate.versus(C, board, 1, "Defend", 2, theirs :: Types.DebateMove) > 0):toBe(true)
+		end
+		for _, style in { "Balanced", "Hard", "Extreme" } do
+			local move = Bot.act(C, view, Rng.new(1), "okafor", style :: Bot.Style)
+			expect(move.move):toBe("Defend")
+			expect((Match.validate(C, match, 1, move))):toBe(true)
+		end
+	end)
+
+	it("stakes its Zinger by the last round at the latest, and never twice", function()
+		local match = sureDefend()
+		local live = match.debate :: State.LiveDebate
+		live.round = C.DEBATE_TOPICS
+		local move = Bot.act(C, View.build(C, match, 1), Rng.new(1), "okafor")
+		expect(move.zinger):toBe(true)
+		live.zingers[1] = 0
+		local again = Bot.act(C, View.build(C, match, 1), Rng.new(1), "okafor")
+		expect(again.zinger):toBe(false)
+		expect((Match.validate(C, match, 1, again))):toBe(true)
+	end)
+
+	it("the harness styles play what they say (D-062)", function()
+		local match = sureDefend()
+		local view = View.build(C, match, 1)
+		expect(Bot.act(C, view, Rng.new(1), "okafor", "AlwaysAttack").move):toBe("Attack")
+		expect(Bot.act(C, view, Rng.new(1), "okafor", "AlwaysPivot").move):toBe("Pivot")
+		expect(Bot.act(C, view, Rng.new(1), "okafor", "AlwaysDefend").move):toBe("Defend")
+		expect(Bot.act(C, view, Rng.new(1), "okafor", "NoAnswer")):toBe(nil)
 		local seen: { [string]: boolean } = {}
 		for k = 1, 60 do
-			seen[Bot.decide(C, View.build(C, match, 1), Rng.new(k), "RandomFocus").focus] = true
+			seen[Bot.act(C, view, Rng.new(k), "okafor", "RandomMove").move] = true
 		end
-		for _, topic in topics do
-			expect(seen[topic]):toBe(true)
-		end
+		expect(seen.Defend and seen.Attack and seen.Pivot):toBe(true)
 	end)
 end)

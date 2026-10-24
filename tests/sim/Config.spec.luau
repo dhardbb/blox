@@ -30,53 +30,41 @@ describe("Config", function()
 		end
 	end)
 
-	-- Chance that a score edge of `edge` wins, ties and loses a topic against the
-	-- uniform 0..DEBATE_ROLL_MAX roll each side adds.
-	local function topicOdds(edge: number): (number, number, number)
-		local win, tie, lose = 0, 0, 0
-		for a = 0, C.DEBATE_ROLL_MAX do
-			for b = 0, C.DEBATE_ROLL_MAX do
-				local d = edge + a - b
-				if d > 0 then
-					win += 1
-				elseif d == 0 then
-					tie += 1
-				else
-					lose += 1
-				end
-			end
+	it("a debate round is felt in its states; splits and backfires are smaller (D-062)", function()
+		-- A round win moves every landing state by a visible amount, never more than
+		-- the event cap even with a staked Zinger; a split and a backfire are half.
+		expect(C.DEBATE_ROUND_WIN >= 0.5 and C.DEBATE_ROUND_WIN * C.DEBATE_ZINGER_MULT <= C.EVENT_CAP):toBe(
+			true
+		)
+		expect(C.DEBATE_ROUND_SPLIT < C.DEBATE_ROUND_WIN):toBe(true)
+		expect(C.DEBATE_BACKFIRE > 0 and C.DEBATE_BACKFIRE < C.DEBATE_ROUND_WIN):toBe(true)
+		expect(#C.DEBATE_COUNTER >= C.DEBATE_TOPICS):toBe(true)
+		-- The counter never shrinks, so later rounds are no formality.
+		for r = 2, #C.DEBATE_COUNTER do
+			expect(C.DEBATE_COUNTER[r] >= C.DEBATE_COUNTER[r - 1]):toBe(true)
 		end
-		local n = (C.DEBATE_ROLL_MAX + 1) ^ 2
-		return win / n, tie / n, lose / n
-	end
-
-	it("a topic win is felt in its states; the flat part and a sweep are small (D-040)", function()
-		-- A topic win moves every state where the topic is a top issue by a visible
-		-- amount (about a third of a rally), never more than the event cap; the flat
-		-- national part is a nudge, so debates decide the states they are about.
-		expect(C.DEBATE_TOPIC_WIN >= 1 and C.DEBATE_TOPIC_WIN <= C.EVENT_CAP):toBe(true)
-		expect(C.DEBATE_TOPIC_NATIONAL > 0 and C.DEBATE_TOPIC_NATIONAL <= 0.3):toBe(true)
-		expect(C.DEBATE_SWEEP > 0 and C.DEBATE_SWEEP <= 0.5):toBe(true)
-		expect(C.DEBATE_GAFFE > 0 and C.DEBATE_GAFFE <= C.DEBATE_TOPIC_WIN):toBe(true)
+		-- One Zinger, a stake: it multiplies, it never adds to a score.
+		expect(C.DEBATE_ZINGERS):toBe(1)
+		expect(C.DEBATE_ZINGER_MULT > 1):toBe(true)
+		-- A crowd sweep reaches the ovation; one round alone cannot.
+		expect(C.DEBATE_CROWD_ROUND_MAX < C.DEBATE_OVATION):toBe(true)
+		expect(C.DEBATE_TOPICS * C.DEBATE_CROWD_ROUND_MAX >= C.DEBATE_OVATION):toBe(true)
 	end)
 
-	it(
-		"the focus decides its topic often, not always; Hale's bigger focus more often (D-033, D-044)",
-		function()
-			local win, _, lose = topicOdds(C.DEBATE_FOCUS)
-			expect(win >= 0.6 and win < 0.95):toBe(true)
-			expect(lose <= 0.2):toBe(true)
-			local hale = Candidates.profile(C, "hale").focusEdge
-			expect(hale > C.DEBATE_FOCUS):toBe(true)
-			expect((topicOdds(hale)) > win):toBe(true)
-			local win4 = topicOdds(4)
-			expect(win4 >= 0.99):toBe(true)
-			-- The roll still matters: a one-point edge is a nudge, not a lock.
-			local win1 = topicOdds(1)
-			expect(win1 <= 0.7):toBe(true)
-			expect(C.DEBATE_ROLL_MAX >= C.DEBATE_PLATFORM_BONUS):toBe(true)
-		end
-	)
+	it("every move is the strongest in some situation (D-062)", function()
+		-- Owning the topic makes Defend strongest; their issue while trailing makes
+		-- Attack strongest; nobody's issue makes Pivot strongest.
+		local defend = C.DEBATE_DEFEND_BASE + C.DEBATE_OWN_ISSUE
+		local attack = C.DEBATE_ATTACK_BASE + C.DEBATE_THEIR_ISSUE + C.DEBATE_GROUND + C.DEBATE_CROWD_TRAIL
+		local pivot = C.DEBATE_PIVOT_BASE + C.DEBATE_OFF_ISSUE
+		expect(defend > C.DEBATE_ATTACK_BASE and defend > C.DEBATE_PIVOT_BASE):toBe(true)
+		expect(attack > C.DEBATE_DEFEND_BASE and attack > pivot):toBe(true)
+		expect(pivot > C.DEBATE_DEFEND_BASE and pivot > C.DEBATE_ATTACK_BASE):toBe(true)
+		-- A timed-out canned answer is weaker than any real move's base.
+		expect(C.DEBATE_CANNED <= math.min(C.DEBATE_DEFEND_BASE, C.DEBATE_ATTACK_BASE, C.DEBATE_PIVOT_BASE)):toBe(
+			true
+		)
+	end)
 
 	it("fundraising is flat, not front-loaded (D-034)", function()
 		-- Pools start part full and come back fast, so no week-1 bonanza and a state
@@ -134,24 +122,33 @@ describe("Config", function()
 		expect(gotvPerDollar < bestMedia / C.MEDIA_COST):toBe(true)
 	end)
 
-	it("worst-case match fits the 17.5-minute budget (D-005)", function()
+	-- Every timer run out on the D-005 steps, a debate's live rounds counted in full (D-062).
+	local function debateWorst(): number
+		return C.TIMER_DEBATE_INTRO
+			+ C.DEBATE_TOPICS * (C.TIMER_DEBATE_ROUND + C.TIMER_DEBATE_CLASH)
+			+ C.TIMER_DEBATE_VERDICT
+	end
+
+	it("worst-case match fits the 17.5-minute budget for the D-005 steps", function()
 		local worst = C.TIMER_SELECT
 			+ C.TIMER_MAP_REVEAL
 			+ #C.DRAFT_PRIORITY * (C.TIMER_DRAFT_ROUND + C.DRAFT_REVEAL)
 			+ C.WEEKS * (C.TIMER_PLAN + C.TIMER_RESOLVE)
 			+ C.TIME_BANK * 2
-			+ #C.DEBATE_WEEKS * C.TIMER_DEBATE
+			+ #C.DEBATE_WEEKS * debateWorst()
 			+ C.TIMER_ELECTION
 			+ C.TRANSITION_ALLOWANCE
-		expect(worst):toBe(940) -- 1042 before D-045 (eight draft rounds), 932 after; TIMER_SELECT 30 -> 38 for the two-step Select (D-048)
+		expect(debateWorst()):toBe(65) -- D-062: 3 + 3 x (15 + 4) + 5; was 10 s of reveal plus a 20 s focus decision
+		expect(worst):toBe(1050) -- 940 with 10 s debates (D-048); 1042 before D-045
 		expect(worst):toBeLessThan(17.5 * 60 + 1)
 	end)
 
 	it(
-		"the Decision steps add at most a debate focus per debate and a stance per Choice week (D-044)",
+		"the Decision steps add at most a stance per Choice week; the true worst case (D-044, D-062)",
 		function()
-			-- Every timer run out: two focus steps and, with the worst deck, a stance in
-			-- every event week (the deck holds 8 Choice events for 10 event weeks).
+			-- Every timer run out: with the worst deck, a stance in every event week
+			-- (the deck holds 8 Choice events for 10 event weeks). The debate focus
+			-- step is gone (D-062).
 			local eventWeeks = C.EVENT_LAST_WEEK - C.EVENT_FIRST_WEEK + 1
 			local choiceEvents = 0
 			for _, event in Events.deck do
@@ -159,9 +156,12 @@ describe("Config", function()
 					choiceEvents += 1
 				end
 			end
-			local most = #C.DEBATE_WEEKS + math.min(eventWeeks, choiceEvents)
-			expect(most):toBe(10)
-			expect(most * C.TIMER_DECISION):toBe(200)
+			local most = math.min(eventWeeks, choiceEvents)
+			expect(most):toBe(8)
+			expect(most * C.TIMER_DECISION):toBe(160)
+			-- The true worst case, every step and every decision run out: 1,050 + 160 s
+			-- (20:10; it was 940 + 200 = 1,140 s before D-062).
+			expect(1050 + most * C.TIMER_DECISION):toBe(1210)
 			-- A typical deck deals about 3.3 Choice events: about 105 s if every
 			-- decision ran to the end, far less when both lock in early.
 			expect(C.TIMER_DECISION >= 15 and C.TIMER_DECISION <= 30):toBe(true)
@@ -207,26 +207,22 @@ describe("Candidates", function()
 			seen[id] = true
 			local p = Candidates.profile(C, id)
 			expect(p.id):toBe(id)
-			expect(p.apPerWeek >= 1 and p.focusEdge >= 1 and p.mediaCost >= 1):toBe(true)
+			expect(p.apPerWeek >= 1 and p.zingerMult >= 1 and p.mediaCost >= 1):toBe(true)
 		end
 	end)
 
-	it("no debate stat exceeds another by more than the allowed gap", function()
-		local lo, hi = math.huge, -math.huge
+	it("everyone stakes a Zinger at the default multiplier except Hale (D-062)", function()
 		for _, id in Candidates.ids do
-			local stat = Candidates.profile(C, id).debateStat
-			lo, hi = math.min(lo, stat), math.max(hi, stat)
+			local mult = Candidates.profile(C, id).zingerMult
+			expect(mult):toBe(if id == "hale" then 4 else C.DEBATE_ZINGER_MULT)
 		end
-		expect(hi - lo <= C.DEBATE_MAX_STAT_GAP):toBe(true)
 	end)
 
 	it("applies the roster overrides (revision 2 as retuned in D-022, D-023, D-037)", function()
 		expect(Candidates.profile(C, "calloway").apPerWeek):toBe(4)
 		expect(Candidates.profile(C, "calloway").rallySupport):toBe(2.3)
-		expect(Candidates.profile(C, "hale").debateStat):toBe(C.DEBATE_STAT) -- D-023: prep, not stat
-		expect(Candidates.profile(C, "hale").focusEdge):toBe(C.DEBATE_FOCUS + 1) -- D-044: was 7 prep points of 6
+		expect(Candidates.profile(C, "hale").zingerMult):toBe(4) -- D-062: was focus +3 (D-044); x3 measured 44%, x4 49%
 		expect(Candidates.profile(C, "hale").startCash):toBe(0)
-		expect(Candidates.profile(C, "venkat").debateStat):toBe(C.DEBATE_STAT) -- D-023: income, not stat
 		expect(Candidates.profile(C, "venkat").passiveIncome):toBe(2) -- 3 -> 2 in D-037
 		expect(Candidates.profile(C, "venkat").mediaSaturation):toBe(0.65)
 		expect(Candidates.profile(C, "okafor").rallyMult):toBe(1)
