@@ -990,13 +990,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		-- "Results in" is not a deadline to beat: no warning colors, no ticks.
-		header:setTimer(payload.deadline - now, 0)
+		-- (Election night is always timed; only choices can go without, D-075.)
+		local deadline = payload.deadline or payload.stageStart
+		header:setTimer(deadline - now, 0)
 		build()
 		if not built then
 			return
 		end
 		applyLayout()
-		local stage = payload.deadline - payload.stageStart
+		local stage = deadline - payload.stageStart
 		if stage ~= scheduledFor then
 			scheduledFor = stage
 			ends, slowCalls = schedule(results, need, stage)

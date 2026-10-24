@@ -467,6 +467,15 @@ local SHOTS: { Shot } = {
 			end
 		end,
 	},
+	-- D-075: the corner settings' tooltip after a tap.
+	{
+		name = "01h-lobby-corner-tip",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "MotionToggle")
+		end,
+	},
 	{ name = "03a-select-start", moment = "Select", screen = "Select" },
 	{
 		name = "03-select-candidate",
@@ -611,6 +620,10 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "09-campaign-plan", moment = "Plan", screen = "Campaign" },
+	-- D-075: the tutorial's plan (no timer, no "+15 s") and a plan against the
+	-- Easy bot (the plan timer doubled).
+	{ name = "09t-campaign-plan-tutorial", moment = "PlanTutorial", screen = "Campaign" },
+	{ name = "09u-campaign-plan-easy", moment = "PlanEasy", screen = "Campaign" },
 	-- D-065: the event strip under the score for every kind of week (the Plan
 	-- fixture is a Windfall week, 15 a Choice week), next week's event alone,
 	-- and the details sheet a tap opens.

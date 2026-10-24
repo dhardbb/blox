@@ -647,7 +647,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local seat = p.seats[p.you]
 			local bank = if seat then seat.bank else 0
 			local chunk = config.TIME_BANK_CHUNK
-			if canEdit and bank >= chunk then
+			-- No "+15 s" in a plan without a deadline (the tutorial, D-075).
+			if canEdit and bank >= chunk and p.deadline ~= nil then
 				bar:setSecondary(`+{chunk} s`, true)
 			else
 				bar:setSecondary(nil, false)

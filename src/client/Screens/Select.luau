@@ -1116,7 +1116,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			header:setTimer(nil)
 			return
 		end
-		header:setTimer(current.deadline - now, nil, ctx.config.TIMER_SELECT)
+		local deadline = current.deadline
+		if deadline == nil then
+			header:setNoTimer() -- the tutorial (D-075)
+			return
+		end
+		-- The bar runs over the stage's own length (a bot match scales it, D-075).
+		header:setTimer(deadline - now, nil, deadline - current.stageStart)
 	end
 
 	relayout()

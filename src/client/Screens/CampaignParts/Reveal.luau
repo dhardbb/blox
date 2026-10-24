@@ -584,7 +584,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		end
 		local steps = current.steps
 		local n = #steps
-		local duration = math.max(REVEAL_BEAT, p.deadline - p.stageStart)
+		-- A reveal is always timed (only choices go without, D-075).
+		local duration = math.max(REVEAL_BEAT, (p.deadline or p.stageStart) - p.stageStart)
 		local window = math.max(REVEAL_BEAT, duration - REVEAL_TAIL - REVEAL_INTRO)
 		local beats = math.max(1, math.floor(window / REVEAL_BEAT))
 		local perBeat = math.max(1, math.ceil(n / beats))

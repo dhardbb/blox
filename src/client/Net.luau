@@ -46,6 +46,7 @@ local REASONS: { [string]: string } = {
 	NotInput = "This part of the match isn't taking input right now.",
 	AlreadyLocked = "You already locked in.",
 	NoBank = "No time bank left.",
+	NoTimer = "No timer here: take your time.",
 	NotSkippable = "This part can't be skipped.",
 	Over = "The match is over.",
 	-- Select and Draft
@@ -102,6 +103,7 @@ local NOTICES: { [string]: string } = {
 	OpponentForfeited = "Your opponent left the match. You win by forfeit.",
 	NameReported = "Thanks for the report. You'll see the candidate's own name instead.",
 	NameRemoved = "Your custom name was removed after a review. You can pick a new one.",
+	Tutorial = "Tutorial: no timer on any choice, so take your time.",
 }
 
 -- The color this player last asked for (Net.claimColor) and in which match,

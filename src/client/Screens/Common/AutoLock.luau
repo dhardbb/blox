@@ -30,6 +30,10 @@ function AutoLock.new(): Gate
 		if locked or payload == nil or payload.stage ~= "Input" then
 			return false
 		end
+		-- A step without a deadline (the tutorial, D-075) never locks itself.
+		if payload.deadline == nil then
+			return false
+		end
 		local left = payload.deadline - now
 		if left > AutoLock.LEAD or left < -AutoLock.LATE then
 			return false

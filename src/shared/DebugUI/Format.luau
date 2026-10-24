@@ -85,7 +85,10 @@ function Format.status(payload: Session.StatePayload?, lobby: Remotes.LobbyStatu
 		stage = payload.reveal :: string
 	end
 	local locked = payload.seats[payload.you].locked
-	local text = `{payload.matchId} · {label} · {stage} · {secondsLeft(payload.deadline, now)}s`
+	-- A step without a deadline (the tutorial, D-075) reads "no timer".
+	local deadline = payload.deadline
+	local clock = if deadline then `{secondsLeft(deadline, now)}s` else "no timer"
+	local text = `{payload.matchId} · {label} · {stage} · {clock}`
 	if payload.stage == "Input" then
 		text ..= if locked then " · LOCKED" else " · your move"
 	end

@@ -380,12 +380,18 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			header:setTitle(title)
 			header:setSubtitle(stage)
 			header.subtitle.Visible = false
-			-- Only an open input step warns: reveals end on their own.
-			header:setTimer(
-				p.deadline - now,
-				if p.stage == "Input" then Kit.TIMER_WARN else 0,
-				p.deadline - p.stageStart
-			)
+			-- Only an open input step warns: reveals end on their own. A step
+			-- without a deadline (the tutorial, D-075) says so instead.
+			local deadline = p.deadline
+			if deadline == nil then
+				header:setNoTimer()
+			else
+				header:setTimer(
+					deadline - now,
+					if p.stage == "Input" then Kit.TIMER_WARN else 0,
+					deadline - p.stageStart
+				)
+			end
 			local theirFirst = Model.firstName(config, view, rival)
 			header:setNow(nowFor(p, theirFirst))
 			-- The reveal's last step reads as news, not as another move: bold and round, popped in.
