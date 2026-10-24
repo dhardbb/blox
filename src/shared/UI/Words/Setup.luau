@@ -46,6 +46,23 @@ function Setup.colorButton(color: string?): string
 	return if color then `Color: {color}` else "Color: red or blue"
 end
 
+-- ---------------------------------------------------------------- custom names (D-063)
+
+-- Select's name line: "Name: Captain Zed", or the candidate's own name.
+function Setup.nameLine(name: string?): string
+	return if name then `Name: {name}` else "Name: your candidate's own"
+end
+Setup.NAME_RENAME = "Rename" -- the name line's button for a Name Pass owner
+Setup.NAME_BUY = "Get the Name Pass" -- the same for an eligible player without it
+Setup.NAME_TITLE = "Name your candidate" -- the name sheet's title
+-- The sheet's hint under the box: the limit, and who sees the name.
+function Setup.nameHint(max: number): string
+	return `Up to {max} characters. Age-checked players 16+ see it; everyone else sees the candidate's own name.`
+end
+Setup.NAME_SAVE = "Save name"
+Setup.NAME_RESET = "Use the candidate's name"
+Setup.NAME_SAVING = "Checking the name…"
+
 -- ---------------------------------------------------------------- candidates
 
 -- One strength and one weakness per candidate, each short enough for one line

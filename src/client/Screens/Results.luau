@@ -180,7 +180,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if result and result.winner == player then
 			Kit.bevel(card, color, 2, 1)
 		end
-		local name = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
+		local name = Data.playerName(ctx.config, view, player)
 		local portrait =
 			Kit.portrait(if entry then entry.candidate else nil, name, PORTRAIT, { ring = color })
 		portrait.LayoutOrder = 1
@@ -421,8 +421,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local names: { string } = {}
 		for p = 1, #view.players do
 			local entry = view.players[p]
-			local full = Data.candidateName(ctx.config, if entry then entry.candidate else nil)
-			names[p] = string.match(full, "^(%S+)") or full
+			local full = Data.playerName(ctx.config, view, p)
+			-- A custom name stays whole (D-063); a candidate's goes by its first name.
+			names[p] = if entry and entry.customName then full else string.match(full, "^(%S+)") or full
 		end
 		local reasons: { string } = if election then Words.keyReasons(ctx.config, view, winner, names) else {}
 		if #reasons > 0 then

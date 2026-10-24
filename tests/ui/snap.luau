@@ -395,6 +395,33 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Select", "Issue_Jobs")
 		end,
 	},
+	{
+		-- A Name Pass owner (D-063): "Captain Zed" against "Big Wave".
+		name = "03d-select-name",
+		moment = "SelectName",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+		end,
+	},
+	{
+		name = "03e-select-name-sheet",
+		moment = "SelectName",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+			tapIf(world, peer, "Select", "NameButton", 0.5)
+		end,
+	},
+	{
+		-- Eligible without the pass: the line offers it.
+		name = "03f-select-name-buy",
+		moment = "SelectNameBuy",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+		end,
+	},
 	{ name = "05-map-reveal", moment = "MapReveal", screen = "Draft" },
 	{
 		name = "06-draft",

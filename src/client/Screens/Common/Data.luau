@@ -36,6 +36,16 @@ function Data.candidateName(config: ConfigModule.Config, id: string?): string
 	return Candidates.profile(config, id).name
 end
 
+-- Player `p`'s candidate name in `view`: their custom name when the view
+-- carries one (the Name Pass, D-063), else the candidate's own.
+function Data.playerName(config: ConfigModule.Config, view: any, p: number): string
+	local player = view.players[p]
+	if player and player.customName then
+		return player.customName
+	end
+	return Data.candidateName(config, if player then player.candidate else nil)
+end
+
 -- The other seat in a two-player match: (index, info).
 function Data.opponent(payload: Session.StatePayload): (number, Session.SeatInfo?)
 	for index, seat in payload.seats do

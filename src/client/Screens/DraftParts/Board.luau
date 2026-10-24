@@ -54,8 +54,13 @@ local function listText(ids: { string }): string
 	return table.concat(ids, " ")
 end
 
--- The candidate's display name, or a fallback before one is known.
+-- The candidate's display name (a custom name when the view carries one,
+-- D-063), or a fallback before one is known.
 function Board.candidateName(config: Config, view: View.View, p: number): string
+	local custom = view.players[p].customName
+	if custom ~= nil then
+		return custom
+	end
 	local id = view.players[p].candidate
 	if id ~= nil and Candidates.exists(id) then
 		return Candidates.profile(config, id).name
@@ -68,7 +73,7 @@ function Board.who(config: Config, view: View.View, p: number): string
 	if p == view.you then
 		return "You"
 	end
-	return Words.firstName(Board.candidateName(config, view, p))
+	return view.players[p].customName or Words.firstName(Board.candidateName(config, view, p))
 end
 
 -- A filled circle in a player's color (data-colored).

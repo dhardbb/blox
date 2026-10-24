@@ -67,6 +67,15 @@ local REASONS: { [string]: string } = {
 	NoColorPass = "Picking a color needs the Color Pass.",
 	NotSaved = "Your saved data didn't load, so your color can't be saved.",
 	ColorTaken = "Your opponent has that color. Pick another.",
+	-- Custom names (D-063)
+	NoNamePass = "Naming your candidate needs the Name Pass.",
+	NameNotEligible = "Custom names are for age-checked players 16 and over.",
+	NameBadText = "That name has a character that can't be used. Try another name.",
+	NameEmpty = "Type a name first.",
+	NameTooLong = `Names can be at most {Config.defaults.NAME_MAX_LENGTH} characters.`,
+	NameFiltered = "That name isn't allowed. Try another name.",
+	NameFilterFailed = "Names can't be checked right now. Try again in a minute.",
+	NameNotSaved = "Your saved data didn't load, so your name can't be saved.",
 	-- The server's own checks
 	NotInMatch = "That match isn't running for you anymore.",
 	UnknownOp = "The server doesn't know that request.",
@@ -97,7 +106,11 @@ local function colorTakenText(): string
 	if payload and payload.view.claims then
 		for id, owner in payload.view.claims do
 			if owner ~= payload.you and Candidates.exists(id) then
-				who = Words.firstName(Candidates.profile(Config.defaults, id).name)
+				-- Their custom name when this view carries one (D-063).
+				local them = payload.view.players[owner]
+				who = if them and them.customName
+					then them.customName
+					else Words.firstName(Candidates.profile(Config.defaults, id).name)
 			end
 		end
 	end
@@ -187,6 +200,13 @@ end
 -- server checks the pass itself.
 function Net.setColor(color: string?)
 	Net.send("SetColor", { color = color })
+end
+
+-- Names your candidate (Name Pass owners, D-063); nil goes back to the
+-- candidate's own name. The server checks the pass, the age rule and the
+-- text filter itself.
+function Net.setName(name: string?)
+	Net.send("SetName", { name = name })
 end
 
 -- Opens Roblox's purchase prompt for a pass (a LocalScript may, per the

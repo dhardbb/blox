@@ -204,6 +204,25 @@ if type(fixture) == "string" then
 	fakeNet.buyPass = function(passId: number)
 		print("[270] DEBUG_UI buyPass", passId)
 	end
+	fakeNet.setName = function(name: string?)
+		print("[270] DEBUG_UI setName", name or "(own)")
+		-- Offline there is no server or filter: use the name as typed, trimmed.
+		local payload = Store.get().payload
+		local naming = if payload then payload.naming else nil
+		if payload == nil or naming == nil or not naming.owned then
+			return
+		end
+		local trimmed = if name then string.match(name, "^%s*(.-)%s*$") else nil
+		local named = table.clone(naming)
+		named.name = if trimmed ~= "" then trimmed else nil
+		local copy = table.clone(payload)
+		copy.naming = named
+		copy.view = table.clone(payload.view)
+		copy.view.players = table.clone(payload.view.players)
+		copy.view.players[payload.you] = table.clone(payload.view.players[payload.you])
+		copy.view.players[payload.you].customName = named.name
+		Store.setPayload(copy)
+	end
 	fakeNet.skip = function()
 		print("[270] DEBUG_UI skip")
 	end

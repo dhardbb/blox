@@ -503,6 +503,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local function nameOf(index: number): string
 		local player = payload.view.players[index]
+		if player and player.customName then
+			return player.customName -- the Name Pass (D-063)
+		end
 		local candidate = if player then player.candidate else nil
 		if candidate and Candidates.exists(candidate) then
 			return Candidates.profile(ctx.config, candidate).name
@@ -530,11 +533,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			colors[p] = Colors.of(player.color)
 			names[p] = nameOf(p)
 			faces[p] = player.candidate or ""
-			shortNames[p] = firstName(names[p])
+			-- A custom name stays whole: it is short, and its first word may not be a name.
+			shortNames[p] = if player.customName then names[p] else firstName(names[p])
 		end
 		local short = ctx.portrait()
-		youSide.name.Text = if short then firstName(names[youIndex]) else names[youIndex]
-		themSide.name.Text = if short then firstName(names[themIndex]) else names[themIndex]
+		youSide.name.Text = if short then shortNames[youIndex] else names[youIndex]
+		themSide.name.Text = if short then shortNames[themIndex] else names[themIndex]
 		-- Names in the readable variant of their color; the bar in the base colors.
 		youSide.name.TextColor3 = Kit.textColor(Kit.color(colors[youIndex]))
 		themSide.name.TextColor3 = Kit.textColor(Kit.color(colors[themIndex]))

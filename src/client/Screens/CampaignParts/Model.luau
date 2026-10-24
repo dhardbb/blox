@@ -151,16 +151,26 @@ function Part.opponentOf(view: View): number
 	return if view.you == 1 then 2 else 1
 end
 
+-- A player's candidate name: their custom name when this view carries one
+-- (the Name Pass, D-063), else the candidate's own.
 function Part.candidateName(config: Config, view: View, p: number): string
 	local player = view.players[p]
+	if player ~= nil and player.customName ~= nil then
+		return player.customName
+	end
 	if player == nil or player.candidate == nil or not Candidates.exists(player.candidate) then
 		return `Player {p}`
 	end
 	return Candidates.profile(config, player.candidate).name
 end
 
--- The first word of a candidate's name ("Dana"), for the phone score line.
+-- The first word of a candidate's name ("Dana"), for the phone score line; a
+-- custom name whole (it is short, and its first word may not be a name).
 function Part.firstName(config: Config, view: View, p: number): string
+	local player = view.players[p]
+	if player ~= nil and player.customName ~= nil then
+		return player.customName
+	end
 	local name = Part.candidateName(config, view, p)
 	return string.match(name, "^(%S+)") or name
 end

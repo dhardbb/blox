@@ -36,6 +36,7 @@ export type Net = {
 	claimColor: ((color: string) -> ())?, -- Select: a Color Pass owner claims a color (D-061)
 	setColor: ((color: string?) -> ())?, -- save a chosen color, nil = auto (D-055)
 	buyPass: ((passId: number) -> ())?, -- Roblox's purchase prompt for a pass (D-055)
+	setName: ((name: string?) -> ())?, -- name your candidate, nil = its own name (D-063)
 	bank: () -> (),
 	skip: () -> (),
 	forfeit: (() -> ())?, -- leave the current match and lose it (D-059)
