@@ -37,6 +37,7 @@ export type Op =
 	| "Resync" -- ask for the current state again
 	| "Leaderboard" -- ask for the global leaderboard (D-059); answered with a "Leaderboard" message
 	| "Forfeit" -- leave the match in progress and lose it (D-059): { matchId }
+	| "SetTimersOff" -- admins: the "Timers off" toggle, saved and applied to their match (D-080): { on }
 
 export type Request = {
 	op: Op,
@@ -51,6 +52,7 @@ export type Request = {
 	tutorial: boolean?, -- Practice: true replays the tutorial (How to play, D-075): Easy bot, no choice timers
 	name: string?, -- SetName: the custom name as typed (absent = the candidate's own); ReviewKeep/ReviewRemove: the name the admin saw
 	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)
+	on: boolean?, -- SetTimersOff: true turns the admin's choice timers off (D-080)
 }
 
 -- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while
@@ -70,6 +72,7 @@ export type LobbyStatus = {
 	color: string?, -- the saved color pick; absent = auto (red or blue)
 	colorPass: ColorPass?, -- absent while the pass is not set up
 	review: { count: number }?, -- admins only (D-069): reported names waiting for review
+	admin: { timersOff: boolean }?, -- admins only (D-080): their saved "Timers off" toggle
 }
 
 -- One reported name in the admins' review panel (D-069).

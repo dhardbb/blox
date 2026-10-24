@@ -228,6 +228,7 @@ local Config = {
 	NAME_BLOCKLIST_RETRY = 20, -- seconds between tries while the reviewed blocklist has never loaded (names wait, D-078)
 	SET_NAME_COOLDOWN = 2, -- seconds between one player's SetName requests (each may call the text filter)
 	SET_COLOR_COOLDOWN = 1, -- seconds between one player's SetColor requests
+	SET_TIMERS_OFF_COOLDOWN = 1, -- seconds between one admin's SetTimersOff requests (each writes saved data, D-080)
 
 	-- Admins (D-069): free Color and Name Passes and the name review panel. The
 	-- experience owner (game.CreatorId, or for a group-owned game its members of
