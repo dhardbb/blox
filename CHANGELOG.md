@@ -8,7 +8,8 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 Client only: no rule, sim, server, payload or Config changes. Studio checklist: `docs/TESTING.md`, "Plan preview".
 
-- **While you plan a week, the map shows what your plan would do:** a faint number on every state an action moves ("+4.1" green, "-0.6" orange), added up when several actions hit the same state, and under the map "Plan: 268 → 281 votes, if nothing else changes".
+- **While you plan a week, the map shows what your plan would do:** a faint number beside every state an action moves ("+4.1" green, "-0.6" orange), added up when several actions hit the same state, and under the map "Plan: 268 → 281 EV, if nothing else changes".
+- **A tidier map:** marks (values, tags, plan numbers, pins) are placed beside each state's code and never cover any code; far ones get a thin line back to their state. Pins are smaller (face and a "You" tab) and never overlap each other; the planned route is thinner and fainter.
 - It updates as you add or remove actions, shows in every map tab, and disappears when you lock in. It is your own estimate: the opponent's plan is unknown.
 
 ### The real US map (D-062)

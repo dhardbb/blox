@@ -733,11 +733,12 @@ Studio purchase prompts are **test purchases**: the prompt says so and nothing i
 Agents: `lune run tests "D-063"`, `lune run tests "Plan preview"`, `lune run tests/ui/snap.luau -- plan-preview` (shots `10c`, `10d`, `10e`; 0 audit findings at all three sizes).
 
 1. **Start a week's plan (phone and iPad).** No numbers on the map yet, nothing under it about the plan.
-2. **Add an Ad in a state.** **Expect:** a faint green "+2.2"-style number appears on that state (under its code), and under the map "Plan: 310 → 310 votes" (or higher) with "if nothing else changes" beside it on the iPad.
+2. **Add an Ad in a state.** **Expect:** a faint green "+2.2"-style number appears beside that state's code, and under the map "Plan: 310 → 310 EV" (or higher) with "if nothing else changes" beside it on the iPad.
 3. **Add a second action in the same state** (a Rally there). **Expect:** the state's number grows to the sum; it is the same number the state card showed for each action, added.
 4. **Add an action somewhere you trail by a little** (look for a close state). **Expect:** the votes after the arrow go up by that state's votes when the plan would put you ahead.
 5. **Remove an action** from the plan list. **Expect:** its number shrinks or disappears at once, and the votes line updates.
-6. **Switch tabs** (Votes, Issues, Polls, Money). **Expect:** the numbers stay and stay readable; on Polls they sit under the ▲ and dots, not on them.
+6. **Switch tabs** (Votes, Issues, Polls, Money). **Expect:** the numbers stay and stay readable; on Polls they sit beside the lead, ▲ and dots, not on them. Around Ohio, Pennsylvania and West Virginia every state code stays readable: no pin, tag or number covers a code (a mark that had to move has a thin line back to its state).
+6b. **Both candidates in one state** (rally where the opponent is). **Expect:** two small pins side by side, neither on the state's code.
 7. **Attack ad** in a state where backlash is due (the card says so). **Expect:** if it costs you more than it takes from them, the number is orange with a minus sign.
 8. **Lock in.** **Expect:** the numbers and the plan line disappear.
 9. **No errors** from `Campaign`, `ShapeMap`, `PlanPreview` or `Legend`. *Send back:* a phone and an iPad screenshot of step 3, and whether the numbers are easy to read without hiding the map.
