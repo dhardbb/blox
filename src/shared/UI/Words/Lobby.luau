@@ -48,6 +48,10 @@ Lobby.HOWTO_TITLE = "How to play"
 Lobby.HOWTO_NEXT = "Next"
 Lobby.HOWTO_BACK = "Back"
 Lobby.HOWTO_DONE = "Got it"
+-- Replaying the tutorial (D-075): a bot match with the tips back on and no
+-- timers, always against the Easy bot (the hint says so).
+Lobby.TUTORIAL_BUTTON = "Play the tutorial"
+Lobby.TUTORIAL_HINT = "A match against the Easy bot, with tips and no timers."
 
 export type Page = {
 	id: string, -- "goal" | "week" | "actions" | "events" | "night": which picture

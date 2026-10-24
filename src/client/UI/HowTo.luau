@@ -10,6 +10,9 @@
 --
 -- Back and Next step through the pages; the last page's Next reads "Got it"
 -- and closes. The sheet never holds a primary action (Next is a secondary).
+-- Under the pages, on every page, "Play the tutorial" (D-075) starts the
+-- tutorial again: a practice match against the Easy bot with no choice timers
+-- and every coach tip shown again (CoachTip.reset), with a one-line hint.
 --
 --   local howTo = HowTo.new(screenRoot, ctx)
 --   howTo.open()          opens on page 1
@@ -17,7 +20,8 @@
 --   howTo.page() -> number
 --   howTo.sheet   the Sheet "HowToSheet"
 --   Elements: HowToPage_<id> (HowToTitle_<id>, HowToArt_<id>, HowToText_<id>),
---   HowToNav (HowToBack, HowToCount, HowToNext)
+--   HowToNav (HowToBack, HowToCount, HowToNext), HowToTutorial
+--   (PlayTutorial, TutorialHint)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -25,6 +29,7 @@ local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 
+local CoachTip = require(script.Parent.CoachTip)
 local Help = require(script.Parent.Help)
 local Kit = require(script.Parent.Kit)
 local Sheet = require(script.Parent.Sheet)
@@ -32,7 +37,7 @@ local Types = require(script.Parent.Parent.Screens.Types)
 
 local HowTo = {}
 
-local HEIGHT = 0.7 -- share of the screen height (the tallest page, Actions, fits on a 720 px screen)
+local HEIGHT = 0.82 -- share of the screen height (the tallest page, Actions, with "Play the tutorial" under it, fits on a 720 px screen; 0.7 before D-075)
 local NUMBER = 28 -- px, a step number's circle
 local ROW = 28 -- px, one row of a picture
 local NAV_W = 0.32 -- share of the row each nav button takes
@@ -224,6 +229,31 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromScale(NAV_W, 1),
 		Parent = nav,
+	})
+
+	-- Replay the tutorial (D-075): the tips come back for it, and the server
+	-- picks the Easy bot and drops the choice timers.
+	local tutorial = Kit.stack({
+		Name = "HowToTutorial",
+		LayoutOrder = 3,
+		Parent = sheet.body,
+	}, "Vertical", Kit.space.xs)
+	Kit.divider({ LayoutOrder = 1, Parent = tutorial })
+	Kit.button(Words.TUTORIAL_BUTTON, function()
+		CoachTip.reset()
+		sheet:close()
+		ctx.net.send("Practice", { difficulty = "Easy", tutorial = true })
+	end, {
+		variant = "secondary",
+		Name = "PlayTutorial",
+		LayoutOrder = 2,
+		Parent = tutorial,
+	})
+	Kit.caption(Words.TUTORIAL_HINT, {
+		Name = "TutorialHint",
+		LayoutOrder = 3,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = tutorial,
 	})
 
 	show = function(page: number)
