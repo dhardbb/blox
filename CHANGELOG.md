@@ -2,6 +2,16 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### New-player copy from the 0.15 playtest
+
+Studio checklist: `docs/TESTING.md`, "New-player copy: stances, underdog, closing weeks". Nothing needed from the humans. Copy only: no rule or number changed.
+
+- **Stances: the rival picks too.** Under the three stance chips on the Decision screen: "<Rival> picks too, in secret. Same side: it mostly cancels. Opposite sides: both land." (with the rival's name). After a Choice week where you both took the same side and no state flipped, the results' "Why?" (and News) adds "Same side, so most of it cancelled."
+- **Underdog label fixed.** News no longer says "about 40+ projected EV behind" while you lead in the polls. It now reads "You are underdog tier 1: rallies ×1.1, fundraisers ×1.15 (you were behind in the polls lately; it fades once you stay ahead)." For the rival: "Rex has the underdog boost: rallies ×1.1, fundraisers ×1.15."
+- **Closing weeks are announced.** From week 10 the event strip under the score has a third line, "Closing weeks: rallies and ads +15%"; in week 9 it reads "From next week: rallies, ads +15%". Week 12 (no event) shows the strip with "Closing weeks · Rallies and ads +15%". Tapping the strip says it in a sentence (attack ads count too, for both players). Help's Your turn numbers have one line on it. The tutorial does the same from its week 3.
+
 ## 0.15.0: Daily Race, matchmaking across servers, short tutorial (Oct 24, 2026)
 
 A new Daily Race (one seeded race a day, the same candidate for everyone, a daily board and a streak), matchmaking across every server of the game (bigger servers, a bot game while you wait, the online count, Rematch on Results, invites that drop a friend straight into your match), a tutorial cut to 4 short weeks that ends with "You're ready!" and a real match, a Timers off switch for admins, a phone Lobby that fits on one screen, and the art and text for the experience page. Normal matches play exactly as in 0.14.0 (balance harness unchanged). Studio checklists: `docs/TESTING.md`, "0.15.0".
