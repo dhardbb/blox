@@ -24,6 +24,8 @@
 --   Words.revealFirst(view) -> (player, trails)         whose actions land first in a week's reveal
 --   Words.orderLine(view, first, trails, them) -> string "Rex trails, so Rex's actions land first"
 --   Words.SETTLE · ESTIMATE_NOTE · pollShift(flips) · leaderArrow(view, flip, them)  the running tally (D-066)
+--   Words.projectionLine(before, after) -> string      "Projection: 310 → 324 (+14 for you)" (the week's net, M4)
+--   Words.groundLine(old, new, close) -> string?        "You lost ground in 3 close states" (no leader changed)
 --   Words.help(config) -> { Tab }                       the five Help tabs
 --
 -- `them` is the opponent's display name ("Rex"); `names` is display names by
@@ -51,6 +53,7 @@ Words.MAP_MARKS = 3 -- moved states badged on the map besides the flips (UI-STYL
 Words.CLOSE = 2 -- points: an election-night margin under this is a close race
 Words.HELP_WORDS = 60 -- most words in one Help tab's text
 Words.REASON_WORDS = 10 -- most words in one Results reason
+local MOVED = 0.05 -- points: a smaller change to a margin is no move (Numbers.signed shows +0.0)
 
 export type Tone = "good" | "loss" | "bad" | "text" | "muted"
 
@@ -272,7 +275,7 @@ function Words.pollChanges(old: View, new: View): Changes
 		local was = if before then marginOf(new, before) else nil
 		if now and was then
 			local delta = now - was
-			if math.abs(delta) >= 0.05 then
+			if math.abs(delta) >= MOVED then
 				table.insert(moves, { state = s.id, delta = delta, ev = evOf(s.id) })
 			end
 			local from, to = leaderOf(new, was), leaderOf(new, now)
@@ -639,6 +642,51 @@ function Words.pollShift(flips: number): string
 		return "Polls moved a little · no state changed hands"
 	end
 	return `Polls shifted {plural(flips, "state")}`
+end
+
+-- The week's net on your projected votes, once the new polls are in (M4): the
+-- header's score before the week and after it, rounded as the header shows
+-- them. "Projection: 310 → 324 (+14 for you)", "Projection: 310 → 274 (−36 for
+-- you)", "Projection: 310 (no change)".
+function Words.projectionLine(before: number, after: number): string
+	local from, to = math.floor(before + 0.5), math.floor(after + 0.5)
+	local change = to - from
+	if change == 0 then
+		return `Projection: {from} (no change)`
+	end
+	local signed = if change > 0 then `+{change}` else `−{-change}`
+	return `Projection: {from} → {to} ({signed} for you)`
+end
+
+-- When no state changed leader, whether the polls still moved your way in the
+-- close states: polled states within `close` points either way before or
+-- after the week (the map's Close filter), counting the same moves as
+-- pollChanges. "You lost ground in 3 close states", "You gained ground in 1
+-- close state", "You gained ground in 2 close states, lost ground in 1"; nil
+-- when no close state moved.
+function Words.groundLine(old: View, new: View, close: number): string?
+	local gained, lost = 0, 0
+	for i, s in new.states do
+		local before = old.states[i]
+		local now = marginOf(new, s)
+		local was = if before then marginOf(new, before) else nil
+		if now and was and (math.abs(now) <= close or math.abs(was) <= close) then
+			local delta = now - was
+			if delta >= MOVED then
+				gained += 1
+			elseif delta <= -MOVED then
+				lost += 1
+			end
+		end
+	end
+	if gained > 0 and lost > 0 then
+		return `You gained ground in {plural(gained, "close state")}, lost ground in {lost}`
+	elseif gained > 0 then
+		return `You gained ground in {plural(gained, "close state")}`
+	elseif lost > 0 then
+		return `You lost ground in {plural(lost, "close state")}`
+	end
+	return nil
 end
 
 -- A leader change in a few characters: "OH → you +17", "OH → Rex +17", "OH → tie".

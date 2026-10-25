@@ -8,6 +8,7 @@
 --
 --   Words.planNow(input) -> string            the plan screen's now line
 --   Words.budget(actionsLeft, cash) -> string "2 actions left · $4.0"
+--   Words.SCORE_CAPTION · Words.mapTip(mine, theirs, lead?) -> string   what the header's score is (M4)
 --   Words.effect(config, view, draft, id, name, issue?, opponent) -> string
 --   Words.cost(extra, flight, poll?) -> string?   "$3.0", "Flight $2.0", "free"
 --   Words.reason(code) -> string              a greyed-out button's reason
@@ -95,6 +96,17 @@ end
 function Words.budget(actionsLeft: number, cash: number): string
 	local n = math.max(0, actionsLeft)
 	return `{n} {if n == 1 then "action" else "actions"} left · {Numbers.money(cash)}`
+end
+
+-- What the header's score is (M4): each side's projected votes on today's
+-- public polls. The caption under the race bar (wide screens only) and the
+-- first plan's coach tip, "310 vs 189: votes if today's polls were right. Tap
+-- a state to see who's ahead." (`lead` goes first: the tutorial's "Week 1 of 4.").
+Words.SCORE_CAPTION = "if the polls were right"
+function Words.mapTip(mine: number, theirs: number, lead: string?): string
+	local tip =
+		`{math.floor(mine + 0.5)} vs {math.floor(theirs + 0.5)}: votes if today's polls were right. Tap a state to see who's ahead.`
+	return if lead then `{lead} {tip}` else tip
 end
 
 -- ---------------------------------------------------------------- action effects

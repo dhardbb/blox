@@ -30,7 +30,12 @@
 -- in the new leader's readable color behind a ▲ (your way, green) or ▼
 -- (against you, orange), and the biggest moves as filled pills (green ▲ /
 -- orange ▼); the map badges only those (flips and the Words.MAP_MARKS biggest
--- moves). The title then says who flipped how many (Words.flipHeadline). A
+-- moves). The title then says who flipped how many (Words.flipHeadline), and
+-- the line under it the week's net in projected votes, the header's score
+-- before and after ("Projection: 310 → 324 (+14 for you)", M4); with no leader
+-- change, how the close states moved instead ("You lost ground in 3 close
+-- states", the map's Close filter). It shows only once the new polls are in,
+-- when the header's score is the new polls' (D-066). A
 -- Choice week's stances are a line in each group; their numbers are behind "Why?".
 -- The panel's head is an eyebrow ("WEEK 3 RESULTS") over the title ("You vs
 -- Rex"); each group head has the player's 32 px portrait (D-068).
@@ -46,7 +51,7 @@
 --   reveal:tick(p, now)     starts a new reveal and moves it along
 --   reveal:status(p) -> string   the action bar's status line during a reveal
 --
--- Element names: RevealPanel, RevealEyebrow, RevealTitle, RevealIntro, RevealOrder, RevealGroups, YouGroup, YouHead,
+-- Element names: RevealPanel, RevealEyebrow, RevealTitle, RevealTally, RevealIntro, RevealOrder, RevealGroups, YouGroup, YouHead,
 -- RevealLine<k> (your lines), ThemGroup, ThemHead, RevealThem<k>, RevealChanged,
 -- RevealFlipRow<k> (its Mark and RevealFlip<k>), RevealFlipMore, RevealMoves, RevealMove<k>, RevealPolls (its stamp's label is
 -- RevealPollsStamp, RevealPollsLine), RevealSummary,
@@ -65,6 +70,7 @@ local Words = require(SharedFolder.UI.Words.Reveal)
 local Audio = require(script.Parent.Parent.Parent.UI.Audio)
 local CoachTip = require(script.Parent.Parent.Parent.UI.CoachTip)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
+local Lens = require(script.Parent.Parent.Parent.Map.Lens)
 local MapInterface = require(script.Parent.Parent.Parent.Map.MapInterface)
 local Model = require(script.Parent.Model)
 local Motion = require(script.Parent.Parent.Parent.UI.Motion)
@@ -168,6 +174,17 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	local headBox = Kit.stack({ Name = "RevealHead", LayoutOrder = 1, Parent = root }, "Vertical", 2)
 	local eyebrow = Kit.eyebrow("", { Name = "RevealEyebrow", LayoutOrder = 1, Parent = headBox })
 	local title = Kit.heading("", { Name = "RevealTitle", LayoutOrder = 2, Parent = headBox })
+	-- The week's net, once the new polls are in (M4).
+	local tallyLine = Kit.text(
+		"",
+		grows({
+			Name = "RevealTally",
+			LayoutOrder = 3,
+			Font = Kit.font.medium,
+			Visible = false,
+			Parent = headBox,
+		})
+	)
 
 	-- Beat one: both plans are in, and who goes first.
 	local intro =
@@ -523,6 +540,8 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		)
 		changed.Visible = false
 		summary.Text = ""
+		tallyLine.Text = ""
+		tallyLine.Visible = false
 		pollsBox.Visible = false
 		estimateText.Text = if oldView then Words.ESTIMATE_NOTE else ""
 		choiceText.Text = ""
@@ -710,6 +729,14 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		showMoves(view, moves)
 		changed.Visible = #flips > 0 or #moves > 0
 		title.Text = Words.flipHeadline(view, flips, themName(view))
+		-- The week's net: the header's score now is the new polls' (D-066), and
+		-- it started the reveal on the polls before the week.
+		if old then
+			local ground = if #flips == 0 then Words.groundLine(old, view, Lens.CLOSE) else nil
+			tallyLine.Text = ground
+				or Words.projectionLine(old.projectedEV[view.you] or 0, view.projectedEV[view.you] or 0)
+		end
+		tallyLine.Visible = old ~= nil
 		-- The polls' own look: a stamp, what they shifted, a sweep across the map.
 		pollsLine.Text = if old then Words.pollShift(#steps[n].flips) else ""
 		pollsLine.Visible = old ~= nil
@@ -723,6 +750,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				ringFlips(view, steps[n].flips)
 			end
 			Motion.pop(title)
+			Motion.enter(tallyLine, 4)
 			Motion.enter(pollsLine, 4)
 			enterChanged()
 		end
@@ -743,6 +771,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			if p.reveal ~= "Resolve" then
 				changed.Visible = false
 				pollsBox.Visible = false
+				tallyLine.Visible = false
 			end
 		end,
 		tick = function(_self: Reveal, p: Payload, now: number)
