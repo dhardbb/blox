@@ -18,6 +18,7 @@
 --   Words.stanceEffect(preview) -> string     "+4 states · −2 states"
 --   Words.stanceParts(preview) -> (string?, string?)   "+4 states", "−2 states"
 --   Words.key(id) -> { string }               the map key's lines for a lens
+--   Words.KEY_STATES · Words.keyChip(id, ev) -> "PA 19" · Words.keyLine(keys) -> "Key states: PA 19 · OH 17" (D-088)
 --   Words.bands() -> { { name, text } }       the map key's four color steps
 --   Words.gain(effect) -> string?             "+4.1" from "+4.1 support" (the map's ghost tag)
 --   Words.percent(text) -> string             "×1.2" said as "20% more" (an event's effect)
@@ -381,11 +382,35 @@ function Words.key(id: string): { string }
 		table.insert(lines, "The number is how many votes the state is worth.")
 		table.insert(lines, "★ and a white outline: a battleground, where every action counts more.")
 	end
+	table.insert(lines, Words.KEY_MAP)
 	table.insert(lines, "Faint numbers: what your plan moves there, if nothing else changes.")
 	table.insert(lines, "Faces: where each candidate is (yours is bigger); tap the state for the name.")
 	table.insert(lines, "Close: shows only the states within 8 points; the rest fade.")
 	table.insert(lines, "Tap a state to see it and act there.")
 	return lines
+end
+
+-- ---------------------------------------------------------------- key states (D-088)
+
+Words.KEY_STATES = "Key states" -- the side column's line and the map legend's word
+Words.KEY_LEGEND = "key state" -- the map's legend row
+Words.KEY_MAP = "Glow and dashed outline: a key state, where 270 is decided this week." -- the map key
+
+-- One key state's chip: its code and its votes, as on the map's plates.
+function Words.keyChip(id: string, ev: number): string
+	return `{id} {ev}`
+end
+
+-- "Key states: PA 19 · OH 17 · WI 10" (nil with none).
+function Words.keyLine(keys: { { id: string, ev: number } }): string?
+	if #keys == 0 then
+		return nil
+	end
+	local parts: { string } = {}
+	for _, key in keys do
+		table.insert(parts, Words.keyChip(key.id, key.ev))
+	end
+	return `{Words.KEY_STATES}: {table.concat(parts, " · ")}`
 end
 
 -- The number an action button's effect line leads with, signed ("+4.1",

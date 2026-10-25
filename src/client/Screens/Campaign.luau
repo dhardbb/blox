@@ -8,9 +8,10 @@
 -- it, the action bar with Lock in. The same screen plays the resolve reveal and
 -- the debate reveal.
 --
--- Side column, top to bottom: the reveal panel (during reveals), a first-match
--- coach tip, the state card (only once a state is tapped), the plan list, the
--- week card, the full state list. The debate focus and a Choice stance are not
+-- Side column, top to bottom: the reveal panel (during reveals), the key states
+-- line while planning (CampaignParts/KeyRow, D-088: the same states glow on the
+-- map), a first-match coach tip, the state card (only once a state is tapped),
+-- the plan list, the week card, the full state list. The debate focus and a Choice stance are not
 -- here: they have their own Decision screen before the plan (Screens/Decision,
 -- D-044); the event strip repeats the stance you took in one line. The parts live in Screens/CampaignParts; this file owns the model, the
 -- layout, the map, the action bar, and the routing between moments.
@@ -31,6 +32,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
 local Issues = require(Shared.Sim.Issues)
+local KeyStates = require(Shared.UI.KeyStates)
 local Numbers = require(Shared.UI.Numbers)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
@@ -43,6 +45,7 @@ local Audio = require(script.Parent.Parent.UI.Audio)
 local AutoLock = require(script.Parent.Common.AutoLock)
 local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
+local KeyRow = require(script.Parent.CampaignParts.KeyRow)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Lens = require(script.Parent.Parent.Map.Lens)
 local LensToggle = require(script.Parent.Parent.Map.LensToggle)
@@ -82,10 +85,11 @@ local LOCKED_WORD = Model.OPPONENT_LOCKED
 -- LayoutOrder of each side-column panel.
 local ORDER = {
 	reveal = 0,
-	tip = 1, -- a coach tip before anything is picked
-	card = 2,
-	tipAfter = 3, -- a coach tip once the plan has an action
-	plan = 4,
+	keys = 1, -- the key states line while planning (D-088)
+	tip = 2, -- a coach tip before anything is picked
+	card = 3,
+	tipAfter = 4, -- a coach tip once the plan has an action
+	plan = 5,
 	week = 6,
 	list = 7,
 }
@@ -314,6 +318,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end,
 		map = map,
 	})
+	local keyRow = KeyRow.new(side, model, ORDER.keys)
 	local card = StateCard.new(side, model, ORDER.card, ORDER.list)
 	local planList = PlanList.new(side, model, ORDER.plan)
 	local weekCard = EventCard.week(side, model, ORDER.week)
@@ -321,7 +326,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- How to read the map: one tap away, never a caption line over it.
 	local key = Sheet.new(parent, { title = "How to read the map", name = "MapKeySheet", height = 0.6 })
 	local keyLines: { TextLabel } = {}
-	for k = 1, 8 do
+	for k = 1, 10 do
 		keyLines[k] = Kit.text("", {
 			Name = `KeyLine{k}`,
 			-- The color steps come right after the first line (what color means);
@@ -442,8 +447,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local order: { string } = if #model.draft.actions > 0
 				then { "campaign.actions" }
 				elseif model.selected then {}
-				elseif last then { "campaign.ground", "campaign.map", "campaign.lens" }
-				else { "campaign.map", "campaign.lens" }
+				elseif last then { "campaign.ground", "campaign.map", "campaign.keys", "campaign.lens" }
+				else { "campaign.map", "campaign.keys", "campaign.lens" }
 			if spare ~= nil then
 				-- After the map tip, before the lenses; first once the plan has an action.
 				table.insert(order, table.find(order, "campaign.lens") or 1, "campaign.cash")
@@ -538,6 +543,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ the map
 
+	-- The key states while you plan (D-088): from your own View's public polls.
+	local function keysFor(p: Payload): { KeyStates.Key }
+		if Model.planning(p) then
+			return KeyStates.of(config, p.view)
+		end
+		return {}
+	end
+
 	-- Paints the map from `shown`'s polls with the marks for `view`.
 	paintMapFor = function(view: View, shown: View)
 		local colors: { Colors.RGB } = {}
@@ -559,6 +572,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				marks[s.id] = { ring = ring, badge = if starred[s.id] then "*" else nil }
 			end
 		end
+		-- The key states glow while you plan (D-088), in every lens.
+		local keys: { KeyStates.Key } = if live and shown == view then keysFor(live) else {}
+		for _, keyState in keys do
+			local mark = marks[keyState.id] or {}
+			mark.key = true
+			marks[keyState.id] = mark
+		end
 		map:setLens(
 			Lens.lines(Lens.current(), { config = config, view = shown, draft = model.draft }),
 			lensFade
@@ -568,6 +588,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			{ config = config, view = shown },
 			Lens.current()
 		) or {}
+		if #keys > 0 then
+			local keyItem: MapInterface.LegendItem = { mark = "key", text = Words.KEY_LEGEND }
+			table.insert(legend, 1, keyItem)
+		end
 		-- The plan preview (D-071): while you draft, what the plan would move.
 		local tags = {}
 		if live and shown == view and Model.planning(live) and not Model.isLocked(model, live) then
@@ -774,6 +798,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		syncBadges(p)
 		reveal:render(p)
+		keyRow:render(p, keysFor(p))
 		card:render(p)
 		eventStrip:render(p)
 		if p.reveal == nil or p.reveal == "Debate" then

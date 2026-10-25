@@ -32,6 +32,10 @@ export type Mark = {
 	-- outline (not called yet on election night).
 	dashed: boolean?,
 	hollow: boolean?,
+	-- D-088: a key state this week (Shared/UI/KeyStates): a soft accent glow
+	-- behind the state (a chip: a glowing plate around it) and a dashed accent
+	-- outline where nothing else outlines it. An owner's ring keeps its color.
+	key: boolean?,
 }
 
 -- One short pill in a state's lens row (Map/Lens): "17", "+3", "$2.4", or an
@@ -88,7 +92,7 @@ export type Pin = {
 -- is too narrow (a phone), items with the highest `drop` go first, a whole
 -- level at a time (nil: always shown).
 export type LegendItem = {
-	mark: "up" | "pip" | "hollow" | "none" | "issue",
+	mark: "up" | "pip" | "hollow" | "none" | "issue" | "key", -- "key": a key state's glowing dashed swatch (D-088)
 	issue: string?, -- mark "issue": which one
 	color: Color3?,
 	text: string,
