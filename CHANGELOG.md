@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Plan screen: idle money, Swap issue, battleground rounds (D-086)
+
+Studio checklist: `docs/TESTING.md`, "Plan screen: idle money, Swap issue, battleground rounds". Nothing needed from the humans. No rule changed (balance harness unchanged).
+
+- **Idle money gets a nudge.** From week 3, when you have $20 or more and your plan spends none of it, a one-time tip says "You have $X spare. Ads and ground game cost money, not actions." New `Config` keys `IDLE_CASH_TIP` 20 and `IDLE_CASH_TIP_WEEK` 3 (UI thresholds, read by no rule).
+- **Ad, Attack ad and Ground game say "no action"** under their price ("$3.0 · no action"), and Help's Actions tab adds "None of those use an action."
+- **The plan's Pivot is now "Swap issue"**, so it is not confused with the debate's Pivot move: the button, its chooser ("Swap an issue (once per match, −1 support everywhere)"), the plan list, the reveal ("Swapped Health for Roads & Transit"), the News card, Details, Help and the rejection messages. The debate move keeps its name.
+- **Battleground draft rounds say what a battleground does:** "Battleground: every rally and ad here counts ×1.5, for both of you. Pick where you can win."
+
 ## 0.15.0: Daily Race, matchmaking across servers, short tutorial (Oct 24, 2026)
 
 A new Daily Race (one seeded race a day, the same candidate for everyone, a daily board and a streak), matchmaking across every server of the game (bigger servers, a bot game while you wait, the online count, Rematch on Results, invites that drop a friend straight into your match), a tutorial cut to 4 short weeks that ends with "You're ready!" and a real match, a Timers off switch for admins, a phone Lobby that fits on one screen, and the art and text for the experience page. Normal matches play exactly as in 0.14.0 (balance harness unchanged). Studio checklists: `docs/TESTING.md`, "0.15.0".
