@@ -1562,3 +1562,60 @@ Considered and not done: tabs between the Daily card and the board (one of them 
 **Config.** New `IDLE_CASH_TIP` 20 and `IDLE_CASH_TIP_WEEK` 3: UI thresholds, read by nothing in Sim. No rule changed; the balance harness is unaffected.
 
 **Tests.** `tests/ui/PlanDraft.spec` (idleCash shows and does not), `tests/ui/Campaign.spec` (the tip appears once and not below the threshold or before week 3; the tiles' "no action"; Swap issue in the chooser and tray), `tests/ui/CampaignWords.spec` (NO_ACTION against Plan.cost, swap words from Config), `tests/ui/RevealWords.spec` (the swap line, the Help line), `tests/ui/SetupWords.spec` and `tests/ui/Draft.spec` (the caption in rounds 2-3 only).
+
+### D-087 — The bot ladder shifts down a step: a new Easy and Medium that misjudge stubbornly; the old Hard and Extreme retire (user-approved "shift the ladder", Oct 25, 2026, branch `bot-ladder`)
+
+**Ask.** The designer loses to Easy more than half the time. The novice study (`tests/harness/novice.luau`, scripted Weak, Typical and Attentive first-time players; the Attentive one reproduces the designer's result) found D-057's Easy beats a typical new player 92% of the time, because its plans are nearly the standard bot's: it puts every action where EV × closeness is highest, the one skill new players lack. The user approved "shift the ladder": every level plays fair (no handicap, no extra or less cash, AP or information, the rubber band unchanged); levels differ only in judgment.
+
+**Rule.** The four levels a player picks now map to play profiles (`Bot.styleFor`):
+
+| Level | Profile | How it plays |
+|---|---|---|
+| Easy | Rookie | every state's worth × a log-normal factor of spread `BOT_ROOKIE_NOISE` 4, **drawn once a match** (`BOT_ROOKIE_ONCE`), so it stays wrong the same way every week; also drafts on that read; every stance and debate move random (`BOT_ROOKIE_SLIP` 1). The study's option A. |
+| Medium | Casual | the same at spread `BOT_CASUAL_NOISE` 1.5, once a match, always slips. The study's "soft setting". |
+| Hard | Hazy | D-057's Easy, unchanged: spread `BOT_HAZY_NOISE` 0.45 redrawn every plan, half its decisions random. |
+| Extreme | Balanced | the standard bot, unchanged (D-057's Medium). |
+
+D-057's Hard and Extreme (renamed profiles Foresight and Strategist, Config keys `BOT_FORESIGHT_*`, `BOT_STRATEGIST_*`) are no player's level now. Their code stays: the Daily Race plays Foresight (below) and the harnesses can name them.
+
+*Once a match, without state:* the bot keeps nothing between turns, so the once-a-match factor is drawn from a stream seeded only by what its View shows that never changes after the draft: its seat, both candidates and home states, every state's lean and top issues (`Bot.misjudgedWeights`). The match seed set all of them, so it is the same every week of a match, differs between matches and seats, and no hidden number can reach it (the fair-play spec covers every profile). It does not consume the plan's random stream, so the plan does not depend on it at all.
+
+**The default is Easy.** Absent or unknown `difficulty` on Practice or WaitBot is Easy (was Medium), and so is the Lobby's chip until the player picks; the Practice field values are unchanged ("Easy" | "Medium" | "Hard" | "Extreme"), so older clients keep working. Reason: the people who play the bot without picking are new players, and the tutorial they just finished is Easy.
+
+**Where a level is used.**
+- *Choice timers* (D-075) follow the level the player picked: Easy ×2, Medium ×1.5, Hard and Extreme ×1. Unchanged numbers; Easy and Medium are now also the gentle bots.
+- *The tutorial* (D-075, D-080) is still always Easy, now the Rookie: `lune run tests/harness/tutorial.luau 400` gives the sharp stand-in 98.0% (was in D-080's 55-80% band) and the careless one (Hazy) 97.0% (was 50.8%); 68.5% / 79.8% of those are still within 5 points of the tipping state on election night (was about 99%). A first-timer should win the tutorial, so D-080's "neither steamrolls nor gets crushed" target is retired for the bot's side; the schedule and length are unchanged (brisk 6:14).
+- *A bot game while you wait* (D-083) plays the level picked under Play vs Bot, Easy unless changed (the waiting player chose that level; the request's field is unchanged).
+- *The Daily Race* (D-082) keeps its strength: it plays Foresight (`DAILY_BOT_STYLE`, new), D-082's Hard bot, so every day's board, before and after this change, means the same; `DAILY_BOT_LEVEL` "Hard" → "Extreme", the level it counts as (timers ×1, as before). `lune run tests/harness/difficulty.luau Hard Medium 1000` on the commit before (68.9%) and `Foresight Extreme 1000` after (68.9%) match exactly. Today's board copy says "over the bot" (was "over the Hard bot"). Session's seat spec takes `profile` for this (it keeps the level, unlike the harness's `style`).
+- *Saved data:* nothing is kept by level: the practice record is one tally and the leaderboard counts only rated matches, so nothing changes meaning or needs a reset.
+- *The Lobby* says what the picked level is like on one line under the chips (`Words/Lobby.LEVEL_NOTES`): Easy "Learning the ropes: it often misreads the map.", Medium "Know the basics? It still makes mistakes.", Hard "A real test: it rarely misreads the map.", Extreme "Full strength: the bot at its best." On a phone shorter than `PHONE_BOARD_H` + `NOTE_ROOM` (852 px) the eyebrow above the wordmark gives way to it, so the 390x844 phone keeps the leaderboard's top 3 (D-084). Seat payloads still carry the level; no screen shows it.
+
+**Measured** (`lune run tests/harness/novice.luau ladder 1000`; 1,000 matches a row, seeds 500001 on, seats alternating, two different candidates a match, every player from its own View, 0 invalid inputs, no ties; ± is the 95% band; "median margin" is over all games, "median win" over the reported side's wins, in EV):
+
+| Pairing (reported side first) | Win rate | Median margin | Reported side's median win (share by 40+) | Its median loss |
+|---|---|---|---|---|
+| Weak novice vs Easy | 38.0% ± 3.0 | 60 | 48 (58%) | 68 |
+| Weak novice vs Medium | 13.3% ± 2.1 | 90 | 28 (38%) | 102 |
+| Weak novice vs Hard | 1.4% ± 0.7 | 182 | 12 (14%) | 184 |
+| Weak novice vs Extreme | 0.3% ± 0.6 | 238 | 24 | 238 |
+| **Typical novice vs Easy** | **65.5% ± 2.9** | 50 | 56 (66%) | 38 |
+| **Typical novice vs Medium** | **40.7% ± 3.0** | 46 | 40 (51%) | 50 |
+| Typical novice vs Hard | 7.6% ± 1.6 | 101 | 24 (30%) | 106 |
+| Typical novice vs Extreme | 3.4% ± 1.1 | 146 | 18 (21%) | 148 |
+| **Attentive novice vs Easy** | **96.4% ± 1.2** | 113 | 116 (91%) | 24 |
+| **Attentive novice vs Medium** | **85.1% ± 2.2** | 69 | 76 (76%) | 26 |
+| Attentive novice vs Hard | 41.4% ± 3.1 | 46 | 42 (54%) | 48 |
+| Attentive novice vs Extreme | 15.5% ± 2.2 | 74 | 22 (35%) | 84 |
+| Easy vs Medium | 21.5% ± 2.5 | 76 | 38 (49%) | 88 |
+| Easy vs Hard | 0.7% ± 0.6 | 158 | 44 | 158 |
+| Easy vs Extreme | 0.5% ± 0.6 | 186 | 12 | 188 |
+| Medium vs Hard | 9.1% ± 1.8 | 98 | 22 (30%) | 106 |
+| Medium vs Extreme | 2.4% ± 0.9 | 136 | 22 (25%) | 138 |
+| Hard vs Extreme | 16.2% ± 2.3 | 70 | 30 (36%) | 80 |
+| Extreme vs Foresight (the Daily Race's bot) | 29.9% ± 2.8 | 22 | 24 (29%) | 22 |
+
+Against the targets: Easy typical 65.5% (target ~65), attentive 96.4% (~96); Medium 40.7% (~36: the study's prototype replaced the whole plan stream, this draws only the weights once, a few points softer) and 85.1% (~83); Hard and Extreme reproduce the study's Easy and Medium rows exactly (7.6 / 41.4 and 3.4 / 15.5), as they are the same bots. The steps between levels are steep against a person (typical 65 → 41 → 8 → 3), and Medium to Hard is the biggest. `tests/harness/difficulty.luau 1000` (seeds 300001 on): Easy vs Medium 21.8%, Medium vs Hard 9.1%, Hard vs Extreme 18.0%, Foresight vs Extreme 68.9%. A plan takes 0.41 ms on average at Easy (0.26 at Extreme), 5.4 ms worst seen.
+
+**Balance.** `lune run tests/harness/balance.luau 400` prints the same report as before, line for line, apart from its timing lines: the standard bot did not change.
+
+**Tests.** `tests/sim/BotDifficulty.spec` (the Easy default; the level → profile map; each profile's misjudgment from Config; valid and deterministic matches for all six profiles from either seat; the misjudging levels still raise and spend; Easy and Medium misjudge the same in week 2 and week 10 and differently in another match or seat, their plan independent of the plan stream, Hazy redraws; fair play for all six profiles: every decision identical when true support, undecided, ground game, pools, poll errors and the opponent's polls change, and when the opponent's cash moves inside its bracket), `tests/net/Session.spec` (a `profile` keeps the level, its timers and seat label), `tests/net/Lobby.spec`, `tests/net/Matchmaking.spec`, `tests/e2e/Game.spec` (Easy by default), `tests/sim/Daily.spec`, `tests/net/Daily.spec`, `tests/e2e/Daily.spec` (the Daily bot is Extreme playing Foresight), `tests/ui/LobbyExtras.spec` (Easy picked first, the line follows the pick, every line short), `tests/sim/Tutorial.spec` (the pinned D-080 match now names the Hazy profile). Harnesses: `novice.luau ladder` (new; the study modes now run against Hard, the study's Easy, with `BOT_HAZY_*`), `difficulty.luau` (the new table; names a level or a profile), `tutorial.luau` (against the new Easy). Lobby shots at phone, iPad and desktop: 0 audit findings.

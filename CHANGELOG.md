@@ -4,6 +4,16 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### Bot levels shifted down (D-087)
+
+Studio checklist: `docs/TESTING.md`, "Bot levels shifted down (D-087)". Nothing needed from the humans. The balance harness report is unchanged (the standard bot did not change).
+
+- **Every bot level is easier by one step, and Easy is new.** Easy now misjudges the map hard and the same way all match, and picks its stances and debate moves at random: a typical new player should win about two games in three, an attentive one almost every game. Medium is a milder version of the same (about one in three for a typical new player). Hard is the old Easy, Extreme the old Medium (the standard bot). The old Hard and Extreme are no longer offered. No level gets more or less money, actions or information than you; the comeback boost is unchanged.
+- **Easy is the default** in the Lobby and for any request without a level (the bot game while you wait uses the level you picked, Easy unless you change it). The tutorial still plays Easy, which is now much gentler.
+- **A line under the level chips** says what the picked level is like ("Learning the ropes: it often misreads the map."). On a phone shorter than 852 px the small "A 1v1 election strategy game" line above the logo gives way to it, so the leaderboard's top 3 still fits.
+- **The Daily Race bot is unchanged**: it still plays the old Hard bot (its timers stay ×1), so today's and earlier boards compare fairly; Today's board now says "over the bot" instead of "over the Hard bot". Choice timers still follow the level you pick: Easy ×2, Medium ×1.5, Hard and Extreme ×1.
+- Nothing saved is kept by level: the practice record is one tally for all levels and the leaderboard counts only matches against people, so nothing needs resetting. New `Config` keys `BOT_ROOKIE_*`, `BOT_CASUAL_*`, `BOT_HAZY_*` (noise, once a match, slip each) and `DAILY_BOT_STYLE`; `DAILY_BOT_LEVEL` is now "Extreme" (same timers); `BOT_EASY_*`, `BOT_HARD_*` and `BOT_EXTREME_*` are renamed.
+
 ### Why did my score move? (playtest M4)
 
 Studio checklist: `docs/TESTING.md`, "Why did my score move? (M4)". Nothing needed from the humans. No Config or rule changes.
