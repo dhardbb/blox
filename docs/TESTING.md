@@ -1163,3 +1163,14 @@ Agents: `lune run tests Matchmaking` (pure rules, e2e on the fake engine with tw
 3. **Rematch after a Daily Race.** Play today's race to the end (or after today's run already counts). **Expect:** Results' bar reads "Rematch plays today's race as practice."; **Rematch** starts the same race again on the same server, with "Practice run: today's Daily Race already counts."
 4. **Admin timers and the Daily Race.** As an admin with **Timers off** on, start the Daily Race. **Expect:** normal timers; the "?" sheet's admin line says "Not in the Daily Race: every run has the same clock." Then two admins with Timers off on different servers, both **Find match** (published game): in the match server the header reads "No timer (admin)" and both are told the match is unrated.
 5. *Send back:* OK or what happened for each, and any Output errors from `Lobby`, `DailyRace`, `Results`, `MatchService` or `CrossServer`.
+
+## Debates: the Zinger, the downside, the time bank (unreleased, D-085)
+
+Agents: `lune run tests Debate`, `lune run tests Session`, `lune run tests Swing`, `lune run tests/ui/snap.luau -- 08 --size phone` (and `ipad`, `desktop`; 0 audit findings each).
+
+1. **The Zinger toggle.** Play vs Bot (Hard, so the round timer is the normal 15 s) to the first debate. **Expect:** the toggle under the moves reads "Stake Zinger: win ×2 · used either way"; tap it: "Zinger staked: win ×2, used either way".
+2. **Safe and the Zinger.** In your first debate a move may carry a green **Safe** tag. If its result cells include "=", tap that move and stake the Zinger. **Expect:** the bar's status line (orange) reads "A split still uses the Zinger". The coach tip reads "Safe can't lose this round, but a split still uses your Zinger." Unstake: the line goes back to "Defend · kept secret".
+3. **Why? shows the downside.** Open **Why?** under the moves. **Expect:** for each move, three lines: its parts, "A win: …", then either "Lose to their <move>: -0.5 in …" (sometimes "; could lose XX (-N EV)") or "Their <move> can't beat it: no backfire." While the bot has not used its Zinger, the last line reads "<bot's first name> still has a Zinger: a round they win, even by 1, can count ×2." (×4 against Hale). After the bot stakes it, that line is gone.
+4. **+15 s in a debate round.** In a round, before locking in, tap **+15 s**. **Expect:** the clock jumps up 15 s; tap again: another 15 s, then the button goes (30 s per match). In a new match, spend one +15 s on a weekly plan, then in the next debate: only one more tap is left. With a second account in a match against each other: the one who did not tap keeps their own clock; if their time runs out first, their round is the weak Defend while the other keeps thinking.
+5. **No +15 s** in the clash, the verdict, after Lock in, in the tutorial, or as an admin with Timers off.
+6. *Send back:* a phone and an iPad screenshot of a debate round with Why? open, and OK or what happened for each step.

@@ -2,6 +2,16 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Debates: the Zinger, the downside, the time bank (D-085)
+
+Studio checklist: `docs/TESTING.md`, "Debates: the Zinger, the downside, the time bank". Nothing needed from the humans.
+
+- **The Zinger says it is used either way.** The toggle reads "Stake Zinger: win ×2 · used either way"; picking a Safe move that can still split with the Zinger staked makes the bar say "A split still uses the Zinger"; the Safe coach tip and Help's debates line say a split or a loss uses it up. (The rule is unchanged: it always was.)
+- **Debate "Why?" shows the downside.** Under each move's win line: what losing to their counter costs ("Lose to their Pivot: -0.5 in WI, MI…; could lose TN (-11 EV)"), or "Their Attack can't beat it: no backfire." While the rival still holds a Zinger: "Rex still has a Zinger: a round they win, even by 1, can count ×2."
+- **+15 s in debate rounds.** The plan's time bank (30 s a match, 15 s a tap) can now also be spent on a debate round, from the same 30 s. It only extends your own clock. Not in the tutorial or with admin Timers off. Match length limits unchanged.
+
 ## 0.15.0: Daily Race, matchmaking across servers, short tutorial (Oct 24, 2026)
 
 A new Daily Race (one seeded race a day, the same candidate for everyone, a daily board and a streak), matchmaking across every server of the game (bigger servers, a bot game while you wait, the online count, Rematch on Results, invites that drop a friend straight into your match), a tutorial cut to 4 short weeks that ends with "You're ready!" and a real match, a Timers off switch for admins, a phone Lobby that fits on one screen, and the art and text for the experience page. Normal matches play exactly as in 0.14.0 (balance harness unchanged). Studio checklists: `docs/TESTING.md`, "0.15.0".
