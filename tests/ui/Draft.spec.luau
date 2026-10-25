@@ -223,6 +223,27 @@ describe("Draft screen: fixtures", function()
 		local priority = textOf(peer, "Priority")
 		check(contains(priority, "Ties go to"), priority)
 		expect(need(peer, "ActionBar").Visible):toBe(true)
+		-- What a battleground does, under the round's header (S4).
+		expect(need(peer, "RoundCaption").Visible):toBe(true)
+		expect(textOf(peer, "RoundCaption")):toBe(
+			`Battleground: every rally and ad here counts ×{Config.defaults.BATTLEGROUND_MULT}, for both of you. Pick where you can win.`
+		)
+	end)
+
+	it("keeps the battleground caption off the home round and the reveal (S4)", function()
+		local world, peer = mount("Draft")
+		local home = deepCopy(draftPayload())
+		home.step += 5
+		home.view.draftRound = 0
+		home.view.draftKind = "Home"
+		push(world, peer, home)
+		expect(textOf(peer, "RoundPill")):toBe("Home state")
+		expect(need(peer, "RoundCaption").Visible):toBe(false)
+		local base = draftPayload()
+		local a, b = sampleStates(base)
+		push(world, peer, revealOf(base, a, b))
+		expect(need(peer, "RoundCaption").Visible):toBe(false)
+		noErrors(world)
 	end)
 
 	it("has a tappable row for every state, biggest first, and a map node", function()

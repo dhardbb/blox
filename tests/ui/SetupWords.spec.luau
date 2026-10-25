@@ -102,6 +102,15 @@ describe("Words.Setup: the now line", function()
 end)
 
 describe("Words.Setup: the draft", function()
+	it("says on a battleground round what one does, for both (S4)", function()
+		expect(Words.battlegroundCaption(C)):toBe(
+			`Battleground: every rally and ad here counts ×{C.BATTLEGROUND_MULT}, for both of you. Pick where you can win.`
+		)
+		expect(Words.battlegroundCaption(Config.with(C, { BATTLEGROUND_MULT = 2 }))):toBe(
+			"Battleground: every rally and ad here counts ×2, for both of you. Pick where you can win."
+		)
+	end)
+
 	it("names the opponent instead of them", function()
 		expect(Words.lean(2, true, "Rex")):toBe("+2 you")
 		expect(Words.lean(3, false, "Rex")):toBe("+3 Rex")
