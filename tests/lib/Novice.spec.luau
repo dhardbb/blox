@@ -17,7 +17,7 @@ local config = Config.defaults
 
 type Run = { invalid: number, winner: number, ev: { number }, cash: number, kinds: { [string]: number } }
 
--- One match: the novice in `seat`, the Easy bot in the other.
+-- One match: the novice in `seat`, the study's Easy bot (the Hazy profile, D-087) in the other.
 local function run(params: Novice.Params, seed: number, seat: number): Run
 	local match = Match.new(config, seed, { "p1", "p2" })
 	local rngs = { Rng.new(seed * 2 + 101), Rng.new(seed * 2 + 102) }
@@ -38,7 +38,7 @@ local function run(params: Novice.Params, seed: number, seat: number): Run
 						end
 					end
 				else
-					input = Bot.act(config, view, rngs[p], candidates[p], "Easy")
+					input = Bot.act(config, view, rngs[p], candidates[p], "Hazy")
 				end
 				if input ~= nil and not Match.validate(config, match, p, input) then
 					invalid += 1

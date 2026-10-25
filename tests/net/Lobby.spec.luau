@@ -112,7 +112,7 @@ describe("Schemas.request", function()
 		end
 	end)
 
-	it("a Practice request carries a bot difficulty; missing or invalid is Medium (D-057)", function()
+	it("a Practice request carries a bot difficulty; missing or invalid is Easy (D-057, D-087)", function()
 		for _, level in { "Easy", "Medium", "Hard", "Extreme" } do
 			local ok, reason, request = Schemas.request({ op = "Practice", difficulty = level })
 			expect(reason):toBe(nil)
@@ -121,13 +121,13 @@ describe("Schemas.request", function()
 		end
 		local ok, _, request = Schemas.request({ op = "Practice" })
 		expect(ok):toBe(true)
-		expect((request :: any).difficulty):toBe("Medium")
-		-- Never a rejection: a bad level plays the standard bot.
+		expect((request :: any).difficulty):toBe("Easy")
+		-- Never a rejection: a bad level plays Easy.
 		for _, bad in { "hard", "Impossible", "", 4, true, { "Hard" } } :: { any } do
 			local good, why, normalized = Schemas.request({ op = "Practice", difficulty = bad })
 			expect(why):toBe(nil)
 			expect(good):toBe(true)
-			expect((normalized :: any).difficulty):toBe("Medium")
+			expect((normalized :: any).difficulty):toBe("Easy")
 		end
 		-- Other ops drop the field.
 		_, _, request = Schemas.request({ op = "Queue", difficulty = "Hard" })
@@ -231,15 +231,15 @@ describe("Lobby", function()
 		expect(practice and practice.events):toBe(nil)
 	end)
 
-	it("a practice match carries its bot difficulty, Medium by default (D-057)", function()
+	it("a practice match carries its bot difficulty, Easy by default (D-087)", function()
 		local lobby = Lobby.new(C)
 		local hard = Lobby.practice(lobby, "a", "Extreme")
 		expect(hard and hard.kind):toBe("Practice")
 		expect(hard and hard.difficulty):toBe("Extreme")
 		local plain = Lobby.practice(lobby, "b")
-		expect(plain and plain.difficulty):toBe("Medium")
+		expect(plain and plain.difficulty):toBe("Easy")
 		local odd = Lobby.practice(lobby, "c", "Nightmare")
-		expect(odd and odd.difficulty):toBe("Medium")
+		expect(odd and odd.difficulty):toBe("Easy")
 	end)
 
 	it("hosting takes a player out of the queue", function()

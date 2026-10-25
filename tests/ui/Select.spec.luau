@@ -25,7 +25,7 @@ describe("Select auto-submit before the timer ends", function()
 		local calls = Rig.spySubmits(world, peer)
 		Rig.waitFor(world, function()
 			return Rig.payloadOf(world, peer).view.phase ~= "Select"
-		end, 60, "the end of Select")
+		end, 80, "the end of Select") -- the Easy bot's Select: 38 s x2 (D-075, D-087)
 		local me = Rig.payloadOf(world, peer).view.players[1]
 		expect(me.candidate):toBe(picked)
 		check(me.color ~= nil and me.color ~= "", "no drawn color")
@@ -40,7 +40,7 @@ describe("Select auto-submit before the timer ends", function()
 		local calls = Rig.spySubmits(world, peer)
 		Rig.waitFor(world, function()
 			return Rig.payloadOf(world, peer).view.phase ~= "Select"
-		end, 60, "the end of Select")
+		end, 80, "the end of Select") -- the Easy bot's Select: 38 s x2 (D-075, D-087)
 		expect(#calls):toBe(0)
 		Rig.noErrors(world)
 	end)

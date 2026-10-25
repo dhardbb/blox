@@ -1,16 +1,23 @@
 --!strict
--- Bot difficulty check (D-057): one difficulty against another, seats alternating,
--- two different candidates per match, every bot deciding from its own View.
--- Prints each pairing's win rate with its 95% band, and how long one bot
--- decision takes (mean, 99th percentile and worst, per difficulty and phase).
+-- Bot difficulty check (D-057, D-087): one level (or profile) against another,
+-- seats alternating, two different candidates per match, every bot deciding
+-- from its own View. Prints each pairing's win rate with its 95% band, and how
+-- long one bot decision takes (mean, 99th percentile and worst, per bot and
+-- phase). Name a level (Easy, Medium, Hard, Extreme) or a profile (Rookie,
+-- Casual, Hazy, Balanced, Foresight, Strategist).
 --
---   lune run tests/harness/difficulty.luau                  -- the D-057 table, 400 matches a pairing (~1 min)
+--   lune run tests/harness/difficulty.luau                  -- the D-087 table, 400 matches a pairing (~1 min)
 --   lune run tests/harness/difficulty.luau 1000             -- the table, 1,000 a pairing
---   lune run tests/harness/difficulty.luau Hard Medium 800  -- one pairing (first named = the reported side)
---   lune run tests/harness/difficulty.luau Easy Medium BOT_EASY_NOISE=1   -- a Config variant
+--   lune run tests/harness/difficulty.luau Hard Extreme 800 -- one pairing (first named = the reported side)
+--   lune run tests/harness/difficulty.luau Easy Medium BOT_ROOKIE_NOISE=3   -- a Config variant
 --
--- Targets against Medium: Easy 15-25%, Hard 60-70%, Extreme 75-85%. Seats
--- alternate and seeds are fixed (300001 on), so a run repeats exactly.
+-- Each level should lose clearly to the next one up (the easier side reported;
+-- D-087's 1,000-match run: Easy vs Medium 21.8%, Medium vs Hard 9.1%, Hard vs
+-- Extreme 18.0%; Easy and Medium win almost nothing against the two above), and
+-- the Daily Race's bot (Foresight) beats Extreme 68.9%, as D-057's Hard beat
+-- Medium on the same seeds before D-087. How the levels fare against
+-- new players is tests/harness/novice.luau ladder. Seats alternate and seeds are
+-- fixed (300001 on), so a run repeats exactly.
 
 local process = require("@lune/process")
 
@@ -21,8 +28,10 @@ local Match = require("@sim/Match")
 local Rng = require("@sim/Rng")
 local View = require("@sim/View")
 
+local PROFILES = { "Rookie", "Casual", "Hazy", "Balanced", "Foresight", "Strategist" }
+
 local N = 400
-local named: { Bot.Difficulty } = {}
+local named: { string } = {}
 local changes: { [string]: any } = {}
 local variant: { string } = {}
 for _, arg in process.args do
@@ -40,10 +49,10 @@ for _, arg in process.args do
 		table.insert(variant, arg)
 	elseif tonumber(arg) then
 		N = tonumber(arg) :: number
-	elseif table.find(Bot.DIFFICULTIES, arg) then
-		table.insert(named, arg :: Bot.Difficulty)
+	elseif table.find(Bot.DIFFICULTIES, arg) or table.find(PROFILES, arg) then
+		table.insert(named, arg)
 	elseif arg ~= "--" then
-		error(`unknown argument {arg}: use a number, a difficulty or KEY=value`)
+		error(`unknown argument {arg}: use a number, a level, a profile or KEY=value`)
 	end
 end
 local config = Config.with(Config.defaults, changes)
@@ -68,12 +77,20 @@ local function record(level: string, phase: string, ms: number)
 	table.insert(list, ms)
 end
 
+-- The profile a name plays: a level's (Bot.styleFor) or the profile itself.
+local function styleOf(name: string): Bot.Style
+	if table.find(PROFILES, name) then
+		return name :: Bot.Style
+	end
+	return Bot.styleFor(name :: Bot.Difficulty)
+end
+
 -- Plays one match; returns the winning seat and the number of rejected inputs.
-local function play(seed: number, levels: { Bot.Difficulty }): (number, number)
+local function play(seed: number, levels: { string }): (number, number)
 	local candidates = pairFor(seed)
 	local match = Match.new(config, seed, { "p1", "p2" })
 	local rngs = { Rng.new(seed * 2 + 101), Rng.new(seed * 2 + 102) }
-	local styles = { Bot.styleFor(levels[1]), Bot.styleFor(levels[2]) }
+	local styles = { styleOf(levels[1]), styleOf(levels[2]) }
 	local invalid = 0
 	while match.phase ~= "Done" do
 		local inputs = {}
@@ -95,7 +112,7 @@ local function play(seed: number, levels: { Bot.Difficulty }): (number, number)
 	return (match.election :: any).winner, invalid
 end
 
-local function pairing(a: Bot.Difficulty, b: Bot.Difficulty)
+local function pairing(a: string, b: string)
 	local wins, invalid = 0, 0
 	local started = os.clock()
 	for k = 1, N do
@@ -127,18 +144,21 @@ print(if #variant > 0 then "Config variant: " .. table.concat(variant, " ") else
 if #named >= 2 then
 	pairing(named[1], named[2])
 else
-	for _, level in { "Easy", "Hard", "Extreme" } do
-		pairing(level :: Bot.Difficulty, "Medium")
+	for i, a in Bot.DIFFICULTIES do
+		for j = i + 1, #Bot.DIFFICULTIES do
+			pairing(a, Bot.DIFFICULTIES[j])
+		end
 	end
-	for _, level in { "Medium", "Hard", "Extreme" } do
-		pairing(level :: Bot.Difficulty, "Easy")
-	end
-	pairing("Extreme", "Hard")
+	pairing("Foresight", "Extreme") -- the Daily Race's bot (D-082's Hard) vs the standard bot
 end
 
 print("")
 print("Decision time (ms): mean / p99 / worst")
-for _, level in Bot.DIFFICULTIES do
+local timed: { string } = table.clone(Bot.DIFFICULTIES) :: { string }
+for _, profile in PROFILES do
+	table.insert(timed, profile)
+end
+for _, level in timed do
 	local byPhase = times[level]
 	if byPhase then
 		local parts = {}

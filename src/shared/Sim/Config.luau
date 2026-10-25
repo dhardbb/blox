@@ -192,13 +192,14 @@ local Config = {
 	GRACE_USES = 2, -- grace periods per player per match
 	FORFEIT_MISSED_WEEKS = 2, -- consecutive missed weeks that forfeit
 	-- Bot matches (D-075): every choice timer (Select, a draft round, a decision,
-	-- a debate round, the plan) is multiplied by the bot's level; Hard and Extreme
-	-- keep x1. Reveals, clashes, election night and the time bank are not scaled.
+	-- a debate round, the plan) is multiplied by the bot's level as the player
+	-- picked it (D-087 left these with the level names); Hard and Extreme keep x1. Reveals, clashes, election night and the time bank are not scaled.
 	-- The tutorial (a player's first bot match, or a replay) has no choice timer at all.
 	BOT_TIME_MULT_EASY = 2, -- choice timers against an Easy bot (the designers' number)
 	BOT_TIME_MULT_MEDIUM = 1.5, -- choice timers against a Medium bot (the designers' number)
 	-- The Daily Race (D-082): one seeded race a UTC day, the same for everyone.
-	DAILY_BOT_LEVEL = "Hard", -- the bot's level in every Daily Race, so its timers are Hard's x1
+	DAILY_BOT_LEVEL = "Extreme", -- the level a Daily Race's bot counts as, so its timers are x1 (D-082's Hard until D-087)
+	DAILY_BOT_STYLE = "Foresight", -- how it plays: D-082's Hard bot, unchanged by D-087, so every day's board means the same
 	DAILY_FORFEIT_MARGIN = -538, -- the score of a counted run left or abandoned after week 1 began: every vote lost
 	-- The idle-money coach tip (D-086): a UI threshold, not a rule; nothing in Sim reads it.
 	IDLE_CASH_TIP = 20, -- money at or above which a plan that spends none gets the one-time "ads and ground game cost money, not actions" tip
@@ -213,17 +214,27 @@ local Config = {
 	TUTORIAL_CLOSING_FROM_WEEK = 4, -- the closing bonus on rallies and ads in its last week (CLOSING_FROM_WEEK)
 	TUTORIAL_START_CASH = 8, -- starting money (START_CASH)
 
-	-- Practice bot difficulty (D-057). Medium is the standard (balance harness) bot
-	-- and reads none of these. Every level decides from its own View only.
-	BOT_EASY_NOISE = 0.45, -- Easy: spread (log scale) of a random weight on each state's worth, redrawn every plan
-	BOT_EASY_SLIP = 0.5, -- Easy: chance a debate move or a Choice stance is picked at random
-	BOT_HARD_WIN_CHANCE = 1, -- Hard: how far state worth follows the chance of reaching 270 rather than expected EV (0 = Medium's worth)
-	BOT_HARD_FORESIGHT = 1, -- Hard: share of the opponent's predicted plan counted against this week's margins
-	BOT_EXTREME_WIN_CHANCE = 3, -- Extreme: the same, pushed further (defends harder when ahead, reaches further when behind)
-	BOT_EXTREME_FORESIGHT = 1, -- Extreme: share of the opponent's predicted plan counted against this week's margins
-	BOT_FORESIGHT_CASH = { 2, 7, 13 }, -- Hard and up: the opponent's cash guessed from its Low / Medium / High money bracket
-	BOT_DEBATE_READ = 0.15, -- Hard and up: weight on the opponent playing the debate move the standard bot would (rest spread evenly); 0.5 read Medium so well that Hard won 86%
-	BOT_EXTREME_HISTORY = 0.5, -- Extreme: share of that prediction taken from the opponent's own past debate moves this match
+	-- Practice bot levels (D-057, D-087). They differ only in judgment: no level
+	-- gets other cash, AP or information, and every one decides from its own
+	-- View. Extreme is the standard (balance harness) bot and reads none of these.
+	-- Misjudging means each state's worth times a random log-normal factor.
+	BOT_ROOKIE_NOISE = 4, -- Easy: spread (log scale) of that factor; 4 all but ignores which states matter (the novice study's option A)
+	BOT_ROOKIE_ONCE = true, -- Easy: the factor is drawn once a match, so it stays wrong the same way every week, as a beginner does
+	BOT_ROOKIE_SLIP = 1, -- Easy: chance a debate move or a Choice stance is picked at random (always)
+	BOT_CASUAL_NOISE = 1.5, -- Medium: spread of that factor (the study's soft setting)
+	BOT_CASUAL_ONCE = true, -- Medium: drawn once a match
+	BOT_CASUAL_SLIP = 1, -- Medium: chance a debate move or a Choice stance is random (always)
+	BOT_HAZY_NOISE = 0.45, -- Hard (D-057's Easy): spread of that factor
+	BOT_HAZY_ONCE = false, -- Hard: redrawn every plan, so it mostly averages out over a match
+	BOT_HAZY_SLIP = 0.5, -- Hard: chance a debate move or a Choice stance is random
+	-- No player's level since D-087 (D-057's Hard and Extreme); the Daily Race plays Foresight.
+	BOT_FORESIGHT_WIN_CHANCE = 1, -- Foresight: how far state worth follows the chance of reaching 270 rather than expected EV (0 = the standard bot's worth)
+	BOT_FORESIGHT_SHARE = 1, -- Foresight: share of the opponent's predicted plan counted against this week's margins
+	BOT_STRATEGIST_WIN_CHANCE = 3, -- Strategist: the same, pushed further (defends harder when ahead, reaches further when behind)
+	BOT_STRATEGIST_SHARE = 1, -- Strategist: share of the opponent's predicted plan counted against this week's margins
+	BOT_FORESIGHT_CASH = { 2, 7, 13 }, -- Foresight and Strategist: the opponent's cash guessed from its Low / Medium / High money bracket
+	BOT_DEBATE_READ = 0.15, -- Foresight and Strategist: weight on the opponent playing the debate move the standard bot would (rest spread evenly); 0.5 read the standard bot so well that Foresight won 86%
+	BOT_STRATEGIST_HISTORY = 0.5, -- Strategist: share of that prediction taken from the opponent's own past debate moves this match
 
 	-- Custom candidate names (the Name Pass, D-069). Not rules: who may name a
 	-- candidate, and how long a name may be.

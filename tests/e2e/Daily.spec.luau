@@ -1,6 +1,6 @@
 --!strict
 -- End to end: the Daily Race (D-082) on the real server and client. A run gets
--- the day's seed, candidate and Hard bot (never the tutorial); leaving before
+-- the day's seed, candidate and bot (never the tutorial); leaving before
 -- week 1 counts for nothing; the first run past week 1 is the day's run, saved
 -- in the profile with its streak and written to the day's OrderedDataStore;
 -- later runs that day are practice; the card's request answers with the board.
@@ -75,7 +75,7 @@ end
 
 describe("e2e: the Daily Race (D-082)", function()
 	it(
-		"plays the day's race: its candidate, the Hard bot, no tutorial; leaving early counts for nothing",
+		"plays the day's race: its candidate, its bot (Extreme timers), no tutorial; leaving early counts for nothing",
 		function()
 			local rig = Support.new(process.cwd, 71)
 			local p1 = Support.join(rig, "Player1")
@@ -84,7 +84,7 @@ describe("e2e: the Daily Race (D-082)", function()
 			Support.fire(rig, p1, { op = "DailyRace" })
 			Support.run(rig, 1)
 			expect(serverSaid(rig, "match m1 started (Practice)")):toBe(1)
-			expect(serverSaid(rig, `seed {race.seed}, bot Hard, daily race`)):toBe(1)
+			expect(serverSaid(rig, `seed {race.seed}, bot Extreme playing Foresight, daily race`)):toBe(1)
 			expect(serverSaid(rig, "tutorial")):toBe(0) -- a brand-new player, yet no tutorial
 			check(told(rig, p1, "Daily Race: this run counts"), "the player was not told the run counts")
 			local payload = state(rig, p1).payload
@@ -93,7 +93,7 @@ describe("e2e: the Daily Race (D-082)", function()
 			expect(payload.view.claims[race.botCandidate] ~= nil):toBe(true)
 			check(
 				math.abs(payload.deadline - payload.stageStart - C.TIMER_SELECT) < 1e-6,
-				"the Daily Race's Select is not the Hard bot's x1 timer"
+				"the Daily Race's Select is not the x1 timer"
 			)
 
 			-- Leaving in Select: nothing saved, the next run still counts.
@@ -152,7 +152,7 @@ describe("e2e: the Daily Race (D-082)", function()
 			Support.run(rig, 1)
 			expect(serverSaid(rig, "rematch of m1")):toBe(1)
 			local race = SimDaily.race(C, day)
-			expect(serverSaid(rig, `seed {race.seed}, bot Hard, daily race`)):toBe(2)
+			expect(serverSaid(rig, `seed {race.seed}, bot Extreme playing Foresight, daily race`)):toBe(2)
 			check(told(rig, p1, "Practice run"), "the second run was not called practice")
 			expect(state(rig, p1).payload.daily.counted):toBe(false)
 			playOut(rig, p1, "m2")
@@ -206,7 +206,7 @@ describe("e2e: the Daily Race (D-082)", function()
 		Support.fire(rig, p2, { op = "DailyRace" })
 		Support.run(rig, 1)
 		local race = SimDaily.race(C, SimDaily.dayOf(math.floor(rig.world.clock)))
-		expect(serverSaid(rig, `seed {race.seed}, bot Hard, daily race`)):toBe(2)
+		expect(serverSaid(rig, `seed {race.seed}, bot Extreme playing Foresight, daily race`)):toBe(2)
 		for _, peer in { p1, p2 } do
 			local payload = state(rig, peer).payload
 			expect(payload.view.claims[race.candidate]):toBe(payload.you)

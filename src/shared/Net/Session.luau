@@ -202,6 +202,7 @@ export type SeatSpec = {
 	candidate: string?, -- Bot: candidate to play. Human: a fixed candidate, claimed for them as Select opens (the Daily Race, D-082)
 	style: Bot.Style?, -- Bot: play style (wins over difficulty; the harness uses it)
 	difficulty: Bot.Difficulty?, -- Bot: practice difficulty (D-057); plays Bot.styleFor(difficulty)
+	profile: Bot.Style?, -- Bot: plays this instead of Bot.styleFor(difficulty), keeping the level's timers (the Daily Race, D-087)
 	admin: boolean?, -- Human: an admin, as the server checked it (D-081)
 	timersOff: boolean?, -- Human: this admin's saved "Timers off" toggle (D-081); ignored unless admin
 }
@@ -813,7 +814,7 @@ function Session.new(
 				then spec.candidate
 				else nil,
 			botCandidate = if spec.kind == "Bot" then spec.candidate else nil,
-			botStyle = spec.style or (if difficulty then Bot.styleFor(difficulty) else nil),
+			botStyle = spec.style or (if difficulty then spec.profile or Bot.styleFor(difficulty) else nil),
 			botDifficulty = difficulty,
 			botRng = if spec.kind == "Bot" then Rng.new(seed * 31 + p) else nil,
 			customName = if spec.kind == "Human" then spec.customName else nil,

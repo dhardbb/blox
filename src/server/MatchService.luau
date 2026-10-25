@@ -862,7 +862,8 @@ local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 			id = "bot",
 			kind = "Bot",
 			candidate = candidate,
-			difficulty = Bot.difficulty(outcome.difficulty), -- D-057: absent = Medium (the standard bot)
+			difficulty = Bot.difficulty(outcome.difficulty), -- D-057, D-087: absent = Easy
+			profile = if race then race.style else nil, -- the Daily Race's bot plays as it always has (D-087)
 		})
 	end
 	local created: Session.Session? = nil
@@ -931,6 +932,9 @@ local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 	end
 	broadcastLobby() -- the queue shrank and a match slot filled up
 	local against = if outcome.kind == "Practice" then `, bot {Bot.difficulty(outcome.difficulty)}` else ""
+	if outcome.kind == "Practice" and race then
+		against ..= ` playing {race.style}` -- the Daily Race's own profile (D-087)
+	end
 	if outcome.tutorial then
 		against ..= ", tutorial"
 	end

@@ -288,10 +288,20 @@ describe("Session: unique candidates (D-048)", function()
 		expect(styled.seats[2].botStyle):toBe("NeverPoll")
 		expect(styled.seats[2].botDifficulty):toBe(nil)
 		expect(practice().seats[2].botStyle):toBe(nil)
+		-- A profile (the Daily Race, D-087) changes how the level plays, not its
+		-- level: the seat list and the timers still follow the level.
+		local daily = Session.new(C, "m6", 7, {
+			{ id = "100", kind = "Human" },
+			{ id = "bot", kind = "Bot", candidate = "hale", difficulty = "Extreme", profile = "Foresight" },
+		}, 0)
+		expect(daily.seats[2].botStyle):toBe("Foresight")
+		expect(daily.seats[2].botDifficulty):toBe("Extreme")
+		expect(daily.timeScale):toBe(1)
+		expect(Session.payload(daily, 1).seats[2].difficulty):toBe("Extreme")
 	end)
 
 	it("a practice bot's moves follow from the seed at every difficulty (D-057)", function()
-		for _, level in { "Easy", "Hard", "Extreme" } :: { Bot.Difficulty } do
+		for _, level in Bot.DIFFICULTIES do
 			local function run(): any
 				local session = Session.new(C, "m5", 31, {
 					{ id = "100", kind = "Human" },

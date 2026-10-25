@@ -1164,6 +1164,19 @@ Agents: `lune run tests Matchmaking` (pure rules, e2e on the fake engine with tw
 4. **Admin timers and the Daily Race.** As an admin with **Timers off** on, start the Daily Race. **Expect:** normal timers; the "?" sheet's admin line says "Not in the Daily Race: every run has the same clock." Then two admins with Timers off on different servers, both **Find match** (published game): in the match server the header reads "No timer (admin)" and both are told the match is unrated.
 5. *Send back:* OK or what happened for each, and any Output errors from `Lobby`, `DailyRace`, `Results`, `MatchService` or `CrossServer`.
 
+## Bot levels shifted down (unreleased, D-087)
+
+Agents: `lune run tests "Bot difficulty"`, `lune run tests Lobby`, `lune run tests Daily`, `lune run tests/harness/novice.luau ladder 1000` (the table in D-087), `lune run tests/harness/difficulty.luau 1000`, `lune run tests/harness/balance.luau 400` (must print the same report as before), `lune run tests/ui/snap.luau -- lobby --size phone` (and `ipad`, `desktop`; 0 audit findings).
+
+1. **The default and the line.** Open the Lobby. **Expect:** the **Easy** chip is picked, and under the chips one grey line: "Learning the ropes: it often misreads the map." Tap each chip: Medium "Know the basics? It still makes mistakes.", Hard "A real test: it rarely misreads the map.", Extreme "Full strength: the bot at its best." On the phone (or Studio's iPhone 14 emulator) the whole Lobby still fits without scrolling, the line is on one row, and the leaderboard still shows its top 3; the small "A 1V1 ELECTION STRATEGY GAME" line above the logo is gone there (it stays on the iPad and a Mac window).
+2. **Play Easy.** Play vs Bot on Easy (each choice has double time). **Expect:** you win clearly, usually by 40 or more votes; the bot spreads its rallies over odd states, often the same odd ones every week, and its stances and debate moves look random. *Send back:* won or lost, and the final score.
+3. **Play Medium.** **Expect:** a closer match than Easy that you should usually win if you follow the polls' close states; it still makes visible mistakes. Choice timers ×1.5.
+4. **Play Hard.** **Expect:** what Easy used to be: it puts its rallies in the big close states, and you win only when you play well. Normal timers.
+5. **Play Extreme.** **Expect:** what Medium used to be, the full-strength bot. Normal timers.
+6. **The tutorial.** How to play → **Play the tutorial**. **Expect:** still the Easy bot, no timers; you should win it.
+7. **The Daily Race.** Play today's race. **Expect:** the bot plays as hard as before this change (it is the old Hard bot), and the timers are the normal ones. Open **Today's board**: "Ranked by your final vote margin over the bot. …" (no level named).
+8. **The bot game while you wait.** Find match, wait 30 s, tap **Play a bot while you wait**. **Expect:** the bot plays at the level picked under Play vs Bot (Easy unless you changed it), with that level's timers.
+9. *Send back:* your result and final score on each level you tried, a phone and an iPad screenshot of the Lobby, and anything that felt too easy or too hard.
 ## Playtest fixes (unreleased)
 
 ### Why did my score move? (M4)

@@ -40,7 +40,7 @@ export type Op =
 	| "Leaderboard" -- ask for the global leaderboard (D-059); answered with a "Leaderboard" message
 	| "Forfeit" -- leave the match in progress and lose it (D-059): { matchId }
 	| "SetTimersOff" -- admins: the "Timers off" toggle, saved and applied to their match (D-081): { on }
-	| "DailyRace" -- play today's Daily Race (D-082): today's candidate, the Hard bot; the first run past week 1 counts
+	| "DailyRace" -- play today's Daily Race (D-082): today's candidate, D-082's bot (D-087); the first run past week 1 counts
 	| "Daily" -- ask for today's Daily Race and its board (D-082); answered with a "Daily" message
 	| "WaitBot" -- play the bot while waiting in the queue (D-083): { difficulty? }
 	| "Answer" -- answer "Opponent found! Leave this bot game?" (D-083): { accept }
@@ -56,7 +56,7 @@ export type Request = {
 	input: any?,
 	events: boolean?, -- Host: false turns the event deck off for this private match
 	color: string?, -- SetColor: one of Candidates.colors; absent = auto (red or blue). ClaimColor: the color (required)
-	difficulty: string?, -- Practice: "Easy" | "Medium" | "Hard" | "Extreme"; absent or anything else = "Medium" (D-057)
+	difficulty: string?, -- Practice: "Easy" | "Medium" | "Hard" | "Extreme"; absent or anything else = "Easy" (D-057, D-087)
 	tutorial: boolean?, -- Practice: true replays the tutorial (How to play, D-075): Easy bot, no choice timers
 	name: string?, -- SetName: the custom name as typed (absent = the candidate's own); ReviewKeep/ReviewRemove: the name the admin saw
 	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)

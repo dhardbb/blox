@@ -1,7 +1,8 @@
 --!strict
 -- The bot level picker (docs/DESIGN.md D-059): a row of four chips, Easy,
 -- Medium, Hard and Extreme, under the Lobby's "Play vs Bot". The picked one is
--- outlined; Medium until the player picks. The pick lasts for the session (this
+-- outlined; Easy until the player picks (D-087). BotLevel.note is a caption
+-- line that says what the picked level is like (Words.LEVEL_NOTES). The pick lasts for the session (this
 -- module stays loaded while the screens come and go), so Results' "Play vs Bot
 -- again" uses it too. Play vs Bot sends it as the Practice request's
 -- `difficulty`; the server decides what each level does.
@@ -15,6 +16,7 @@
 --                Level_Easy … Level_Extreme, attribute Level = the picked level
 --   BotLevel.get() -> "Easy" | "Medium" | "Hard" | "Extreme"
 --   BotLevel.set(level)   (unknown names are ignored)
+--   BotLevel.note(props) -> TextLabel "BotLevelNote" (one caption line, follows the pick)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -26,6 +28,7 @@ local BotLevel = {}
 
 local INSET = 3 -- px between the track's edge and the chips
 BotLevel.HEIGHT = Kit.MIN_TOUCH + 2 * INSET -- px, the track
+BotLevel.NOTE_HEIGHT = Kit.size.caption + Kit.space.xs -- px, the note's one line
 
 local picked: string = Words.DEFAULT_LEVEL
 local rows: { () -> () } = {} -- repaint functions of the mounted pickers
@@ -102,6 +105,40 @@ function BotLevel.new(props: { [string]: any }?): Picker
 		parented = true
 	end
 	return { root = root }
+end
+
+-- The picked level's one-line description, kept in step with every picker.
+function BotLevel.note(props: { [string]: any }?): TextLabel
+	local p: { [string]: any } = props or {}
+	local label = Kit.caption("", {
+		Name = p.Name or "BotLevelNote",
+		LayoutOrder = p.LayoutOrder or 0,
+		Size = UDim2.new(1, 0, 0, BotLevel.NOTE_HEIGHT),
+		AutomaticSize = Enum.AutomaticSize.None,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}) :: TextLabel
+	local parented = false
+	local function repaint()
+		if parented and label.Parent == nil then
+			-- A destroyed note stops following the pick.
+			local at = table.find(rows, repaint)
+			if at then
+				table.remove(rows, at)
+			end
+			return
+		end
+		label.Text = Words.LEVEL_NOTES[picked] or ""
+		label:SetAttribute("Level", picked)
+	end
+	table.insert(rows, repaint)
+	repaint()
+	if p.Parent then
+		label.Parent = p.Parent
+		parented = true
+	end
+	return label
 end
 
 return BotLevel

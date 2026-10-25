@@ -16,9 +16,20 @@ local Lobby = {}
 
 -- The levels the Lobby offers for Play vs Bot, easiest first. The Practice
 -- request carries the chosen one as `difficulty`; the server decides what each
--- level means.
+-- level means (D-087: they differ only in how well the bot judges the map).
+-- Easy until the player picks: where new players start.
 Lobby.LEVELS = table.freeze({ "Easy", "Medium", "Hard", "Extreme" })
-Lobby.DEFAULT_LEVEL = "Medium"
+Lobby.DEFAULT_LEVEL = "Easy"
+
+-- One line under the level chips about the picked level (D-087), honest to the
+-- measured ladder: a typical new player wins most games on Easy, about a third
+-- on Medium, few on Hard and Extreme.
+Lobby.LEVEL_NOTES = table.freeze({
+	Easy = "Learning the ropes: it often misreads the map.",
+	Medium = "Know the basics? It still makes mistakes.",
+	Hard = "A real test: it rarely misreads the map.",
+	Extreme = "Full strength: the bot at its best.",
+} :: { [string]: string })
 
 -- ---------------------------------------------------------------- leaderboard
 

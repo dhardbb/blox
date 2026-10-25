@@ -399,7 +399,7 @@ describe("Bot", function()
 		for _, theirs in { "Defend", "Attack", "Pivot" } do
 			expect(Debate.versus(C, board, 1, "Defend", 2, theirs :: Types.DebateMove) > 0):toBe(true)
 		end
-		for _, style in { "Balanced", "Hard", "Extreme" } do
+		for _, style in { "Balanced", "Foresight", "Strategist" } do
 			local move = Bot.act(C, view, Rng.new(1), "okafor", style :: Bot.Style)
 			expect(move.move):toBe("Defend")
 			expect((Match.validate(C, match, 1, move))):toBe(true)

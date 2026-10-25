@@ -7,12 +7,14 @@
 --   lune run tests/harness/tutorial.luau TUTORIAL_START_CASH=12   -- a Config variant
 --   lune run tests/harness/tutorial.luau --normal          -- the same table on the 12-week schedule, for reference
 --
--- The "player" is a bot standing in for a new player: Medium (a sharp one),
--- Easy (a careless one) and Random (one tapping anything legal: the floor),
--- always against
--- the Easy bot, seats alternating, two different candidates per match. Targets:
--- the Easy bot neither steamrolls nor gets crushed (Medium wins 55-80 %, Easy
--- 40-60 %), and most matches are decided on election night:
+-- The "player" is a bot standing in for a new player: the standard bot (a sharp
+-- one), the Hazy profile (a careless one: D-057's Easy) and Random (one tapping
+-- anything legal: the floor), always against the Easy bot (since D-087 the
+-- Rookie profile), seats alternating, two different candidates per match.
+-- D-080's targets (sharp 55-80 %, careless 40-60 %) were set against D-057's
+-- Easy; D-087 made Easy deliberately weaker, so both now win far more often (the
+-- tutorial should end in a win). Most matches should still be decided on
+-- election night:
 -- before the votes are counted, the state that carries the eventual winner to
 -- 270 (its tipping state) is within SAFE points of true margin, ground game
 -- counted, so election night's swing could still decide it. "Toss-up": within
@@ -201,7 +203,8 @@ local function pairing(player: Bot.Style, label: string)
 		local seed = 500000 + k
 		-- Seats alternate, so neither side keeps slot 1's draft priority.
 		local slot = if k % 2 == 0 then 1 else 2
-		local styles: { Bot.Style } = if slot == 1 then { player, "Easy" } else { "Easy", player }
+		local easy = Bot.styleFor("Easy") -- the tutorial's bot (D-080), whatever profile Easy plays (D-087)
+		local styles: { Bot.Style } = if slot == 1 then { player, easy } else { easy, player }
 		local o = play(seed, styles)
 		invalid += o.invalid
 		if o.winner == slot then
@@ -258,8 +261,8 @@ print(
 )
 print("")
 print(`Player vs the Easy bot, {N} matches each (the player's win rate):`)
-pairing("Balanced", "Medium (sharp player)")
-pairing("Easy", "Easy (careless player)")
+pairing("Balanced", "Sharp player")
+pairing("Hazy", "Careless player")
 pairing("Random", "Random (taps anything)")
 print(
 	if scheduleErrors == 0

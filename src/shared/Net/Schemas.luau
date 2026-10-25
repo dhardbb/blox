@@ -111,7 +111,7 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 		request.code = raw.code
 	elseif op == "Practice" then
 		-- Optional bot difficulty (D-057): absent or not one of the four names
-		-- plays Medium, the standard bot. Never a rejection.
+		-- plays Easy (D-087). Never a rejection.
 		request.difficulty = Bot.difficulty(raw.difficulty)
 		-- Optional tutorial replay (D-075): only `true` asks for it; anything else
 		-- is an ordinary practice match. Never a rejection either.

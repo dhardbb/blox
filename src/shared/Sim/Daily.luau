@@ -6,7 +6,10 @@
 --   seed          the match seed: map leans, issue map, debate topics, events
 --   candidate     who every player runs that day (forced: no candidate pick)
 --   botCandidate  who the bot runs (never the player's candidate)
---   level         the bot's level (Config.DAILY_BOT_LEVEL, Hard)
+--   level         the level the bot counts as (Config.DAILY_BOT_LEVEL, Extreme:
+--                 its timers)
+--   style         how the bot plays (Config.DAILY_BOT_STYLE, Foresight: D-082's
+--                 Hard, kept by D-087 so every day's board means the same)
 --
 -- Candidates rotate in seeded cycles: the days are cut into cycles of one day
 -- per candidate, each cycle is a seeded shuffle of the whole roster (so every
@@ -30,7 +33,8 @@ export type Race = {
 	seed: number, -- the match seed, 1 .. 2^31 - 1
 	candidate: string, -- every player's candidate today
 	botCandidate: string, -- the bot's candidate today
-	level: Bot.Difficulty, -- the bot's level
+	level: Bot.Difficulty, -- the level the bot counts as (its timers)
+	style: Bot.Style, -- how the bot plays
 	endsAt: number, -- Unix seconds the race ends (the next 00:00 UTC)
 }
 
@@ -130,6 +134,7 @@ function Daily.race(config: Config, day: number): Race
 		candidate = Daily.candidate(day),
 		botCandidate = Daily.botCandidate(day),
 		level = Bot.difficulty(config.DAILY_BOT_LEVEL),
+		style = config.DAILY_BOT_STYLE :: Bot.Style,
 		endsAt = Daily.endsAt(day),
 	})
 end
