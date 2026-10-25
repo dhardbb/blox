@@ -581,7 +581,7 @@ describe("Session: the Decision stage (D-044)", function()
 		local state = messages[#messages].state :: Session.StatePayload
 		expect(state.view.decision):toBe("Stance")
 		expect(state.deadline):toBe(t + C.TIMER_DECISION)
-		-- The time bank is for plans only.
+		-- The time bank is for plans and debate rounds only (D-085).
 		expect(select(2, Session.bank(session, 1, session.step, t))):toBe("NotInput")
 		lockAll(session, t + 1)
 		expect(session.match.phase):toBe("Plan")
@@ -728,6 +728,84 @@ describe("Session: debate rounds (D-072)", function()
 		lockAll(session, t + 3)
 		expect(session.reveal):toBe("Clash")
 		expect((session.match.debate :: any).rounds[1].canned[2]):toBe(true)
+	end)
+
+	it("the plan's time bank also extends a debate round, one seat's deadline only (D-085)", function()
+		local session, t = toIntro()
+		Session.update(session, session.deadline)
+		t = session.stageStart
+		expect(session.stage):toBe("Input")
+		local base = session.deadline
+		expect(base):toBe(t + C.TIMER_DEBATE_ROUND)
+		expect((Session.bank(session, 1, session.step, t + 1))):toBe(true)
+		expect(session.seats[1].bank):toBe(C.TIME_BANK - C.TIME_BANK_CHUNK)
+		expect(Session.payload(session, 1).deadline):toBe(base + C.TIME_BANK_CHUNK)
+		-- The other seat's deadline does not move, and it cannot answer after it.
+		expect(Session.payload(session, 2).deadline):toBe(base)
+		Session.update(session, base + 2)
+		expect(session.stage):toBe("Input") -- waiting on the banked seat only
+		local ok, reason = Session.submit(session, 2, session.step, { move = "Attack" }, base + 2)
+		expect(ok):toBe(false)
+		expect(reason):toBe("StaleStep")
+		expect((Session.submit(session, 1, session.step, { move = "Defend" }, base + 3))):toBe(true)
+		expect(session.reveal):toBe("Clash")
+		local round = (session.match.debate :: any).rounds[1]
+		expect(round.canned):toEqual({ false, true })
+		-- In the clash there is nothing to extend.
+		expect(select(2, Session.bank(session, 1, session.step, base + 4))):toBe("NotInput")
+		-- The next round starts on a plain deadline: the chunk was for one round.
+		Session.update(session, session.deadline)
+		expect(session.stage):toBe("Input")
+		expect(session.deadline):toBe(session.stageStart + C.TIMER_DEBATE_ROUND)
+		expect(Session.payload(session, 1).deadline):toBe(session.deadline)
+	end)
+
+	it("a debate round draws on the same bank as the plans, and says NoBank when it is empty", function()
+		local session = humans()
+		local t = 0
+		local spent = 0
+		for _ = 1, 400 do
+			if session.stage == "Show" and session.reveal == "DebateIntro" then
+				break
+			end
+			if session.stage == "Input" then
+				-- Spend the whole bank on the first plans.
+				if session.match.phase == "Plan" and session.seats[1].bank >= C.TIME_BANK_CHUNK then
+					expect((Session.bank(session, 1, session.step, t))):toBe(true)
+					spent += C.TIME_BANK_CHUNK
+				end
+				lockAll(session, t)
+			else
+				t = Session.nextWake(session)
+				Session.update(session, t)
+			end
+		end
+		expect(spent):toBe(C.TIME_BANK)
+		Session.update(session, session.deadline)
+		t = session.stageStart
+		expect(session.match.phase):toBe("Debate")
+		expect(session.stage):toBe("Input")
+		expect(select(2, Session.bank(session, 1, session.step, t))):toBe("NoBank")
+		expect(session.deadline):toBe(t + C.TIMER_DEBATE_ROUND)
+		-- Seat 2 never banked: its 30 s are there for this round.
+		expect((Session.bank(session, 2, session.step, t))):toBe(true)
+		expect((Session.bank(session, 2, session.step, t))):toBe(true)
+		expect(select(2, Session.bank(session, 2, session.step, t))):toBe("NoBank")
+		expect(Session.payload(session, 2).deadline):toBe(t + C.TIMER_DEBATE_ROUND + C.TIME_BANK)
+		expect(Session.payload(session, 1).deadline):toBe(t + C.TIMER_DEBATE_ROUND)
+		lockAll(session, t + 1)
+		expect(session.reveal):toBe("Clash")
+	end)
+
+	it("a locked-in seat and a seat past its deadline cannot bank in a debate round", function()
+		local session = toIntro()
+		Session.update(session, session.deadline)
+		local t = session.stageStart
+		expect((Session.submit(session, 1, session.step, { move = "Defend" }, t + 1))):toBe(true)
+		expect(select(2, Session.bank(session, 1, session.step, t + 2))):toBe("NotInput")
+		expect(select(2, Session.bank(session, 2, session.step, t + C.TIMER_DEBATE_ROUND + 0.5))):toBe(
+			"NoBank"
+		)
 	end)
 
 	it("a bot seat answers every round by itself", function()

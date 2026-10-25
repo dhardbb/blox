@@ -244,7 +244,8 @@ describe("Session: the tutorial has no choice deadline (D-075)", function()
 				break
 			end
 			if session.stage == "Input" and not session.seats[1].locked then
-				if session.match.phase == "Plan" then
+				-- No bank in a plan or a debate round (D-085) without a deadline.
+				if session.match.phase == "Plan" or session.match.phase == "Debate" then
 					expect(select(2, Session.bank(session, 1, session.step, t))):toBe(Session.Reason.NoTimer)
 				end
 				t += 30
