@@ -204,6 +204,10 @@ local Config = {
 	-- The idle-money coach tip (D-086): a UI threshold, not a rule; nothing in Sim reads it.
 	IDLE_CASH_TIP = 20, -- money at or above which a plan that spends none gets the one-time "ads and ground game cost money, not actions" tip
 	IDLE_CASH_TIP_WEEK = 3, -- the first week that tip may show (weeks 1-2 have their own tips)
+	-- Key states (D-088): a learning aid on the campaign map, read only by UI/KeyStates
+	-- from the player's own public polls; nothing in Sim or Bot reads them.
+	KEY_STATES = 3, -- most key states highlighted a week: the tipping state and the biggest states polling near it
+	KEY_STATE_BAND = 10, -- points: a state is key when its public-poll margin is within this of the tipping state's
 
 	-- The tutorial (D-075, D-080): a player's first bot match, or a replay from How
 	-- to play. The same rules on a short schedule: Config.tutorial(config) puts

@@ -147,6 +147,8 @@ local HALO_STRONG = 0.25 -- ... for a state whose poll leader changes
 local BLOOM_SCALE = 1.6 -- a moved state's bloom, share of its rect
 local BLOOM_SOFT = 0.4
 local BLOOM_STRONG = 0.1
+local KEY_BLOOM = 0.5 -- a key state's glow (D-088): softer than a moved state's
+local KEY_PLATE = 0.6 -- ... a key chip's glowing plate (HALO_PAD around it)
 local PIN_MIN, PIN_MAX = 14, 20 -- px, a pin's face
 local PIN_SHARE = 0.03 -- the face's size, share of the map's width
 local PIN_YOU = 2 -- px more your own pin's face is (it is drawn on top, too)
@@ -1033,8 +1035,16 @@ function ShapeMap.new(): MapInterface.Map
 	end
 
 	-- The state's outline in `color` (nil: none), `px` thick; `dashed` shows
-	-- one segment in DASH_EVERY; `fade` its transparency.
-	local function setOutline(node: Node, color: Color3?, px: number, dashed: boolean?, fade: number?)
+	-- one segment in DASH_EVERY; `fade` its transparency; `alt` fills a dashed
+	-- outline's gaps in a second color (a key state's owner ring, D-088).
+	local function setOutline(
+		node: Node,
+		color: Color3?,
+		px: number,
+		dashed: boolean?,
+		fade: number?,
+		alt: Color3?
+	)
 		if node.ladder then
 			local stroke = node.chipStroke :: UIStroke
 			stroke.Color = color or Kit.color(Colors.undecided)
@@ -1051,9 +1061,10 @@ function ShapeMap.new(): MapInterface.Map
 		local frame = outlineOf(node)
 		frame.Visible = true
 		for k, part in node.outlineParts do
-			part.BackgroundColor3 = color
+			local gap = dashed and k % DASH_EVERY ~= 1
+			part.BackgroundColor3 = if gap and alt then alt else color
 			part.BackgroundTransparency = fade or 0
-			part.Visible = not dashed or k % DASH_EVERY == 1
+			part.Visible = not gap or alt ~= nil
 			local size = part.Size
 			part.Size = UDim2.new(size.X.Scale, px, 0, px)
 		end
@@ -1480,11 +1491,18 @@ function ShapeMap.new(): MapInterface.Map
 		local halo = if mark then mark.halo else nil
 		local strong = mark ~= nil and mark.haloStrong == true
 		local dashed = mark ~= nil and (mark :: any).dashed == true
+		local key = mark ~= nil and (mark :: any).key == true
+		node.hit:SetAttribute("Key", key) -- for the specs (D-088)
 		-- What moved (a preview, a reveal) outranks an owner's ring while it shows.
 		if isSelected then
 			setOutline(node, Kit.colors.accent, SELECTED_PX)
 		elseif halo then
 			setOutline(node, halo, if strong then SELECTED_PX else OUTLINE_PX)
+		elseif key and node.chip == nil then
+			-- A key state (D-088): dashed, so it never reads as the selection; an
+			-- owner's ring fills the gaps in its color, so both still read.
+			local ring = if mark then mark.ring else nil
+			setOutline(node, Kit.colors.accent, SELECTED_PX, true, nil, ring)
 		elseif mark and mark.ring then
 			setOutline(node, mark.ring, if dashed then OUTLINE_PX else SELECTED_PX, dashed)
 		elseif hollow then
@@ -1493,20 +1511,28 @@ function ShapeMap.new(): MapInterface.Map
 			setOutline(node, nil, 0)
 		end
 		if node.halo then
+			-- A callout chip's plate: a moved state's halo, else a key state's glow.
 			local plate = node.halo :: Frame
-			plate.Visible = halo ~= nil
+			plate.Visible = halo ~= nil or key
 			if halo then
 				plate.BackgroundColor3 = halo
 				plate.BackgroundTransparency = if strong then HALO_STRONG else HALO_SOFT
+			elseif key then
+				plate.BackgroundColor3 = Kit.colors.accent
+				plate.BackgroundTransparency = KEY_PLATE
 			end
 		end
 		local lit = halo == nil and mark ~= nil and mark.ring == Kit.colors.accent and not isSelected
-		if halo or lit or node.bloom then
+		local keyGlow = key and halo == nil and not lit and node.chip == nil
+		if halo or lit or keyGlow or node.bloom then
 			local bloom = bloomOf(node)
 			if bloom then
-				bloom.Visible = halo ~= nil or lit
+				bloom.Visible = halo ~= nil or lit or keyGlow
 				bloom.ImageColor3 = halo or Kit.colors.accent
-				bloom.ImageTransparency = if halo and not strong then BLOOM_SOFT else BLOOM_STRONG
+				bloom.ImageTransparency = if keyGlow
+					then KEY_BLOOM
+					elseif halo and not strong then BLOOM_SOFT
+					else BLOOM_STRONG
 			end
 		end
 

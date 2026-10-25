@@ -191,7 +191,8 @@ describe("Words.Campaign", function()
 	it("explains every lens in a few short sentences", function()
 		for _, id in { "EV", "Issues", "Polls", "Money" } do
 			local lines = Words.key(id)
-			check(#lines >= 3 and #lines <= 8, `{id}: {#lines} lines`)
+			-- 9: the key states' line joined the eight (D-088).
+			check(#lines >= 3 and #lines <= 9, `{id}: {#lines} lines`)
 			for _, line in lines do
 				check(words(line) <= 14, `{id}: "{line}" is long`)
 			end

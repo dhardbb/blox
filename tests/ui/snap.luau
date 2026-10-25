@@ -55,6 +55,14 @@ local function tapIf(world: World, peer: Peer, screen: string, name: string, wai
 	end
 end
 
+-- Steps that mark the map tip seen and repaint, so the key states' tip
+-- (D-088) shows.
+local function keyTip(world: World, peer: Peer)
+	local CoachTip = FakeRoblox.require(world, peer, "src/client/UI/CoachTip.luau")
+	CoachTip.markSeen("campaign.map")
+	Rig.push(world, peer, Rig.deepCopy(Rig.payloadOf(world, peer)))
+end
+
 -- Steps that put deck event `id` in the shown week (or, with `upcoming`, only
 -- in next week's preview, as for Helen Strand) on the Plan fixture.
 local function withEvent(id: string, upcoming: boolean?): (World, Peer) -> ()
@@ -736,6 +744,34 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "09-campaign-plan", moment = "Plan", screen = "Campaign" },
+	-- D-088: the key states' coach tip once the map tip is seen, then a key
+	-- state tapped from the line (on a phone its card takes the line's place).
+	{ name = "09k-campaign-key-tip", moment = "Plan", screen = "Campaign", steps = keyTip },
+	{
+		name = "09l-campaign-key-tapped",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local CoachTip = FakeRoblox.require(world, peer, "src/client/UI/CoachTip.luau")
+			CoachTip.markSeen("campaign.map")
+			CoachTip.markSeen("campaign.keys")
+			local row = Rig.findIn(peer, "Campaign", "KeyStates")
+			local chip: any = nil
+			if row then
+				for _, child in row:GetChildren() do
+					if
+						string.sub(child.Name, 1, 4) == "Key_"
+						and (chip == nil or child.LayoutOrder < chip.LayoutOrder)
+					then
+						chip = child
+					end
+				end
+			end
+			if chip then
+				tapIf(world, peer, "Campaign", chip.Name)
+			end
+		end,
+	},
 	-- D-075: the tutorial's plan (no timer, no "+15 s") and a plan against the
 	-- Easy bot (the plan timer doubled).
 	{ name = "09t-campaign-plan-tutorial", moment = "PlanTutorial", screen = "Campaign" },
@@ -1392,6 +1428,7 @@ local SHOTS: { Shot } = {
 	{ name = "30a-tutorial-plan", moment = "TutorialPlan", screen = "Campaign" },
 	{ name = "30b-tutorial-stance", moment = "TutorialStance", screen = "Decision" },
 	{ name = "30c-tutorial-debate", moment = "TutorialDebate", screen = "Debate" },
+	{ name = "30h-tutorial-key-tip", moment = "TutorialPlan", screen = "Campaign", steps = keyTip },
 	{ name = "30d-tutorial-last-week", moment = "TutorialLast", screen = "Campaign" },
 	{ name = "30e-tutorial-election", moment = "TutorialElection", screen = "Election" },
 	{ name = "30f-tutorial-results", moment = "TutorialOver", screen = "Results" },

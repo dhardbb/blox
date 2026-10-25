@@ -123,6 +123,7 @@ local SHADOW_DY = 5 -- px the contact shadow drops below the circle
 local SHADOW_FADE = 0.25 -- the contact shadow's transparency (the glow image fades fast)
 local SELECT_GLOW = 2.6 -- the selected state's accent glow, share of the circle's diameter
 local SELECT_GLOW_FADE = 0.15 -- its transparency at its brightest
+local KEY_GLOW_FADE = 0.55 -- a key state's softer glow (D-088)
 local SELECT_GLOW_DIM = 0.45 -- ... and at the low point of its breath
 local SELECT_BREATH = 0.9 -- s, one breath of the selected glow (decorative)
 local TAG_RADIUS = 6 -- px, a tag's and a lens plate's corners
@@ -627,6 +628,10 @@ function NodeMap.circles(): MapInterface.Map
 		elseif mark and mark.ring then
 			node.ring.Color = mark.ring
 			node.ring.Thickness = OWNER_RING_PX
+		elseif mark and mark.key then
+			-- A key state (D-088): an accent ring; its glow is below.
+			node.ring.Color = Kit.colors.accent
+			node.ring.Thickness = OWNER_RING_PX
 		else
 			node.ring.Color = Kit.color(Colors.undecided)
 			node.ring.Thickness = RING_PX
@@ -662,10 +667,15 @@ function NodeMap.circles(): MapInterface.Map
 		-- An accent ring (the screen's own highlight: the next call on election
 		-- night, a draft pick) blooms in the accent too, as the selection does.
 		local lit = halo == nil and mark ~= nil and mark.ring == Kit.colors.accent and not isSelected
-		node.bloom.Visible = halo ~= nil or lit
+		local key = halo == nil and not lit and mark ~= nil and mark.key == true
+		node.hit:SetAttribute("Key", mark ~= nil and mark.key == true) -- for the specs (D-088)
+		node.bloom.Visible = halo ~= nil or lit or key
 		if lit then
 			node.bloom.ImageColor3 = Kit.colors.accent
 			node.bloom.ImageTransparency = SELECT_GLOW_FADE
+		elseif key then
+			node.bloom.ImageColor3 = Kit.colors.accent
+			node.bloom.ImageTransparency = KEY_GLOW_FADE
 		end
 		if halo then
 			local size = math.min(1, k * HALO_SCALE)

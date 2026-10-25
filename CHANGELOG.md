@@ -13,6 +13,15 @@ Studio checklist: `docs/TESTING.md`, "Bot levels shifted down (D-087)". Nothing 
 - **A line under the level chips** says what the picked level is like ("Learning the ropes: it often misreads the map."). On a phone shorter than 852 px the small "A 1v1 election strategy game" line above the logo gives way to it, so the leaderboard's top 3 still fits.
 - **The Daily Race bot is unchanged**: it still plays the old Hard bot (its timers stay ×1), so today's and earlier boards compare fairly; Today's board now says "over the bot" instead of "over the Hard bot". Choice timers still follow the level you pick: Easy ×2, Medium ×1.5, Hard and Extreme ×1.
 - Nothing saved is kept by level: the practice record is one tally for all levels and the leaderboard counts only matches against people, so nothing needs resetting. New `Config` keys `BOT_ROOKIE_*`, `BOT_CASUAL_*`, `BOT_HAZY_*` (noise, once a match, slip each) and `DAILY_BOT_STYLE`; `DAILY_BOT_LEVEL` is now "Extreme" (same timers); `BOT_EASY_*`, `BOT_HARD_*` and `BOT_EXTREME_*` are renamed.
+### Key states: the map shows where 270 is decided (D-088)
+
+Studio checklist: `docs/TESTING.md`, "Key states (D-088)". Nothing needed from the humans. No rule changed (balance harness identical).
+
+- **While you plan, the 3 states that decide 270 glow on the map** with a dashed white outline (a home or stronghold keeps its color between the dashes). The rule: line the states up by your poll lead, find the one that carries the leader past 269, and take it and the biggest states polling within 10 points of it. It uses only the public polls, so your opponent sees the same states. New `Config` keys `KEY_STATES` 3 and `KEY_STATE_BAND` 10 (read by no rule).
+- **A "Key states" line** at the top of the side column names them ("TX 40 · FL 30 · NY 28"); tap one to open its card. On a phone it is right under the map and steps aside while a card is open.
+- **One coach tip** after the map tip: "Key states decide 270. Aim your plan there." (tutorial: "Glowing states decide 270. Put your rallies and ads there."). The map legend says "key state", the Map key and Help → Your turn explain it, and All the numbers gives the exact rule.
+- **In every mode**, rated included: it is public information. The bots never use it.
+- **Measured:** a scripted new player who aims its rallies, ads and ground game at the key states beats Easy 41% of the time instead of 8% (Medium: 14% instead of 3%), 1,000 matches each (`lune run tests/harness/novice.luau keys`).
 
 ### Why did my score move? (playtest M4)
 

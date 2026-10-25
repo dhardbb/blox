@@ -1110,6 +1110,7 @@ function Explain.help(config: Config, view: View?): { Section }
 			Explain.leadWinChance(c, 3)
 		)}, 5 points {pct(Explain.leadWinChance(c, 5))} (without ground game).`,
 		`Most electoral votes wins ({c.EV_TO_WIN} of 538 is a sure win). Ties go to states won, then the popular vote, then a coin.`,
+		`Key states (they glow while you plan): line the states up by your public-poll lead; the tipping state is the one that carries the leader past {c.EV_TO_WIN - 1}. The key states are it and the biggest states polling within {c.KEY_STATE_BAND} points of it, {c.KEY_STATES} at most. Your opponent sees the same ones.`,
 	})
 	return sections
 end

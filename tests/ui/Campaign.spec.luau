@@ -325,11 +325,12 @@ describe("Campaign screen", function()
 	end
 
 	-- The Plan fixture (week 3) with `cash` and, optionally, another week; the map
-	-- tip already seen, as it is by week 3.
+	-- and key-state tips already seen, as they are by week 3.
 	local function idlePlan(cash: number, week: number?): (FakeRoblox.World, FakeRoblox.Peer)
 		local world, peer = fixture("Plan")
 		local CoachTip = FakeRoblox.require(world, peer, "src/client/UI/CoachTip.luau")
 		CoachTip.markSeen("campaign.map")
+		CoachTip.markSeen("campaign.keys")
 		CoachTip.markSeen("campaign.lens")
 		local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
 		payload.view.players[payload.view.you].cash = cash

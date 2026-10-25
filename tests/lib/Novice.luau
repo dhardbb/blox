@@ -21,6 +21,7 @@
 local Bot = require("@sim/Bot")
 local Candidates = require("@sim/Candidates")
 local ConfigModule = require("@sim/Config")
+local KeyStates = require("@ui/KeyStates")
 local Debate = require("@sim/Debate")
 local Draft = require("@sim/Draft")
 local Events = require("@sim/Events")
@@ -64,6 +65,10 @@ export type Params = {
 	safeRead: number, -- chance of taking a "cannot lose" move when the board has one
 	debateRead: number, -- otherwise: chance of the move whose cells add up best, else random
 	zingerOnSafe: boolean, -- stake the Zinger on a safe winning chance or the last round (else any round)
+	-- The key-states aid (D-088, UI/KeyStates): how far targeting follows the map's
+	-- key states (0 or nil = ignores them, 1 = only them). A player who follows it
+	-- also stays put only in a key state.
+	keyFollow: number?,
 	-- Study instrument: phases handed to the standard bot instead ("Plan", "Draft",
 	-- "Decision", "Debate"), to measure what each part of a novice's play costs.
 	delegate: { [string]: boolean }?,
@@ -156,8 +161,24 @@ local ATTENTIVE: Params = {
 	zingerOnSafe = true,
 }
 
-Novice.VARIANTS =
-	table.freeze({ Weak = WEAK, Typical = TYPICAL, Attentive = ATTENTIVE } :: { [string]: Params })
+-- The typical novice who uses the key-states aid (D-088): its rallies, ads and
+-- ground game go to the map's key states; everything else is Typical's. KeyHalf
+-- weighs the key states as much as its usual feel.
+local function withKeys(name: string, follow: number): Params
+	local params = table.clone(TYPICAL)
+	params.name = name
+	params.keyFollow = follow
+	return params
+end
+
+Novice.VARIANTS = table.freeze({
+	Weak = WEAK,
+	Typical = TYPICAL,
+	Attentive = ATTENTIVE,
+	KeyStates = withKeys("KeyStates", 1),
+	KeyHalf = withKeys("KeyHalf", 0.5),
+} :: { [string]: Params })
+-- The study's three benchmark players (the key-states variants have their own harness mode).
 Novice.NAMES = table.freeze({ "Weak", "Typical", "Attentive" })
 
 local ISSUES: { Types.Issue } = Issues.list :: any
@@ -233,14 +254,24 @@ local function issueFor(config: Config, view: View, rng: Rng.Rng, params: Params
 	return best
 end
 
--- How much a state appeals this week, by feel.
-local function appeal(view: View, rng: Rng.Rng, params: Params, liked: { [number]: boolean }): { number }
+-- How much a state appeals this week, by feel (and, with keyFollow, by the map's key states).
+local function appeal(
+	view: View,
+	rng: Rng.Rng,
+	params: Params,
+	liked: { [number]: boolean },
+	keys: { [string]: boolean }
+): { number }
 	local out = table.create(#StateData.list, 0)
+	local follow = params.keyFollow or 0
 	for i, record in StateData.list do
 		local m = math.abs(margin(view, i))
 		local close = if m <= params.inPlay then 1 elseif m <= 2 * params.inPlay then 0.4 else 0.1
 		local like = if liked[i] then 1 else 0.15
 		local mix = (1 - params.pollWeight) * like + params.pollWeight * close
+		if follow > 0 then
+			mix = (1 - follow) * mix + follow * (if keys[record.id] then 1 else 0.02)
+		end
 		out[i] = record.ev ^ params.evPower * mix * math.exp(Rng.gaussian(rng, 0, params.noise))
 	end
 	return out
@@ -408,7 +439,8 @@ local function plan(config: Config, view: View, rng: Rng.Rng, params: Params): a
 	local cash = player.cash or 0
 	local location = player.location
 	local liked = likedSet(view, params)
-	local scores = appeal(view, rng, params, liked)
+	local keys = if (params.keyFollow or 0) > 0 then KeyStates.set(config, view) else {}
+	local scores = appeal(view, rng, params, liked, keys)
 	local order = ranked(scores)
 	local actions: { any } = {}
 
@@ -443,7 +475,11 @@ local function plan(config: Config, view: View, rng: Rng.Rng, params: Params): a
 
 	local first = order[1]
 	local here = indexOf(location)
-	if here ~= nil and Rng.nextFloat(rng) < params.sticky then
+	local stay = params.sticky
+	if here ~= nil and (params.keyFollow or 0) > 0 and not keys[StateData.list[here].id] then
+		stay *= 1 - (params.keyFollow or 0) -- following the key states: move on from a state that is not one
+	end
+	if here ~= nil and Rng.nextFloat(rng) < stay then
 		first = here
 	end
 	local second = order[2]
