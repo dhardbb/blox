@@ -1164,6 +1164,18 @@ Agents: `lune run tests Matchmaking` (pure rules, e2e on the fake engine with tw
 4. **Admin timers and the Daily Race.** As an admin with **Timers off** on, start the Daily Race. **Expect:** normal timers; the "?" sheet's admin line says "Not in the Daily Race: every run has the same clock." Then two admins with Timers off on different servers, both **Find match** (published game): in the match server the header reads "No timer (admin)" and both are told the match is unrated.
 5. *Send back:* OK or what happened for each, and any Output errors from `Lobby`, `DailyRace`, `Results`, `MatchService` or `CrossServer`.
 
+## Key states (unreleased, D-088)
+
+Agents: `lune run tests "Key states"` and `lune run tests KeyStates`, `lune run tests/ui/snap.luau -- key --size phone` (and `ipad`, `desktop`; shots `09k`, `09l`, `30h`; also `09`, `13`, `30a`; 0 audit findings), `lune run tests/harness/novice.luau keys`.
+
+1. **The glow.** Start a Practice match (any level) and look at week 1's plan screen. **Expect:** 3 states (sometimes fewer) glow softly and wear a dashed white outline; a home state or stronghold among them shows its owner's color between the white dashes. Nothing else on the map moved: every state's "XX 19" label is where it was, the ★ battlegrounds, the candidate faces, the Close chip and the lenses work as before. Switch lenses: the glow stays in Votes, Issues, Polls and Money. A Northeast state in the chip rows (NJ, MA…) glows as a white halo around its chip instead.
+2. **The line.** **Expect** above the plan (iPad and Mac: top of the right column, level with the lens buttons; phone: right under the map) a small dashed box, "Key states" and one button per glowing state, biggest first, e.g. "TX 40 · FL 30 · NY 28". Tap one: that state's card opens and its button is outlined. On a phone the line hides while the card is open and comes back when you close it (×).
+3. **The tip.** With tips on (a new account, or after Settings resets them): after the first tip ("… votes if today's polls held. Tap any state.") is gone, the next plan screen with nothing selected shows "Key states decide 270. Aim your plan there." In the tutorial: "Glowing states decide 270. Put your rallies and ads there." It shows once.
+4. **It follows the polls.** Lock in a few weeks. **Expect:** the key states change as the polls move (they are the states nearest the one that would carry the leader past 269). Ask your partner (same match, other device) which states glow for them: **the same ones.**
+5. **Only while planning.** During the week's results, a stance, a debate and election night: no glow, no line.
+6. **The words.** Tap **Key** (the map key): a line "Glow and dashed outline: a key state, where 270 is decided this week." The legend under the map starts "key state". **?** → Your turn ends "Glowing key states decide 270: aim there."; All the numbers (How to win) → Election night has the full rule with "within 10 points" and "3 at most".
+7. *Send back:* OK or what happened for each, a phone and an iPad screenshot of a plan screen with the glow, and whether the glow and dashes were easy to see on the iPad (and on the phone's small states).
+
 ## Playtest fixes (unreleased)
 
 ### Why did my score move? (M4)

@@ -4,6 +4,16 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### Key states: the map shows where 270 is decided (D-088)
+
+Studio checklist: `docs/TESTING.md`, "Key states (D-088)". Nothing needed from the humans. No rule changed (balance harness identical).
+
+- **While you plan, the 3 states that decide 270 glow on the map** with a dashed white outline (a home or stronghold keeps its color between the dashes). The rule: line the states up by your poll lead, find the one that carries the leader past 269, and take it and the biggest states polling within 10 points of it. It uses only the public polls, so your opponent sees the same states. New `Config` keys `KEY_STATES` 3 and `KEY_STATE_BAND` 10 (read by no rule).
+- **A "Key states" line** at the top of the side column names them ("TX 40 · FL 30 · NY 28"); tap one to open its card. On a phone it is right under the map and steps aside while a card is open.
+- **One coach tip** after the map tip: "Key states decide 270. Aim your plan there." (tutorial: "Glowing states decide 270. Put your rallies and ads there."). The map legend says "key state", the Map key and Help → Your turn explain it, and All the numbers gives the exact rule.
+- **In every mode**, rated included: it is public information. The bots never use it.
+- **Measured:** a scripted new player who aims its rallies, ads and ground game at the key states beats Easy 41% of the time instead of 8% (Medium: 14% instead of 3%), 1,000 matches each (`lune run tests/harness/novice.luau keys`).
+
 ### Why did my score move? (playtest M4)
 
 Studio checklist: `docs/TESTING.md`, "Why did my score move? (M4)". Nothing needed from the humans. No Config or rule changes.
