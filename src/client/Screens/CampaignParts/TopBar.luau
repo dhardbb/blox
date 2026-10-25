@@ -6,7 +6,7 @@
 --
 --   wide      Week 3 of 12      310 Dana Okafor     Rex Calloway 189      ?  0:48
 --                               ━━━━━━━━━━━━━━|━━━━━━━━━━━━━━━━━━━━
---             ▌Pick an action in Ohio                           2 actions left · $4.0
+--             ▌Pick an action in Ohio        if the polls were right       2 actions left · $4.0
 --   phone     Week 3   310        189     ?  0:48   (the numbers in each side's color)
 --                      ━━━━━|━━━━━━━
 --             ▌Tap a state on the map         3 actions left · $4.0
@@ -15,7 +15,9 @@
 --
 -- The score is each side's projected votes (Fredoka, in the readable player
 -- colors) over the race bar (Kit.raceBar, 10 px) with its tick at the votes
--- to win (270 of 538). The time bar under the first row shows the
+-- to win (270 of 538). On wide screens a muted caption under the race bar,
+-- centered on the now line, says what the score is ("if the polls were right",
+-- M4; the now text ends before it). The time bar under the first row shows the
 -- step's time left. The disconnect notice adds a 24 px row under the now line.
 -- The step's name ("Plan your week", "Results", "Debate", "Locked in",
 -- "Take a stance") is kept on the hidden StageLabel: the now line says
@@ -32,7 +34,7 @@
 --   top.root   Frame "TopBar"
 --   Elements: WeekLabel, StageLabel (hidden), Countdown, HelpButton, NowText,
 --   Score (YouSide: YouVotes, YouLabel; ThemSide: ThemLabel, ThemVotes; EvBar
---   with YouBar, ThemBar, Mid), APLabel,
+--   with YouBar, ThemBar, Mid), ScoreCaption, APLabel,
 --   MoneyLabel, OpponentNotice.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -58,6 +60,7 @@ local SCORE_START = 0.24 -- share of the row where the score strip starts (wide)
 local PORTRAIT_SCORE_START = 0.25 -- ... on a phone, after the short "Week 3"
 local BUDGET_SHARE = 0.44 -- share of the now line the actions and money take
 local DELTA_RISE = 12 -- px, a delta chip rises this far
+local CAPTION_W = 180 -- px, the score's caption under the race bar (wide screens)
 local DELTA_SECONDS = 0.6 -- s, ... while it fades
 local DELTA_H = Kit.size.caption + 4 -- px, a delta chip's height
 
@@ -230,6 +233,17 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			Parent = budget,
 		})
 	end
+	-- What the score is, under the race bar (wide screens; placed by layout).
+	local scoreCaption = Kit.caption(Words.SCORE_CAPTION, {
+		Name = "ScoreCaption",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(CAPTION_W, Kit.size.caption + 4),
+		AutomaticSize = Enum.AutomaticSize.None,
+		TextWrapped = false,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		Parent = nowLine,
+	})
 	local apLabel = budgetLabel("APLabel", 1)
 	local moneyLabel = budgetLabel("MoneyLabel", 2)
 
@@ -294,6 +308,15 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		them.Visible = not portrait
 		youFace.Visible = not portrait
 		themFace.Visible = not portrait
+		-- The caption sits under the strip's middle (the 270 tick); the now
+		-- text ends before it. A phone has no room for it.
+		local captioned = scoreShown and not portrait
+		scoreCaption.Visible = captioned
+		local middle = UDim.new(start + (1 - start) / 2, -(rightW + Kit.space.lg) // 2)
+		scoreCaption.Position = UDim2.new(middle, UDim.new(0.5, 0))
+		nowText.Size = if captioned
+			then UDim2.new(middle.Scale, middle.Offset - CAPTION_W // 2 - Kit.space.md - Kit.space.sm, 1, 0)
+			else UDim2.new(1 - BUDGET_SHARE, -Kit.space.md, 1, 0)
 		root.Size = UDim2.new(1, 0, 0, height())
 	end
 

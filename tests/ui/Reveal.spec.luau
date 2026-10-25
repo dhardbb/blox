@@ -190,3 +190,103 @@ describe("Reveal: a running tally (D-066)", function()
 		Rig.noErrors(world)
 	end)
 end)
+
+describe("Reveal: why did my score move? (M4)", function()
+	local CampaignWords = require("@ui/Words/Campaign")
+
+	-- The first number of a "Projection: 310 → 324 (...)" line, and the last one shown.
+	local function ends(line: string): (number?, number?)
+		local from, to = string.match(line, "^Projection: (%d+) → (%d+) ")
+		if from then
+			return tonumber(from), tonumber(to)
+		end
+		local same = string.match(line, "^Projection: (%d+) %(no change%)$")
+		return tonumber(same), tonumber(same)
+	end
+
+	it("tallies the week's projected votes only once the new polls are in, matching the header", function()
+		local world, peer, before = resolveRig({ reducedMotion = true })
+		local view = Rig.payloadOf(world, peer).view
+		FakeRoblox.run(world, 1)
+		check(not shown(peer, "RevealTally"), "the tally shows before the new polls")
+		FakeRoblox.run(world, 7)
+		check(shown(peer, "RevealTally"), "no tally once the new polls are in")
+		local line = Rig.textOf(peer, "Campaign", "RevealTally")
+		local changes = Words.pollChanges(before, view)
+		check(#changes.flips > 0, "the fixture's week flips no state")
+		expect(line):toBe(Words.projectionLine(before.projectedEV[view.you], view.projectedEV[view.you]))
+		local from, to = ends(line)
+		expect(from):toBe(before.projectedEV[view.you])
+		expect(to):toBe(tonumber(Rig.textOf(peer, "Campaign", "YouVotes")))
+		Rig.noErrors(world)
+	end)
+
+	it("says how the close states moved when no state changed leader", function()
+		local world, peer, before = resolveRig({ reducedMotion = true })
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		local view = payload.view
+		local them = 3 - view.you
+		-- The week's new polls: the old ones, with every margin you hold cut by a
+		-- point (never through zero), so no leader changes.
+		local lost = 0
+		for i, s in view.states do
+			local old = before.states[i]
+			if s.poll and old.poll then
+				s.poll = Rig.deepCopy(old.poll)
+				local margin = s.poll.support[view.you] - s.poll.support[them]
+				if margin > 2 then
+					s.poll.support[view.you] -= 1
+					if margin <= 8 + 1 then
+						lost += 1
+					end
+				end
+			end
+		end
+		view.projectedEV = Rig.deepCopy(before.projectedEV)
+		check(lost > 0, "the fixture has no close state you lead")
+		Rig.push(world, peer, payload)
+		FakeRoblox.run(world, 9)
+		expect(Rig.textOf(peer, "Campaign", "RevealTitle")):toBe("No state changed leader")
+		local line = Rig.textOf(peer, "Campaign", "RevealTally")
+		expect(line):toBe(Words.groundLine(before, view, 8))
+		check(Rig.contains(line, "You lost ground in "), `not a loss: {line}`)
+		expect(tonumber(Rig.textOf(peer, "Campaign", "YouVotes"))):toBe(before.projectedEV[view.you])
+		Rig.noErrors(world)
+	end)
+
+	it("names the score in the first plan's tip, with its numbers", function()
+		local world, peer = Rig.fixture("Plan")
+		local view = Rig.payloadOf(world, peer).view
+		local tip = Rig.need(peer, "Campaign", "CoachTip")
+		expect(tip:GetAttribute("TipId")):toBe("campaign.map")
+		local text = tostring(tip.Row.TipText.Text)
+		expect(text):toBe(CampaignWords.mapTip(view.projectedEV[view.you], view.projectedEV[3 - view.you]))
+		expect(text):toBe(
+			`{view.projectedEV[view.you]} vs {view.projectedEV[3 - view.you]}: votes if today's polls held. Tap any state.`
+		)
+		local n = 0
+		for _ in string.gmatch(text, "%S+") do
+			n += 1
+		end
+		check(n <= 12, `the tip has {n} words`)
+		expect(Rig.textOf(peer, "Campaign", "YouVotes")):toBe(tostring(view.projectedEV[view.you]))
+		Rig.noErrors(world)
+	end)
+
+	it("captions the race bar on wide screens only", function()
+		for _, size in
+			{
+				{ x = 1024, y = 768, wide = true },
+				{ x = 1280, y = 720, wide = true },
+				{ x = 390, y = 844, wide = false },
+			}
+		do
+			local world, peer = Rig.fixture("Plan", { x = size.x, y = size.y })
+			local caption = Rig.need(peer, "Campaign", "ScoreCaption")
+			expect(tostring(caption.Text)):toBe(CampaignWords.SCORE_CAPTION)
+			expect(shown(peer, "ScoreCaption")):toBe(size.wide)
+			expect(#Rig.audit(peer, "Campaign")):toBe(0)
+			Rig.noErrors(world)
+		end
+	end)
+end)

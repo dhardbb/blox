@@ -1163,3 +1163,15 @@ Agents: `lune run tests Matchmaking` (pure rules, e2e on the fake engine with tw
 3. **Rematch after a Daily Race.** Play today's race to the end (or after today's run already counts). **Expect:** Results' bar reads "Rematch plays today's race as practice."; **Rematch** starts the same race again on the same server, with "Practice run: today's Daily Race already counts."
 4. **Admin timers and the Daily Race.** As an admin with **Timers off** on, start the Daily Race. **Expect:** normal timers; the "?" sheet's admin line says "Not in the Daily Race: every run has the same clock." Then two admins with Timers off on different servers, both **Find match** (published game): in the match server the header reads "No timer (admin)" and both are told the match is unrated.
 5. *Send back:* OK or what happened for each, and any Output errors from `Lobby`, `DailyRace`, `Results`, `MatchService` or `CrossServer`.
+
+## Playtest fixes (unreleased)
+
+### Why did my score move? (M4)
+
+Agents: `lune run tests M4`, `lune run tests/ui/snap.luau -- resolve --size phone` (and `ipad`, `desktop`; also `09` and `tutorial`; 0 audit findings).
+
+1. **The first plan's tip.** Start a Practice match with tips on (a new account, or after Settings resets them). **Expect:** on the first plan the tip reads "<your number> vs <rival's number>: votes if today's polls held. Tap any state.", with the same two numbers as the header (the tutorial too).
+2. **The caption under the race bar.** On the iPad (landscape) or a Mac window, look at the header. **Expect:** a small grey "if the polls were right" under the middle of the race bar, never over the "Tap a state on the map" line or the actions and money. On a phone (or Studio's iPhone 14 emulator) it is not there.
+3. **The week's tally.** Play a week and watch the results. **Expect:** while the moves land, no "Projection" line; when "New polls are in" lands, under the "You flipped …" title: "Projection: A → B (+N for you)" (or "−N", or "(no change)"), where A is the score the header showed when the results started and B the header's score now.
+4. **A quiet week.** Play a week where nobody flips a state (one rally in a safe state each, or skip). **Expect:** the title says "No state changed leader" and the line under it "You lost ground in N close states" or "You gained ground in N close states" (or both), or the Projection line with "(no change)" when nothing close moved.
+5. *Send back:* OK or what happened for each, an iPad screenshot of the header and of the results card with the Projection line, and one of a quiet week's results on the phone.

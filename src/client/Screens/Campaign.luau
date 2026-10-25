@@ -459,8 +459,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			tip, tipId = nil, nil
 		end
 		if want and tip == nil then
+			-- The first tip names the header's score, with its numbers (M4).
+			local ev = p.view.projectedEV
+			local rival = Model.opponentOf(p.view)
 			tip = CoachTip.show(side, {
 				id = want,
+				text = if want == "campaign.map"
+					then Words.mapTip(ev[p.view.you] or 0, ev[rival] or 0)
+					else nil,
 				order = if want == "campaign.actions" then ORDER.tipAfter else ORDER.tip,
 			})
 			tipId = if tip then want else nil

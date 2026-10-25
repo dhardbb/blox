@@ -171,6 +171,67 @@ describe("Words: what changed", function()
 		expect(Words.flipHeadline(view, { flip(0) }, "Rex")):toBe("1 state slipped to a tie")
 	end)
 
+	it("tallies the week's projected votes for gains, losses and no change (M4)", function()
+		expect(Words.projectionLine(310, 324)):toBe("Projection: 310 → 324 (+14 for you)")
+		expect(Words.projectionLine(310, 274)):toBe("Projection: 310 → 274 (−36 for you)")
+		expect(Words.projectionLine(310, 310)):toBe("Projection: 310 (no change)")
+		-- Rounded the way the header shows its score.
+		expect(Words.projectionLine(309.6, 324.4)):toBe("Projection: 310 → 324 (+14 for you)")
+	end)
+
+	it("says how the close states moved when no leader changed (M4)", function()
+		local new = Fixtures.payload(C, "Resolve").view
+		local them = if new.you == 1 then 2 else 1
+		-- Every poll a dead heat at 40-40 on both weeks, then three states move.
+		local function even(view: any)
+			for _, s in view.states do
+				if s.poll then
+					s.poll.support[new.you] = 40
+					s.poll.support[them] = 38
+				end
+			end
+		end
+		local old = deepCopy(new)
+		local now = deepCopy(new)
+		even(old)
+		even(now)
+		expect(Words.groundLine(old, now, 8)):toBe(nil)
+		local ids = { "OH", "PA", "TX" }
+		for _, id in ids do
+			check(now.states[SimState.indexOf[id]].poll ~= nil, `no {id} poll in the fixture`)
+		end
+		local function set(id: string, mine: number, theirs: number)
+			local poll = now.states[SimState.indexOf[id]].poll
+			poll.support[new.you] = mine
+			poll.support[them] = theirs
+		end
+		-- Lost ground in three close states (still ahead in each: no flip).
+		set("OH", 39, 38)
+		set("PA", 40, 39)
+		set("TX", 39.5, 38.5)
+		check(#Words.pollChanges(old, now).flips == 0, "a leader changed")
+		expect(Words.groundLine(old, now, 8)):toBe("You lost ground in 3 close states")
+		-- Gained in one.
+		set("OH", 41, 38)
+		set("PA", 40, 38)
+		set("TX", 40, 38)
+		expect(Words.groundLine(old, now, 8)):toBe("You gained ground in 1 close state")
+		-- Both ways.
+		set("PA", 39, 38)
+		set("TX", 39, 38)
+		expect(Words.groundLine(old, now, 8)):toBe("You gained ground in 1 close state, lost ground in 2")
+		-- Far from close (a 30-point lead both weeks): not counted.
+		local far = old.states[SimState.indexOf.OH].poll
+		far.support[new.you] = 60
+		far.support[them] = 30
+		set("OH", 62, 30)
+		expect(Words.groundLine(old, now, 8)):toBe("You lost ground in 2 close states")
+		-- Under 0.05 points is no move (as pollChanges).
+		set("PA", 40, 38.04)
+		set("TX", 40, 38)
+		expect(Words.groundLine(old, now, 8)):toBe(nil)
+	end)
+
 	it("badges the flips and only the few biggest other moves", function()
 		local net: { [string]: number } = {}
 		for k, id in { "OH", "PA", "TX", "CA", "NY", "FL", "WA", "IL" } do
