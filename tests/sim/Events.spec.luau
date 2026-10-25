@@ -739,6 +739,44 @@ describe("Events: Choice stances (D-039)", function()
 		expect(recount.ev[1] + recount.ev[2]):toBe(0) -- every state was 35/35 before
 	end)
 
+	it("the same side for both mostly cancels on the margin; opposite sides both land (M2 copy)", function()
+		local match = clean("plant")
+		local bases = { Events.baseOf(match.players[1]), Events.baseOf(match.players[2]) }
+		local function marginShift(after: State.MatchState): ({ [string]: number }, number)
+			local shifts: { [string]: number } = {}
+			local total = 0
+			for i, s in after.states do
+				local before = match.states[i]
+				local shift = (s.support[1] - s.support[2]) - (before.support[1] - before.support[2])
+				shifts[s.id] = shift
+				total += math.abs(shift)
+			end
+			return shifts, total
+		end
+		local same, sameTotal = marginShift(resolve(match, {
+			{ actions = {}, choice = "A" },
+			{ actions = {}, choice = "A" },
+		}))
+		local _, aloneTotal = marginShift(resolve(match, {
+			{ actions = {}, choice = "A" },
+			{ actions = {}, choice = "C" },
+		}))
+		local _, oppositeTotal = marginShift(resolve(match, {
+			{ actions = {}, choice = "A" },
+			{ actions = {}, choice = "B" },
+		}))
+		-- Outside both bases the two gains are equal and cancel exactly.
+		for id, shift in same do
+			if not table.find(bases[1], id) and not table.find(bases[2], id) then
+				expect(shift):toBeCloseTo(0, 1e-6)
+			end
+		end
+		-- Only the bases (x STANCE_BASE_MULT for their owner) are left.
+		expect(aloneTotal > 0):toBe(true)
+		expect(sameTotal < aloneTotal / 2):toBe(true)
+		expect(oppositeTotal > aloneTotal):toBe(true)
+	end)
+
 	it(
 		"the same event moves the same states the same way in every match (given platform and base)",
 		function()

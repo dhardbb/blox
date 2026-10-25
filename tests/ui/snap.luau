@@ -87,6 +87,26 @@ local function withEvent(id: string, upcoming: boolean?): (World, Peer) -> ()
 	end
 end
 
+-- Steps that move the Plan fixture to `week` (S3: the closing weeks), with deck
+-- event `id` in it, or none.
+local function atWeek(week: number, id: string?): (World, Peer) -> ()
+	return function(world: World, peer: Peer)
+		if id then
+			withEvent(id)(world, peer)
+		end
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		payload.view.week = week
+		if payload.view.event then
+			payload.view.event.week = week
+		end
+		if id == nil then
+			payload.view.event = nil
+		end
+		payload.view.nextEvent = nil
+		Rig.push(world, peer, payload)
+	end
+end
+
 -- The Polls lens with ground game (D-070): your units in PA, WI and GA, and
 -- what your polls saw of theirs in PA and AZ.
 local function pollsGround(world: World, peer: Peer)
@@ -733,12 +753,40 @@ local SHOTS: { Shot } = {
 		screen = "Campaign",
 		steps = withEvent("bridges", true),
 	},
+	-- S3: the closing weeks on the strip: the week before, a closing week with
+	-- an event, one without, and the details sheet.
+	{ name = "09f-event-closing-next", moment = "Plan", screen = "Campaign", steps = atWeek(9, "bridges") },
+	{ name = "09g-event-closing", moment = "Plan", screen = "Campaign", steps = atWeek(10, "bridges") },
+	{ name = "09h-event-closing-alone", moment = "Plan", screen = "Campaign", steps = atWeek(12) },
+	{
+		name = "09i-event-closing-sheet",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			atWeek(10, "bridges")(world, peer)
+			tapIf(world, peer, "Campaign", "EventCard")
+		end,
+	},
 	{
 		name = "09e-event-sheet",
 		moment = "Plan",
 		screen = "Campaign",
 		steps = function(world, peer)
 			tapIf(world, peer, "Campaign", "EventCard")
+		end,
+	},
+	{
+		-- M5: the News card with both underdog lines (fixture only: both at once).
+		name = "10h-campaign-news-underdog",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			for _, player in payload.view.players do
+				player.underdogTier = 1
+			end
+			Rig.push(world, peer, payload)
+			tapIf(world, peer, "Campaign", "WeekToggle")
 		end,
 	},
 	{
@@ -1118,6 +1166,17 @@ local SHOTS: { Shot } = {
 		screen = "Results",
 		steps = function(world, peer)
 			tapIf(world, peer, "Results", "FullBreakdown")
+		end,
+	},
+	{
+		-- S3: Your turn's numbers end with the closing weeks.
+		name = "24d-help-turn-numbers",
+		moment = "Plan",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+			tapIf(world, peer, "HelpOverlay", "HelpTab_turn")
+			tapIf(world, peer, "HelpOverlay", "HelpMoreButton_turn")
 		end,
 	},
 	{

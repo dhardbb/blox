@@ -711,6 +711,12 @@ function Swing.choiceLines(_config: Config, view: View, entry: SimState.EventRes
 		table.insert(out, `On the polls you both saw, the stances flipped: {table.concat(phrases, ", ")}.`)
 	else
 		table.insert(out, "On the polls you both saw, the stances flipped no state.")
+		-- The same side for both (not the hedge, which moves nobody): the two
+		-- gains mostly cancelled on the margin (M2).
+		local stance = if definition and mine then Events.stance(definition, mine) else nil
+		if mine ~= nil and mine == theirs and stance ~= nil and not stance.hedge then
+			table.insert(out, "Same side, so most of it cancelled.")
+		end
 	end
 	return out
 end

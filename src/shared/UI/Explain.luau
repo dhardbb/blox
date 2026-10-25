@@ -642,14 +642,20 @@ function Explain.underdogText(config: Config, view: View, p: number): string?
 	local who = if p == view.you then "You are" else "They are"
 	local parts: { string } = {}
 	if player.underdogTier > 0 then
+		-- The tier follows a smoothed gap, so it can outlast a lead (D-020): say
+		-- that, not the entry threshold (M5).
 		local rallyMult, fundMult = underdog(config, view, p)
-		local gap = if player.underdogTier >= 2 then config.UNDERDOG_EV_2 else config.UNDERDOG_EV_1
-		table.insert(
-			parts,
-			`{who} underdog tier {player.underdogTier}: rallies {times(rallyMult)}, fundraisers {times(
-				fundMult
-			)} (about {gap}+ projected EV behind)`
-		)
+		local boost = `rallies {times(rallyMult)}, fundraisers {times(fundMult)}`
+		if p == view.you then
+			table.insert(
+				parts,
+				`You are underdog tier {player.underdogTier}: {boost} (you were behind in the polls lately; it fades once you stay ahead)`
+			)
+		else
+			-- Their first name (a custom name whole), as the Campaign screen says it.
+			local name = player.customName or string.match(profile.name, "^(%S+)") or profile.name
+			table.insert(parts, `{name} has the underdog boost: {boost}`)
+		end
 	end
 	if player.frontrunner and profile.frontrunnerEV ~= nil then
 		table.insert(
@@ -1024,6 +1030,9 @@ function Explain.help(config: Config, view: View?): { Section }
 		)}, fundraisers {times(c.UNDERDOG_FUND_1)}. Tier 2 at {c.UNDERDOG_EV_2}+: rallies {times(
 			c.UNDERDOG_RALLY_2
 		)}, fundraisers {times(c.UNDERDOG_FUND_2)}. You drop a tier only once the gap is {c.UNDERDOG_HYSTERESIS} EV under its line.`,
+		`Closing weeks: from week {c.CLOSING_FROM_WEEK} to election night, rallies and ads (attack ads too) count +{pct(
+			c.CLOSING_MULT - 1
+		)} ({times(c.CLOSING_MULT)}), for both of you. The event strip says so from the week before.`,
 	})
 
 	section("ground", "Ground game", {

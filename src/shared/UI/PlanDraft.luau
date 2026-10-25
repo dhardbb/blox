@@ -410,6 +410,14 @@ function PlanDraft.choiceNote(config: Config): string
 	)} in your home and strongholds with the issue. Running on the issue: ×{config.STANCE_PLATFORM_MULT} in its states. Stances stay secret until the week resolves; no stance in time is C.`
 end
 
+-- The rival's stance, under the stance chips on the Decision screen (M2): both
+-- sides gain the same points in a state's same reactions, and Support.addGain
+-- takes most of a gain from the other side, so matching stances mostly cancel
+-- on the margin (your home and strongholds still count double for you).
+function PlanDraft.rivalChoiceNote(rival: string): string
+	return `{rival} picks too, in secret. Same side: it mostly cancels. Opposite sides: both land.`
+end
+
 PlanDraft.points = points
 
 -- Last week's resolved event for the week card, or nil. A Choice week's stances
