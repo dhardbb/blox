@@ -200,6 +200,9 @@ local Config = {
 	-- The Daily Race (D-082): one seeded race a UTC day, the same for everyone.
 	DAILY_BOT_LEVEL = "Hard", -- the bot's level in every Daily Race, so its timers are Hard's x1
 	DAILY_FORFEIT_MARGIN = -538, -- the score of a counted run left or abandoned after week 1 began: every vote lost
+	-- The idle-money coach tip (D-086): a UI threshold, not a rule; nothing in Sim reads it.
+	IDLE_CASH_TIP = 20, -- money at or above which a plan that spends none gets the one-time "ads and ground game cost money, not actions" tip
+	IDLE_CASH_TIP_WEEK = 3, -- the first week that tip may show (weeks 1-2 have their own tips)
 
 	-- The tutorial (D-075, D-080): a player's first bot match, or a replay from How
 	-- to play. The same rules on a short schedule: Config.tutorial(config) puts

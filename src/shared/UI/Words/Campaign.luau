@@ -9,8 +9,10 @@
 --   Words.planNow(input) -> string            the plan screen's now line
 --   Words.budget(actionsLeft, cash) -> string "2 actions left · $4.0"
 --   Words.effect(config, view, draft, id, name, issue?, opponent) -> string
---   Words.cost(extra, flight, poll?) -> string?   "$3.0", "Flight $2.0", "free"
+--   Words.cost(extra, flight, poll?, noAction?) -> string?   "$3.0", "Flight $2.0", "free", "$3.0 · no action"
+--   Words.NO_ACTION[name] -> true         the buttons that cost money but no action (D-086)
 --   Words.reason(code) -> string              a greyed-out button's reason
+--   Words.swapTitle(config) -> string         the issue-swap chooser's title (the plan's Pivot)
 --   Words.planLine(actions) -> string         "Rally OH · Ad PA · Poll TX"
 --   Words.stanceEffect(preview) -> string     "+4 states · −2 states"
 --   Words.stanceParts(preview) -> (string?, string?)   "+4 states", "−2 states"
@@ -37,6 +39,13 @@ type View = ViewModule.View
 
 local Words = {}
 
+local MINUS = "−" -- the minus sign (Kit.glyph.minus), for a cost written as a loss
+
+-- A Config number as written in a sentence: "1", "1.5".
+local function whole(value: number): string
+	return if value == math.floor(value) then string.format("%d", value) else Numbers.points(value)
+end
+
 -- The action buttons on the state card, in order, and what each one's Plan kind is.
 Words.ACTIONS = table.freeze({
 	{ name = "Rally", label = "Rally", kind = "Rally" },
@@ -46,8 +55,13 @@ Words.ACTIONS = table.freeze({
 	{ name = "Poll", label = "Poll", kind = "Poll" },
 	{ name = "Gotv", label = "Ground game", kind = "Gotv" },
 	{ name = "RegionPoll", label = "Region poll", kind = "RegionPoll" },
-	{ name = "PivotButton", label = "Pivot", kind = "Pivot" },
+	-- The plan's Pivot is "Swap issue" on screen (the debate has its own Pivot move).
+	{ name = "PivotButton", label = "Swap issue", kind = "Pivot" },
 } :: { { name: string, label: string, kind: string } })
+
+-- The buttons whose cost line adds "no action" (D-086): they cost money and no
+-- action point (Plan.cost; tests/ui/CampaignWords.spec checks it).
+Words.NO_ACTION = table.freeze({ Ad = true, Attack = true, Gotv = true } :: { [string]: boolean })
 
 -- Why a button is greyed out, in at most three words (Plan.Reason codes).
 local REASONS: { [string]: string } = {
@@ -139,7 +153,7 @@ function Words.effect(
 	elseif kind == "Gotv" then
 		return `+{Numbers.points(config.GOTV_PER_UNIT)} on election day`
 	elseif kind == "Pivot" then
-		return "Swap an issue"
+		return `{MINUS}{whole(config.PIVOT_PENALTY)} support everywhere`
 	end
 	local preview = Explain.action(config, view, draft, id, kind, issue)
 	if kind == "Fundraise" then
@@ -151,17 +165,33 @@ function Words.effect(
 	return `{Numbers.signed(preview.you or 0)} support`
 end
 
+-- The issue-swap chooser's title (the plan's Pivot, said "Swap issue" on screen),
+-- from Config: "Swap an issue (once per match, −1 support everywhere)" and, on a
+-- second line, what it takes and the first step.
+function Words.swapTitle(config: Config): string
+	local ap = config.PIVOT_AP
+	return `Swap an issue (once per match, {MINUS}{whole(config.PIVOT_PENALTY)} support everywhere)\nUses {ap} {if ap
+			== 1
+		then "action"
+		else "actions"}. Drop which issue?`
+end
+
 -- What an action adds to the bill: "$3.0", "Flight $2.0" (a flight to get there),
--- or "free" for a free poll; nil when it costs nothing extra.
-function Words.cost(extra: number, flight: boolean, poll: boolean?): string?
+-- or "free" for a free poll; nil when it costs nothing extra. `noAction` (an ad
+-- or ground game, Words.NO_ACTION) adds that it takes no action: "$3.0 · no action".
+function Words.cost(extra: number, flight: boolean, poll: boolean?, noAction: boolean?): string?
+	local text: string? = nil
 	if flight then
-		return `Flight {Numbers.cost(extra)}`
+		text = `Flight {Numbers.cost(extra)}`
 	elseif extra > 1e-9 then
-		return Numbers.cost(extra)
+		text = Numbers.cost(extra)
 	elseif poll then
-		return "free"
+		text = "free"
 	end
-	return nil
+	if noAction then
+		return if text then `{text} · no action` else "no action"
+	end
+	return text
 end
 
 -- ---------------------------------------------------------------- the plan
@@ -182,7 +212,7 @@ function Words.actionShort(action: Plan.Action): string
 		local region = action.region
 		return `Poll {if region then (Issues.regionName :: any)[region] or region else "?"}`
 	elseif kind == "Pivot" then
-		return "Pivot"
+		return "Swap issue"
 	end
 	local text = `{SHORT[kind] or kind} {action.state or "?"}`
 	if kind == "Gotv" and (action.units or 1) > 1 then

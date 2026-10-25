@@ -229,7 +229,8 @@ function Part.mult(value: number): string
 end
 
 -- One plan action as a plan-list line, with the player-facing action names
--- (D-030): Rally, Fundraise, Ad, Attack ad, Poll, Region poll, Ground game, Pivot.
+-- (D-030): Rally, Fundraise, Ad, Attack ad, Poll, Region poll, Ground game, Swap
+-- issue (the plan's Pivot; the debate move keeps that name).
 function Part.actionText(config: Config, action: Plan.Action, flight: boolean): string
 	local kind = action.kind
 	local where = Part.stateName(action.state)
@@ -249,7 +250,7 @@ function Part.actionText(config: Config, action: Plan.Action, flight: boolean): 
 	elseif kind == "Gotv" then
 		text = `Ground game +{action.units or 1} · {where}`
 	elseif kind == "Pivot" then
-		text = `Pivot: drop {Part.issueName(action.drop)}, add {Part.issueName(action.add)}`
+		text = `Swap issue · {Part.issueName(action.drop)} for {Part.issueName(action.add)}`
 	end
 	if flight then
 		text ..= ` ✈ {Part.money(config.FLIGHT_COST)}`

@@ -14,6 +14,7 @@
 --   CoachTip.setEnabled(enabled)       -- off: show() returns nil (tests, replays)
 --   CoachTip.setTutorial(on)           -- the short tutorial's copy (D-080; the Router sets it)
 --   CoachTip.has(id) -> boolean        -- a tip with this id exists in the current copy
+--   CoachTip.fill(id, money) -> string? -- its copy with "$X" filled in (campaign.cash)
 --   CoachTip.useStore(store)           -- persist "seen" elsewhere (e.g. the
 --                                         saved profile, a later package)
 --
@@ -54,6 +55,9 @@ CoachTip.TIPS = table.freeze({
 	["campaign.map"] = "Tap any state to see who's ahead there.",
 	["campaign.actions"] = "Pick your actions, then Lock in. Your plan stays secret.",
 	["campaign.lens"] = "These buttons switch the map: votes, issues, polls, money.",
+	-- From IDLE_CASH_TIP_WEEK, when cash ≥ IDLE_CASH_TIP and the plan spends none
+	-- (D-086, PlanDraft.idleCash); "$X" becomes the cash (CoachTip.fill).
+	["campaign.cash"] = "You have $X spare. Ads and ground game cost money, not actions.",
 	["reveal.week"] = "Both plans are out! Marked states moved the most.",
 	["election.night"] = "States are called one by one. First to 270 wins!",
 } :: { [string]: string })
@@ -134,6 +138,17 @@ end
 -- The short tutorial is on screen (D-080): its copy, and its own tips, apply.
 function CoachTip.setTutorial(value: boolean)
 	tutorial = value
+end
+
+-- Tip `id`'s copy with "$X" replaced by `money` (already formatted, e.g. "$24.0").
+function CoachTip.fill(id: string, money: string): string?
+	local text = textOf(id)
+	if text == nil then
+		return nil
+	end
+	return (string.gsub(text, "%$X", function()
+		return money
+	end))
 end
 
 -- Is there a tip `id` to show in the current copy (tips on, the text exists)?

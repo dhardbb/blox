@@ -117,6 +117,7 @@ local RANK: { [string]: number } = {
 type Entry = {
 	key: string,
 	kind: string,
+	player: number?,
 	state: string?,
 	issue: string?,
 	count: number,
@@ -137,6 +138,13 @@ local function entryText(view: View, entry: Entry, eventName: string?): string
 	elseif kind == "Fundraise" then
 		return `Fundraiser in {where}{times}`
 	elseif kind == "Pivot" then
+		-- The plan's Pivot, "Swap issue" on screen; the public week card has the drop.
+		local player = if entry.player then view.players[entry.player] else nil
+		local card = if player then player.card else nil
+		local swap = if card then card.pivot else nil
+		if swap and swap.add == entry.issue then
+			return `Swapped {issueName(swap.drop)} for {issueName(swap.add)}`
+		end
 		return `Swapped in a new issue: {issueName(entry.issue)}`
 	elseif kind == "Backlash" then
 		return `Backlash in {where}: too many attacks`
@@ -202,6 +210,7 @@ function Words.group(view: View, events: { SimState.Event }, upto: number?): Gro
 			entry = {
 				key = key,
 				kind = event.kind,
+				player = player,
 				state = event.state,
 				issue = event.issue,
 				count = 0,
@@ -686,7 +695,7 @@ function Words.help(config: Config): { Tab }
 			id = "actions",
 			label = "Actions",
 			title = "Actions",
-			text = "Rallies and ads count extra on your 3 issues, in states that care about them. Money pays for ads, polls and ground game, so fundraise when you run low.",
+			text = "Rallies and ads count extra on your 3 issues, in states that care about them. Money pays for ads, polls and ground game, so fundraise when you run low. None of those use an action.",
 			sections = { "actions" },
 		},
 		{

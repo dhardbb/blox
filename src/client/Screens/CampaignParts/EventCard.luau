@@ -651,7 +651,7 @@ local function opponentCard(config: ConfigModule.Config, view: View): string
 		table.insert(parts, "attack ads in " .. table.concat(attacks, ", "))
 	end
 	if card.pivot then
-		table.insert(parts, `pivoted from {issueName(card.pivot.drop)} to {issueName(card.pivot.add)}`)
+		table.insert(parts, `swapped {issueName(card.pivot.drop)} for {issueName(card.pivot.add)}`)
 	end
 	if card.flights > 0 then
 		table.insert(parts, Model.plural(card.flights, "flight"))

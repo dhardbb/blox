@@ -161,3 +161,47 @@ describe("PlanDraft.moneyText (playtest 1, bug 2)", function()
 		check(string.find(text, "2 ground game", 1, true) ~= nil, text)
 	end)
 end)
+
+describe("PlanDraft.idleCash (D-086)", function()
+	local function planView(cash: number, week: number?): any
+		local view = Fixtures.payload(C, "Plan").view
+		view.players[view.you].cash = cash
+		view.week = week or C.IDLE_CASH_TIP_WEEK
+		return view
+	end
+
+	it("gives the spare cash from the tip's week when the plan spends none", function()
+		local view = planView(C.IDLE_CASH_TIP)
+		expect(PlanDraft.idleCash(C, view, PlanDraft.new())):toBe(C.IDLE_CASH_TIP)
+		-- A rally or fundraiser next door costs an action, not money: still idle.
+		local me = view.players[view.you]
+		local draft = PlanDraft.new()
+		PlanDraft.add(draft, { kind = "Rally", state = me.location, issue = "Jobs" })
+		PlanDraft.add(draft, { kind = "Fundraise", state = me.location })
+		expect(PlanDraft.cost(C, view, draft).cash):toBe(0)
+		expect(PlanDraft.idleCash(C, view, draft)):toBe(C.IDLE_CASH_TIP)
+		expect(PlanDraft.idleCash(C, planView(C.IDLE_CASH_TIP + 15.5, C.WEEKS), PlanDraft.new())):toBe(
+			C.IDLE_CASH_TIP + 15.5
+		)
+	end)
+
+	it("says nothing below the threshold, before the tip's week, or once money is spent", function()
+		expect(PlanDraft.idleCash(C, planView(C.IDLE_CASH_TIP - 0.1), PlanDraft.new())):toBe(nil)
+		expect(PlanDraft.idleCash(C, planView(100, C.IDLE_CASH_TIP_WEEK - 1), PlanDraft.new())):toBe(nil)
+		local view = planView(100)
+		local me = view.players[view.you]
+		for _, action: any in
+			{
+				{ kind = "Media", state = me.location, issue = "Jobs" },
+				{ kind = "Attack", state = me.location, issue = "Jobs" },
+				{ kind = "Gotv", state = me.location, units = 1 },
+				{ kind = "RegionPoll", region = "Pacific" },
+				{ kind = "Rally", state = farFrom(me.location), issue = "Jobs" }, -- a flight
+			}
+		do
+			local draft = PlanDraft.new()
+			PlanDraft.add(draft, action)
+			expect(PlanDraft.idleCash(C, view, draft)):toBe(nil)
+		end
+	end)
+end)

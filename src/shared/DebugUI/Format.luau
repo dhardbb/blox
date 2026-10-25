@@ -178,7 +178,7 @@ function Format.eventLine(event: State.Event, you: number): string?
 	elseif kind == "Backlash" then
 		return `backlash for {who} in {where}`
 	elseif kind == "Pivot" then
-		return `{who} pivoted the platform to {issue}`
+		return `{who} swapped an issue: {issue} is on the platform now`
 	elseif kind == "Flights" then
 		return `{who} took {plural(amount, "flight")}`
 	elseif kind == "Raised" then

@@ -100,6 +100,67 @@ describe("Words.Campaign", function()
 		expect(Words.cost(0, false)):toBe(nil)
 		expect(Words.reason("NotEnoughMoney")):toBe("Not enough money")
 		expect(Words.reason("Something new")):toBe("Not now")
+		-- Ads and ground game say they take no action (D-086).
+		expect(Words.cost(3, false, false, true)):toBe("$3.0 · no action")
+		expect(Words.cost(2.5, false, false, true)):toBe("$2.5 · no action")
+		expect(Words.cost(0, false, false, true)):toBe("no action")
+	end)
+
+	it("marks exactly the buttons that cost money and no action point (D-086)", function()
+		local view = Fixtures.payload(C, "Plan").view
+		local me = view.players[view.you]
+		local profile = PlanDraft.profile(C, view)
+		local sample: { [string]: any } = {
+			Rally = { kind = "Rally", state = me.location, issue = "Jobs" },
+			Fundraise = { kind = "Fundraise", state = me.location },
+			Media = { kind = "Media", state = me.location, issue = "Jobs" },
+			Attack = { kind = "Attack", state = me.location, issue = "Jobs" },
+			Gotv = { kind = "Gotv", state = me.location, units = 1 },
+			Pivot = { kind = "Pivot", drop = "Jobs", add = "Farms" },
+		}
+		for _, entry in Words.ACTIONS do
+			local action = sample[entry.kind]
+			if action then
+				local cost = PlanDraft.cost(C, view, { actions = { action } })
+				local free = cost.ap == 0 and cost.cash > 0
+				expect(Words.NO_ACTION[entry.name] == true):toBe(free)
+			end
+		end
+		check(Words.NO_ACTION.Ad and Words.NO_ACTION.Gotv, "Ad and Ground game are not marked")
+		-- The tile reads the candidate's price, so it matches the bill.
+		expect(Words.cost(profile.mediaCost, false, false, Words.NO_ACTION.Ad)):toBe(
+			`{Numbers.cost(profile.mediaCost)} · no action`
+		)
+		expect(Words.cost(profile.gotvCost, false, false, Words.NO_ACTION.Gotv)):toBe(
+			`{Numbers.cost(profile.gotvCost)} · no action`
+		)
+	end)
+
+	it("calls the plan's Pivot \"Swap issue\", with Config's numbers (S2)", function()
+		local label: string? = nil
+		for _, entry in Words.ACTIONS do
+			if entry.kind == "Pivot" then
+				label = entry.label
+			end
+		end
+		expect(label):toBe("Swap issue")
+		expect(Words.actionShort({ kind = "Pivot", drop = "Jobs", add = "Farms" } :: any)):toBe("Swap issue")
+		local title = Words.swapTitle(C)
+		check(
+			string.find(
+				title,
+				`Swap an issue (once per match, −{C.PIVOT_PENALTY} support everywhere)`,
+				1,
+				true
+			) == 1,
+			title
+		)
+		check(string.find(title, `Uses {C.PIVOT_AP} action`, 1, true) ~= nil, title)
+		check(string.find(title, "Pivot", 1, true) == nil, title)
+		local view = Fixtures.payload(C, "Plan").view
+		expect(Words.effect(C, view, PlanDraft.new(), "OH", "PivotButton", nil, "Rex")):toBe(
+			`−{C.PIVOT_PENALTY} support everywhere`
+		)
 	end)
 
 	it("writes the plan on one line", function()

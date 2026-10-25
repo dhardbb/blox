@@ -31,6 +31,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
 local Issues = require(Shared.Sim.Issues)
+local Numbers = require(Shared.UI.Numbers)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local PlanPreview = require(Shared.UI.PlanPreview)
@@ -429,17 +430,24 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local tipId: string? = nil
 	local function renderTip(p: Payload)
 		local want: string? = nil
+		local spare: number? = nil
 		if Model.planning(p) and Model.editable(model, p) then
 			-- The map first; once there is a plan, how to finish it; the lenses
 			-- from week 2, when nothing is picked. Never over the state's actions.
 			-- The tutorial's last week leads with ground game (D-080; the tip
-			-- exists only in the tutorial's copy, CoachTip.has).
+			-- exists only in the tutorial's copy, CoachTip.has). Idle money
+			-- (D-086) gets its tip whatever is picked, under the state card.
 			local last = p.view.week >= config.WEEKS
+			spare = PlanDraft.idleCash(config, p.view, model.draft)
 			local order: { string } = if #model.draft.actions > 0
 				then { "campaign.actions" }
 				elseif model.selected then {}
 				elseif last then { "campaign.ground", "campaign.map", "campaign.lens" }
 				else { "campaign.map", "campaign.lens" }
+			if spare ~= nil then
+				-- After the map tip, before the lenses; first once the plan has an action.
+				table.insert(order, table.find(order, "campaign.lens") or 1, "campaign.cash")
+			end
 			for _, id in order do
 				if
 					CoachTip.has(id)
@@ -456,12 +464,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			if current.root.Parent ~= nil then
 				current.root:Destroy()
 			end
+			-- The idle-money tip is shown once: gone (money spent, locked in) is seen.
+			if tipId == "campaign.cash" then
+				CoachTip.markSeen("campaign.cash")
+			end
 			tip, tipId = nil, nil
 		end
 		if want and tip == nil then
 			tip = CoachTip.show(side, {
 				id = want,
-				order = if want == "campaign.actions" then ORDER.tipAfter else ORDER.tip,
+				text = if want == "campaign.cash" and spare ~= nil
+					then CoachTip.fill(want, Numbers.money(spare))
+					else nil,
+				order = if want == "campaign.actions" or want == "campaign.cash"
+					then ORDER.tipAfter
+					else ORDER.tip,
 			})
 			tipId = if tip then want else nil
 		end

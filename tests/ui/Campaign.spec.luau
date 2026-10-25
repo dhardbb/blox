@@ -15,6 +15,7 @@ local Events = require("@sim/Events")
 local Explain = require("@ui/Explain")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
+local Numbers = require("@ui/Numbers")
 local Plan = require("@sim/Plan")
 local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
@@ -283,7 +284,7 @@ describe("Campaign screen", function()
 		noErrors(world2)
 	end)
 
-	it("pivots in two choices behind the Pivot button", function()
+	it("swaps an issue in two choices behind the Swap issue button (S2)", function()
 		local world, peer = fixture("Plan")
 		local view = Fixtures.payload(C, "Plan").view
 		local platform = view.players[view.you].platform :: { string }
@@ -297,13 +298,89 @@ describe("Campaign screen", function()
 		end
 		press(world, peer, view.players[view.you].location :: string)
 		press(world, peer, "MoreActions")
-		check(shown(find(peer, "PivotButton")), "More actions does not show Pivot")
+		check(shown(find(peer, "PivotButton")), "More actions does not show Swap issue")
+		expect(text(peer, "PivotButtonLabel")):toBe("Swap issue")
 		press(world, peer, "PivotButton")
+		expect(text(peer, "PivotTitle")):toBe(Words.swapTitle(C))
 		press(world, peer, `PivotDrop{platform[1]}`)
 		press(world, peer, `PivotAdd{other}`)
-		check(string.find(text(peer, "PlanItem1"), "Pivot", 1, true) ~= nil, "no pivot in the tray")
-		check(find(peer, "PivotButton").Active == false, "Pivot is still offered with a pivot planned")
+		check(
+			string.find(text(peer, "PlanItem1"), "Swap issue", 1, true) ~= nil,
+			"no swap in the tray: " .. text(peer, "PlanItem1")
+		)
+		check(string.find(text(peer, "PlanItem1"), "Pivot", 1, true) == nil, text(peer, "PlanItem1"))
+		check(find(peer, "PivotButton").Active == false, "Swap issue is still offered with a swap planned")
 		check(shown(find(peer, "ActionGrid")), "the action grid did not come back after the pivot")
+		noErrors(world)
+	end)
+
+	-- The coach tip on screen in the side column, or nil.
+	local function tipShown(peer: FakeRoblox.Peer): string?
+		for _, inst in find(peer, "Campaign"):GetDescendants() do
+			if inst.Name == "CoachTip" and inst.Parent ~= nil then
+				return inst:GetAttribute("TipId")
+			end
+		end
+		return nil
+	end
+
+	-- The Plan fixture (week 3) with `cash` and, optionally, another week; the map
+	-- tip already seen, as it is by week 3.
+	local function idlePlan(cash: number, week: number?): (FakeRoblox.World, FakeRoblox.Peer)
+		local world, peer = fixture("Plan")
+		local CoachTip = FakeRoblox.require(world, peer, "src/client/UI/CoachTip.luau")
+		CoachTip.markSeen("campaign.map")
+		CoachTip.markSeen("campaign.lens")
+		local payload = Rig.deepCopy(Fixtures.payload(C, "Plan"))
+		payload.view.players[payload.view.you].cash = cash
+		if week then
+			payload.view.week = week
+		end
+		Rig.push(world, peer, payload)
+		FakeRoblox.run(world, 0.1)
+		return world, peer
+	end
+
+	it("tips idle money once: ads and ground game cost money, not actions (D-086)", function()
+		local cash = C.IDLE_CASH_TIP + 4.25
+		local world, peer = idlePlan(cash)
+		expect(tipShown(peer)):toBe("campaign.cash")
+		expect(text(peer, "TipText")):toBe(
+			`You have {Numbers.money(cash)} spare. Ads and ground game cost money, not actions.`
+		)
+		-- A rally spends no money: the tip stays (under the state card).
+		local view = Fixtures.payload(C, "Plan").view
+		press(world, peer, view.players[view.you].location :: string)
+		press(world, peer, "Rally")
+		expect(tipShown(peer)):toBe("campaign.cash")
+		-- An ad spends money: the tip goes, and does not come back.
+		press(world, peer, "Ad")
+		check(tipShown(peer) ~= "campaign.cash", "the idle-money tip stays with an ad planned")
+		press(world, peer, "RemoveItem2")
+		check(tipShown(peer) ~= "campaign.cash", "the idle-money tip came back")
+		noErrors(world)
+	end)
+
+	it("keeps the idle-money tip away below IDLE_CASH_TIP and before its week (D-086)", function()
+		local world, peer = idlePlan(C.IDLE_CASH_TIP - 0.5)
+		check(tipShown(peer) ~= "campaign.cash", "the tip shows below the threshold")
+		local world2, peer2 = idlePlan(C.IDLE_CASH_TIP + 30, C.IDLE_CASH_TIP_WEEK - 1)
+		check(tipShown(peer2) ~= "campaign.cash", "the tip shows before its week")
+		noErrors(world)
+		noErrors(world2)
+	end)
+
+	it("says Ad and Ground game cost no action on their buttons (D-086)", function()
+		local world, peer = fixture("Plan", { x = 1280, y = 720 })
+		local view = Fixtures.payload(C, "Plan").view
+		press(world, peer, view.players[view.you].location :: string)
+		local profile = PlanDraft.profile(C, view)
+		for name, price in { Ad = profile.mediaCost, Gotv = profile.gotvCost } do
+			check(shown(find(peer, `{name}Cost`)), `{name}: no cost line`)
+			expect(text(peer, `{name}Cost`)):toBe(`{Numbers.cost(price)} · no action`)
+			check(string.find(text(peer, `{name}Effect`), "$", 1, true) == nil, text(peer, `{name}Effect`))
+		end
+		check(string.find(text(peer, "RallyEffect"), "no action", 1, true) == nil, text(peer, "RallyEffect"))
 		noErrors(world)
 	end)
 
