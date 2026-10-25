@@ -802,7 +802,7 @@ local SHOTS: { Shot } = {
 	},
 	{
 		-- M5: the News card with both underdog lines (fixture only: both at once).
-		name = "10h-campaign-news-underdog",
+		name = "10j-campaign-news-underdog",
 		moment = "Plan",
 		screen = "Campaign",
 		steps = function(world, peer)

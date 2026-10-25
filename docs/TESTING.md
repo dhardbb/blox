@@ -1195,7 +1195,7 @@ Agents: `lune run tests Debate`, `lune run tests Session`, `lune run tests Swing
 6. *Send back:* a phone and an iPad screenshot of a debate round with Why? open, and OK or what happened for each step.
 ## New-player copy: stances, underdog, closing weeks (unreleased)
 
-Agents: `lune run tests Playtest` and `lune run tests Explain`, `lune run tests/ui/snap.luau -- 09 --size phone` (and `ipad`, `desktop`; shots 09f to 09i), `-- 07-decision`, `-- 10h`, `-- 24d` (0 audit findings).
+Agents: `lune run tests Playtest` and `lune run tests Explain`, `lune run tests/ui/snap.luau -- 09 --size phone` (and `ipad`, `desktop`; shots 09f to 09i), `-- 07-decision`, `-- 10j`, `-- 24d` (0 audit findings).
 
 1. **The rival's stance.** Play a match to a stance week (or the tutorial's week 2). **Expect:** under the A/B/C chips, above "Why?": "<Rival's first name> picks too, in secret. Same side: it mostly cancels. Opposite sides: both land." It fits on a phone in two lines. *Send back:* a phone screenshot.
 2. **Same side.** In a stance week, take the side the bot takes (try A on Easy). **Expect:** if no state flipped, the results' **Why?** ends with "Same side, so most of it cancelled." (also in News next week). Different sides, or both on the safe C: no such line.
