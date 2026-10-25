@@ -261,10 +261,14 @@ describe("Reveal: why did my score move? (M4)", function()
 		expect(tip:GetAttribute("TipId")):toBe("campaign.map")
 		local text = tostring(tip.Row.TipText.Text)
 		expect(text):toBe(CampaignWords.mapTip(view.projectedEV[view.you], view.projectedEV[3 - view.you]))
-		check(
-			Rig.contains(text, `{view.projectedEV[view.you]} vs {view.projectedEV[3 - view.you]}: votes if`),
-			text
+		expect(text):toBe(
+			`{view.projectedEV[view.you]} vs {view.projectedEV[3 - view.you]}: votes if today's polls held. Tap any state.`
 		)
+		local n = 0
+		for _ in string.gmatch(text, "%S+") do
+			n += 1
+		end
+		check(n <= 12, `the tip has {n} words`)
 		expect(Rig.textOf(peer, "Campaign", "YouVotes")):toBe(tostring(view.projectedEV[view.you]))
 		Rig.noErrors(world)
 	end)
