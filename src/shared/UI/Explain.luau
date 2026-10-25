@@ -490,8 +490,8 @@ local function pivot(config: Config, view: View): Preview
 	return {
 		kind = "Pivot",
 		text = if used
-			then "Pivot: already used this match"
-			else `Pivot: swap one platform issue for another; {config.PIVOT_AP} AP and -{points(
+			then "Swap issue: already used this match"
+			else `Swap issue: trade one platform issue for another; {config.PIVOT_AP} AP and -{points(
 				config.PIVOT_PENALTY
 			)} national support; once per match`,
 	}
@@ -991,7 +991,9 @@ function Explain.help(config: Config, view: View?): { Section }
 			then `, {me.freePolls} free a week`
 			else ""}) and Region poll ({Numbers.cost(c.REGION_POLL_COST)}, every state in the region): the only way to see their ground game before election night, plus your private read of true support. See Polls.`,
 		`Ground game ({Numbers.cost(me.gotvCost)} a unit, up to {me.gotvMaxUnits} per state): counts only on election night. See Ground game.`,
-		`Pivot ({c.PIVOT_AP} AP, once per match): swap one platform issue; costs {points(c.PIVOT_PENALTY)} national support.`,
+		`Swap issue ({c.PIVOT_AP} AP, once per match): trade one platform issue for another; costs {points(
+			c.PIVOT_PENALTY
+		)} national support.`,
 		`Multipliers stack: battlegrounds {times(c.BATTLEGROUND_MULT)} on every campaign effect; from week {c.CLOSING_FROM_WEEK} rallies and ads {times(
 			c.CLOSING_MULT
 		)}; gains shrink as your support nears {c.SUPPORT_CAP}% (never below {times(c.SATURATION_FLOOR)}).`,
@@ -1000,7 +1002,7 @@ function Explain.help(config: Config, view: View?): { Section }
 	})
 
 	section("flights", "Flights and routes", {
-		"Rallies and fundraisers move your candidate, in plan order. Ads, polls, ground game and pivots happen from anywhere.",
+		"Rallies and fundraisers move your candidate, in plan order. Ads, polls, ground game and issue swaps happen from anywhere.",
 		`Each stop must be where you are or share a land border with the previous stop. Otherwise it is a flight: {Numbers.cost(
 			c.FLIGHT_COST
 		)}, no extra AP. The map draws your route; ✈ marks flights.`,

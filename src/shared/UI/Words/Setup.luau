@@ -219,6 +219,13 @@ function Setup.roundKind(kind: string): string
 	return if kind == "Home" then "Home state" else "Battleground"
 end
 
+-- The caption under a battleground round's header (rounds 2-3): what a
+-- battleground does, for both players. Resolve multiplies rallies, ads and
+-- attack ads there by BATTLEGROUND_MULT (fundraisers and ground game are not).
+function Setup.battlegroundCaption(config: Config): string
+	return `Battleground: every rally and ad here counts ×{config.BATTLEGROUND_MULT}, for both of you. Pick where you can win.`
+end
+
 -- "Ties go to you" / "Ties go to Rex": who wins a state you both want.
 function Setup.priority(youHaveIt: boolean, opponent: string): string
 	return if youHaveIt then "Ties go to you" else `Ties go to {opponent}`

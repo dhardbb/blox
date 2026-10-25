@@ -84,6 +84,25 @@ describe("Words: the week's groups", function()
 		expect(#Words.group(view, events, 1).mine):toBe(1)
 	end)
 
+	it("says the plan's Pivot as an issue swap, naming both issues (S2)", function()
+		local view = deepCopy(Fixtures.payload(C, "Resolve").view)
+		local them = if view.you == 1 then 2 else 1
+		local card = view.players[them].card or {}
+		card.pivot = { drop = "Health", add = "Transit" }
+		view.players[them].card = card
+		local events: { SimState.Event } = {
+			{ kind = "Pivot", player = them, issue = "Transit" },
+			{ kind = "Pivot", player = view.you, issue = "Farms" },
+		}
+		local groups = Words.group(view, events)
+		expect(groups.theirs[1]):toBe("Swapped Health for Roads & Transit")
+		-- No week card to read the drop from: the added issue alone.
+		check(string.find(groups.mine[1], "Swapped in a new issue", 1, true) == 1, groups.mine[1])
+		for _, line in groups.theirs do
+			check(string.find(line, "ivot", 1, true) == nil, line)
+		end
+	end)
+
 	it("writes a Choice stance with the event's name", function()
 		local payload = Fixtures.payload(C, "ChoiceResolve")
 		local groups = Words.group(payload.view, payload.events)
@@ -311,6 +330,10 @@ describe("Words: Help", function()
 				ids[id] = true
 			end
 		end
+		-- The Actions tab says what money buys takes no action (D-086).
+		local actions = tabs[3]
+		expect(actions.id):toBe("actions")
+		check(string.find(actions.text, "None of those use an action.", 1, true) ~= nil, actions.text)
 		-- Every Explain.help section is behind some tab.
 		local Explain = require("@ui/Explain")
 		for _, section in Explain.help(C, nil) do

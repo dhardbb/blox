@@ -750,6 +750,33 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- More actions open, then the issue-swap chooser (S2: "Swap issue", not Pivot).
+		name = "10h-campaign-swap",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "OH")
+			tapIf(world, peer, "Campaign", "MoreActions")
+			tapIf(world, peer, "Campaign", "PivotButton")
+		end,
+	},
+	{
+		-- Idle money (D-086): $26 and nothing that spends it, the map tip seen;
+		-- then a state tapped (the tip under the card, "no action" on Ad).
+		name = "10i-campaign-idle-cash",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local CoachTip = FakeRoblox.require(world, peer, "src/client/UI/CoachTip.luau")
+			CoachTip.markSeen("campaign.map")
+			CoachTip.markSeen("campaign.lens")
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			payload.view.players[payload.view.you].cash = 26
+			Rig.push(world, peer, payload)
+			tapIf(world, peer, "Campaign", "OH")
+		end,
+	},
+	{
 		-- Every message chip with its issue's symbol (D-076), and the state's
 		-- top issues under Details.
 		name = "10g-campaign-messages",

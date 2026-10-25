@@ -35,7 +35,8 @@
 -- Element names (tests and agents use them): CardTitle, CloseCard, CardTags,
 -- CardLead (LeadYou, LeadThem, LeadBar, LeadNote), Actions, ActionGrid, Rally,
 -- Fundraise, Ad, Attack, Poll, Gotv, RegionPoll, PivotButton (each with
--- <name>Label and <name>Effect), MessageRow, MessageChips, Issue<issue>,
+-- <name>Label and <name>Effect; Ad, Attack and Gotv also <name>Cost), MessageRow,
+-- MessageChips, Issue<issue>,
 -- MessageMore, MoreIssues, MoreActions, DetailsToggle, ActionHint, PivotChooser,
 -- PivotDrop<issue>, PivotAdd<issue>, PivotCancel, CardDetails, CardPoll,
 -- CardLean, CardMomentum, CardMomentumNote, CardBacklash, CardGround,
@@ -73,7 +74,7 @@ local StateCard = {}
 local GAP = Kit.space.sm
 local MAX_PILLS = 3
 local COLUMNS = 3 -- action buttons, message chips and pivot choices per row
-local ACTION_H = 64 -- px, one action button: its name over what it does
+local ACTION_H = 72 -- px, one action button: its name over what it does, three lines (64 -> 72: ground game's two lines and its "$2.5 · no action", D-086)
 local MAIN_PHONE = 3 -- action buttons a phone shows before "More actions"
 local MAIN_WIDE = 6 -- ... a wide screen
 local LEAD_NAMES_H = 18 -- px, the names over the poll bar
@@ -183,7 +184,13 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 	local actionGrid, actionSize = grid(actionsBox, "ActionGrid", 1, ACTION_H)
 	local addAction: (name: string) -> ()
 	local pivotOpen: () -> ()
-	type ActionButton = { button: TextButton, label: TextLabel, effect: TextLabel, icon: GuiObject? }
+	type ActionButton = {
+		button: TextButton,
+		label: TextLabel,
+		effect: TextLabel,
+		cost: TextLabel?, -- Ad, Attack ad, Ground game: "$3.0 · no action" (D-086)
+		icon: GuiObject?,
+	}
 	local actionButtons: { [string]: ActionButton } = {}
 	for k, entry in Words.ACTIONS do
 		local button: TextButton
@@ -246,6 +253,23 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = button,
 		})
+		-- An ad's or ground game's price and "no action" (D-086), on one line that
+		-- shrinks rather than wraps, so the button keeps three lines.
+		local costLine: TextLabel? = nil
+		if Words.NO_ACTION[entry.name] then
+			costLine = Kit.caption("", {
+				Name = `{entry.name}Cost`,
+				LayoutOrder = 3,
+				Size = UDim2.new(1, 0, 0, Kit.size.caption + 2),
+				AutomaticSize = Enum.AutomaticSize.None,
+				TextColor3 = Kit.colors.text,
+				TextScaled = true,
+				TextWrapped = false,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Visible = false,
+				Parent = button,
+			})
+		end
 		-- Held (not yet released): the map shows what this action would do.
 		if entry.name ~= "PivotButton" then
 			button.InputBegan:Connect(function(input: InputObject)
@@ -264,7 +288,8 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			end)
 		end
 		Kit.outer(button).Parent = actionGrid
-		actionButtons[entry.name] = { button = button, label = label, effect = effect, icon = icon }
+		actionButtons[entry.name] =
+			{ button = button, label = label, effect = effect, cost = costLine, icon = icon }
 	end
 
 	-- The pivot chooser takes the buttons' place: drop an issue, then add one.
@@ -638,7 +663,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local choices: { Issue } = {}
 		local dropping = model.pivotStage == "drop"
 		if dropping then
-			pivotTitle.Text = "Pivot: drop which issue?"
+			pivotTitle.Text = Words.swapTitle(config)
 			for k = 1, #platform do
 				table.insert(choices, platform[k])
 			end
@@ -741,6 +766,10 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			local shown = k <= main or model.moreActions
 			parts.button.Visible = shown
 			local enabled = canEdit and problem == nil
+			local costLine = parts.cost
+			if costLine then
+				costLine.Visible = false
+			end
 			if problem then
 				parts.effect.Text = Words.reason(problem)
 				if hintText == nil and shown then
@@ -756,8 +785,14 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 				local moves = entry.name == "Rally" or entry.name == "Fundraise"
 				local flight = moves and not Plan.isAdjacent(from, id)
 				local effect = Words.effect(config, view, model.draft, id, entry.name, issue, opponent)
-				local cost = Words.cost(extra, flight, entry.name == "Poll")
-				parts.effect.Text = if cost then `{effect}\n{cost}` else effect
+				local cost = Words.cost(extra, flight, entry.name == "Poll", Words.NO_ACTION[entry.name])
+				if costLine and cost then
+					parts.effect.Text = effect
+					costLine.Text = cost
+					costLine.Visible = true
+				else
+					parts.effect.Text = if cost then `{effect}\n{cost}` else effect
+				end
 			end
 			Kit.setEnabled(parts.button, enabled)
 			parts.label.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
@@ -769,6 +804,9 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 				icon.TextColor3 = tint
 			end
 			parts.effect.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
+			if costLine then
+				costLine.TextColor3 = parts.effect.TextColor3
+			end
 		end
 		local hidden = #Words.ACTIONS - main
 		moreActions.Visible = hidden > 0

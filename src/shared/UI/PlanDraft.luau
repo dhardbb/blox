@@ -84,6 +84,21 @@ function PlanDraft.remaining(config: Config, view: View, draft: Draft): (number,
 	return profile.apPerWeek - cost.ap, (view.players[view.you].cash or 0) - cost.cash
 end
 
+-- The money sitting idle (D-086): the player's cash when it is IDLE_CASH_TIP or
+-- more, the week is IDLE_CASH_TIP_WEEK or later and the plan spends none of it
+-- (no ad, ground game, paid poll or flight); else nil. The plan screen's
+-- one-time "ads and ground game cost money, not actions" tip shows on it.
+function PlanDraft.idleCash(config: Config, view: View, draft: Draft): number?
+	local cash = view.players[view.you].cash or 0
+	if view.week < config.IDLE_CASH_TIP_WEEK or cash < config.IDLE_CASH_TIP then
+		return nil
+	end
+	if PlanDraft.cost(config, view, draft).cash > 1e-9 then
+		return nil
+	end
+	return cash
+end
+
 -- One money line of a plan: "1 flight" costing $2.
 export type CostItem = { label: string, count: number, amount: number }
 
@@ -313,7 +328,7 @@ local SHORT_PROBLEM: { [string]: string } = {
 	[Plan.Reason.NotEnoughMoney] = "Not enough money",
 	[Plan.Reason.GotvCap] = "Ground game over the limit",
 	[Plan.Reason.DuplicatePoll] = "One poll per state",
-	[Plan.Reason.PivotUsed] = "Pivot already used",
+	[Plan.Reason.PivotUsed] = "Issue swap already used",
 }
 
 function PlanDraft.shortProblem(reason: string?): string

@@ -14,7 +14,8 @@
 --              board under it, in Below), min(width / ASPECT, 34 % of the
 --              height) on a phone, with the panel right under it
 --   panel      map reveal: the strongholds card and who wins ties.
---              picking: a coach tip, the round's pill and who wins ties, the
+--              picking: a coach tip, the round's pill and who wins ties (in a
+--              battleground round, a caption on what one does), the
 --              1st / 2nd slots, the best picks (8 rows; "Show all states"),
 --              "How the draft works" (a sheet with the rules).
 --              reveal: both picks side by side and the clash note.
@@ -29,7 +30,7 @@
 -- and "whoosh" plays. Nothing waits on an animation.
 --
 -- Stable names for tests and agents: LockIn (the primary), Choice1, Choice2,
--- Clear1, Clear2, Row_<id>, the map nodes by id, Priority, RoundPill,
+-- Clear1, Clear2, Row_<id>, the map nodes by id, Priority, RoundPill, RoundCaption,
 -- StrongholdsCard (StrongholdsYou, StrongholdsThem), Explain (the header
 -- subtitle), NowText, Timer, StateList, ShowAll, HowButton, DraftSheet,
 -- HowItWorks, Board, Legend, LegendRow, BoardCard, RevealBox, YouPick, ThemPick,
@@ -77,13 +78,14 @@ local ORDER = {
 	tip = 1,
 	strongholds = 2, -- map reveal only
 	priority = 3,
-	slots = 4,
-	reveal = 5,
-	list = 6,
-	showAll = 7,
-	legend = 8, -- map reveal on a phone
-	how = 9,
-	boardCard = 10, -- portrait only, always last
+	caption = 4, -- a battleground round only: what a battleground does (S4)
+	slots = 5,
+	reveal = 6,
+	list = 7,
+	showAll = 8,
+	legend = 9, -- map reveal on a phone
+	how = 10,
+	boardCard = 11, -- portrait only, always last
 }
 
 type Mode = "Map" | "Input" | "Reveal"
@@ -202,6 +204,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		TextColor3 = Kit.colors.muted,
 		TextWrapped = false,
 		Parent = priorityRow,
+	})
+
+	-- Under the header of a battleground round: what nominating does, for both.
+	local roundCaption = Kit.text(Words.battlegroundCaption(config), {
+		Name = "RoundCaption",
+		LayoutOrder = ORDER.caption,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextSize = Kit.size.caption,
+		TextColor3 = Kit.colors.muted,
+		Visible = false,
+		Parent = scroll,
 	})
 
 	-- The ranked top 2: one row of two chips, each with a × once it is filled.
@@ -661,6 +675,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Kit.paintPill(roundPill, if kind ~= nil and kind ~= "Home" then "white" else "text")
 		roundPill.Visible = kind ~= nil
 		priorityRow.Visible = priorityLine ~= "" and mode ~= "Reveal"
+		roundCaption.Visible = mode == "Input" and kind ~= nil and kind ~= "Home"
 
 		strongholds.root.Visible = mode == "Map"
 		strongholds:update(config, view, colors)
