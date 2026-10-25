@@ -2,6 +2,16 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Why did my score move? (playtest M4)
+
+Studio checklist: `docs/TESTING.md`, "Why did my score move? (M4)". Nothing needed from the humans. No Config or rule changes.
+
+- **The week's results say what the week did to the score.** Under "You flipped 4 · Rex flipped 7" a new line reads "Projection: 310 → 324 (+14 for you)" ("(−36 for you)" for a loss, "Projection: 310 (no change)"). It appears with "New polls are in", when the header's score lands on the new polls, so the two always agree.
+- **A week with no leader change no longer looks empty.** Under "No state changed leader" the line says how the close states moved: "You lost ground in 3 close states" (or gained, or both). Close means within 8 points, the same as the map's Close filter; the line is left out when no close state moved.
+- **The score is named.** The first plan's coach tip reads "310 vs 189: votes if today's polls were right. Tap a state to see who's ahead." with the live numbers (the tutorial's starts "Week 1 of 4."). On iPad and desktop a muted "if the polls were right" sits under the race bar; phones skip it.
+
 ## 0.15.0: Daily Race, matchmaking across servers, short tutorial (Oct 24, 2026)
 
 A new Daily Race (one seeded race a day, the same candidate for everyone, a daily board and a streak), matchmaking across every server of the game (bigger servers, a bot game while you wait, the online count, Rematch on Results, invites that drop a friend straight into your match), a tutorial cut to 4 short weeks that ends with "You're ready!" and a real match, a Timers off switch for admins, a phone Lobby that fits on one screen, and the art and text for the experience page. Normal matches play exactly as in 0.14.0 (balance harness unchanged). Studio checklists: `docs/TESTING.md`, "0.15.0".
