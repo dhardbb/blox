@@ -83,6 +83,10 @@ export type MoveRow = {
 	effects: { [string]: number }, -- what a win gives you, per state (the map preview)
 	flips: { Flip }, -- leader changes a win would make on today's polls
 	winLine: string, -- "A win: +1.0 in OH, PA, MI +5 more; could flip PA (+19 EV)"
+	counteredBy: Types.DebateMove, -- the move that counters it
+	canBackfire: boolean, -- their counter beats it (that cell is below 0)
+	lossFlips: { Flip }, -- leader changes on today's polls if their counter beats it
+	lossLine: string, -- "Lose to their Pivot: -0.5 in WI, MI; could lose TN (-11 EV)"
 }
 
 -- This debate round for you (D-072): your three moves against your best rival's.
@@ -97,6 +101,7 @@ export type DebateBoard = {
 	zingers: number, -- yours left
 	theirZingers: number,
 	zingerMult: number,
+	theirZingerMult: number,
 	crowd: number, -- yours
 	theirCrowd: number,
 	ground: number, -- 1 = you lead the topic's states, -1 = you trail
@@ -307,6 +312,87 @@ local function winPreview(view: View, states: { string }, points: number): ({ [s
 	return effects, Swing.flips(Polls.projectFlips({ states = view.states } :: any, moves))
 end
 
+-- Losing to a counter (Debate.moves: the backfire, DEBATE_BACKFIRE, in your
+-- landing states; the rival's plain win, DEBATE_ROUND_WIN, in theirs) as the
+-- flips it would make on today's polls. Public arithmetic, no Zingers.
+local function lossPreview(
+	config: Config,
+	view: View,
+	rival: number,
+	mine: { string },
+	theirs: { string }
+): { Flip }
+	local rows: { [string]: { number } } = {}
+	local order: { string } = {}
+	local function add(id: string, p: number, points: number)
+		local row = rows[id]
+		if row == nil then
+			row = table.create(#view.players, 0)
+			rows[id] = row
+			table.insert(order, id)
+		end
+		row[p] += points
+	end
+	for _, id in mine do
+		add(id, view.you, -config.DEBATE_BACKFIRE)
+	end
+	for _, id in theirs do
+		add(id, rival, config.DEBATE_ROUND_WIN)
+	end
+	local moves: { SimState.StateMove } = {}
+	for _, id in order do
+		table.insert(moves, { state = id, points = rows[id] })
+	end
+	local flips = Swing.flips(Polls.projectFlips({ states = view.states } :: any, moves))
+	table.sort(flips, function(a: Flip, b: Flip): boolean
+		if a.ev ~= b.ev then
+			return a.ev > b.ev
+		end
+		return a.state < b.state
+	end)
+	return flips
+end
+
+-- "Lose to their Pivot: -0.5 in WI, MI; could lose TN (-11 EV)", or the line
+-- for a move their counter cannot beat.
+local function lossLine(
+	config: Config,
+	view: View,
+	counter: Types.DebateMove,
+	canBackfire: boolean,
+	states: { string },
+	flips: { Flip }
+): string
+	if not canBackfire then
+		return `Their {counter} can't beat it: no backfire.`
+	end
+	local you = view.you
+	local lost: { string } = {}
+	local tied: { string } = {}
+	local handed: { string } = {}
+	for _, flip in flips do
+		if flip.from == you and flip.to == 0 then
+			table.insert(tied, flip.state)
+		elseif flip.from == you then
+			table.insert(lost, `{flip.state} (-{flip.ev} EV)`)
+		elseif flip.from == 0 and flip.to ~= you then
+			table.insert(handed, flip.state)
+		end
+	end
+	local text: { string } = {}
+	if #lost > 0 then
+		table.insert(text, `lose {list(lost)}`)
+	end
+	if #tied > 0 then
+		table.insert(text, `tie {list(tied)}`)
+	end
+	if #handed > 0 then
+		table.insert(text, `hand {list(handed)} to them`)
+	end
+	return `Lose to their {counter}: {Numbers.signed(-config.DEBATE_BACKFIRE)} in {list(states)}`
+		.. (if #text > 0 then `; could {table.concat(text, ", ")}` else "")
+end
+
 function Swing.debateBoard(config: Config, view: View): DebateBoard?
 	local live = view.debate
 	if live == nil then
@@ -344,6 +430,19 @@ function Swing.debateBoard(config: Config, view: View): DebateBoard?
 				table.insert(flipText, `pull level in {flip.state}`)
 			end
 		end
+		-- Their counter to this move, and what losing to it does.
+		local counter: Types.DebateMove = move
+		for b = 1, #MOVE_ORDER do
+			local other: Types.DebateMove = MOVE_ORDER[b]
+			if Debate.BEATS[other] == move then
+				counter = other
+			end
+		end
+		local canBackfire = cells[table.find(MOVE_ORDER, counter) or 1] < 0
+		local theirLanding: Types.Issue = (Debate.landing(board, rival, counter) :: any) :: Types.Issue
+		local lossFlips = if canBackfire
+			then lossPreview(config, view, rival, states, Debate.topicStates(view.issueMap, theirLanding))
+			else {}
 		rows[k] = {
 			move = move,
 			strength = info.strength,
@@ -357,6 +456,10 @@ function Swing.debateBoard(config: Config, view: View): DebateBoard?
 			flips = flips,
 			winLine = `A win: {Numbers.signed(config.DEBATE_ROUND_WIN)} in {list(states)}`
 				.. (if #flipText > 0 then `; could {table.concat(flipText, ", ")}` else ""),
+			counteredBy = counter,
+			canBackfire = canBackfire,
+			lossFlips = lossFlips,
+			lossLine = lossLine(config, view, counter, canBackfire, states, lossFlips),
 		}
 	end
 	return {
@@ -370,6 +473,7 @@ function Swing.debateBoard(config: Config, view: View): DebateBoard?
 		zingers = mine.zingers,
 		theirZingers = theirs.zingers,
 		zingerMult = mine.zingerMult,
+		theirZingerMult = theirs.zingerMult,
 		crowd = live.crowd[me] or 0,
 		theirCrowd = live.crowd[rival] or 0,
 		ground = mine.ground,

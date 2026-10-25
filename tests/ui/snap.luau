@@ -690,6 +690,31 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Debate", "Zinger")
 		end,
 	},
+	{
+		-- M1: the Safe Defend with the Zinger staked: the bar says a split uses it up.
+		name = "08c-debate-safe-zinger",
+		moment = "DebateRound",
+		screen = "Debate",
+		steps = function(world, peer)
+			tapIf(world, peer, "Debate", "MoveDefend")
+			tapIf(world, peer, "Debate", "Zinger")
+		end,
+	},
+	{
+		-- S1: "Why?" open, the rival's Zinger still live: each move's loss line
+		-- and the rival's Zinger line.
+		name = "08d-debate-why",
+		moment = "DebateRound",
+		screen = "Debate",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			local rival = 3 - payload.view.you
+			payload.view.debate.board.players[rival].zingers = 1
+			payload.view.debate.zingers[rival] = 1
+			Rig.push(world, peer, payload)
+			tapIf(world, peer, "Debate", "WhyToggle")
+		end,
+	},
 	{ name = "09-campaign-plan", moment = "Plan", screen = "Campaign" },
 	-- D-075: the tutorial's plan (no timer, no "+15 s") and a plan against the
 	-- Easy bot (the plan timer doubled).

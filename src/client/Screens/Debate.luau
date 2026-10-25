@@ -5,7 +5,8 @@
 -- thing."
 --
 --   intro    the stage, the three topics (Show, TIMER_DEBATE_INTRO)
---   round    pick Defend, Attack or Pivot, maybe stake the Zinger (Input, 15 s)
+--   round    pick Defend, Attack or Pivot, maybe stake the Zinger (Input, 15 s;
+--            "+15 s" spends the plan's time bank on it, D-085)
 --   clash    both moves flip, the counter, the stamp, the map moves (Reveal)
 --   verdict  who won the crowd, a line per round (Reveal, skippable)
 --
@@ -22,12 +23,12 @@
 --   ROUND 1 OF 3 · JOBS "..."            [   map   ] | [Defend 6] [Attack 2] ...
 --   [Defend 6 · vs D +4 ...]             [   map   ] | (Stake Zinger) (Why? +)
 --   [Attack 2 ...] [Pivot → Safety 3]    ---------------------------------------
---   (Stake Zinger: a win counts ×2)      Rex: thinking…            [ Lock in ]
---   Rex: thinking…        [ Lock in ]
+--   (Stake Zinger: win ×2 · used either way)  Rex: thinking…   [+15 s][ Lock in ]
+--   Rex: thinking…  [+15 s][ Lock in ]
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:
--- { move = "Defend"|"Attack"|"Pivot", zinger = boolean }, or a skip on the
--- verdict. The server validates it (Sim/Debate); a timer that runs out sends
+-- { move = "Defend"|"Attack"|"Pivot", zinger = boolean }, a time-bank chunk
+-- (ctx.net.bank) in a round, or a skip on the verdict. The server validates it (Sim/Debate); a timer that runs out sends
 -- the picked move if there is one, else the server plays a canned answer.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,6 +37,7 @@ local Shared = ReplicatedStorage.Shared
 local Colors = require(Shared.UI.Colors)
 local SharedTypes = require(Shared.Types)
 local Swing = require(Shared.UI.Swing)
+local Words = require(Shared.UI.Words.Debate)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local Audio = require(script.Parent.Parent.UI.Audio)
@@ -178,8 +180,24 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local bar = ActionBar.new(sideColumn, {
 		primary = "Lock in",
 		onPrimary = function() end,
+		secondary = `+{config.TIME_BANK_CHUNK} s`,
+		onSecondary = function() end,
 		primaryName = "LockIn",
+		secondaryName = "BankButton",
 	})
+	-- The plan's time bank, spent on this round (D-085): the server checks it.
+	bar.secondary.Activated:Connect(function()
+		local p = model.payload
+		if
+			bar.secondary.Active == false
+			or p == nil
+			or not Model.debating(p)
+			or not Model.editable(model, p)
+		then
+			return
+		end
+		ctx.net.bank()
+	end)
 	bar.primary.Activated:Connect(function()
 		local p = model.payload
 		if bar.primary.Active == false or p == nil then
@@ -284,6 +302,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end
 
 	local opponentWas: string? = nil
+	-- A Safe move can still split, and a split uses up a staked Zinger: the
+	-- bar says so (set on each render, read on each tick).
+	local zingerWarning: string? = nil
+
+	local function warnZinger(p: Payload)
+		zingerWarning = nil
+		local board = if Model.debating(p) and pick.move ~= nil
+			then Swing.debateBoard(config, p.view)
+			else nil
+		if board then
+			for _, row in board.rows do
+				if row.move == pick.move then
+					zingerWarning = Words.safeZinger(board, row, pick.zinger)
+				end
+			end
+		end
+	end
 
 	local function renderBar(p: Payload)
 		local them = Model.opponentOf(p.view)
@@ -305,7 +340,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			opponentWas = state
 		end
-		bar:setSecondary(nil, false)
+		-- "+15 s" while this round is open, the bank holds a chunk and the
+		-- round has a deadline (none in the tutorial or with admin timers off).
+		local mine = p.seats[p.you]
+		local bank = if mine then mine.bank else 0
+		if
+			reveal == nil
+			and Model.debating(p)
+			and Model.editable(model, p)
+			and bank >= config.TIME_BANK_CHUNK
+			and p.deadline ~= nil
+		then
+			bar:setSecondary(`+{config.TIME_BANK_CHUNK} s`, true)
+		else
+			bar:setSecondary(nil, false)
+		end
 		if reveal == "Verdict" then
 			local skipped = model.skipStep == p.step or (p.seats[p.you] ~= nil and p.seats[p.you].skip)
 			bar:setPrimary(if skipped then "Waiting for opponent…" else "Skip", not skipped)
@@ -339,8 +388,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setStatus(turnedDown.text, "bad")
 		else
 			bar:setPrimary("Lock in", true)
-			local z = if pick.zinger then " + Zinger" else ""
-			bar:setStatus(`{pick.move}{z} · kept secret`, "muted")
+			local warning = zingerWarning
+			if warning then
+				bar:setStatus(warning, "warn")
+			else
+				local z = if pick.zinger then " + Zinger" else ""
+				bar:setStatus(`{pick.move}{z} · kept secret`, "muted")
+			end
 		end
 	end
 
@@ -354,6 +408,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local round = clash:render(p)
 		renderTip(p)
 		paintMap(p, round)
+		warnZinger(p)
 		renderBar(p)
 		if top:render(ctx.now()) then
 			relayout(true)

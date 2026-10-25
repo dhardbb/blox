@@ -156,6 +156,91 @@ local function press(kind: string): any
 	return input
 end
 
+describe("Debate screen: the downside and the Zinger (M1, S1)", function()
+	it("Why? has each move's loss line and the rival's live Zinger by name", function()
+		local world, peer = Rig.fixture("DebateRound", Rig.PHONE)
+		local payload = Rig.payloadOf(world, peer)
+		local view = payload.view
+		local board = Swing.debateBoard(C, view) :: Swing.DebateBoard
+		for _, row in board.rows do
+			expect(textOf(peer, `WhyLoss{row.move}`)):toBe(row.lossLine)
+		end
+		expect(need(peer, "WhyRivalZinger").Visible):toBe(board.theirZingers > 0)
+		-- Their Zinger live: one line, by their name; spent: the line goes.
+		local Model = FakeRoblox.require(world, peer, "src/client/Screens/CampaignParts/Model.luau")
+		local name = Model.firstName(C, view, board.rival)
+		for _, left in { 1, 0 } do
+			local copy = Rig.deepCopy(payload)
+			copy.view.debate.board.players[board.rival].zingers = left
+			copy.view.debate.zingers[board.rival] = left
+			Rig.push(world, peer, copy)
+			local line = need(peer, "WhyRivalZinger")
+			expect(line.Visible):toBe(left > 0)
+			if left > 0 then
+				local live = Swing.debateBoard(C, copy.view) :: Swing.DebateBoard
+				expect(line.Text):toBe(Words.rivalZinger(live, name))
+				check(Rig.contains(line.Text, `{name} still has a Zinger`), line.Text)
+			end
+		end
+		Rig.noErrors(world)
+	end)
+
+	it("warns in the bar when a Safe move that can split is picked with the Zinger staked", function()
+		local world, peer = Rig.fixture("DebateRound", nil)
+		local view = Rig.payloadOf(world, peer).view
+		local board = Swing.debateBoard(C, view) :: Swing.DebateBoard
+		check(board.zingers > 0, "the round fixture has no Zinger to stake")
+		tap(world, peer, "Zinger")
+		for _, row in board.rows do
+			tap(world, peer, `Move{row.move}`)
+			local want = Words.safeZinger(board, row, true) or `{row.move} + Zinger · kept secret`
+			expect(textOf(peer, "BarStatus")):toBe(want)
+		end
+		-- Unstaked: the plain line.
+		tap(world, peer, "Zinger")
+		expect(textOf(peer, "BarStatus")):toBe(`{board.rows[3].move} · kept secret`)
+		Rig.noErrors(world)
+	end)
+end)
+
+describe("Debate screen: the time bank (D-085)", function()
+	it("offers +15 s in a round while the bank holds a chunk, and sends it", function()
+		local world, peer = Rig.fixture("DebateRound", Rig.PHONE)
+		local button = need(peer, "BankButton")
+		check(shown(button), "no +15 s in a debate round")
+		expect(button.Text):toBe(`+{C.TIME_BANK_CHUNK} s`)
+		tap(world, peer, "BankButton")
+		check(Rig.count(peer, "[270] DEBUG_UI bank") == 1, "+15 s sent nothing")
+		local lock = need(peer, "LockIn")
+		check(lock.AbsolutePosition.Y + 56 <= Rig.PHONE.y + 0.5, "the primary is pushed off a phone")
+		-- An empty bank, a round without a deadline (tutorial, admin timers off),
+		-- a locked seat: no button.
+		local base = Rig.payloadOf(world, peer)
+		local empty = Rig.deepCopy(base)
+		empty.seats[empty.you].bank = C.TIME_BANK_CHUNK - 1
+		Rig.push(world, peer, empty)
+		check(not shown(need(peer, "BankButton")), "+15 s shows with an empty bank")
+		local untimed = Rig.deepCopy(base)
+		untimed.deadline = nil
+		Rig.push(world, peer, untimed)
+		check(not shown(need(peer, "BankButton")), "+15 s shows without a deadline")
+		local locked = Rig.deepCopy(base)
+		locked.seats[locked.you].locked = true
+		locked.step += 1
+		Rig.push(world, peer, locked)
+		check(not shown(need(peer, "BankButton")), "+15 s shows after Lock in")
+		Rig.noErrors(world)
+	end)
+
+	it("has no +15 s in the clash or the verdict", function()
+		for _, moment in { "Clash", "Debate", "DebateIntro" } do
+			local world, peer = Rig.fixture(moment, nil)
+			check(not shown(need(peer, "BankButton")), `+15 s shows in {moment}`)
+			Rig.noErrors(world)
+		end
+	end)
+end)
+
 describe("Debate screen: a rejoin mid-round", function()
 	it("shows the move and Zinger you locked in before you left, as locked", function()
 		local world, peer = Rig.fixture("DebateRound", nil)
@@ -352,10 +437,24 @@ describe("Words.Debate", function()
 		expect(Words.crowdLine(view, { 1, 3 }, "Rex")):toBe("Rex +2")
 		expect(Words.crowdLine(view, { 2, 2 }, "Rex")):toBe("Even")
 		expect(Words.crowdLine(view, { 1, 3 }, LONG_NAME)):toBe("Them +2")
-		local board = { zingers = 1, zingerMult = 2 } :: any
-		expect(Words.zinger(board, false)):toBe("Stake Zinger: a win counts ×2")
-		expect(Words.zinger(board, true)):toBe("Zinger staked: a win counts ×2")
+		local board = { zingers = 1, zingerMult = 2, theirZingers = 1, theirZingerMult = 4 } :: any
+		-- M1: the Zinger is used up on a split or a loss too (Sim/Debate.round).
+		expect(Words.zinger(board, false)):toBe("Stake Zinger: win ×2 · used either way")
+		expect(Words.zinger(board, true)):toBe("Zinger staked: win ×2, used either way")
 		expect(Words.zinger({ zingers = 0, zingerMult = 2 } :: any, false)):toBe("Zinger spent")
+		-- The bar's warning: only a Safe move that can split, with the Zinger staked.
+		local splits = { safe = true, cells = { 2, 0, 1 } } :: any
+		local wins = { safe = true, cells = { 2, 1, 1 } } :: any
+		local risky = { safe = false, cells = { 2, -1, 0 } } :: any
+		expect(Words.safeZinger(board, splits, true)):toBe("A split still uses the Zinger")
+		expect(Words.safeZinger(board, splits, false)):toBe(nil)
+		expect(Words.safeZinger(board, wins, true)):toBe(nil)
+		expect(Words.safeZinger(board, risky, true)):toBe(nil)
+		-- S1: the rival's live Zinger, with their name and multiplier.
+		expect(Words.rivalZinger(board, "Rex")):toBe(
+			"Rex still has a Zinger: a round they win, even by 1, can count ×4."
+		)
+		expect(Words.rivalZinger({ theirZingers = 0, theirZingerMult = 2 } :: any, "Rex")):toBe(nil)
 	end)
 
 	it("has a fictional, neutral question for every issue", function()

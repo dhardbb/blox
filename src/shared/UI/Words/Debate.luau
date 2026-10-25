@@ -15,7 +15,9 @@
 --   Words.counterLine(round, view) -> string? "Pivot beats Defend: +3"
 --   Words.crowdLine(view, crowd, name) -> string  "You +4", "Rex +2", "Even" (who leads the crowd;
 --                                             "Them +2" for a long name)
---   Words.zinger(board) -> string             the Zinger toggle's label
+--   Words.zinger(board, staked) -> string     the Zinger toggle's label: a win ×2, used either way
+--   Words.safeZinger(board, row, staked) -> string?  the bar's warning for a Safe move that can split with the Zinger staked
+--   Words.rivalZinger(board, name) -> string?  "Rex still has a Zinger: ..." while theirs is unspent
 
 local Issues = require("../../Sim/Issues")
 local SimState = require("../../Sim/State")
@@ -158,14 +160,33 @@ function Words.crowdLine(view: View, crowd: { number }, theirName: string): stri
 	return "Even"
 end
 
--- The Zinger toggle's label (at most 8 words).
+-- The Zinger toggle's label (at most 8 words). It is used up on any round it
+-- is staked on (Sim/Debate.round): a win counts ×mult, a split or a loss gets
+-- nothing for it.
 function Words.zinger(board: Swing.DebateBoard, staked: boolean): string
 	if board.zingers <= 0 then
 		return "Zinger spent"
 	elseif staked then
-		return `Zinger staked: a win counts ×{board.zingerMult}`
+		return `Zinger staked: win ×{board.zingerMult}, used either way`
 	end
-	return `Stake Zinger: a win counts ×{board.zingerMult}`
+	return `Stake Zinger: win ×{board.zingerMult} · used either way`
+end
+
+-- The action bar's status when the picked move is Safe but can still split
+-- (a 0 cell) and the Zinger is staked: a split uses it for nothing. Else nil.
+function Words.safeZinger(board: Swing.DebateBoard, row: Swing.MoveRow, staked: boolean): string?
+	if not staked or board.zingers <= 0 or not row.safe or not table.find(row.cells, 0) then
+		return nil
+	end
+	return "A split still uses the Zinger"
+end
+
+-- One line for "Why?" while the rival still holds a Zinger, else nil.
+function Words.rivalZinger(board: Swing.DebateBoard, theirName: string): string?
+	if board.theirZingers <= 0 then
+		return nil
+	end
+	return `{theirName} still has a Zinger: a round they win, even by 1, can count ×{board.theirZingerMult}.`
 end
 
 -- A move's button title: "Defend  6" (a Pivot's landing issue goes on the line under it).
