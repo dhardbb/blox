@@ -34,7 +34,7 @@ type Run = {
 local function play(config: Config.Config, seed: number): Run
 	local match = Match.new(config, seed, { "you", "bot" })
 	local rngs = { Rng.new(seed * 2 + 1), Rng.new(seed * 2 + 2) }
-	local styles: { Bot.Style } = { "Balanced", "Easy" }
+	local styles: { Bot.Style } = { "Balanced", Bot.styleFor("Easy") }
 	local candidates = { "okafor", "calloway" }
 	local phases: { string } = {}
 	local last = ""
@@ -168,12 +168,13 @@ describe("Normal schedule unchanged (D-080)", function()
 
 	it("plays a seeded normal match exactly as before the tutorial existed", function()
 		-- Pinned on the commit before D-080 (Balanced Okafor vs Easy Hale, seed
-		-- 4242): the deck, every week's projected votes and the result.
+		-- 4242): the deck, every week's projected votes and the result. D-057's
+		-- Easy bot plays on as the Hazy profile (D-087).
 		local seed = 4242
 		local match = Match.new(C, seed, { "a", "b" })
 		local rngs = { Rng.new(seed + 1), Rng.new(seed + 2) }
 		local candidates = { "okafor", "hale" }
-		local styles: { Bot.Style } = { "Balanced", "Easy" }
+		local styles: { Bot.Style } = { "Balanced", "Hazy" }
 		while match.phase ~= "Done" do
 			local inputs = {}
 			if Match.wantsInput(match) then

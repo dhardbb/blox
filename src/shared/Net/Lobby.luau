@@ -273,7 +273,7 @@ function Lobby.join(lobby: Lobby, id: string, code: string): (Outcome?, string?)
 end
 
 -- Starts a practice match against the bot at `difficulty` (absent or unknown:
--- Medium, D-057). With `tutorial` it is the tutorial (D-075): the first one
+-- Easy, D-057, D-087). With `tutorial` it is the tutorial (D-075): the first one
 -- and a replay both play the Easy bot (D-080: the short tutorial is tuned
 -- against it; D-075 kept the level picked for the first one).
 function Lobby.practice(

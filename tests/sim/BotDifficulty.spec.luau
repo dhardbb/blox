@@ -1,7 +1,9 @@
 --!strict
--- Practice bot difficulty (D-057): the names, Medium being the standard bot,
--- valid and deterministic play at every level, and fair play: every level
--- decides from its own View, so hidden state never changes a decision.
+-- Practice bot difficulty (D-057, D-087): the names and the Easy default, the
+-- profile each level plays (Extreme is the standard bot), valid and
+-- deterministic play at every level and profile, the once-a-match misjudgment,
+-- and fair play: every level decides from its own View, so hidden state never
+-- changes a decision.
 
 local Test = require("@testlib/Test")
 local Bot = require("@sim/Bot")
@@ -16,28 +18,70 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
 
-describe("Bot difficulty (D-057)", function()
-	it("reads a difficulty from untrusted input, Medium by default", function()
+-- Every profile a practice bot can play: the four levels' and the Daily Race's.
+local PROFILES: { Bot.Style } = { "Rookie", "Casual", "Hazy", "Balanced", "Foresight", "Strategist" }
+
+-- Plays `seed` bot against bot up to week `week`'s Plan phase.
+local function toPlan(seed: number, week: number): State.MatchState
+	local match = Match.new(C, seed, { "p1", "p2" })
+	local rngs = { Rng.new(seed), Rng.new(seed + 1) }
+	while match.phase ~= "Plan" or match.week < week do
+		local inputs = {}
+		if Match.wantsInput(match) then
+			for p = 1, 2 do
+				inputs[p] = Bot.act(C, View.build(C, match, p), rngs[p], if p == 1 then "hale" else "reyes")
+			end
+		end
+		match = Match.advance(C, match, inputs)
+	end
+	return match
+end
+
+describe("Bot difficulty (D-057, D-087)", function()
+	it("reads a difficulty from untrusted input, Easy by default", function()
 		for _, level in Bot.DIFFICULTIES do
 			expect(Bot.difficulty(level)):toBe(level)
 		end
 		for _, bad in { nil, "", "hard", "EXTREME", "Impossible", 3, true, {} } :: { any } do
-			expect(Bot.difficulty(bad)):toBe("Medium")
+			expect(Bot.difficulty(bad)):toBe("Easy")
 		end
-		expect(Bot.DEFAULT_DIFFICULTY):toBe("Medium")
+		expect(Bot.DEFAULT_DIFFICULTY):toBe("Easy")
 	end)
 
-	it("Medium is the standard Balanced bot; the others are their own styles", function()
-		expect(Bot.styleFor("Medium")):toBe("Balanced")
-		expect(Bot.styleFor(nil)):toBe("Balanced")
-		expect(Bot.styleFor("Easy")):toBe("Easy")
-		expect(Bot.styleFor("Hard")):toBe("Hard")
-		expect(Bot.styleFor("Extreme")):toBe("Extreme")
+	it("shifts the ladder: Easy Rookie, Medium Casual, Hard Hazy, Extreme the standard bot", function()
+		expect(Bot.styleFor("Easy")):toBe("Rookie")
+		expect(Bot.styleFor("Medium")):toBe("Casual")
+		expect(Bot.styleFor("Hard")):toBe("Hazy")
+		expect(Bot.styleFor("Extreme")):toBe("Balanced")
+		expect(Bot.styleFor(nil)):toBe("Rookie")
 	end)
 
-	it("every level finishes matches with only valid inputs, from either seat", function()
-		for k, level in Bot.DIFFICULTIES do
-			local style = Bot.styleFor(level)
+	it("levels differ only in how they misjudge: Config's noise, once-a-match flag and slips", function()
+		expect(Bot.misjudgment(C, "Rookie")):toEqual({
+			noise = C.BOT_ROOKIE_NOISE,
+			once = C.BOT_ROOKIE_ONCE,
+			slip = C.BOT_ROOKIE_SLIP,
+		})
+		expect(Bot.misjudgment(C, "Casual")):toEqual({
+			noise = C.BOT_CASUAL_NOISE,
+			once = C.BOT_CASUAL_ONCE,
+			slip = C.BOT_CASUAL_SLIP,
+		})
+		expect(Bot.misjudgment(C, "Hazy")):toEqual({
+			noise = C.BOT_HAZY_NOISE,
+			once = C.BOT_HAZY_ONCE,
+			slip = C.BOT_HAZY_SLIP,
+		})
+		for _, style in { "Balanced", "Foresight", "Strategist", nil } :: { any } do
+			expect(Bot.misjudgment(C, style)):toBe(nil)
+		end
+		-- Each step up misjudges less.
+		expect(C.BOT_ROOKIE_NOISE > C.BOT_CASUAL_NOISE):toBe(true)
+		expect(C.BOT_CASUAL_NOISE > C.BOT_HAZY_NOISE):toBe(true)
+	end)
+
+	it("every level and profile finishes matches with only valid inputs, from either seat", function()
+		for k, style in PROFILES do
 			local a = Play.match(C, 900 + k, { "okafor", "strand" }, { style, "Balanced" })
 			local b = Play.match(C, 910 + k, { "venkat", "hale" }, { "Balanced", style })
 			expect(a.invalid):toBe(0)
@@ -47,19 +91,58 @@ describe("Bot difficulty (D-057)", function()
 		end
 	end)
 
-	it("every level is deterministic: same seed and inputs, same moves", function()
-		for k, level in Bot.DIFFICULTIES do
-			local styles = { Bot.styleFor(level), Bot.styleFor(level) }
+	it("every level and profile is deterministic: same seed and inputs, same moves", function()
+		for k, style in PROFILES do
+			local styles = { style, style }
 			local a = Play.match(C, 920 + k, { "reyes", "begay" }, styles)
 			local b = Play.match(C, 920 + k, { "reyes", "begay" }, styles)
 			expect(a.match):toEqual(b.match)
 		end
 	end)
 
-	it("Easy still spends: it raises money and leaves little of it in the bank", function()
-		local record = Play.match(C, 931, { "okafor", "hale" }, { "Easy", "Balanced" })
-		expect(record.raised[1] > 10):toBe(true)
-		expect(record.unspent[1] < 20):toBe(true)
+	it("the misjudging levels still raise money and spend it", function()
+		for _, style in { "Rookie", "Casual", "Hazy" } :: { Bot.Style } do
+			local raised, unspent = 0, 0
+			for k = 1, 6 do
+				local record = Play.match(C, 930 + k, { "okafor", "hale" }, { style, "Balanced" })
+				raised += record.raised[1] / 6
+				unspent += record.unspent[1] / 6
+			end
+			expect(raised > 10):toBe(true)
+			expect(unspent < 20):toBe(true)
+		end
+	end)
+
+	it("Easy and Medium misjudge the same way all match; Hard redraws every plan (D-087)", function()
+		local early = toPlan(961, 2)
+		local late = toPlan(961, 10)
+		local other = toPlan(962, 2)
+		for _, style in { "Rookie", "Casual" } :: { Bot.Style } do
+			local a = Bot.misjudgedWeights(C, View.build(C, early, 1), Rng.new(1), style)
+			local b = Bot.misjudgedWeights(C, View.build(C, late, 1), Rng.new(2), style)
+			expect(a ~= nil):toBe(true)
+			expect(b):toEqual(a) -- another week, another plan stream: the same misjudgment
+			-- Another match, or the other seat, misjudges differently.
+			expect(Bot.misjudgedWeights(C, View.build(C, other, 1), Rng.new(1), style) ~= a):toBe(true)
+			local mine = a :: { number }
+			local theirs = Bot.misjudgedWeights(C, View.build(C, early, 2), Rng.new(1), style) :: { number }
+			local differs = false
+			for i, w in mine do
+				differs = differs or math.abs(w - theirs[i]) > 1e-9
+			end
+			expect(differs):toBe(true)
+			-- And it does not depend on the plan's stream at all: the same plan.
+			local view = View.build(C, late, 1)
+			expect(Bot.plan(C, view, Rng.new(5), style)):toEqual(Bot.plan(C, view, Rng.new(6), style))
+		end
+		local a = Bot.misjudgedWeights(C, View.build(C, early, 1), Rng.new(1), "Hazy") :: { number }
+		local b = Bot.misjudgedWeights(C, View.build(C, early, 1), Rng.new(2), "Hazy") :: { number }
+		local differs = false
+		for i, w in a do
+			differs = differs or math.abs(w - b[i]) > 1e-9
+		end
+		expect(differs):toBe(true)
+		expect(Bot.misjudgedWeights(C, View.build(C, early, 1), Rng.new(1), "Balanced")):toBe(nil)
 	end)
 
 	-- The same match with every hidden number moved: true support, true undecided,
@@ -84,9 +167,8 @@ describe("Bot difficulty (D-057)", function()
 		return copy
 	end
 
-	it("Hard and Extreme decide the same when hidden state changes (fair play)", function()
-		for k, level in { "Hard", "Extreme", "Easy" } :: { Bot.Difficulty } do
-			local style = Bot.styleFor(level)
+	it("every level and profile decides the same when hidden state changes (fair play)", function()
+		for k, style in PROFILES do
 			local match = Match.new(C, 940 + k, { "p1", "p2" })
 			local rngs = { Rng.new(1), Rng.new(2) }
 			local candidates = { "calloway", "alvarado" }
@@ -110,7 +192,7 @@ describe("Bot difficulty (D-057)", function()
 		end
 	end)
 
-	it("a stronger level only reads its own View: its foresight ignores the opponent's real cash", function()
+	it("a foresight profile only reads its own View: it ignores the opponent's real cash", function()
 		-- The opponent's exact cash is hidden; only its bracket shows. Two matches
 		-- that differ only in that cash, inside one bracket, get the same plan.
 		local match = Match.new(C, 951, { "p1", "p2" })
@@ -134,9 +216,9 @@ describe("Bot difficulty (D-057)", function()
 			else C.OPPONENT_MONEY_LOW
 		richer.players[2].cash = nudged
 		expect(View.moneyBracket(C, nudged)):toBe(bracket)
-		for _, level in { "Hard", "Extreme" } :: { Bot.Difficulty } do
-			local a = Bot.act(C, View.build(C, match, 1), Rng.new(9), "hale", Bot.styleFor(level))
-			local b = Bot.act(C, View.build(C, richer, 1), Rng.new(9), "hale", Bot.styleFor(level))
+		for _, style in PROFILES do
+			local a = Bot.act(C, View.build(C, match, 1), Rng.new(9), "hale", style)
+			local b = Bot.act(C, View.build(C, richer, 1), Rng.new(9), "hale", style)
 			expect(b):toEqual(a)
 		end
 	end)

@@ -21,7 +21,7 @@ Daily.PRACTICE_SHORT = "Practice"
 Daily.BOARD_SHORT = "Top 50"
 Daily.SHEET = "Today's top 50"
 Daily.HOW =
-	"Ranked by your final vote margin over the Hard bot. Ties: fewer weeks behind in the polls, then who finished first. Only your first run each day counts."
+	"Ranked by your final vote margin over the bot. Ties: fewer weeks behind in the polls, then who finished first. Only your first run each day counts."
 Daily.LOADING = "Loading today's board…"
 Daily.UNAVAILABLE = "Today's board is unavailable"
 Daily.EMPTY = "Nobody has finished today's race yet. Be the first!"

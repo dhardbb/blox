@@ -142,7 +142,8 @@ describe("Admin Timers off in a match (D-081)", function()
 		payload = Rig.payloadOf(w, admin)
 		check(payload.deadline ~= nil, "the timers did not come back")
 		local length = payload.deadline - payload.stageStart
-		check(math.abs(length - C.TIMER_SELECT * C.BOT_TIME_MULT_MEDIUM) < 0.01, `a {length} s Select timer`)
+		-- The Lobby's default level is Easy (D-087): x2.
+		check(math.abs(length - C.TIMER_SELECT * C.BOT_TIME_MULT_EASY) < 0.01, `a {length} s Select timer`)
 		expect(payload.adminNoTimer):toBe(nil)
 		check(told(w, admin, "Timers back on"), "the admin was not told the timers are back")
 		Rig.noErrors(w)

@@ -7,7 +7,9 @@
 -- Layout (docs/UI-STYLE.md §4.1): one centered column, at most 480 px wide, that
 -- does not scroll: the "LANDSLIDE" wordmark with its "RACE TO 270" ribbon
 -- (Kit.wordmark, D-064), the record, then Play vs
--- Bot (the one primary) with the bot level chips under it (UI/BotLevel, D-059),
+-- Bot (the one primary) with the bot level chips under it (UI/BotLevel, D-059)
+-- and a line on the picked level (BotLevelNote, D-087; a phone under
+-- PHONE_BOARD_H + NOTE_ROOM drops the eyebrow to make room),
 -- "Find match" and "Play a friend" side by side, and a ghost "How to play"
 -- (UI/HowTo, five short pages and "Play the tutorial", D-059, D-075), and once
 -- the Color Pass is set up the "Color" button (UI/ColorPick, D-055: red or blue, or your pick with the pass). The
@@ -28,7 +30,7 @@
 -- Stable names: Practice, FindMatch, PlayFriend, HowToPlay, FriendSheet, Host,
 -- CodeBox, Join, Idle, Waiting, Starting, WaitingText, CodeWell, CodeLabel,
 -- WaitingHint, Cancel, Record, ServerFull, Title (Mark, Ribbon, Tagline), Eyebrow, CornerSettings
--- (SoundToggle, MotionToggle, SettingsTip; TimersToggle for admins, D-081), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), BotLevel (Level_<level>), HowToSheet,
+-- (SoundToggle, MotionToggle, SettingsTip; TimersToggle for admins, D-081), ColorButton, ColorSheet, ReviewButton, ReviewSheet (admins, D-069), LevelPick (BotLevel (Level_<level>), BotLevelNote), HowToSheet,
 -- LeaderboardCard, LeaderboardSheet, DailyCard, DailySheet.
 --
 -- The Daily Race (UI/DailyRace, D-082) is one card in the column under How to
@@ -81,6 +83,7 @@ local TALL_BOARD_H = 560 -- px of height for the top 10 beside the column (else 
 local PHONE_BOARD_H = 830 -- px of screen height for the top 3 in a phone's column (else only "You" and See all)
 local CORNER_CLEAR = Kit.MIN_TOUCH + Kit.space.sm -- px a phone's column starts below the corner toggles
 local REVIEW_ROOM = Kit.MIN_TOUCH + Kit.space.sm -- px an admin's Review names button takes from the board
+local NOTE_ROOM = BotLevel.NOTE_HEIGHT + Kit.space.xs -- px the bot level's line takes (a phone shorter than PHONE_BOARD_H + this drops the eyebrow)
 local STAGE_GLOW = 1.1 -- the stage glow's size, a share of the screen (an ellipse)
 local STAGE_FADE = 0.75 -- its transparency: a lit table, not a spotlight
 local CODE_PLATE_H = Kit.size.hero + 2 * Kit.space.lg -- px, the private match code's plate
@@ -195,7 +198,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		ctx.net.send("Practice", { difficulty = BotLevel.get() })
 	end, { variant = "primary", Name = "Practice", LayoutOrder = 1, Parent = idle })
 	practice:SetAttribute("PrimaryAction", true)
-	local botLevel = BotLevel.new({ LayoutOrder = 2, Parent = idle })
+	-- The level chips and, under them, one line on the picked level (D-087).
+	local levelBox =
+		Kit.stack({ Name = "LevelPick", LayoutOrder = 2, Parent = idle }, "Vertical", Kit.space.xs)
+	local botLevel = BotLevel.new({ LayoutOrder = 1, Parent = levelBox })
+	local levelNote = BotLevel.note({ LayoutOrder = 2, Parent = levelBox })
 
 	local pair = Kit.box({
 		Name = "Pair",
@@ -404,8 +411,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local howToHolder = Kit.outer(howToPlay)
 	local function relayout()
 		local size = parent.AbsoluteSize
-		eyebrow.Visible = size.Y >= SHORT_SCREEN
 		local phone = size.X < SIDE_MIN_W
+		-- A short phone drops the eyebrow for the level's line (D-087), so the
+		-- leaderboard's top 3 still fits from PHONE_BOARD_H.
+		eyebrow.Visible = size.Y >= SHORT_SCREEN and (not phone or size.Y >= PHONE_BOARD_H + NOTE_ROOM)
 		-- A phone's column starts below the corner toggles (the eyebrow and the
 		-- wordmark never sit under them); beside the card it is clear of them.
 		padding.PaddingTop = UDim.new(0, if phone then CORNER_CLEAR else 0)
@@ -520,6 +529,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			table.insert(arriving, child)
 		end
 	end
+	table.insert(arriving, levelNote)
 	table.insert(arriving, daily.card)
 	table.insert(arriving, colorPick.button)
 	table.insert(arriving, board.card)

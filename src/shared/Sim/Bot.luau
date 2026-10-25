@@ -31,20 +31,30 @@
 --
 -- Styles restrict the balanced policy for the harness's dominance checks.
 --
--- Difficulty (practice mode, D-057): Medium is the Balanced style, unchanged.
--- Easy misjudges: every plan it weighs each state's worth by a random factor
--- (BOT_EASY_NOISE), drafts on a noisier read, and slips into a random debate
--- move or stance half the time (BOT_EASY_SLIP). Hard and Extreme see exactly
--- what Medium sees, the View, and use it better: they predict the opponent's
--- plan by running the standard bot from the opponent's side of the public board
--- (their cash guessed from its money bracket) and count it against this week's
--- margins (BOT_HARD_FORESIGHT); they value a state by how much it moves the
--- chance of reaching 270, not expected EV alone (BOT_HARD_WIN_CHANCE); and in a
--- debate round they best-reply to the move the standard bot would play from the
--- opponent's side (BOT_DEBATE_READ). Extreme is Hard with the win-chance weight
--- pushed three times as far: it defends the close states it leads harder when
--- ahead and reaches further for the ones it trails when behind; in debates it
--- also reads the opponent's own past moves (BOT_EXTREME_HISTORY).
+-- Difficulty (practice mode, D-057, D-087). The four levels a player picks
+-- map to play profiles (Bot.styleFor); they differ only in judgment, never in
+-- cash, AP or information, and every one decides from its own View:
+--   Easy     "Rookie"    misjudges every state's worth hard and stubbornly (a
+--                        random factor drawn once a match), random stances and
+--                        debate moves (BOT_ROOKIE_*)
+--   Medium   "Casual"    the same, a milder misjudgment (BOT_CASUAL_*)
+--   Hard     "Hazy"      a mild misjudgment redrawn every plan, half its stances
+--                        and debate moves random (BOT_HAZY_*; D-057's Easy)
+--   Extreme  "Balanced"  the standard bot (the balance harness's; D-057's Medium)
+-- The misjudging profiles also draft on that hazy read. "Foresight" and
+-- "Strategist" (D-057's Hard and Extreme) are no player's level now; the Daily
+-- Race plays Foresight (Config.DAILY_BOT_STYLE) so its boards keep their
+-- meaning. They see exactly what the standard bot sees, the View, and use it
+-- better: they predict the opponent's plan by running the standard bot from the
+-- opponent's side of the public board (their cash guessed from its money
+-- bracket) and count it against this week's margins (BOT_FORESIGHT_SHARE); they
+-- value a state by how much it moves the chance of reaching 270, not expected EV
+-- alone (BOT_FORESIGHT_WIN_CHANCE); and in a debate round they best-reply to the
+-- move the standard bot would play from the opponent's side (BOT_DEBATE_READ).
+-- Strategist is Foresight with the win-chance weight pushed three times as far:
+-- it defends the close states it leads harder when ahead and reaches further
+-- for the ones it trails when behind; in debates it also reads the opponent's
+-- own past moves (BOT_STRATEGIST_HISTORY).
 
 local Candidates = require("./Candidates")
 local ConfigModule = require("./Config")
@@ -80,21 +90,24 @@ export type Style =
 	| "AlwaysPivot" -- the standard bot, but always Pivots in a debate
 	| "TopIssues" -- the standard bot, but runs on the three highest-EV issues (the niche check for D-047)
 	| "NicheIssues" -- the standard bot, but runs on the three lowest-EV issues (the niche check for D-047)
-	| "Easy" -- practice difficulty Easy (D-057)
-	| "Hard" -- practice difficulty Hard (D-057)
-	| "Extreme" -- practice difficulty Extreme (D-057)
+	| "Rookie" -- the Easy level: misjudges hard, once a match; random stances and debate moves (D-087)
+	| "Casual" -- the Medium level: misjudges less, once a match; random stances and debate moves (D-087)
+	| "Hazy" -- the Hard level: a mild misjudgment redrawn every plan, half its decisions random (D-057's Easy)
+	| "Foresight" -- no level (D-087); the Daily Race's bot: predicts the opponent, weighs the chance of 270 (D-057's Hard)
+	| "Strategist" -- no level (D-087): Foresight pushed further (D-057's Extreme)
 
--- Practice difficulty (D-057). Medium plays the Balanced style.
+-- Practice difficulty: the level a player picks (D-057, D-087). Extreme plays
+-- the standard Balanced bot.
 export type Difficulty = "Easy" | "Medium" | "Hard" | "Extreme"
 
 local Bot = {}
 
 local DIFFICULTIES: { Difficulty } = { "Easy", "Medium", "Hard", "Extreme" }
-local DEFAULT_DIFFICULTY: Difficulty = "Medium"
+local DEFAULT_DIFFICULTY: Difficulty = "Easy" -- new players start here (D-087)
 Bot.DIFFICULTIES = table.freeze(DIFFICULTIES)
 Bot.DEFAULT_DIFFICULTY = DEFAULT_DIFFICULTY
 
--- A difficulty from untrusted input: one of the four names, else Medium.
+-- A difficulty from untrusted input: one of the four names, else Easy.
 function Bot.difficulty(value: any): Difficulty
 	for k = 1, #DIFFICULTIES do
 		local level: Difficulty = DIFFICULTIES[k]
@@ -105,17 +118,41 @@ function Bot.difficulty(value: any): Difficulty
 	return DEFAULT_DIFFICULTY
 end
 
--- The style a difficulty plays (Medium is the standard Balanced bot).
+-- The style a difficulty plays (D-087: Extreme is the standard Balanced bot).
 function Bot.styleFor(difficulty: Difficulty?): Style
 	local level = Bot.difficulty(difficulty)
-	if level == "Easy" then
-		return "Easy"
+	if level == "Medium" then
+		return "Casual"
 	elseif level == "Hard" then
-		return "Hard"
+		return "Hazy"
 	elseif level == "Extreme" then
-		return "Extreme"
+		return "Balanced"
 	end
-	return "Balanced"
+	return "Rookie"
+end
+
+-- How a misjudging profile errs (D-057, D-087), or nil for one that does not:
+-- the spread (log scale) of a random weight on each state's worth, whether that
+-- weight is drawn once a match (else every plan), and the chance a stance or a
+-- debate move is random.
+export type Misjudgment = { noise: number, once: boolean, slip: number }
+function Bot.misjudgment(config: Config, style: Style?): Misjudgment?
+	if style == "Rookie" then
+		return {
+			noise = config.BOT_ROOKIE_NOISE,
+			once = config.BOT_ROOKIE_ONCE,
+			slip = config.BOT_ROOKIE_SLIP,
+		}
+	elseif style == "Casual" then
+		return {
+			noise = config.BOT_CASUAL_NOISE,
+			once = config.BOT_CASUAL_ONCE,
+			slip = config.BOT_CASUAL_SLIP,
+		}
+	elseif style == "Hazy" then
+		return { noise = config.BOT_HAZY_NOISE, once = config.BOT_HAZY_ONCE, slip = config.BOT_HAZY_SLIP }
+	end
+	return nil
 end
 
 local INV_SQRT_2PI = 1 / math.sqrt(2 * math.pi)
@@ -288,6 +325,7 @@ function Bot.draft(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	local round = view.draftRound
 	local kind = Draft.kind(config, round)
 	local platform: { Types.Issue } = view.players[me].platform or {}
+	local misjudged = Bot.misjudgment(config, style)
 	local scored = {}
 	for i, record in StateData.list do
 		local s = view.states[i]
@@ -323,8 +361,8 @@ function Bot.draft(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 						value += #record.adjacent * 0.15 -- a well-connected base for the route
 					end
 				end
-				if style == "Easy" then
-					value *= math.exp(Rng.gaussian(rng, 0, config.BOT_EASY_NOISE)) -- a hazier read (D-057)
+				if misjudged then
+					value *= math.exp(Rng.gaussian(rng, 0, misjudged.noise)) -- a hazier read (D-057)
 				else
 					value *= 0.9 + 0.2 * Rng.nextFloat(rng)
 				end
@@ -865,19 +903,59 @@ local function weighByWinChance(config: Config, estimates: { Estimate }, strengt
 	end
 end
 
+-- The stream a once-a-match misjudgment is drawn from (D-087): seeded only by
+-- what this View shows that never changes after the draft (this seat, both
+-- candidates and home states, every state's lean and top issues), all of which
+-- the match seed set. So it is the same every week of one match, differs from
+-- match to match, and no hidden number can reach it.
+local function matchStream(view: View): Rng.Rng
+	local parts: { string } = { "misjudge", tostring(view.you) }
+	for _, player in view.players do
+		table.insert(parts, `{player.candidate or "?"}@{player.home or "?"}`)
+	end
+	for i, s in view.states do
+		local issues = view.issueMap[i]
+		table.insert(
+			parts,
+			`{s.id}:{s.leanTo or 0}:{s.lean}:{if issues then table.concat(issues :: { any }, "/") else ""}`
+		)
+	end
+	return Rng.new(Rng.hash(table.concat(parts, "|")))
+end
+
+-- A misjudging profile's weight on each state's worth this plan (StateData
+-- order), or nil for a profile that does not misjudge. Drawn from `rng` every
+-- plan, or from the match's own stream when the profile's misjudgment is drawn
+-- once a match.
+function Bot.misjudgedWeights(config: Config, view: View, rng: Rng.Rng, style: Style?): { number }?
+	local misjudged = Bot.misjudgment(config, style)
+	if misjudged == nil then
+		return nil
+	end
+	local stream = if misjudged.once then matchStream(view) else rng
+	local weights = table.create(#view.states, 1)
+	for i = 1, #view.states do
+		weights[i] = math.exp(Rng.gaussian(stream, 0, misjudged.noise))
+	end
+	return weights
+end
+
 function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	if style == "Random" then
 		return Bot.randomPlan(config, view, rng)
 	end
 	local estimates = buildEstimates(config, view)
-	if style == "Easy" then
-		for _, e in estimates do
-			e.weight = math.exp(Rng.gaussian(rng, 0, config.BOT_EASY_NOISE))
+	local weights = Bot.misjudgedWeights(config, view, rng, style)
+	if weights then
+		for i, e in estimates do
+			e.weight = weights[i]
 		end
-	elseif style == "Hard" or style == "Extreme" then
-		local extreme = style == "Extreme"
-		local share = if extreme then config.BOT_EXTREME_FORESIGHT else config.BOT_HARD_FORESIGHT
-		local strength = if extreme then config.BOT_EXTREME_WIN_CHANCE else config.BOT_HARD_WIN_CHANCE
+	elseif style == "Foresight" or style == "Strategist" then
+		local strategist = style == "Strategist"
+		local share = if strategist then config.BOT_STRATEGIST_SHARE else config.BOT_FORESIGHT_SHARE
+		local strength = if strategist
+			then config.BOT_STRATEGIST_WIN_CHANCE
+			else config.BOT_FORESIGHT_WIN_CHANCE
 		if share > 0 then
 			foresee(config, view, estimates, share)
 		end
@@ -944,10 +1022,11 @@ function Bot.choose(
 	rng: Rng.Rng,
 	style: Style?
 ): Types.Choice
+	local misjudged = Bot.misjudgment(config, style)
 	if
 		style == "Random"
 		or style == "RandomStance"
-		or (style == "Easy" and Rng.nextFloat(rng) < config.BOT_EASY_SLIP)
+		or (misjudged ~= nil and Rng.nextFloat(rng) < misjudged.slip)
 	then
 		return Events.CHOICES[Rng.nextInt(rng, 1, #Events.CHOICES)]
 	end
@@ -1245,10 +1324,11 @@ function Bot.debate(config: Config, view: View, rng: Rng.Rng, style: Style?): an
 	local function randomZinger(): boolean
 		return hasZinger and Rng.nextFloat(rng) < 1 / roundsLeft
 	end
+	local misjudged = Bot.misjudgment(config, style)
 	if
 		style == "Random"
 		or style == "RandomMove"
-		or (style == "Easy" and Rng.nextFloat(rng) < config.BOT_EASY_SLIP)
+		or (misjudged ~= nil and Rng.nextFloat(rng) < misjudged.slip)
 	then
 		return { move = Debate.MOVES[Rng.nextInt(rng, 1, #Debate.MOVES)], zinger = randomZinger() }
 	end
@@ -1262,16 +1342,16 @@ function Bot.debate(config: Config, view: View, rng: Rng.Rng, style: Style?): an
 		move = 2
 	elseif style == "AlwaysPivot" then
 		move = 3
-	elseif style == "Hard" or style == "Extreme" then
+	elseif style == "Foresight" or style == "Strategist" then
 		local predicted = predictedMove(config, view, board)
 		local read = config.BOT_DEBATE_READ
 		weights = {}
 		for b = 1, #Debate.MOVES do
 			weights[b] = (1 - read) / #Debate.MOVES + (if b == predicted then read else 0)
 		end
-		local past = if style == "Extreme" then pastMoves(view) else nil
+		local past = if style == "Strategist" then pastMoves(view) else nil
 		if past then
-			local h = config.BOT_EXTREME_HISTORY
+			local h = config.BOT_STRATEGIST_HISTORY
 			for b = 1, #Debate.MOVES do
 				weights[b] = (1 - h) * weights[b] + h * past[b]
 			end
@@ -1280,7 +1360,7 @@ function Bot.debate(config: Config, view: View, rng: Rng.Rng, style: Style?): an
 	else
 		move = maximin(cells)
 	end
-	local zinger = if style == "Easy"
+	local zinger = if misjudged
 		then randomZinger()
 		else stakeNow(config, view, estimates, board, move, weights, rng)
 	return { move = Debate.MOVES[move], zinger = zinger }

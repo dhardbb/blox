@@ -2,23 +2,29 @@
 -- Easy-bot study: scripted first-time players (tests/lib/Novice: Weak, Typical,
 -- Attentive) against the practice bots, seats alternating, two different
 -- candidates per match, fixed seeds. Every player decides from its own View.
--- The bots in Sim/Bot are unchanged; the prototype variants below are harness
--- flags on the bot's seat only (its own Config, Bot.tuning while it decides,
--- what it is shown of its cash, its seat's underdog boost), so nothing here
--- changes a default.
+-- The prototype variants below are harness flags on the bot's seat only (its
+-- own Config, Bot.tuning while it decides, what it is shown of its cash, its
+-- seat's underdog boost), so nothing here changes a default.
 --
+-- D-087 shifted the ladder: the study's "Easy" (D-057's) is now the Hard level,
+-- the Hazy profile, so the study modes (ablate, options, habits, leaks) run
+-- against Hard and their flags set BOT_HAZY_*. A bot seat is named by its level
+-- (Easy, Medium, Hard, Extreme) or by its profile (Rookie, Casual, Hazy,
+-- Balanced, Foresight, Strategist).
+--
+--   lune run tests/harness/novice.luau ladder [N]          -- D-087's table: 3 novices vs every level, every level vs every other
 --   lune run tests/harness/novice.luau                     -- benchmark: 3 novices vs Easy and Medium, 1,000 each (~1 min)
 --   lune run tests/harness/novice.luau Typical Easy 2000   -- one pairing (the first named is the reported side)
 --   lune run tests/harness/novice.luau Easy Medium         -- two bots
---   lune run tests/harness/novice.luau ablate [N]          -- Easy with one edge removed at a time, vs Typical
---   lune run tests/harness/novice.luau options [N]         -- the tuning options vs each novice, and vs Medium
+--   lune run tests/harness/novice.luau ablate [N]          -- the study's Easy (now Hard) with one edge removed at a time, vs Typical
+--   lune run tests/harness/novice.luau options [N]         -- the tuning options vs each novice, and vs the standard bot
 --   lune run tests/harness/novice.luau leaks [N]           -- the novice with one part of its play handed to the standard bot
 --   lune run tests/harness/novice.luau habits [N]          -- the typical novice with one habit group fixed at a time
 --   (ablate, leaks and habits take --novice=Weak|Typical|Attentive; Typical by default)
 --   lune run tests/harness/novice.luau Typical Easy --variant=NoGotv
 --
 -- Flags on the bot under test (the first bot named in the pairing):
---   bot.KEY=value     its own Config only, e.g. bot.BOT_EASY_SLIP=1 (the match keeps the defaults)
+--   bot.KEY=value     its own Config only, e.g. bot.BOT_HAZY_SLIP=1 (the match keeps the defaults)
 --   tune.key=value    Bot.tuning while it decides, e.g. tune.gotvFromWeek=99
 --   --reserve=N       it plans as if it had $N less, so about $N sits idle
 --   --fixed-noise     Easy's misjudgment of each state is drawn once a match, not every week
@@ -63,24 +69,31 @@ type Seat = {
 	config: Config?, -- the bot's own Config (bot.KEY=value), else the match's
 }
 
--- Named flag sets: the ablations (one edge of Easy removed) and the options.
+-- The level the study modes measure: the study's Easy (D-057's), which D-087
+-- made the Hard level (the Hazy profile).
+local STUDY = "Hard"
+
+-- Every profile a seat may name directly (Bot.styleFor maps the levels).
+local PROFILES = { "Rookie", "Casual", "Hazy", "Balanced", "Foresight", "Strategist" }
+
+-- Named flag sets: the ablations (one edge of the study's Easy removed) and the options.
 local VARIANTS: { [string]: { text: string, flags: Flags } } = {
 	NoGotv = { text = "no ground game", flags = { tuning = { gotvFromWeek = 99 } } },
 	LateGotv = { text = "ground game from week 10", flags = { tuning = { gotvFromWeek = 10 } } },
 	Idle30 = { text = "keeps $30 idle", flags = { reserve = 30 } },
 	NoPolls = { text = "no internal polls", flags = { tuning = { pollFromWeek = 99, scoutFromWeek = 99 } } },
-	Slip0 = { text = "never slips (stances, debates)", flags = { config = { BOT_EASY_SLIP = 0 } } },
+	Slip0 = { text = "never slips (stances, debates)", flags = { config = { BOT_HAZY_SLIP = 0 } } },
 	Slip1 = {
 		text = "always slips (random stance, move, Zinger)",
-		flags = { config = { BOT_EASY_SLIP = 1 } },
+		flags = { config = { BOT_HAZY_SLIP = 1 } },
 	},
-	Noise0 = { text = "no misjudgment (Medium's plans)", flags = { config = { BOT_EASY_NOISE = 0 } } },
-	Noise1 = { text = "noise 1.0", flags = { config = { BOT_EASY_NOISE = 1 } } },
-	Noise2 = { text = "noise 2.0", flags = { config = { BOT_EASY_NOISE = 2 } } },
+	Noise0 = { text = "no misjudgment (Medium's plans)", flags = { config = { BOT_HAZY_NOISE = 0 } } },
+	Noise1 = { text = "noise 1.0", flags = { config = { BOT_HAZY_NOISE = 1 } } },
+	Noise2 = { text = "noise 2.0", flags = { config = { BOT_HAZY_NOISE = 2 } } },
 	Fixed = { text = "noise 0.45 drawn once a match", flags = { fixedNoise = true } },
 	Fixed1 = {
 		text = "noise 1.0 drawn once a match",
-		flags = { fixedNoise = true, config = { BOT_EASY_NOISE = 1 } },
+		flags = { fixedNoise = true, config = { BOT_HAZY_NOISE = 1 } },
 	},
 	BigStates = { text = "values big states, not close ones", flags = { tuning = { campaignVariance = 40 } } },
 	NoRubber = { text = "no underdog boost for the bot", flags = { noRubber = true } },
@@ -88,14 +101,14 @@ local VARIANTS: { [string]: { text: string, flags: Flags } } = {
 	-- The options (easy-study): A and B only play worse (D-057's intent), C changes the rules for the bot.
 	OptA = {
 		text = "A: misjudges hard and stubbornly (noise 4 drawn once a match), random stances and debate moves",
-		flags = { fixedNoise = true, config = { BOT_EASY_NOISE = 4, BOT_EASY_SLIP = 1 } },
+		flags = { fixedNoise = true, config = { BOT_HAZY_NOISE = 4, BOT_HAZY_SLIP = 1 } },
 	},
 	OptB = {
 		text = "B: novice habits (noise 2.5 once a match, random decisions, $40 idle, ground game from week 11)",
 		flags = {
 			fixedNoise = true,
 			reserve = 40,
-			config = { BOT_EASY_NOISE = 2.5, BOT_EASY_SLIP = 1 },
+			config = { BOT_HAZY_NOISE = 2.5, BOT_HAZY_SLIP = 1 },
 			tuning = { gotvFromWeek = 11 },
 		},
 	},
@@ -105,7 +118,7 @@ local VARIANTS: { [string]: { text: string, flags: Flags } } = {
 			fixedNoise = true,
 			noRubber = true,
 			income = -1,
-			config = { BOT_EASY_NOISE = 3, BOT_EASY_SLIP = 1 },
+			config = { BOT_HAZY_NOISE = 3, BOT_HAZY_SLIP = 1 },
 		},
 	},
 }
@@ -234,9 +247,16 @@ for _, arg in process.args do
 		table.insert(notes, arg)
 	elseif tonumber(arg) then
 		N = tonumber(arg) :: number
-	elseif arg == "ablate" or arg == "options" or arg == "bench" or arg == "leaks" or arg == "habits" then
+	elseif
+		arg == "ablate"
+		or arg == "options"
+		or arg == "bench"
+		or arg == "leaks"
+		or arg == "habits"
+		or arg == "ladder"
+	then
 		mode = arg
-	elseif Novice.VARIANTS[arg] or table.find(Bot.DIFFICULTIES, arg) then
+	elseif Novice.VARIANTS[arg] or table.find(Bot.DIFFICULTIES, arg) or table.find(PROFILES, arg) then
 		table.insert(named, arg)
 	elseif arg ~= "--" then
 		error(`unknown argument {arg}`)
@@ -283,9 +303,12 @@ local function seatFor(name: string, extra: Flags?): Seat
 		end
 		return { label = name, novice = novice, flags = {} }
 	end
-	local level: Bot.Difficulty = Bot.difficulty(name)
 	local f: Flags = extra or {}
 	local own = if f.config then Config.with(config, f.config) else nil
+	if table.find(PROFILES, name) then
+		return { label = name, style = name :: Bot.Style, flags = f, config = own }
+	end
+	local level: Bot.Difficulty = Bot.difficulty(name)
 	return { label = level, style = Bot.styleFor(level), flags = f, config = own }
 end
 
@@ -518,14 +541,30 @@ if mode == "bench" then
 		end
 	end
 	pairing(seatFor("Easy", withVariant(variantName, flags)), seatFor("Medium"), N)
+elseif mode == "ladder" then
+	-- D-087: every novice against every level, then every level against every
+	-- harder one (the easier side reported), and the Daily Race's bot.
+	for _, novice in Novice.NAMES do
+		for _, level in Bot.DIFFICULTIES do
+			pairing(seatFor(novice), seatFor(level), N)
+		end
+	end
+	for i, a in Bot.DIFFICULTIES do
+		for j = i + 1, #Bot.DIFFICULTIES do
+			pairing(seatFor(a), seatFor(Bot.DIFFICULTIES[j]), N)
+		end
+	end
+	pairing(seatFor("Extreme"), seatFor("Foresight"), N, "Extreme vs Foresight (the Daily Race's bot)")
 elseif mode == "ablate" then
-	pairing(seatFor(noviceName), seatFor("Medium"), N, `{noviceName} vs Medium (reference)`)
+	pairing(seatFor(noviceName), seatFor("Balanced"), N, `{noviceName} vs the standard bot (reference)`)
 	for _, name in ABLATIONS do
-		local text = if name == "" then "Easy (as shipped)" else `Easy, {VARIANTS[name].text}`
-		pairing(seatFor(noviceName), seatFor("Easy", withVariant(name, flags)), N, `{noviceName} vs {text}`)
+		local text = if name == ""
+			then "the study's Easy (Hazy)"
+			else `the study's Easy, {VARIANTS[name].text}`
+		pairing(seatFor(noviceName), seatFor(STUDY, withVariant(name, flags)), N, `{noviceName} vs {text}`)
 	end
 elseif mode == "habits" then
-	pairing(seatFor(noviceName), seatFor("Easy", flags), N, `{noviceName} vs Easy`)
+	pairing(seatFor(noviceName), seatFor(STUDY, flags), N, `{noviceName} vs {STUDY}`)
 	for _, habit in HABITS do
 		local base = seatFor(noviceName)
 		local params = table.clone(base.novice :: Novice.Params) :: any
@@ -533,11 +572,11 @@ elseif mode == "habits" then
 			params[key] = value
 		end
 		base.novice = params
-		pairing(base, seatFor("Easy", flags), N, `{noviceName}, {habit.name}`)
+		pairing(base, seatFor(STUDY, flags), N, `{noviceName}, {habit.name}`)
 	end
 elseif mode == "leaks" then
 	-- The novice's own play, one part at a time handed to the standard bot.
-	pairing(seatFor(noviceName), seatFor("Easy", flags), N, `{noviceName} vs Easy`)
+	pairing(seatFor(noviceName), seatFor(STUDY, flags), N, `{noviceName} vs {STUDY}`)
 	for _, phases in { { "Draft" }, { "Plan" }, { "Decision" }, { "Debate" }, { "Decision", "Debate" } } do
 		local base = seatFor(noviceName)
 		local params = table.clone(base.novice :: Novice.Params)
@@ -547,16 +586,16 @@ elseif mode == "leaks" then
 		end
 		params.delegate = set
 		base.novice = params
-		pairing(base, seatFor("Easy", flags), N, `{noviceName}, bot's {table.concat(phases, "+")} vs Easy`)
+		pairing(base, seatFor(STUDY, flags), N, `{noviceName}, bot's {table.concat(phases, "+")} vs {STUDY}`)
 	end
 elseif mode == "options" then
 	for _, name in OPTIONS do
 		print(`-- {name}: {VARIANTS[name].text}`)
 		local f = withVariant(name, flags)
 		for _, novice in Novice.NAMES do
-			pairing(seatFor(novice), seatFor("Easy", f), N, `{novice} vs Easy[{name}]`)
+			pairing(seatFor(novice), seatFor(STUDY, f), N, `{novice} vs {STUDY}[{name}]`)
 		end
-		pairing(seatFor("Easy", f), seatFor("Medium"), N, `Easy[{name}] vs Medium`)
+		pairing(seatFor(STUDY, f), seatFor("Balanced"), N, `{STUDY}[{name}] vs the standard bot`)
 	end
 else
 	local first, second = named[1], named[2]

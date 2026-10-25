@@ -296,7 +296,7 @@ function Commands.parse(text: string): Parsed
 end
 
 Commands.HELP = table.concat({
-	"Lobby: practice [easy|hard|extreme] | queue | host [noevents] | join CODE | leave | pick CANDIDATE ISSUE ISSUE ISSUE",
+	"Lobby: practice [medium|hard|extreme] | queue | host [noevents] | join CODE | leave | pick CANDIDATE ISSUE ISSUE ISSUE",
 	"Select: claim CANDIDATE, then select CANDIDATE ISSUE ISSUE ISSUE      Draft: draft OH PA",
 	"        color Teal (Color Pass owners pick a color, first come, first served)",
 	"Plan: plan rally OH Jobs; fund PA; ad MI Jobs; attack ad IA Farms; poll OH; rpoll Pacific;",

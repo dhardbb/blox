@@ -52,16 +52,19 @@ local function shownIn(peer: FakeRoblox.Peer, screen: string, name: string): boo
 end
 
 describe("Lobby: the bot level (D-059)", function()
-	it("starts on Medium and outlines the level tapped", function()
+	it("starts on Easy and outlines the level tapped; the line under it follows (D-087)", function()
 		local world, peer = Rig.fixture("Lobby", PHONE)
 		local BotLevel = FakeRoblox.require(world, peer, "src/client/UI/BotLevel.luau")
-		BotLevel.set("Medium") -- the module outlives a world: start clean
+		BotLevel.set(Words.DEFAULT_LEVEL) -- the module outlives a world: start clean
 		FakeRoblox.run(world, 0.2)
-		expect(need(peer, "Lobby", "Level_Medium"):GetAttribute("Selected")):toBe(true)
+		expect(need(peer, "Lobby", "Level_Easy"):GetAttribute("Selected")):toBe(true)
+		expect(Rig.textOf(peer, "Lobby", "BotLevelNote")):toBe(Words.LEVEL_NOTES.Easy)
 		tap(world, peer, "Lobby", "Level_Hard")
 		expect(need(peer, "Lobby", "Level_Hard"):GetAttribute("Selected")):toBe(true)
-		expect(need(peer, "Lobby", "Level_Medium"):GetAttribute("Selected")):toBe(false)
+		expect(need(peer, "Lobby", "Level_Easy"):GetAttribute("Selected")):toBe(false)
 		expect(need(peer, "Lobby", "BotLevel"):GetAttribute("Level")):toBe("Hard")
+		expect(Rig.textOf(peer, "Lobby", "BotLevelNote")):toBe(Words.LEVEL_NOTES.Hard)
+		check(shownIn(peer, "Lobby", "BotLevelNote"), "the level's line is hidden")
 		check(need(peer, "Lobby", "Level_Extreme").AbsoluteSize.X >= 44, "a level chip is too narrow")
 		expect(strictAudit(world, peer, "Lobby")):toBe(0)
 		Rig.noErrors(world)
@@ -94,11 +97,11 @@ describe("Lobby: the bot level (D-059)", function()
 	end)
 
 	-- End to end (D-057, D-059): the chip the player taps reaches the server's
-	-- bot seat; a level the server does not know plays Medium.
-	it("the level tapped is the level the bot seat plays; an unknown one is Medium", function()
+	-- bot seat; a level the server does not know plays Easy (D-087).
+	it("the level tapped is the level the bot seat plays; an unknown one is Easy", function()
 		local world, peer = Rig.practice(52)
 		local BotLevel = FakeRoblox.require(world, peer, "src/client/UI/BotLevel.luau")
-		BotLevel.set("Medium") -- the module outlives a world: start clean
+		BotLevel.set(Words.DEFAULT_LEVEL) -- the module outlives a world: start clean
 		FakeRoblox.run(world, 0.2)
 		local function botSeat(): any
 			local payload = Rig.payloadOf(world, peer)
@@ -131,11 +134,11 @@ describe("Lobby: the bot level (D-059)", function()
 		FakeRoblox.run(world, 1)
 		check(FakeRoblox.find(peer, "Select") ~= nil, "the second practice match did not start")
 		expect(Rig.count(world.server, "match m2 started (Practice)")):toBe(1)
-		expect(serverSaid(world, "bot Medium")):toBe(true)
+		expect(serverSaid(world, "bot Easy")):toBe(true)
 		seat = botSeat()
-		expect(seat and seat.difficulty):toBe("Medium")
+		expect(seat and seat.difficulty):toBe("Easy")
 		expect(serverSaid(world, "rejected")):toBe(false)
-		BotLevel.set("Medium")
+		BotLevel.set(Words.DEFAULT_LEVEL)
 		Rig.noErrors(world)
 	end)
 end)
@@ -378,8 +381,12 @@ describe("Lobby words (D-059)", function()
 		)
 	end)
 
-	it("offers four bot levels, Medium by default", function()
+	it("offers four bot levels, Easy by default, each with a short line (D-087)", function()
 		expect(table.concat(Words.LEVELS, ",")):toBe("Easy,Medium,Hard,Extreme")
-		expect(Words.DEFAULT_LEVEL):toBe("Medium")
+		expect(Words.DEFAULT_LEVEL):toBe("Easy")
+		for _, level in Words.LEVELS do
+			local note = Words.LEVEL_NOTES[level]
+			check(note ~= nil and #note > 0 and #note <= 48, `{level} has no short line`)
+		end
 	end)
 end)
