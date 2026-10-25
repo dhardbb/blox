@@ -2,7 +2,7 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.16.0: Easier bots, key states, new-player fixes (Oct 25, 2026)
 
 ### Bot levels shifted down (D-087)
 
