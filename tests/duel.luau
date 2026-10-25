@@ -3,9 +3,13 @@
 -- through files, on the real server and client code (fake Roblox engine, simulated
 -- clock). Not a spec: `lune run tests` ignores it. Run from the repo root.
 --
---   lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 5] [--screen 1280x720]
+--   lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 5] [--screen 1280x720] [--bot 2:LEVEL]
 --
--- Player 1 and Player 2 join, both press Queue and get matched. Whenever a player
+-- Player 1 and Player 2 join, both press Queue and get matched. With `--bot 2:Easy`
+-- (any level: Easy, Medium, Hard, Extreme) only Player 1 joins, as a returning
+-- player, and asks for a Practice match at that level: the server's own bot takes
+-- seat 2 and answers by itself, so one agent plays it through the p1 files
+-- (tests/duel/Seats.luau). Whenever a player
 -- must act (the debug UI status says "your move") the simulated clock stops, so
 -- agents have unlimited real time; the harness writes <dir>/pN.screen.txt and waits
 -- for <dir>/pN.cmd.txt. Everything else (reveals, debates, election night) runs by
@@ -49,6 +53,7 @@ local Numbers = require("@shared/UI/Numbers")
 local PlanDraft = require("@shared/UI/PlanDraft")
 local StateData = require("@shared/Sim/StateData")
 local Swing = require("@shared/UI/Swing")
+local Seats = require("./duel/Seats")
 local Verdict = require("./duel/Verdict")
 
 -- ---------------------------------------------------------------- arguments
@@ -57,6 +62,7 @@ local dir: string? = nil
 local seed, timeout, maxAttempts = 1, 600, 5
 local screenSize = { x = 1280, y = 720 }
 local usageError: string? = nil
+local botSeat: Seats.BotSeat? = nil
 do
 	local args = process.args
 	local k = 1
@@ -70,6 +76,7 @@ do
 			or arg == "--timeout"
 			or arg == "--attempts"
 			or arg == "--screen"
+			or arg == "--bot"
 		then
 			local value = args[k + 1]
 			if value == nil then
@@ -84,6 +91,13 @@ do
 				timeout = tonumber(value) or timeout
 			elseif arg == "--attempts" then
 				maxAttempts = math.max(1, tonumber(value) or maxAttempts)
+			elseif arg == "--bot" then
+				local parsed, message = Seats.parse(value)
+				if parsed == nil then
+					usageError = message
+					break
+				end
+				botSeat = parsed
 			else
 				local x, y = string.match(value, "^(%d+)x(%d+)$")
 				if x == nil then
@@ -103,7 +117,9 @@ if usageError or dir == nil then
 	if usageError then
 		print(`error: {usageError}`)
 	end
-	print("usage: lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 5]")
+	print(
+		"usage: lune run tests/duel.luau -- --dir <dir> [--seed N] [--timeout 600] [--attempts 5] [--bot 2:Easy]"
+	)
 	print("see tests/duel/README.md")
 	process.exit(2)
 end
@@ -170,7 +186,14 @@ end
 
 local rig = Support.new(process.cwd, seed, screenSize)
 local world = rig.world
-local peers = Support.players(rig, 2)
+local peers: { FakeRoblox.Peer }
+if botSeat then
+	-- A returning player (tutorial done, D-075), so Practice is a full match.
+	Support.returning(rig)
+	peers = { Support.join(rig, "Player1") }
+else
+	peers = Support.players(rig, Seats.people(nil))
+end
 
 export type Turn = {
 	key: string, -- "matchId:step" of the stage this player is answering
@@ -238,7 +261,13 @@ do
 	end
 end
 
-Support.queueMatch(rig, peers[1], peers[2])
+local practice = Seats.request(botSeat)
+if practice then
+	Support.fire(rig, peers[1], practice)
+	Support.run(rig, 0.5)
+else
+	Support.queueMatch(rig, peers[1], peers[2])
+end
 
 -- ---------------------------------------------------------------- text helpers
 
@@ -1301,25 +1330,50 @@ end
 
 -- ---------------------------------------------------------------- result
 
+-- One seat's line: `seat` as `payload` (some player's last State) shows it.
+local function seatSummary(payload: any, seat: number, n: number, name: string): string
+	local view = payload.view
+	local me = view.players[seat]
+	local p = profileOf(me.candidate)
+	return string.format(
+		"p%d (%s, seat P%d): %s (%s), platform %s, home %s, %s",
+		n,
+		name,
+		seat,
+		if p then p.name else "?",
+		me.color or "?",
+		if me.platform then table.concat(me.platform, "/") else "?",
+		me.home or "-",
+		Drafted.summary(view, seat)
+	)
+end
+
 local function playerSummary(slot: Slot): string
 	local payload = slot.latest
 	if payload == nil then
 		return `p{slot.n}: no state`
 	end
-	local view = payload.view
-	local me = view.players[payload.you]
-	local p = profileOf(me.candidate)
-	return string.format(
-		"p%d (%s, seat P%d): %s (%s), platform %s, home %s, %s",
-		slot.n,
-		slot.name,
-		payload.you,
-		if p then p.name else "?",
-		me.color or "?",
-		if me.platform then table.concat(me.platform, "/") else "?",
-		me.home or "-",
-		Drafted.summary(view, payload.you)
-	)
+	return seatSummary(payload, payload.you, slot.n, slot.name)
+end
+
+-- The bot seat's line, from player 1's last State (its view of the bot).
+local function botSummary(bot: Seats.BotSeat): string
+	local payload = slots[1].latest
+	if payload == nil or payload.view.players[bot.seat] == nil then
+		return `p{bot.seat}: no state`
+	end
+	return seatSummary(payload, bot.seat, bot.seat, Seats.botName(bot))
+end
+
+-- Who plays seat n in the result: the agent's player name, or the bot.
+local function seatName(n: number): string
+	local slot = slots[n]
+	if slot then
+		return slot.name
+	elseif botSeat then
+		return Seats.botName(botSeat)
+	end
+	return "?"
 end
 
 local function resultText(): string
@@ -1336,7 +1390,7 @@ local function resultText(): string
 		local ev = if first.view.election then first.view.election.ev else nil
 		local winnerText = if result.winner == 0
 			then "nobody"
-			else `p{result.winner} ({slots[result.winner].name})`
+			else `p{result.winner} ({seatName(result.winner)})`
 		add(`winner: {winnerText}`)
 		add(
 			`reason: {result.reason}{if first.view.election
@@ -1354,6 +1408,9 @@ local function resultText(): string
 	add("")
 	for _, slot in slots do
 		add(playerSummary(slot))
+	end
+	if botSeat then
+		add(botSummary(botSeat))
 	end
 	add("")
 	add("=== COMMANDS EACH PLAYER LOCKED IN, BY STEP ===")
@@ -1376,6 +1433,18 @@ local function resultText(): string
 	add(`=== WIRE WARNINGS ({#world.wireWarnings}) ===`)
 	for _, message in world.wireWarnings do
 		add(message)
+	end
+	if botSeat then
+		-- The bot's moves are not commands: every week's events, as player 1's log said them.
+		add("")
+		add(`=== EVERY WEEK'S EVENTS (p1's log; the bot is P{botSeat.seat}) ===`)
+		local seen: { [string]: boolean } = {}
+		for _, line in rig.history[slots[1].peer] do
+			if string.sub(line, 1, 7) == "events:" and not seen[line] then
+				seen[line] = true
+				add(line)
+			end
+		end
 	end
 	for _, slot in slots do
 		add("")

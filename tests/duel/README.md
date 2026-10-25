@@ -1,6 +1,6 @@
 # Duel harness: two agents play one match
 
-`tests/duel.luau` runs one full match on the real server and client code (fake engine, simulated clock) and lets two players, usually two AI agents, play it through files. It is a playtest tool, not a spec: `lune run tests` ignores it.
+`tests/duel.luau` runs one full match on the real server and client code (fake engine, simulated clock) and lets two players, usually two AI agents, play it through files, or one agent play the practice bot (`--bot 2:Easy`, below). It is a playtest tool, not a spec: `lune run tests` ignores it.
 
 ## Run a match
 
@@ -13,7 +13,18 @@ tests/duel/send.sh ../duel/m1 1 'select okafor jobs health schools'
 
 The draft is three blind rounds (home state, then two battleground nominations); each player's five strongholds are assigned from the map's leans before it and listed on the draft screen. Each player loops `wait.sh` → think → `send.sh` until `wait.sh` prints `MATCH OVER`. The simulated clock stops whenever a player must act, so agents have unlimited real time. Reveals, debates and election night run by themselves.
 
-Options: `--seed N` (map and deck), `--timeout S` (real seconds a screen may wait for a command before the harness plays the default for that player; default 600), `--attempts K` (rejected command files per turn before it does the same; default 5), `--screen WxH` (the simulated screen size). Fallbacks are listed under HARNESS NOTES in `result.txt`.
+## Play the practice bot (one agent)
+
+```sh
+mkdir -p ../duel/b1
+lune run tests/duel.luau -- --dir ../duel/b1 --seed 11 --timeout 3600 --bot 2:Easy   # in the background
+tests/duel/wait.sh ../duel/b1 1        # the only player: same loop as above
+tests/duel/send.sh ../duel/b1 1 'select okafor jobs health schools'
+```
+
+`--bot 2:LEVEL` (`Easy`, `Medium`, `Hard` or `Extreme`, any case) seats the server's own practice bot in seat 2: only Player 1 joins, as a returning player (tutorial done, so it is the full 12-week match, not the tutorial), and sends the Lobby's Play vs Bot request at that level (`{ op = "Practice", difficulty = LEVEL }`, D-057). It is the same match a person gets from the Lobby: unrated, the bot picks its candidate at random and decides from its own View, instantly. Practice always seats the person first, so seat 1 cannot be the bot (`--bot 1:...` is refused, as is an unknown level; `tests/duel/Seats.luau` holds these rules and `Seats.spec.luau` pins them). There are no `p2.*` files. In `result.txt` the winner reads `p2 (bot (Easy))`, the bot's seat gets its own summary line, and a section `EVERY WEEK'S EVENTS` lists every week's events from player 1's log, so the bot's moves are on record next to the agent's commands.
+
+Options: `--seed N` (map and deck), `--timeout S` (real seconds a screen may wait for a command before the harness plays the default for that player; default 600), `--attempts K` (rejected command files per turn before it does the same; default 5), `--screen WxH` (the simulated screen size), `--bot 2:LEVEL` (above). Fallbacks are listed under HARNESS NOTES in `result.txt`.
 
 The default is `pass` in a plan week, `choice c` on a stance step (both what the game does when the timer runs out) and `auto` (the built-in bot) everywhere else, debate rounds included (there is no command for the game's timeout, a canned answer). After a rejection the next screen says how many attempts are left in a `!!!` line under the header, and the verdict says it too. Info commands (`show`, `rules`, `help`, `bank`, `resync`, `skip`) never use an attempt at any stage: a file of only those gets the verdict `INFO: not locked in yet, no attempt used ...` (a file that also holds a rejected move is `REJECTED`). `tests/duel/Verdict.luau` holds these rules and `Verdict.spec.luau` pins them. When the harness plays the default, the verdict's status is `AUTO-SUBMITTED (this turn is over for you)`, followed by the harness's line and then your last command file for reference.
 
