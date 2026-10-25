@@ -328,8 +328,26 @@ describe("Explain labels", function()
 		expect(Explain.underdogText(C, view, view.you)):toBe(nil)
 		view.players[view.you].underdogTier = 1
 		local text = Explain.underdogText(C, view, view.you) :: string
-		has(text, "You are underdog tier 1")
-		has(text, `{C.UNDERDOG_EV_1}+`)
+		-- M5: the boost and that it fades, not the entry threshold (the tier
+		-- follows a smoothed gap, so it can outlast a lead).
+		expect(text):toBe(
+			`You are underdog tier 1: rallies {Explain.times(C.UNDERDOG_RALLY_1)}, fundraisers {Explain.times(
+				C.UNDERDOG_FUND_1
+			)} (you were behind in the polls lately; it fades once you stay ahead).`
+		)
+		expect(string.find(text, "EV behind", 1, true)):toBe(nil)
+		-- The rival's, by their first name.
+		local them = if view.you == 1 then 2 else 1
+		view.players[them].underdogTier = 2
+		local name = Candidates.profile(C, view.players[them].candidate :: string).name
+		local first = string.match(name, "^(%S+)") :: string
+		expect(Explain.underdogText(C, view, them)):toBe(
+			`{first} has the underdog boost: rallies {Explain.times(C.UNDERDOG_RALLY_2)}, fundraisers {Explain.times(
+				C.UNDERDOG_FUND_2
+			)}.`
+		)
+		view.players[them].customName = "Big Wave"
+		has(Explain.underdogText(C, view, them) :: string, "Big Wave has the underdog boost")
 	end)
 end)
 

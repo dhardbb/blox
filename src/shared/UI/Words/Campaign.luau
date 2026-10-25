@@ -23,6 +23,7 @@
 --   Words.percent(text) -> string             "×1.2" said as "20% more" (an event's effect)
 --   Words.eventTitle(event, next?) -> string  "Windfall · Small-dollar surge" ("Next week: <name>")
 --   Words.eventLine(config, event, stance?) -> string   the event strip's one line (D-065)
+--   Words.closing(config, week) -> Closing?       the closing weeks on the event strip (S3)
 
 local Colors = require("../Colors")
 local ConfigModule = require("../../Sim/Config")
@@ -322,6 +323,39 @@ function Words.eventLine(config: Config, event: ViewModule.EventView, stance: Ty
 	end
 	local issue = Issues.displayName[event.issue :: Types.Issue] or "?"
 	return `Take a stance on {issue}`
+end
+
+-- The closing weeks (Resolve.closingMult: rallies, ads and attack ads), for the
+-- event strip (S3). Nil outside CLOSING_FROM_WEEK - 1 .. the end, or with no bonus.
+-- `line`: the strip's third line under a week's event, short enough for a
+-- phone ("Closing weeks: rallies and ads +15%"; the week before, "From next
+-- week: rallies, ads +15%"). `title` and `alone`: the strip's two lines in a
+-- week with no event ("Closing weeks" / "Rallies and ads +15%"). `detail`: the
+-- same in a sentence, for the strip's details sheet.
+export type Closing = { line: string, title: string, alone: string, detail: string }
+
+function Words.closing(config: Config, week: number): Closing?
+	local first = config.CLOSING_FROM_WEEK
+	if config.CLOSING_MULT == 1 or week < first - 1 then
+		return nil
+	end
+	local plus = plusPercent(config.CLOSING_MULT)
+	local more = math.floor((config.CLOSING_MULT - 1) * 100 + 0.5)
+	local what = `every rally and ad (attack ads too) counts {more}% more, for both of you`
+	if week >= first then
+		return {
+			line = `Closing weeks: rallies and ads {plus}`,
+			title = "Closing weeks",
+			alone = `Rallies and ads {plus}`,
+			detail = `Closing weeks: until election night, {what}.`,
+		}
+	end
+	return {
+		line = `From next week: rallies, ads {plus}`,
+		title = "Closing weeks next week",
+		alone = `Rallies and ads {plus} from week {first}`,
+		detail = `Closing weeks start next week: from week {first}, {what}.`,
+	}
 end
 
 -- ---------------------------------------------------------------- the map key

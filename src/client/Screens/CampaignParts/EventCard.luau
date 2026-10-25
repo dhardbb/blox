@@ -11,8 +11,12 @@
 -- the details: the full effect (EventEffect), the story (EventText), what the
 -- map's * marks (EventMapNote), the stance taken (ChoiceTaken) and, for a
 -- candidate who previews the deck, next week's event (NextEvent). With only
--- next week's event known, the strip shows that ("Next week: …"). Hidden
--- during every reveal (B1). Its gold plate pulses once when a new week's event arrives.
+-- next week's event known, the strip shows that ("Next week: …"). From
+-- CLOSING_FROM_WEEK, and the week before, a third line says the closing-weeks
+-- bonus ("Closing weeks: rallies and ads +15%", EventClosing; the sheet says it
+-- in a sentence, ClosingDetail); a closing week with no event shows the strip
+-- for that alone. Hidden during every reveal (B1). Its gold plate pulses once
+-- when a new week's event arrives.
 --
 --   local strip = EventCard.strip(parent, sheetParent, model)
 --   strip:render(p); strip:height() -> number (0 when hidden)
@@ -31,7 +35,8 @@
 -- the three stances as full-width chips, each with what it does in a few words
 -- ("A · Side with the staff" / "+4 states  −2 states", the gain green and the
 -- loss orange; "C · Offer to mediate (safe)"; the selection is the white outline
--- and a white bar at the chip's left), then "Why?" with the rest:
+-- and a white bar at the chip's left), the rival's line ("Rex picks too, in
+-- secret. Same side: it mostly cancels. …", ChoiceRival), then "Why?" with the rest:
 -- "States you need" (Shared/UI/Swing, from the public poll), the summary of
 -- the shown stance on the map, the tradeoff note, and every state, stance by
 -- stance (Explain.choiceLines). While the chips show, the map previews the
@@ -53,8 +58,9 @@
 --
 -- Element names: EventCard (attributes EventKind, EventName), EventEyebrow, EventToggle,
 -- EventEffect, EventText, EventMapNote, ChoiceRow, ChoiceA, ChoiceB, ChoiceC
--- (each with PickBar and Choice<X>Line: Choice<X>Effect, Choice<X>Loss), ChoiceWhy (WhyToggle), ChoiceNeed,
--- ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3, ChoiceTaken; WeekCard,
+-- (each with PickBar and Choice<X>Line: Choice<X>Effect, Choice<X>Loss), ChoiceRival, ChoiceWhy (WhyToggle), ChoiceNeed,
+-- ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3, ChoiceTaken; EventClosing,
+-- ClosingDetail (the strip); WeekCard,
 -- WeekToggle, FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog,
 -- FeedEvent, FeedRaised, FeedPolls, FeedLastDebate, FeedDebate, FeedMessages.
 
@@ -92,6 +98,7 @@ local STRIP_ARROW = 28 -- px, the arrow at the strip's right end
 local STRIP_H = 52 -- px, the strip: a touch target with two one-line texts
 local STRIP_TITLE_H = Kit.size.body + 4 -- px, its title line (bold body)
 local STRIP_LINE_H = Kit.size.caption + 4 -- px, its effect line (caption)
+local STRIP_CLOSING_H = STRIP_H + STRIP_LINE_H + Kit.space.xs -- px, the strip with its closing-weeks line too (S3)
 local STRIP_SHEET_H = 0.5 -- share of the screen the details sheet takes
 local EVENT_ICONS: { [string]: string } = {
 	Spotlight = "tv", -- the issue is on every channel
@@ -172,7 +179,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 	})
 	local mapNote = Kit.caption("", { Name = "EventMapNote", LayoutOrder = 2, Parent = card.body })
 	-- Everything about the stances beyond the one-line effects, one tap away.
-	local why = Collapsible.new(card.body, { title = "Why?", name = "ChoiceWhy", order = 5 })
+	local why = Collapsible.new(card.body, { title = "Why?", name = "ChoiceWhy", order = 6 })
 	why.toggle.Name = "WhyToggle"
 	why.root.BackgroundTransparency = 1
 	local whyPad = why.root:FindFirstChildOfClass("UIPadding")
@@ -288,6 +295,14 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		end)
 		choiceButtons[answer] = button
 	end
+	-- Under the chips, above "Why?": the rival takes a stance too (M2).
+	local rivalNote = Kit.caption("", {
+		Name = "ChoiceRival",
+		LayoutOrder = 5,
+		TextColor3 = Kit.colors.text,
+		Visible = false,
+		Parent = card.body,
+	})
 	local summary = Kit.text("", {
 		Name = "ChoiceSummary",
 		LayoutOrder = 2,
@@ -372,6 +387,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			answerRow.Visible = choosing
 			why.root.Visible = choosing
 			choiceNote.Visible = choosing
+			rivalNote.Visible = choosing
 			need.Visible = choosing
 			summary.Visible = choosing
 			local isChoice = choosing
@@ -402,6 +418,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			end
 			need.Text = Swing.needText(config, view)
 			choiceNote.Text = PlanDraft.choiceNote(config)
+			rivalNote.Text = PlanDraft.rivalChoiceNote(Model.firstName(config, view, Model.opponentOf(view)))
 			local canEdit = Model.editable(model, p)
 			local stances = event.stances
 			if stances then
@@ -503,6 +520,20 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Parent = root,
 	})
+	-- The closing-weeks bonus (S3), under the event's line when there is one.
+	local closing = Kit.caption("", {
+		Name = "EventClosing",
+		Position = UDim2.new(0, textX, 0.5, STRIP_LINE_H / 2),
+		Size = UDim2.new(1, textW, 0, STRIP_LINE_H),
+		AutomaticSize = Enum.AutomaticSize.None,
+		Font = Kit.font.medium,
+		TextColor3 = Kit.colors.text,
+		TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Visible = false,
+		Parent = root,
+	})
 	Kit.text(Kit.glyph.arrow, {
 		Name = "EventMore",
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -532,6 +563,8 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 	local taken = detail("ChoiceTaken", 4, false)
 	local nextLine = detail("NextEvent", 5, true)
 	nextLine.TextColor3 = Kit.colors.text
+	local closingDetail = detail("ClosingDetail", 6, true)
+	closingDetail.TextColor3 = Kit.colors.text
 
 	local pulsedFor: string? = nil -- the event the strip last pulsed for
 	local iconKind: string? = nil -- the kind whose icon the plate shows
@@ -543,20 +576,60 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 			if not root.Visible then
 				return 0
 			end
-			return STRIP_H
+			return if closing.Visible then STRIP_CLOSING_H else STRIP_H
 		end,
 		render = function(_self: EventStrip, p: Model.Payload)
 			local view = p.view
 			local event = Model.shownEvent(p)
 			local upcoming = if p.reveal == nil then view.nextEvent else nil
 			local shown = event or upcoming
-			root.Visible = shown ~= nil
+			local closingWords = if p.reveal == nil then Words.closing(config, view.week) else nil
+			root.Visible = shown ~= nil or closingWords ~= nil
 			root:SetAttribute("EventKind", if event then event.kind else nil)
 			root:SetAttribute("EventName", if event then event.name else nil)
+			closingDetail.Text = if closingWords then closingWords.detail else ""
+			closingDetail.Visible = closingWords ~= nil
 			if shown == nil then
-				sheet:close()
+				closing.Visible = false
+				root.Size = UDim2.new(1, 0, 0, STRIP_H)
+				if closingWords == nil then
+					sheet:close()
+					return
+				end
+				-- A closing week with no event: the strip says the bonus alone.
+				if iconKind ~= "Closing" then
+					iconKind = "Closing"
+					for _, child in plate:GetChildren() do
+						if child:IsA("GuiObject") then
+							child:Destroy()
+						end
+					end
+					local icon = Kit.icon("clock", STRIP_GLYPH, Kit.colors.background)
+					icon.Name = "Icon"
+					icon.AnchorPoint = Vector2.new(0.5, 0.5)
+					icon.Position = UDim2.fromScale(0.5, 0.5)
+					icon.Parent = plate
+				end
+				title.Text = closingWords.title
+				line.Text = closingWords.alone
+				title.Position = UDim2.new(0, textX, 0.5, -STRIP_TITLE_H)
+				line.Position = UDim2.new(0, textX, 0.5, 0)
+				sheet:setTitle(closingWords.title)
+				effect.Text = ""
+				for _, label in { effect, flavor, mapNote, taken, nextLine } do
+					label.Visible = false
+				end
 				return
 			end
+			effect.Visible = true
+			flavor.Visible = true
+			-- With the closing line, the three lines sit centered together.
+			closing.Visible = closingWords ~= nil
+			closing.Text = if closingWords then closingWords.line else ""
+			local lift = if closing.Visible then STRIP_LINE_H / 2 else 0
+			root.Size = UDim2.new(1, 0, 0, if closing.Visible then STRIP_CLOSING_H else STRIP_H)
+			title.Position = UDim2.new(0, textX, 0.5, -STRIP_TITLE_H - lift)
+			line.Position = UDim2.new(0, textX, 0.5, -lift)
 			local key = `{shown.week}:{shown.id}`
 			if pulsedFor ~= key then
 				pulsedFor = key

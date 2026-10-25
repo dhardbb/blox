@@ -26,6 +26,13 @@ Studio checklist: `docs/TESTING.md`, "Debates: the Zinger, the downside, the tim
 - **The Zinger says it is used either way.** The toggle reads "Stake Zinger: win ×2 · used either way"; picking a Safe move that can still split with the Zinger staked makes the bar say "A split still uses the Zinger"; the Safe coach tip and Help's debates line say a split or a loss uses it up. (The rule is unchanged: it always was.)
 - **Debate "Why?" shows the downside.** Under each move's win line: what losing to their counter costs ("Lose to their Pivot: -0.5 in WI, MI…; could lose TN (-11 EV)"), or "Their Attack can't beat it: no backfire." While the rival still holds a Zinger: "Rex still has a Zinger: a round they win, even by 1, can count ×2."
 - **+15 s in debate rounds.** The plan's time bank (30 s a match, 15 s a tap) can now also be spent on a debate round, from the same 30 s. It only extends your own clock. Not in the tutorial or with admin Timers off. Match length limits unchanged.
+### New-player copy from the 0.15 playtest
+
+Studio checklist: `docs/TESTING.md`, "New-player copy: stances, underdog, closing weeks". Nothing needed from the humans. Copy only: no rule or number changed.
+
+- **Stances: the rival picks too.** Under the three stance chips on the Decision screen: "<Rival> picks too, in secret. Same side: it mostly cancels. Opposite sides: both land." (with the rival's name). After a Choice week where you both took the same side and no state flipped, the results' "Why?" (and News) adds "Same side, so most of it cancelled."
+- **Underdog label fixed.** News no longer says "about 40+ projected EV behind" while you lead in the polls. It now reads "You are underdog tier 1: rallies ×1.1, fundraisers ×1.15 (you were behind in the polls lately; it fades once you stay ahead)." For the rival: "Rex has the underdog boost: rallies ×1.1, fundraisers ×1.15."
+- **Closing weeks are announced.** From week 10 the event strip under the score has a third line, "Closing weeks: rallies and ads +15%"; in week 9 it reads "From next week: rallies, ads +15%". Week 12 (no event) shows the strip with "Closing weeks · Rallies and ads +15%". Tapping the strip says it in a sentence (attack ads count too, for both players). Help's Your turn numbers have one line on it. The tutorial does the same from its week 3.
 
 ## 0.15.0: Daily Race, matchmaking across servers, short tutorial (Oct 24, 2026)
 
