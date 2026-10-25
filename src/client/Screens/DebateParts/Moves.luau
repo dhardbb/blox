@@ -3,13 +3,14 @@
 -- the move and its strength over three result cells against the opponent's
 -- moves, a "Safe" tag on a move that cannot lose (only in the player's first
 -- debate of the session, with a coach tip), then the Zinger toggle and "Why?"
--- (each move's strength in parts, and what a win lands on).
+-- (each move's strength in parts, what a win lands on, what losing to their
+-- counter costs, and whether their Zinger is still live).
 --
 --   [ Defend  6 <Safe>        D +4 · A +3 · P = ]
 --   [ Pivot  4                D +1 · A −1 · P +1 ]
 --   [ Lands on Safety states                     ]
 --   (the cells: your result against their Defend, Attack, Pivot)
---   ( Stake Zinger: a win counts ×2 )
+--   ( Stake Zinger: win ×2 · used either way )
 --   ( Why? + )
 --
 -- Every number comes from Shared/UI/Swing.debateBoard, from the player's own
@@ -20,7 +21,7 @@
 --   moves.root  Frame "DebateMoves"
 --   Elements: MoveDefend / MoveAttack / MovePivot (MoveTitle*, MoveCells*,
 --   MoveSafe*), Zinger, DebateWhy (WhyToggle), WhyDefend / WhyAttack / WhyPivot,
---   WhyWin*.
+--   WhyWin*, WhyLoss*, WhyRule, WhyRivalZinger.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -56,6 +57,7 @@ type Row = {
 	lands: TextLabel, -- a Pivot's landing issue, under its line
 	why: TextLabel,
 	win: TextLabel,
+	loss: TextLabel,
 }
 
 export type Moves = {
@@ -181,11 +183,13 @@ function Moves.new(parent: Instance, model: Model.Model, pick: Pick, order: numb
 		button.MouseLeave:Connect(release)
 		local whyLine = Kit.caption("", {
 			Name = `Why{move}`,
-			LayoutOrder = 2 * k,
+			LayoutOrder = 3 * k,
 			TextColor3 = Kit.colors.text,
 			Parent = why.body,
 		})
-		local winLine = Kit.caption("", { Name = `WhyWin{move}`, LayoutOrder = 2 * k + 1, Parent = why.body })
+		local winLine = Kit.caption("", { Name = `WhyWin{move}`, LayoutOrder = 3 * k + 1, Parent = why.body })
+		local lossLine =
+			Kit.caption("", { Name = `WhyLoss{move}`, LayoutOrder = 3 * k + 2, Parent = why.body })
 		rows[move] = {
 			button = button,
 			title = title,
@@ -194,9 +198,17 @@ function Moves.new(parent: Instance, model: Model.Model, pick: Pick, order: numb
 			lands = lands,
 			why = whyLine,
 			win = winLine,
+			loss = lossLine,
 		}
 	end
 	local rule = Kit.caption("", { Name = "WhyRule", LayoutOrder = 100, Parent = why.body })
+	local rivalZinger = Kit.caption("", {
+		Name = "WhyRivalZinger",
+		LayoutOrder = 101,
+		TextColor3 = Kit.colors.text,
+		Visible = false,
+		Parent = why.body,
+	})
 
 	local zinger: TextButton
 	zinger = Kit.chip("", function()
@@ -228,6 +240,7 @@ function Moves.new(parent: Instance, model: Model.Model, pick: Pick, order: numb
 				row.safe.Visible = pick.showSafe and info.safe
 				row.why.Text = Words.parts(info)
 				row.win.Text = info.winLine
+				row.loss.Text = info.lossLine
 				Kit.setSelected(row.button, pick.move == move)
 				Kit.setEnabled(row.button, canEdit)
 			end
@@ -239,6 +252,9 @@ function Moves.new(parent: Instance, model: Model.Model, pick: Pick, order: numb
 			Kit.setEnabled(zinger, canEdit and board.zingers > 0)
 			rule.Text =
 				`Defend beats Attack, Attack beats Pivot, Pivot beats Defend (+{board.counter} this round). Higher score wins the round; equal is a split. Same move as last round: -{config.DEBATE_REPEAT}.`
+			local theirLine = Words.rivalZinger(board, Model.firstName(config, p.view, board.rival))
+			rivalZinger.Visible = theirLine ~= nil
+			rivalZinger.Text = theirLine or ""
 		end,
 	}
 	return part

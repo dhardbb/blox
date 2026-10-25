@@ -243,6 +243,51 @@ describe("Swing: debates", function()
 		end
 	end)
 
+	it("says what losing to their counter costs: the backfire rule and the flips it makes (S1)", function()
+		local view = viewAt("DebateRound")
+		calm(view)
+		local board = Swing.debateBoard(C, view) :: Swing.DebateBoard
+		local live = view.debate
+		local backfires: Swing.MoveRow? = nil
+		for _, row in board.rows do
+			expect(Debate.BEATS[row.counteredBy]):toBe(row.move)
+			local at = table.find({ "Defend", "Attack", "Pivot" }, row.counteredBy) :: number
+			expect(row.canBackfire):toBe(row.cells[at] < 0)
+			if row.canBackfire then
+				check(
+					has(
+						row.lossLine,
+						`Lose to their {row.counteredBy}: -{string.format("%.1f", C.DEBATE_BACKFIRE)} in `
+					),
+					row.lossLine
+				)
+				check(not has(row.lossLine, "could"), `a calm map flips nothing: {row.lossLine}`)
+				backfires = backfires or row
+			else
+				expect(row.lossLine):toBe(`Their {row.counteredBy} can't beat it: no backfire.`)
+				expect(#row.lossFlips):toBe(0)
+			end
+		end
+		check(backfires ~= nil, "the round fixture has no move that can backfire")
+		-- Your narrowest lead in a state the move lands on: losing to the counter loses it.
+		local row = backfires :: Swing.MoveRow
+		local id = row.states[1]
+		setPoll(view, id, 40.2, 40)
+		local after = Swing.debateBoard(C, view) :: Swing.DebateBoard
+		local moved: Swing.MoveRow? = nil
+		for _, r in after.rows do
+			if r.move == row.move then
+				moved = r
+			end
+		end
+		local ev = StateData.byId[id].ev
+		local line = (moved :: Swing.MoveRow).lossLine
+		check(has(line, `; could lose {id} (-{ev} EV)`), line)
+		-- Public arithmetic only: the View's own board, the same rule the sim plays.
+		expect(live.board.players[view.you] ~= nil):toBe(true)
+		expect(after.theirZingerMult):toBe(live.board.players[3 - view.you].zingerMult)
+	end)
+
 	it("phrases a flip from your side", function()
 		local view = viewAt("Debate")
 		local you, them = view.you, 3 - view.you

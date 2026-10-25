@@ -1067,7 +1067,7 @@ function Explain.help(config: Config, view: View?): { Section }
 		`A win: {signed(c.DEBATE_ROUND_WIN)} in every state of the topic (Defend, Attack) or of your pivot issue (Pivot). A split: {signed(
 			c.DEBATE_ROUND_SPLIT
 		)} each. Losing to a counter: {signed(-c.DEBATE_BACKFIRE)} where your move aimed.`,
-		`Your Zinger (one per debate): stake it on a round; if you win, it counts ×{num(me.zingerMult)}. A crowd lead of {num(
+		`Your Zinger (one per debate): stake it on a round. A win counts ×{num(me.zingerMult)}; a split or a loss uses it up for nothing. A crowd lead of {num(
 			c.DEBATE_OVATION
 		)} or more at the end is a standing ovation: +{num(c.DEBATE_OVATION_MOMENTUM)} momentum in every battleground. No move in time: a weak Defend ({num(
 			c.DEBATE_CANNED

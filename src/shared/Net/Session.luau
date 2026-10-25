@@ -1189,7 +1189,9 @@ function Session.setTimersOff(session: Session, p: number, on: boolean, now: num
 	return true, nil
 end
 
--- A player takes one chunk of their time bank during a Plan stage.
+-- A player takes one chunk of their time bank during a Plan stage or a debate
+-- round (D-085: one pool per match for both). It moves only this seat's own
+-- deadline, for this Input stage only.
 function Session.bank(session: Session, p: number, step: any, now: number): (boolean, string?)
 	local stale = checkStep(session, step)
 	if stale then
@@ -1197,7 +1199,8 @@ function Session.bank(session: Session, p: number, step: any, now: number): (boo
 	end
 	local seat = session.seats[p]
 	local config = session.config
-	if session.stage ~= "Input" or session.match.phase ~= "Plan" or seat.locked then
+	local phase = session.match.phase
+	if session.stage ~= "Input" or (phase ~= "Plan" and phase ~= "Debate") or seat.locked then
 		return false, Session.Reason.NotInput
 	end
 	if session.deadline == Session.NO_DEADLINE then

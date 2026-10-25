@@ -19,6 +19,13 @@ Studio checklist: `docs/TESTING.md`, "Plan screen: idle money, Swap issue, battl
 - **Ad, Attack ad and Ground game say "no action"** under their price ("$3.0 · no action"), and Help's Actions tab adds "None of those use an action."
 - **The plan's Pivot is now "Swap issue"**, so it is not confused with the debate's Pivot move: the button, its chooser ("Swap an issue (once per match, −1 support everywhere)"), the plan list, the reveal ("Swapped Health for Roads & Transit"), the News card, Details, Help and the rejection messages. The debate move keeps its name.
 - **Battleground draft rounds say what a battleground does:** "Battleground: every rally and ad here counts ×1.5, for both of you. Pick where you can win."
+### Debates: the Zinger, the downside, the time bank (D-085)
+
+Studio checklist: `docs/TESTING.md`, "Debates: the Zinger, the downside, the time bank". Nothing needed from the humans.
+
+- **The Zinger says it is used either way.** The toggle reads "Stake Zinger: win ×2 · used either way"; picking a Safe move that can still split with the Zinger staked makes the bar say "A split still uses the Zinger"; the Safe coach tip and Help's debates line say a split or a loss uses it up. (The rule is unchanged: it always was.)
+- **Debate "Why?" shows the downside.** Under each move's win line: what losing to their counter costs ("Lose to their Pivot: -0.5 in WI, MI…; could lose TN (-11 EV)"), or "Their Attack can't beat it: no backfire." While the rival still holds a Zinger: "Rex still has a Zinger: a round they win, even by 1, can count ×2."
+- **+15 s in debate rounds.** The plan's time bank (30 s a match, 15 s a tap) can now also be spent on a debate round, from the same 30 s. It only extends your own clock. Not in the tutorial or with admin Timers off. Match length limits unchanged.
 
 ## 0.15.0: Daily Race, matchmaking across servers, short tutorial (Oct 24, 2026)
 
