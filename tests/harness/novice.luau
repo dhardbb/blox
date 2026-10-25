@@ -15,6 +15,7 @@
 --   lune run tests/harness/novice.luau leaks [N]           -- the novice with one part of its play handed to the standard bot
 --   lune run tests/harness/novice.luau habits [N]          -- the typical novice with one habit group fixed at a time
 --   (ablate, leaks and habits take --novice=Weak|Typical|Attentive; Typical by default)
+--   lune run tests/harness/novice.luau keys [N]            -- the key-states aid (D-088): Typical, and Typical aiming at the key states, vs Easy and Medium
 --   lune run tests/harness/novice.luau Typical Easy --variant=NoGotv
 --
 -- Flags on the bot under test (the first bot named in the pairing):
@@ -234,7 +235,14 @@ for _, arg in process.args do
 		table.insert(notes, arg)
 	elseif tonumber(arg) then
 		N = tonumber(arg) :: number
-	elseif arg == "ablate" or arg == "options" or arg == "bench" or arg == "leaks" or arg == "habits" then
+	elseif
+		arg == "ablate"
+		or arg == "options"
+		or arg == "bench"
+		or arg == "leaks"
+		or arg == "habits"
+		or arg == "keys"
+	then
 		mode = arg
 	elseif Novice.VARIANTS[arg] or table.find(Bot.DIFFICULTIES, arg) then
 		table.insert(named, arg)
@@ -548,6 +556,16 @@ elseif mode == "leaks" then
 		params.delegate = set
 		base.novice = params
 		pairing(base, seatFor("Easy", flags), N, `{noviceName}, bot's {table.concat(phases, "+")} vs Easy`)
+	end
+elseif mode == "keys" then
+	-- The key-states aid (D-088): the typical novice as is, then the same player
+	-- aiming its rallies, ads and ground game at the map's key states (KeyStates),
+	-- and half-following them (KeyHalf). Bots never read the key states.
+	print(`Key states: KEY_STATES {config.KEY_STATES}, KEY_STATE_BAND {config.KEY_STATE_BAND}`)
+	for _, level in { "Easy", "Medium" } do
+		for _, novice in { "Typical", "KeyStates", "KeyHalf" } do
+			pairing(seatFor(novice), seatFor(level, withVariant(variantName, flags)), N)
+		end
 	end
 elseif mode == "options" then
 	for _, name in OPTIONS do

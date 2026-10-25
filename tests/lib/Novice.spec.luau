@@ -5,6 +5,7 @@
 
 local Bot = require("@sim/Bot")
 local Config = require("@sim/Config")
+local KeyStates = require("@ui/KeyStates")
 local Match = require("@sim/Match")
 local Novice = require("./Novice")
 local Rng = require("@sim/Rng")
@@ -13,9 +14,23 @@ local View = require("@sim/View")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
+local function check(condition: boolean, message: string)
+	if not condition then
+		error(message, 0)
+	end
+end
+
 local config = Config.defaults
 
-type Run = { invalid: number, winner: number, ev: { number }, cash: number, kinds: { [string]: number } }
+type Run = {
+	invalid: number,
+	winner: number,
+	ev: { number },
+	cash: number,
+	kinds: { [string]: number },
+	aimed: number, -- rallies and ads (D-088)
+	onKey: number, -- ... of them in that week's key states
+}
 
 -- One match: the novice in `seat`, the Easy bot in the other.
 local function run(params: Novice.Params, seed: number, seat: number): Run
@@ -24,6 +39,7 @@ local function run(params: Novice.Params, seed: number, seat: number): Run
 	local candidates = { "okafor", "calloway" }
 	local invalid = 0
 	local kinds: { [string]: number } = {}
+	local aimed, onKey = 0, 0
 	while match.phase ~= "Done" do
 		local inputs = {}
 		if Match.wantsInput(match) then
@@ -33,8 +49,13 @@ local function run(params: Novice.Params, seed: number, seat: number): Run
 				if p == seat then
 					input = Novice.act(config, view, rngs[p], candidates[p], params)
 					if input ~= nil and match.phase == "Plan" then
+						local keys = KeyStates.set(config, view)
 						for _, action in input.actions do
 							kinds[action.kind] = (kinds[action.kind] or 0) + 1
+							if action.kind == "Rally" or action.kind == "Media" then
+								aimed += 1
+								onKey += if keys[action.state] then 1 else 0
+							end
 						end
 					end
 				else
@@ -56,6 +77,8 @@ local function run(params: Novice.Params, seed: number, seat: number): Run
 		ev = result.ev,
 		cash = match.players[seat].cash,
 		kinds = kinds,
+		aimed = aimed,
+		onKey = onKey,
 	}
 end
 
@@ -98,6 +121,18 @@ describe("Novice players (Easy-bot study)", function()
 			attentive += run(Novice.VARIANTS.Attentive, 930 + k, 1).cash
 		end
 		expect(weak > attentive + 30):toBe(true)
+	end)
+
+	it("the key-states novice aims at the key states (D-088), legally, from either seat", function()
+		for seat = 1, 2 do
+			local plain = run(Novice.VARIANTS.Typical, 950 + seat, seat)
+			local keyed = run(Novice.VARIANTS.KeyStates, 950 + seat, seat)
+			expect(keyed.invalid):toBe(0)
+			-- Ads go to its four likeliest states in turn, so one in four may miss
+			-- the three key states; a stronghold rally now and then too.
+			check(keyed.onKey >= 0.6 * keyed.aimed, `{keyed.onKey} of {keyed.aimed} on key states`)
+			check(keyed.onKey / keyed.aimed > plain.onKey / plain.aimed + 0.2, "no more aimed than Typical")
+		end
 	end)
 
 	it("hands a delegated phase to the standard bot", function()
