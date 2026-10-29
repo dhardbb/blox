@@ -1241,3 +1241,42 @@ Before testing: if the new portraits are uploaded and their ids are in `src/clie
 6. **Name Pass.** With a Name Pass owner, name your candidate "Captain Zed". **Expect:** the opponent sees "Captain Zed", not the new candidate name; clearing it shows the new name.
 7. **Stats.** If you had saved stats before, **expect** them unchanged (per-candidate records still under the same candidates).
 
+## Match records and analytics (unreleased, D-094)
+
+Agents: `lune run tests "(D-094)"` (MatchRecord, Records and the e2e specs), `lune run tests "e2e: ratings"`, `lune run tests Leaderboard`, `lune run tests/harness/balance.luau 400` (must print the same report as before). To try the summary on a fake export: write a few records as JSON lines (as `tests/net/Records.spec.luau` does) and run `lune run tests/harness/records.luau <file>`.
+
+**What the humans must enable.** In Studio: File → Game Settings → Security → **Enable Studio Access to API Services** on (the place must be published). Without it everything still plays; the Output says once "match records are off this session" and nothing is saved. Analytics shows nothing from Studio: Roblox charts events from live servers only (Creator Hub → the experience → Analytics → Funnels / Custom events, a day or so after release).
+
+1. **A record is saved when a match ends.** With API access on, play a match against the bot (any level) to the end. **Expect** in the Output, right after "match m1 over": `[270] match record saved: MatchRecords_v1/20261029_studio_m1_<seed> (<about 3000-5000> chars)`. Nothing about records while the match is being played. Then Creator Hub → the experience → **Data Stores Manager** → `MatchRecords_v1`: one entry with that key; its value starts with `"v":1` and has `"mode":"Practice"` and your UserId (no username).
+2. **Leave a match.** Start another bot match and **Leave match** in week 2. **Expect:** a second record with `"reason":"Forfeit"` and `"forfeits":[1]`.
+3. **API access off.** Turn it off, play a bot match to the end. **Expect:** the match ends normally; one warning "match records are off this session…" and a line "match record … not saved". No other errors.
+4. **Landslide count.** (Needs two accounts and **Find match**, published game; a landslide is more than 376 of 538 votes.) Win a queued match by a landslide. **Expect:** back in the Lobby the record line ends "· ▲1 landslide"; on the leaderboard your row shows a gold "▲1" between your name and rating (within a minute; "See all" too). In your next queued match against that account, the plan screen's bar reads "<your first name> ▲1 · thinking" on their screen. A landslide in a private-code match, against the bot or in the Daily Race does **not** count.
+5. **Old profiles.** Join with an account that played before this version. **Expect:** rating, record and Daily streak exactly as before; no ▲ until a public landslide.
+6. **Export with Open Cloud (no keys in the repo, ever).** Creator Hub → **Open Cloud → API Keys → Create API Key**: name it "match records export"; Access Permissions → **universe-datastores** (Data Stores): add the experience, operations **List entry keys** (`universe-datastores.objects:list`) and **Read entry** (`universe-datastores.objects:read`); add **Delete entry** (`universe-datastores.objects:delete`) only on a separate key used to clear exported days; Security → your IP (or 0.0.0.0/0 while testing); an expiry date. Keep the key in a password manager. The universe id: Creator Hub → the experience → ⋯ → **Copy Universe ID**. Then, on a Mac with `curl` and `jq` (`brew install jq`):
+
+   ```sh
+   export API_KEY='paste-the-key-here'      # never commit it or paste it in chat
+   UNIVERSE=1234567890                      # your universe id
+   DAY=20261029                             # one UTC day; the key prefix
+   BASE=https://apis.roblox.com/cloud/v2
+   LIST="$BASE/universes/$UNIVERSE/data-stores/MatchRecords_v1/entries"
+   OUT="records-$DAY.jsonl"; : > "$OUT"; TOKEN=""
+   while :; do
+     PAGE=$(curl -sS -G "$LIST" -H "x-api-key: $API_KEY" \
+       --data-urlencode "filter=id.startsWith(\"${DAY}_\")" \
+       --data-urlencode "maxPageSize=256" --data-urlencode "pageToken=$TOKEN")
+     for P in $(echo "$PAGE" | jq -r '.dataStoreEntries[]?.path'); do
+       curl -sS "$BASE/$P" -H "x-api-key: $API_KEY" | jq -c '.value' >> "$OUT"
+       sleep 0.2                              # stay well under the shared request budget
+     done
+     TOKEN=$(echo "$PAGE" | jq -r '.nextPageToken // empty')
+     [ -z "$TOKEN" ] && break
+   done
+   wc -l "$OUT"
+   lune run tests/harness/records.luau "$OUT"            # every mode
+   lune run tests/harness/records.luau "$OUT" mode=Queue  # public matches only
+   ```
+
+   Open Cloud requests share the experience's DataStore budget with the live servers, so export at a quiet time and keep the `sleep`. Several days: run it once per day and pass all the files to `records.luau`. After saving a day's file, delete that day's entries (same loop with `curl -X DELETE "$BASE/$P"` and the delete key) so storage stays under the quota.
+7. **Analytics (published game, the day after).** Creator Hub → Analytics → **Funnels**: "Onboarding" lists Joined, Tutorial started, Tutorial week 1-4, Tutorial finished, First match started/finished, Joined the queue, Finished a rated match, Asked for a rematch, Played the Daily Race; "Visit" lists In the lobby, Looked for a game, Match started, Match finished, Played again, Finished again. **Custom events**: MatchStarted, MatchEnded, Landslide, QueueJoined, QueueLeft, Rematch, each broken down by Custom Field 1-3 (mode, level or reason, outcome or candidate). A fresh account playing the tutorial should appear in Onboarding; your own veteran account appears only in Visit.
+8. *Send back:* the Output lines from steps 1-3, a screenshot of the Data Stores Manager entry, a Lobby and leaderboard screenshot after a landslide, the line count and the first screen of `records.luau`'s report from an export, and any Output errors from `MatchLog`, `Analytics`, `MatchService` or `LeaderboardService`.

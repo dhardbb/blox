@@ -18,6 +18,12 @@ Leaderboard.SHORT = 10 -- entries the Lobby shows on a wide screen
 Leaderboard.COMPACT = 3 -- entries the Lobby shows on a phone
 Leaderboard.REFRESH = 60 -- seconds: the cached list is read again at most this often
 Leaderboard.MAX_NAME = 32 -- longest name kept (Roblox usernames are at most 20)
+-- The public landslide counts (D-094): a second OrderedDataStore, same keys,
+-- the count as its value. A read takes its top LANDSLIDE_TOP, so a board row
+-- shows a count when its player is among the LANDSLIDE_TOP most landslides
+-- (or played on this server); otherwise the row shows none.
+Leaderboard.LANDSLIDE_STORE = "Landslides_v1"
+Leaderboard.LANDSLIDE_TOP = 100
 
 export type Status = "Ok" | "Loading" | "Unavailable"
 
@@ -26,6 +32,7 @@ export type Entry = {
 	id: string, -- the player's UserId as a string
 	name: string,
 	rating: number,
+	landslides: number?, -- the public landslide count (D-094); absent = none known
 }
 
 -- Where the viewer stands. Absent when they have no rated games.
@@ -84,7 +91,13 @@ local function rank(entries: { Entry }): { Entry }
 		if k > Leaderboard.TOP then
 			break
 		end
-		table.insert(out, { rank = k, id = entry.id, name = entry.name, rating = entry.rating })
+		table.insert(out, {
+			rank = k,
+			id = entry.id,
+			name = entry.name,
+			rating = entry.rating,
+			landslides = entry.landslides,
+		})
 	end
 	return out
 end
@@ -110,16 +123,54 @@ function Leaderboard.fromPage(rows: { any }, nameOf: (id: string) -> string): { 
 	return rank(entries)
 end
 
+-- A landslide store page as player id -> count (D-094): rows this game would
+-- not write, and counts under 1, are skipped.
+function Leaderboard.countsFromPage(rows: { any }): { [string]: number }
+	local out: { [string]: number } = {}
+	for _, row in rows do
+		if type(row) ~= "table" then
+			continue
+		end
+		local id = Leaderboard.idOf(row.key)
+		local n = wholeNumber(row.value)
+		if id and n and n >= 1 and out[id] == nil then
+			out[id] = n
+		end
+	end
+	return out
+end
+
+-- The entries with each player's landslide count from `counts` (D-094); a
+-- player not in it keeps the count the entry had.
+function Leaderboard.withLandslides(entries: { Entry }, counts: { [string]: number }): { Entry }
+	local out: { Entry } = {}
+	for k, entry in entries do
+		local copy = table.clone(entry)
+		local n = counts[entry.id]
+		if n and n >= 1 then
+			copy.landslides = math.floor(n)
+		end
+		out[k] = copy
+	end
+	return out
+end
+
 -- The list with one player's new rating in it (after a rated match), without
 -- waiting for the next read: their row moves, or joins if it makes the top.
 function Leaderboard.patch(entries: { Entry }, id: string, name: string, rating: number): { Entry }
 	local out: { Entry } = {}
+	local landslides: number? = nil
 	for _, entry in entries do
 		if entry.id ~= id then
 			table.insert(out, table.clone(entry))
+		else
+			landslides = entry.landslides
 		end
 	end
-	table.insert(out, { rank = 0, id = id, name = name, rating = math.floor(rating) })
+	table.insert(
+		out,
+		{ rank = 0, id = id, name = name, rating = math.floor(rating), landslides = landslides }
+	)
 	return rank(out)
 end
 

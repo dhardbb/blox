@@ -64,12 +64,20 @@
 -- ContentProvider (PreloadAsync reports each asset Success, or Failure when its
 -- id is in world.brokenAssets). Specs assert end states, never timings.
 --
+-- Data and analytics (docs/DESIGN.md D-094): DataStoreService's
+-- GetRequestBudgetForRequestType answers world.data.writeBudget for every type;
+-- HttpService has JSONEncode (Lune's serde) and GenerateGUID (a counter);
+-- AnalyticsService logs every LogOnboardingFunnelStepEvent, LogFunnelStepEvent
+-- and LogCustomEvent call in world.analytics.calls ({ method, userId, args })
+-- and fails while world.analytics.failures > 0.
+--
 -- What it does not fake: rendering, physics, real replication of anything but
 -- remotes, or Studio. Real-engine checks still need Studio
 -- (docs/TESTING.md). Used by tests/e2e and tests/play.luau.
 
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
+local serde = require("@lune/serde")
 
 local Rng = require("@sim/Rng")
 
@@ -108,6 +116,13 @@ export type DataState = {
 	orderedWrites: number, -- successful ordered-store writes so far
 	sortedReads: number, -- GetSortedAsync calls so far
 	sortedReadsBy: { [string]: number }, -- the same per ordered store ("<name>" or "<name>/<scope>")
+	writeBudget: number, -- what GetRequestBudgetForRequestType answers (D-094; default 200)
+}
+
+-- The fake AnalyticsService's state (D-094).
+export type AnalyticsState = {
+	calls: { { method: string, userId: number, args: { any } } },
+	failures: number, -- the next N calls throw
 }
 
 export type World = {
@@ -146,6 +161,8 @@ export type World = {
 	teleport: TeleportState, -- TeleportService (D-083)
 	social: SocialState, -- SocialService (D-083)
 	joinData: { [number]: any }, -- user id -> what Player:GetJoinData() returns (default {})
+	analytics: AnalyticsState, -- AnalyticsService (D-094)
+	guids: number, -- HttpService:GenerateGUID calls so far
 }
 
 -- The fake MemoryStoreService's state (D-083): sorted maps and hash maps by
@@ -1077,8 +1094,44 @@ local function newOrderedDataStore(world: World, name: string): any
 	return store
 end
 
+-- AnalyticsService (D-094): logs each call; fails while world.analytics.failures > 0.
+local function newAnalyticsService(world: World): any
+	local service = {}
+	local function logger(method: string): (...any) -> ()
+		return function(_self: any, player: any, ...: any)
+			local state = world.analytics
+			if state.failures > 0 then
+				state.failures -= 1
+				error("AnalyticsService: request failed (simulated)", 0)
+			end
+			table.insert(state.calls, { method = method, userId = player.UserId, args = { ... } })
+		end
+	end
+	service.LogOnboardingFunnelStepEvent = logger("LogOnboardingFunnelStepEvent")
+	service.LogFunnelStepEvent = logger("LogFunnelStepEvent")
+	service.LogCustomEvent = logger("LogCustomEvent")
+	return service
+end
+
+-- HttpService (D-094): JSONEncode and GenerateGUID only.
+local function newHttpService(world: World): any
+	return {
+		JSONEncode = function(_self: any, value: any): string
+			return serde.encode("json", value)
+		end,
+		GenerateGUID = function(_self: any, braces: boolean?): string
+			world.guids += 1
+			local id = string.format("00000000-0000-4000-8000-%012d", world.guids)
+			return if braces == false then id else `\{{id}\}`
+		end,
+	}
+end
+
 local function newDataStoreService(world: World): any
 	return {
+		GetRequestBudgetForRequestType = function(_self: any, _kind: any): number
+			return world.data.writeBudget
+		end,
 		GetDataStore = function(_self: any, name: string, _scope: string?): any
 			return newDataStore(world, name)
 		end,
@@ -1839,6 +1892,8 @@ local function newGame(world: World, isServer: boolean): any
 	services.MemoryStoreService = newMemoryStoreService(world)
 	services.TeleportService = newTeleportService(world)
 	services.SocialService = newSocialService(world)
+	services.AnalyticsService = newAnalyticsService(world)
+	services.HttpService = newHttpService(world)
 	rawget(game, "_props").JobId = if isServer then world.jobId else ""
 	rawget(game, "_props").PlaceId = world.placeId
 	rawget(game, "_props").PrivateServerId = if isServer then world.privateServerId else ""
@@ -2010,6 +2065,7 @@ function FakeRoblox.world(
 			orderedWrites = 0,
 			sortedReads = 0,
 			sortedReadsBy = {},
+			writeBudget = 200,
 		},
 		jobId = options.jobId or "job-1",
 		closeHandlers = {},
@@ -2053,6 +2109,8 @@ function FakeRoblox.world(
 		},
 		social = { canInvite = true, failures = 0, checks = 0, prompts = {} },
 		joinData = {},
+		analytics = { calls = {}, failures = 0 },
+		guids = 0,
 	} :: World
 	world.shared = newInstance(world, "ReplicatedStorage", "ReplicatedStorage")
 	local sharedFolder = newInstance(world, "Folder", "Shared")

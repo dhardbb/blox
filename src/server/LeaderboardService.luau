@@ -20,6 +20,12 @@
 -- one; SetAsync on an ordered store allows 30 + 5 per player each minute and
 -- this makes one per rated result and one per join of a ranked player.
 --
+-- Landslides (D-094): each player's public landslide count is a second
+-- OrderedDataStore (Leaderboard.LANDSLIDE_STORE, same keys). It is written
+-- when a public landslide is counted and when a player who has some loads in,
+-- and read right after the rating page (one more GetSortedAsync a refresh, of
+-- its top Leaderboard.LANDSLIDE_TOP); a failed read leaves the counts out.
+--
 -- In an unpublished Studio place, or with "Enable Studio Access to API
 -- Services" off, every read fails and the board says "Unavailable".
 
@@ -42,6 +48,7 @@ export type Store = {
 
 export type Options = {
 	store: Store?, -- default: DataStoreService:GetOrderedDataStore(Leaderboard.STORE)
+	landslideStore: Store?, -- default: DataStoreService:GetOrderedDataStore(Leaderboard.LANDSLIDE_STORE)
 	now: (() -> number)?, -- default: workspace:GetServerTimeNow()
 	send: ((id: string, board: Leaderboard.Board) -> ())?, -- how a board reaches a player
 	ratingOf: ((id: string) -> number?)?, -- a player's own rating when they have rated games
@@ -69,6 +76,8 @@ local reading = false
 local waiting: { [string]: boolean } = {} -- players to send the board to when the read ends
 local names: { [string]: string } = {} -- user id -> username, cached
 local recent: { [string]: { rating: number, at: number } } = {} -- this server's latest writes
+local landslideStore: Store? = nil
+local landslides: { [string]: number } = {} -- player id -> public landslide count, as last read or written (D-094)
 
 local function getStore(): Store?
 	if store then
@@ -87,6 +96,39 @@ local function getStore(): Store?
 	end
 	warn(`[270] leaderboard store unavailable: {result}`)
 	return nil
+end
+
+local function getLandslideStore(): Store?
+	if landslideStore then
+		return landslideStore
+	end
+	local ok, result = pcall(function(): any
+		return game:GetService("DataStoreService"):GetOrderedDataStore(Leaderboard.LANDSLIDE_STORE)
+	end)
+	if ok and result then
+		landslideStore = result :: any
+	end
+	return landslideStore
+end
+
+-- The landslide counts' top page (D-094), merged into `landslides`. Yields;
+-- a failure keeps what was known.
+local function fetchLandslides()
+	local s = getLandslideStore()
+	if s == nil then
+		return
+	end
+	local ok, result = pcall(function(): { any }
+		local pages = s:GetSortedAsync(false, Leaderboard.LANDSLIDE_TOP)
+		return pages:GetCurrentPage()
+	end)
+	if ok and type(result) == "table" then
+		for id, n in Leaderboard.countsFromPage(result) do
+			landslides[id] = math.max(n, landslides[id] or 0)
+		end
+	else
+		warn(`[270] could not read the landslide counts: {result}`)
+	end
 end
 
 local function status(): Leaderboard.Status
@@ -205,8 +247,10 @@ local function read()
 		local rows = fetch()
 		if rows then
 			lookUpAll(rows)
+			fetchLandslides()
 			entries = Leaderboard.fromPage(rows, nameOf)
 			reapply()
+			entries = Leaderboard.withLandslides(entries, landslides)
 			everRead = true
 			failed = false
 		else
@@ -278,10 +322,46 @@ function LeaderboardService.record(id: string, rating: number)
 	end)
 end
 
+-- Writes player `id`'s public landslide count (D-094; on its own thread) and
+-- shows it on their row at once. Call it when the count changes or when a
+-- player who has some loads in.
+function LeaderboardService.recordLandslides(id: string, count: number)
+	if tonumber(id) == nil or count < 1 then
+		return
+	end
+	local value = math.floor(count)
+	if landslides[id] == value then
+		return -- already written or read this server's life
+	end
+	landslides[id] = value
+	entries = Leaderboard.withLandslides(entries, { [id] = value })
+	task.spawn(function()
+		local s = getLandslideStore()
+		if s == nil then
+			return
+		end
+		for attempt = 1, WRITE_ATTEMPTS do
+			local ok, err = pcall(function(): string?
+				s:SetAsync(Leaderboard.keyOf(id), value)
+				return nil
+			end)
+			if ok then
+				return
+			end
+			if attempt == WRITE_ATTEMPTS then
+				warn(`[270] could not write player {id}'s landslide count: {err}`)
+			else
+				task.wait(RETRY_WAIT * 2 ^ (attempt - 1))
+			end
+		end
+	end)
+end
+
 -- Sets up where boards go and where ratings come from. Call once at start.
 function LeaderboardService.start(options: Options?)
 	if options then
 		override = options.store
+		landslideStore = options.landslideStore or landslideStore
 		if options.now then
 			clock = options.now
 		end

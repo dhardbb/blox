@@ -79,6 +79,7 @@ export type Seat = {
 	hiddenNames: { [number]: string }, -- names this viewer reported: never shown to them again
 	admin: boolean, -- an admin, as the server checked it (D-081); never true for a bot
 	timersOff: boolean, -- this admin's "Timers off" toggle (D-081); false for anyone else
+	landslides: number?, -- a human's public landslide count (D-094), from their seat spec
 }
 
 -- The admin "Timers off" toggle as an admin's seat sees it (D-081).
@@ -124,6 +125,7 @@ export type SeatInfo = {
 	bank: number,
 	graceUntil: number?,
 	difficulty: Bot.Difficulty?, -- a bot seat's practice difficulty (D-057)
+	landslides: number?, -- a human's public landslide count (D-094); absent = none or unknown
 }
 
 export type StatePayload = {
@@ -175,6 +177,27 @@ export type Session = {
 	adminUntimed: boolean, -- the admin rule has the choice timers off right now (D-081)
 	adminUnrated: boolean, -- the timers were off at some point with two or more humans: unrated (D-081)
 	daily: DailyRun?, -- a Daily Race run (D-082)
+	startedAt: number, -- server time the session was created (match records, D-094)
+	log: Log, -- what the match record needs that the match state does not keep (D-094)
+}
+
+-- What each Input stage closed with (D-094), for the server's match record:
+-- the match state keeps stances, debate moves and events, but not the plans.
+export type Log = {
+	plans: { PlanEntry }, -- every seat's plan each week, in order
+	timeouts: { Timeout }, -- every seat that had nothing locked in when an Input stage closed
+}
+
+export type PlanEntry = {
+	week: number,
+	seat: number,
+	plan: any?, -- the normalized plan (Plan.validate); nil = none (the default empty plan)
+}
+
+export type Timeout = {
+	phase: State.Phase, -- the phase whose input stage closed
+	week: number,
+	seat: number,
 }
 
 -- A Daily Race run (D-082), as the server starts it.
@@ -205,6 +228,7 @@ export type SeatSpec = {
 	profile: Bot.Style?, -- Bot: plays this instead of Bot.styleFor(difficulty), keeping the level's timers (the Daily Race, D-087)
 	admin: boolean?, -- Human: an admin, as the server checked it (D-081)
 	timersOff: boolean?, -- Human: this admin's saved "Timers off" toggle (D-081); ignored unless admin
+	landslides: number?, -- Human: their public landslide count, shown with their name (D-094)
 }
 
 local Session = {}
@@ -331,6 +355,7 @@ function Session.payload(session: Session, p: number): StatePayload
 			bank = seat.bank,
 			graceUntil = if seat.connected then nil else seat.graceUntil,
 			difficulty = seat.botDifficulty,
+			landslides = seat.landslides,
 		}
 	end
 	local deadline: number? = if session.stage == "Input"
@@ -631,6 +656,15 @@ local function closeInput(session: Session, now: number)
 			pick.candidate = Match.claimOf(session.match, p) or pick.candidate
 			inputs[p] = pick
 		end
+		-- The match record (D-094): each plan, and each seat that timed out.
+		local given = inputs[p]
+		if phase == "Plan" then
+			table.insert(session.log.plans, { week = session.match.week, seat = p, plan = given })
+		end
+		if given == nil and not seat.locked then
+			local timeout: Timeout = { phase = phase :: State.Phase, week = session.match.week, seat = p }
+			table.insert(session.log.timeouts, timeout)
+		end
 		if phase == "Plan" and seat.kind == "Human" then
 			-- Consecutive: any week the player was here (locked in or just idle) or
 			-- played before dropping starts the count again.
@@ -824,6 +858,11 @@ function Session.new(
 			hiddenNames = {},
 			admin = spec.kind == "Human" and spec.admin == true,
 			timersOff = spec.kind == "Human" and spec.admin == true and spec.timersOff == true,
+			landslides = if spec.kind == "Human"
+					and type(spec.landslides) == "number"
+					and spec.landslides > 0
+				then math.floor(spec.landslides)
+				else nil,
 		}
 	end
 	-- Against a practice bot, its level sets the choice timers (D-075).
@@ -859,6 +898,8 @@ function Session.new(
 		daily = if options and options.daily
 			then { day = options.daily.day, counted = options.daily.counted == true }
 			else nil,
+		startedAt = now,
+		log = { plans = {}, timeouts = {} },
 	}
 	local _, adminOff = Session.adminRule(session)
 	session.adminUntimed = adminOff

@@ -47,6 +47,7 @@ local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
 local KeyRow = require(script.Parent.CampaignParts.KeyRow)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local LandslideBadge = require(script.Parent.Parent.UI.LandslideBadge)
 local Lens = require(script.Parent.Parent.Map.Lens)
 local LensToggle = require(script.Parent.Parent.Map.LensToggle)
 local MapInterface = require(script.Parent.Parent.Map.MapInterface)
@@ -699,7 +700,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if state == nil then
 			return nil
 		end
-		local name = Model.firstName(config, p.view, Model.opponentOf(p.view))
+		local them = Model.opponentOf(p.view)
+		local name = Model.firstName(config, p.view, them)
+		-- Their public landslide count beside their name (D-094), when they have one.
+		local seat = p.seats[them]
+		local slides = LandslideBadge.text(if seat then seat.landslides else nil)
+		if slides ~= "" then
+			name = `{name} {slides}`
+		end
 		return Model.opponentLine(name, state, now, Motion.reduced())
 	end
 

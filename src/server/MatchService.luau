@@ -11,6 +11,12 @@
 -- Results offers a rematch; the Lobby shows how many players are online
 -- (server/OnlineCount); a friend invited with a private code is taken
 -- straight into it (their join's LaunchData).
+--
+-- Data (D-094): every finished match is written as a record for balance
+-- analysis (server/MatchLog), each human's result carries its landslide flag
+-- and whether it was a public match (the public landslide count, Profile),
+-- and server/Analytics logs funnels and custom events. None of it can stop or
+-- break a match: each step is pcall'd and never yields here.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,18 +25,23 @@ local RunService = game:GetService("RunService")
 local Bot = require(ReplicatedStorage.Shared.Sim.Bot)
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
+local Election = require(ReplicatedStorage.Shared.Sim.Election)
 local CustomName = require(ReplicatedStorage.Shared.Net.CustomName)
 local Lobby = require(ReplicatedStorage.Shared.Net.Lobby)
+local MatchRecord = require(ReplicatedStorage.Shared.Net.MatchRecord)
 local Matchmaking = require(ReplicatedStorage.Shared.Net.Matchmaking)
 local Profile = require(ReplicatedStorage.Shared.Net.Profile)
 local Rematch = require(ReplicatedStorage.Shared.Net.Rematch)
 local Remotes = require(ReplicatedStorage.Shared.Net.Remotes)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
+local Version = require(ReplicatedStorage.Shared.Version)
+local Analytics = require(script.Parent.Analytics)
 local DataService = require(script.Parent.DataService)
 local DailyService = require(script.Parent.DailyService)
 local Admins = require(script.Parent.Admins)
 local CrossServer = require(script.Parent.CrossServer)
 local LeaderboardService = require(script.Parent.LeaderboardService)
+local MatchLog = require(script.Parent.MatchLog)
 local NameEligibility = require(script.Parent.NameEligibility)
 local NameReview = require(script.Parent.NameReview)
 local NameService = require(script.Parent.NameService)
@@ -83,6 +94,7 @@ type MatchInfo = {
 	events: boolean?, -- Match: false if the host turned events off
 	waiting: boolean?, -- Practice: a bot game while waiting in the queue
 	daily: boolean?, -- Practice: a Daily Race run (D-082): its rematch is today's race again
+	private: boolean?, -- Match: from a private code (or a rematch of one): not public (D-094)
 }
 local matchInfo: { [string]: MatchInfo } = {} -- running or just finished match id -> how it was made
 type RematchEntry = {
@@ -249,6 +261,7 @@ local function humanSpec(id: string): Session.SeatSpec
 		seesNames = eligible(id),
 		namePass = namePass,
 		customName = if namePass and namePass.owned then approvedNames[id] else nil,
+		landslides = Profile.landslides(DataService.profile(id)), -- shown with their name (D-094)
 	}
 end
 
@@ -345,6 +358,10 @@ local function settle(session: Session.Session)
 	-- A forfeit can follow the last plan, after the election was computed but
 	-- before anyone saw it: only a shown election has electoral votes to record.
 	local election = if result.reason == "Election" then session.match.election else nil
+	local slide = if election then Election.landslide(session.config, election) else nil
+	-- Public (D-094): rated, from the public queue (or its rematch), not a private code.
+	local info = matchInfo[session.id]
+	local public = starts ~= nil and info ~= nil and info.kind == "Match" and info.private ~= true
 	local at = os.time()
 	for me, seat in session.seats do
 		if seat.kind ~= "Human" then
@@ -366,6 +383,8 @@ local function settle(session: Session.Session)
 			-- The tutorial (D-075) is done once it ends in an election or a forfeit
 			-- (Leave match included); an abandoned one comes back next time.
 			tutorial = if session.tutorial then true else nil,
+			landslide = if slide == me then true else nil,
+			public = if public then true else nil,
 		}
 		local function announce(applied: Profile.Change)
 			if applied.rated then
@@ -374,6 +393,13 @@ local function settle(session: Session.Session)
 					rating = { matchId = session.id, before = applied.before, after = applied.after },
 				})
 				LeaderboardService.record(seat.id, applied.after)
+				if public and slide == me then
+					-- The public landslide count's board column (D-094).
+					LeaderboardService.recordLandslides(
+						seat.id,
+						Profile.landslides(DataService.profile(seat.id))
+					)
+				end
 				print(
 					`[270] player {seat.id} rating {applied.before} -> {applied.after} (match {session.id})`
 				)
@@ -457,6 +483,91 @@ local function openRematch(session: Session.Session)
 	sendRematch(entry)
 end
 
+-- ---------------------------------------------------------------- data (D-094)
+
+-- How a match was made, for its record and analytics.
+local function modeOf(session: Session.Session, info: MatchInfo?): MatchRecord.Mode
+	if session.daily then
+		return "Daily"
+	elseif session.tutorial then
+		return "Tutorial"
+	elseif info and info.kind == "Practice" then
+		return if info.waiting then "WaitBot" else "Practice"
+	end
+	return if info and info.private then "Private" else "Queue"
+end
+
+local function humansOf(session: Session.Session): { string }
+	local ids: { string } = {}
+	for _, seat in session.seats do
+		if seat.kind == "Human" then
+			table.insert(ids, seat.id)
+		end
+	end
+	return ids
+end
+
+local function factsOf(session: Session.Session, info: MatchInfo?): Analytics.MatchFacts
+	local level: string? = nil
+	local candidates: { [string]: string } = {}
+	for p, seat in session.seats do
+		if seat.kind == "Bot" and seat.botDifficulty then
+			level = seat.botDifficulty
+		end
+		local player = session.match.players[p]
+		if seat.kind == "Human" and player and player.candidate ~= "" then
+			candidates[seat.id] = player.candidate
+		end
+	end
+	return {
+		id = session.id,
+		mode = modeOf(session, info),
+		level = level,
+		humans = humansOf(session),
+		candidates = candidates,
+		tutorial = session.tutorial,
+	}
+end
+
+local function serverId(): string
+	return if game.JobId == "" then "studio" else game.JobId
+end
+
+-- A match ended: its record is queued (MatchLog) and analytics told. Never
+-- yields; the caller pcalls it.
+local function recordEnd(session: Session.Session, info: MatchInfo?, rated: boolean)
+	local result = session.result :: Session.Result
+	MatchLog.record(session, {
+		mode = modeOf(session, info),
+		rated = rated,
+		version = Version.VERSION,
+		at = os.time(),
+		ended = now(),
+		server = serverId(),
+	})
+	local winners = result.winners or (if result.winner ~= 0 then { result.winner } else {})
+	local outcomes: { [string]: string } = {}
+	for p, seat in session.seats do
+		if seat.kind == "Human" then
+			outcomes[seat.id] = if result.reason == "Abandoned"
+				then "None"
+				elseif table.find(winners, p) then "Won"
+				else "Lost"
+		end
+	end
+	local election = if result.reason == "Election" then session.match.election else nil
+	local slide = if election then Election.landslide(session.config, election) else nil
+	local slideSeat = if slide then session.seats[slide] else nil
+	Analytics.matchEnded(
+		factsOf(session, info),
+		result.reason,
+		now() - session.startedAt,
+		outcomes,
+		rated,
+		if slideSeat and slideSeat.kind == "Human" then slideSeat.id else nil
+	)
+end
+
 -- Sends a session's queued messages; ends the match in the lobby once it is over.
 local function flush(session: Session.Session)
 	for _, message in Session.drain(session) do
@@ -465,6 +576,10 @@ local function flush(session: Session.Session)
 		Replication.send(seat.id, out)
 	end
 	DailyService.watch(session) -- a counted Daily Race run reaching week 1 (D-082)
+	if session.tutorial and session.match.week >= 1 then
+		-- The onboarding funnel's tutorial weeks (D-094).
+		pcall(Analytics.tutorialWeek, session.id, humansOf(session), session.match.week)
+	end
 	if session.stage == "Over" and sessions[session.id] then
 		sessions[session.id] = nil
 		local ids = {}
@@ -475,12 +590,22 @@ local function flush(session: Session.Session)
 			end
 		end
 		Lobby.ended(lobby, ids)
+		local info = matchInfo[session.id]
+		local ended = session.result
+		local rated = ratingsAtStart[session.id] ~= nil and ended ~= nil and ended.unrated ~= true
 		local settled, err = pcall(function(): string?
 			settle(session)
 			return nil
 		end)
 		if not settled then
 			warn(`[270] match {session.id}: could not apply the result to saved data: {err}`)
+		end
+		local logged, logErr = pcall(function(): string?
+			recordEnd(session, info, rated)
+			return nil
+		end)
+		if not logged then
+			warn(`[270] match {session.id}: could not record it: {logErr}`)
 		end
 		openRematch(session)
 		-- A bot game while waiting is over: they are still in line (D-083).
@@ -842,6 +967,10 @@ local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 				CrossServer.queued(id, at, true)
 			end
 		else
+			local at = queuedAt[id]
+			if at then
+				pcall(Analytics.unqueued, id, os.time() - at, "Matched")
+			end
 			queuedAt[id] = nil
 			CrossServer.forget(id)
 		end
@@ -894,6 +1023,7 @@ local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 		events = outcome.events,
 		waiting = outcome.waiting,
 		daily = if daily then true else nil,
+		private = if outcome.private then true else nil,
 	}
 	-- An id for the result unique across servers, so it is applied once (Profile.settle).
 	local job = if game.JobId == "" then "studio" else game.JobId
@@ -946,6 +1076,7 @@ local function startMatch(outcome: Lobby.Outcome, fixedSeed: number?)
 		against ..= ", while waiting"
 	end
 	print(`[270] match {matchId} started ({outcome.kind}), seed {seed}{against}`)
+	pcall(Analytics.matchStarted, factsOf(session, matchInfo[matchId]))
 	flush(session)
 	if pairCapped then
 		for _, id in outcome.players do
@@ -1075,6 +1206,7 @@ local function rematchRequest(player: Player, matchId: string): string?
 		sendRematch(entry)
 		return reason
 	end
+	pcall(Analytics.rematch, id, if entry.info.kind == "Practice" then "Practice" else "Match")
 	if verdict == "Waiting" then
 		print(`[270] player {id} asks for a rematch of {matchId}`)
 		sendRematch(entry)
@@ -1097,6 +1229,9 @@ local function rematchRequest(player: Player, matchId: string): string?
 		end
 	else
 		outcome, why = Lobby.direct(lobby, entry.offer.players, { events = info.events })
+		if outcome then
+			outcome.private = info.private -- a private match's rematch stays private (D-094)
+		end
 	end
 	sendRematch(entry)
 	closeRematch(matchId)
@@ -1220,6 +1355,10 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 		reason = if cooled(id, op, REQUEST_COOLDOWN) then returnToLobby(player) else "RateLimited"
 	elseif op == "Leave" then
 		Lobby.leave(lobby, id)
+		local at = queuedAt[id]
+		if at then
+			pcall(Analytics.unqueued, id, os.time() - at, "Left")
+		end
 		queuedAt[id] = nil
 		foundAs[id] = nil
 		CrossServer.forget(id)
@@ -1231,6 +1370,14 @@ local function lobbyRequest(player: Player, request: Remotes.Request)
 	end
 	if reason then
 		Replication.reject(player, op, reason)
+	end
+	if reason == nil then
+		-- Analytics (D-094): looking for a game, the queue.
+		if op == "Queue" then
+			pcall(Analytics.queued, id)
+		elseif op == "Host" or op == "Join" or op == "Practice" or op == "WaitBot" or op == "DailyRace" then
+			pcall(Analytics.looking, id)
+		end
 	end
 	if outcome and outcome.kind ~= "Waiting" then
 		apply(outcome)
@@ -1441,6 +1588,7 @@ local function tryStartSpec()
 		warn(`[270] match server could not start {s.match}: {why}`)
 		return
 	end
+	outcome.private = if s.mode == "Code" then true else nil -- a private code's match (D-094)
 	print(`[270] match server: both players are here, starting {s.match}`)
 	startMatch(outcome, s.seed)
 end
@@ -1584,6 +1732,8 @@ end
 
 function MatchService.start()
 	DataService.start()
+	MatchLog.start()
+	Analytics.start()
 	LeaderboardService.start({
 		send = function(id: string, board)
 			Replication.send(id, { kind = "Leaderboard", leaderboard = board })
@@ -1609,11 +1759,13 @@ function MatchService.start()
 			DailyService.tell(id) -- the streak and today's run are known now (D-082)
 		end
 		tryStartSpec()
+		pcall(Analytics.joined, id) -- the visit funnel, and the onboarding funnel for a new player (D-094)
 		task.spawn(approveSavedName, id)
 		-- Ratings saved before the board existed join it on the player's next visit.
 		local profile = DataService.profile(id)
 		if profile and profile.games > 0 and DataService.rating(id) ~= nil then
 			LeaderboardService.record(id, profile.rating)
+			LeaderboardService.recordLandslides(id, Profile.landslides(profile)) -- D-094; none: no write
 		end
 	end)
 	-- Matching across servers and the online count (D-083). Both are off in
@@ -1763,6 +1915,7 @@ function MatchService.start()
 		NameEligibility.forget(player)
 		Admins.forget(player)
 		NameService.forget(player)
+		Analytics.left(id)
 		-- Matchmaking (D-083): their tickets and a rematch with them are gone;
 		-- anyone they were paired with here is first in line again.
 		leaveRematch(id)
