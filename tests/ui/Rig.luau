@@ -40,7 +40,7 @@ end
 -- Every UI spec and snapshot draws the real map (Map/ShapeMap, D-070), even
 -- before its images are uploaded: NodeMap.preview. The same for the issue
 -- symbols (D-076): IssueIcons.preview lays them out as if uploaded.
-local function newWorld(seed: number, screen: { x: number, y: number, inset: number? }?): FakeRoblox.World
+local function newWorld(seed: number, screen: FakeRoblox.Screen?): FakeRoblox.World
 	local world = FakeRoblox.world({ root = process.cwd, seed = seed, screen = screen })
 	FakeRoblox.setModuleField(world, "src/client/Map/NodeMap.luau", "preview", true)
 	FakeRoblox.setModuleField(world, "src/client/UI/IssueIcons.luau", "preview", true)
@@ -49,16 +49,24 @@ end
 
 export type FixtureOptions = {
 	reducedMotion: boolean?, -- the player's Reduce Motion setting is on from the start
+	fields: { [string]: { [string]: any } }?, -- module path -> constants to set before the client starts (FakeRoblox.setModuleField)
 }
 
 -- A client showing fixture `moment` offline (DEBUG_UI mode).
 local function fixture(
 	moment: string,
-	screen: { x: number, y: number, inset: number? }?,
+	screen: FakeRoblox.Screen?,
 	options: FixtureOptions?
 ): (FakeRoblox.World, FakeRoblox.Peer)
 	local world = newWorld(3, screen)
 	world.reducedMotion = options ~= nil and options.reducedMotion == true
+	if options and options.fields then
+		for path, fields in options.fields do
+			for key, value in fields do
+				FakeRoblox.setModuleField(world, path, key, value)
+			end
+		end
+	end
 	local peer = FakeRoblox.join(world, "P", { DebugScreen = moment })
 	FakeRoblox.run(world, 1.5)
 	return world, peer

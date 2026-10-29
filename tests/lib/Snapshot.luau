@@ -43,6 +43,15 @@
 --                     the core UI inset (default 58; drawn as a dim strip)
 --   options.square    pad the picture to a square, content centered (qlmanage
 --                     only renders square thumbnails; snap.luau crops it back)
+-- The world's screen may carry device safe-area insets (FakeRoblox.Screen left,
+-- right, bottom, deviceTop): a gui that respects them is laid out inside them,
+-- the notch is drawn as a black cutout on the side it is on (the left in
+-- landscape, the top in portrait) and the home bar as a white pill.
+--
+-- Snapshot.measure(peer, options?) -> Measure: the same layout, measured (the
+-- orientation study): the map's drawn size, the smallest visible text, visible
+-- buttons under 44 px (off the map and on it), and how far content runs past a
+-- scrolling frame or the screen's bottom.
 
 local fs = require("@lune/fs")
 
@@ -1379,6 +1388,20 @@ local function drawNode(out: Out, node: Node, ox: number, oy: number, siblings: 
 	end
 end
 
+-- A ScreenGui's root node: the screen less the insets it respects.
+local function guiRoot(g: any, W: number, H: number, topInset: number, screen: any): Node
+	local p = props(g)
+	local insets = enum(p.ScreenInsets, "CoreUISafeInsets")
+	local left, right, bottom = screen.left or 0, screen.right or 0, screen.bottom or 0
+	if p.IgnoreGuiInset == true or insets == "None" then
+		return { inst = g, x = 0, y = 0, w = W, h = H, children = {} }
+	elseif insets == "DeviceSafeInsets" then
+		local top = screen.deviceTop or 0
+		return { inst = g, x = left, y = top, w = W - left - right, h = H - top - bottom, children = {} }
+	end
+	return { inst = g, x = left, y = topInset, w = W - left - right, h = H - topInset - bottom, children = {} }
+end
+
 -- The SVG for everything a client's PlayerGui shows.
 function Snapshot.svg(peer: any, options: Options?): string
 	local world = rawget(peer.player, "_world")
@@ -1425,15 +1448,11 @@ function Snapshot.svg(peer: any, options: Options?): string
 		end
 		return order[a] < order[b]
 	end)
+	local screen = world.screen
+	local left, bottom = screen.left or 0, screen.bottom or 0
+	local deviceTop = screen.deviceTop or 0
 	for _, g in guis do
-		local p = props(g)
-		local insets = enum(p.ScreenInsets, "CoreUISafeInsets")
-		local inset = if p.IgnoreGuiInset == true
-				or insets == "None"
-				or insets == "DeviceSafeInsets"
-			then 0
-			else topInset
-		local root: Node = { inst = g, x = 0, y = inset, w = W, h = H - inset, children = {} }
+		local root = guiRoot(g, W, H, topInset, screen)
 		layoutChildren(root)
 		local byName: { [string]: Node } = {}
 		for _, child in root.children do
@@ -1441,28 +1460,165 @@ function Snapshot.svg(peer: any, options: Options?): string
 			byName[name] = byName[name] or child
 		end
 		for _, child in root.children do
-			drawNode(out, child, 0, inset, byName)
+			drawNode(out, child, root.x, root.y, byName)
 		end
 	end
-	if topInset > 0 then
-		-- The Roblox top bar: its menu buttons sit over the game.
+	if deviceTop > 0 then
+		-- A portrait notch (the status bar's middle): a black cutout.
 		emit(
 			out,
 			string.format(
-				'<rect x="12" y="%s" width="44" height="44" rx="22" fill="#000000" fill-opacity="0.45"/>',
-				num((topInset - 44) / 2)
+				'<rect x="%s" y="0" width="%s" height="%s" rx="15" fill="#000000"/>',
+				num(W / 2 - 80),
+				"160",
+				num(math.min(deviceTop - 13, 34))
+			)
+		)
+	elseif left > 0 then
+		-- A landscape notch on the left edge: a black cutout.
+		emit(
+			out,
+			string.format(
+				'<rect x="0" y="%s" width="%s" height="160" rx="15" fill="#000000"/>',
+				num(H / 2 - 80),
+				num(math.min(left - 13, 34))
+			)
+		)
+	end
+	if bottom > 0 then
+		-- The home indicator.
+		emit(
+			out,
+			string.format(
+				'<rect x="%s" y="%s" width="134" height="5" rx="2.5" fill="#ffffff" fill-opacity="0.85"/>',
+				num(W / 2 - 67),
+				num(H - math.min(bottom, 21) / 2 - 4)
+			)
+		)
+	end
+	if topInset > 0 then
+		-- The Roblox top bar: its menu buttons sit over the game, below a
+		-- portrait notch and right of a landscape one.
+		local barY = deviceTop + (topInset - deviceTop - 44) / 2
+		emit(
+			out,
+			string.format(
+				'<rect x="%s" y="%s" width="44" height="44" rx="22" fill="#000000" fill-opacity="0.45"/>',
+				num(left + 12),
+				num(barY)
 			)
 		)
 		emit(
 			out,
 			string.format(
-				'<rect x="64" y="%s" width="44" height="44" rx="22" fill="#000000" fill-opacity="0.45"/>',
-				num((topInset - 44) / 2)
+				'<rect x="%s" y="%s" width="44" height="44" rx="22" fill="#000000" fill-opacity="0.45"/>',
+				num(left + 64),
+				num(barY)
 			)
 		)
 	end
 	emit(out, "</g></g></svg>")
 	return table.concat(out.lines, "\n")
+end
+
+export type Measure = {
+	mapW: number, -- the largest visible map ("NodeMap"), drawn size (0: none)
+	mapH: number,
+	minText: number, -- the smallest visible text's drawn size (0: no text)
+	minTextName: string,
+	smallTaps: { string }, -- visible buttons off the map under 44 px in either direction: "Name WxH"
+	smallMapTaps: number, -- ... on the map (state hit boxes, chips)
+	belowFold: number, -- px the tallest scrolling frame holds past its bottom, or content past the screen's
+	belowName: string,
+}
+
+local MIN_TAP = 44
+
+-- The study's numbers for what the peer's PlayerGui shows (see the header).
+function Snapshot.measure(peer: any, options: Options?): Measure
+	local world = rawget(peer.player, "_world")
+	local W, H = world.screen.x, world.screen.y
+	local topInset = if options and options.topInset ~= nil then options.topInset else 58
+	local result: Measure = {
+		mapW = 0,
+		mapH = 0,
+		minText = 0,
+		minTextName = "",
+		smallTaps = {},
+		smallMapTaps = 0,
+		belowFold = 0,
+		belowName = "",
+	}
+	local playerGui = peer.player:FindFirstChild("PlayerGui")
+	if playerGui == nil then
+		return result
+	end
+	local function walk(
+		node: Node,
+		ax: number,
+		ay: number,
+		onMap: boolean,
+		scrolled: boolean,
+		bottomEdge: number,
+		inDecor: boolean?
+	)
+		local inst = node.inst
+		local p = props(inst)
+		local c = class(inst)
+		local x, y = ax + node.x, ay + node.y
+		if node.w <= 0 or node.h <= 0 then
+			return
+		end
+		local name = tostring(p.Name)
+		local map = onMap or name == "NodeMap"
+		if name == "NodeMap" and node.w * node.h > result.mapW * result.mapH then
+			result.mapW, result.mapH = math.floor(node.w + 0.5), math.floor(node.h + 0.5)
+		end
+		local decor = inDecor == true or attrs(inst).Decor == true or attrs(inst).Asset ~= nil
+		if TEXT[c] and not decor and node.text and #node.text > 0 and node.text[1] ~= "" then
+			local fade = p.TextTransparency or 0
+			if fade < 0.95 and node.textSize and (result.minText == 0 or node.textSize < result.minText) then
+				result.minText = node.textSize
+				result.minTextName = name
+			end
+		end
+		if (c == "TextButton" or c == "ImageButton") and not decor then
+			if node.w < MIN_TAP - 0.5 or node.h < MIN_TAP - 0.5 then
+				if map then
+					result.smallMapTaps += 1
+				else
+					table.insert(result.smallTaps, `{name} {math.floor(node.w)}x{math.floor(node.h)}`)
+				end
+			end
+		end
+		if not scrolled and not map and not decor and y + node.h > bottomEdge + 1 then
+			local past = y + node.h - bottomEdge
+			if past > result.belowFold then
+				result.belowFold, result.belowName = math.floor(past), `{name} (off screen)`
+			end
+		end
+		if c == "ScrollingFrame" then
+			local hidden = (node.contentH or 0) - node.h
+			if hidden > result.belowFold then
+				result.belowFold, result.belowName = math.floor(hidden), `{name} (scroll)`
+			end
+		end
+		local inner = scrolled or c == "ScrollingFrame" or p.ClipsDescendants == true
+		for _, child in node.children do
+			walk(child, x, y, map, inner, bottomEdge, decor)
+		end
+	end
+	for _, g in kids(playerGui) do
+		if class(g) ~= "ScreenGui" or props(g).Enabled == false then
+			continue
+		end
+		local root = guiRoot(g, W, H, topInset, world.screen)
+		layoutChildren(root)
+		for _, child in root.children do
+			walk(child, root.x, root.y, false, false, root.y + root.h)
+		end
+	end
+	return result
 end
 
 return Snapshot

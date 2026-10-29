@@ -125,11 +125,25 @@ export type AnalyticsState = {
 	failures: number, -- the next N calls throw
 }
 
+export type Screen = {
+	x: number,
+	y: number,
+	inset: number?,
+	left: number?,
+	right: number?,
+	bottom: number?,
+	deviceTop: number?,
+}
+
 export type World = {
 	clock: number,
 	seed: number,
 	root: string, -- repository root
-	screen: { x: number, y: number, inset: number? }, -- inset: px the top bar takes from a ScreenGui that respects it (opt-in; default 0)
+	-- inset: px the top bar takes from a ScreenGui that respects it (opt-in; default 0).
+	-- left/right/bottom: the device's safe-area insets (a notch, the home bar; opt-in,
+	-- default 0), taken from CoreUISafeInsets and DeviceSafeInsets guis alike;
+	-- deviceTop: the device's own top inset (a portrait notch), part of `inset`.
+	screen: Screen,
 	tasks: { { at: number, seq: number, co: thread, peer: Peer, args: { any } } },
 	seq: number,
 	current: Peer?,
@@ -1198,16 +1212,21 @@ local function absoluteSize(world: World, inst: any): (number, number)
 		-- With world.screen.inset (opt-in, the snapshots' --inset), a ScreenGui
 		-- that respects the core UI inset loses the top bar's height, as in
 		-- game (Snapshot draws the same strip).
-		local inset = world.screen.inset or 0
-		if inset > 0 and inst.ClassName == "ScreenGui" then
+		local screen = world.screen
+		local inset = screen.inset or 0
+		local sides = (screen.left or 0) + (screen.right or 0)
+		local bottom = screen.bottom or 0
+		if inst.ClassName == "ScreenGui" then
 			local props = rawget(inst, "_props")
 			local insets = props.ScreenInsets
 			local name = if insets ~= nil then tostring(insets.Name) else "CoreUISafeInsets"
 			if props.IgnoreGuiInset ~= true and name ~= "None" and name ~= "DeviceSafeInsets" then
-				return world.screen.x, world.screen.y - inset
+				return screen.x - sides, screen.y - inset - bottom
+			elseif name == "DeviceSafeInsets" then
+				return screen.x - sides, screen.y - (screen.deviceTop or 0) - bottom
 			end
 		end
-		return world.screen.x, world.screen.y
+		return screen.x, screen.y
 	end
 	local px, py = absoluteSize(world, parent)
 	local size = raw.Size
@@ -1972,6 +1991,11 @@ addPresentationServices = function(world: World, peer: Peer)
 		end,
 		-- The top bar's inset (Snapshot draws the same 58 px strip).
 		GetGuiInset = function(_self: any): (any, any)
+			local screen = world.screen
+			if screen.left or screen.right or screen.bottom then
+				return vector2(screen.left or 0, screen.inset or 58),
+					vector2(screen.right or 0, screen.bottom or 0)
+			end
 			return vector2(0, 58), vector2(0, 0)
 		end,
 	}, {
@@ -2038,7 +2062,7 @@ function FakeRoblox.world(
 	options: {
 		root: string,
 		seed: number?,
-		screen: { x: number, y: number, inset: number? }?,
+		screen: Screen?,
 		jobId: string?, -- the server's game.JobId (default "job-1")
 		stores: { [string]: { [string]: any } }?, -- share another world's DataStore keys (two servers)
 		placeId: number?, -- game.PlaceId (default 0: unpublished)
