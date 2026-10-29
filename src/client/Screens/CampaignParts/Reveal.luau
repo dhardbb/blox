@@ -23,6 +23,16 @@
 -- exactly on them, a ring on every state they flipped, and "What changed" rows
 -- (the whole week's real flips and biggest moves) come in one after another.
 -- Every cue goes with one of those visuals.
+--
+-- Stances (reveal "Stance", D-099): as a Choice week's stance step closes, both
+-- stances resolve before the plan, and this panel plays their result the same
+-- way in two beats. "Both stances are in" (the map on the polls before them),
+-- then each side's stance in its group ("You took A · Side with the staff: +6.0
+-- total over 9 states"), the map's fill moving to the republished polls with
+-- every moved state badged, rings and FLIP on leader changes, the header's
+-- score counting to the new projection, the tally line and "What changed".
+-- Without the polls before (a rejoin), the map badges what the stances asked
+-- for (public) and the rows say the flips on the polls both saw.
 -- The week's events arrive one step at a time, merged into two groups,
 -- "Your week" and "{Buster}'s week" (one line per action and state: "Rally in
 -- Texas ×2 · Farms & Rural", never the same line twice). Once the new polls are
@@ -47,6 +57,7 @@
 --     hooks.swing(swing?)   badge what moved on the map (nil: the usual marks)
 --     hooks.map             the map, for its motion (pulse, ring); optional
 --   reveal:remember(view)   the last plan-stage view (the polls before a resolve)
+--   reveal:before(view)     the Decision step's view (the polls before a stance's result)
 --   reveal:render(p)        shows the panel during a reveal
 --   reveal:tick(p, now)     starts a new reveal and moves it along
 --   reveal:status(p) -> string   the action bar's status line during a reveal
@@ -94,6 +105,8 @@ local PORTRAIT = 32 -- px, a player's portrait in a group head
 local MARK_W = 20 -- px, the ▲/▼ column of a "What changed" row
 local STAMP_SLACK = 24 -- px over the stamp's height in its row: room for its tilt
 local STAMP_INSET = 6 -- px a stamp keeps from each side (its tilted corners stay in)
+local STAMP_SHRINK_AFTER = 1.2 -- s the "New polls are in" stamp stays big before it shrinks (D-093)
+local STAMP_SMALL = 0.6 -- its scale once shrunk, so the results under it move up
 
 export type Hooks = {
 	caption: (text: string, polls: boolean?) -> (),
@@ -101,11 +114,15 @@ export type Hooks = {
 	focus: (id: string?) -> (),
 	swing: (swing: Model.RevealSwing?) -> (),
 	map: MapInterface.Map?,
+	-- Flips that went your way just landed (a "+28" chip to your score, confetti;
+	-- decorative, Campaign skips it under reduced motion). Optional.
+	celebrate: ((view: View, flips: { Swing.Flip }) -> ())?,
 }
 
 export type Reveal = {
 	root: Frame,
 	remember: (self: Reveal, view: View) -> (),
+	before: (self: Reveal, view: View) -> (),
 	render: (self: Reveal, p: Payload) -> (),
 	tick: (self: Reveal, p: Payload, now: number) -> (),
 	status: (self: Reveal, p: Payload) -> string,
@@ -173,7 +190,14 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	Kit.list("Vertical", Kit.space.md).Parent = root
 	local headBox = Kit.stack({ Name = "RevealHead", LayoutOrder = 1, Parent = root }, "Vertical", 2)
 	local eyebrow = Kit.eyebrow("", { Name = "RevealEyebrow", LayoutOrder = 1, Parent = headBox })
-	local title = Kit.heading("", { Name = "RevealTitle", LayoutOrder = 2, Parent = headBox })
+	-- Grows with its text: "You flipped 4 · Buster flipped 7" wraps in a phone's column.
+	local title = Kit.heading("", {
+		Name = "RevealTitle",
+		LayoutOrder = 2,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = headBox,
+	})
 	-- The week's net, once the new polls are in (M4).
 	local tallyLine = Kit.text(
 		"",
@@ -344,7 +368,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 
 	-- A stamp in `box` (cleared first), as wide as its words, never wider than
 	-- the panel, slammed in; its label is named `labelName`.
-	local function stampInto(box: Frame, text: string, color: Color3, labelName: string)
+	local function stampInto(box: Frame, text: string, color: Color3, labelName: string): GuiObject
 		for _, child in box:GetChildren() do
 			child:Destroy()
 		end
@@ -365,11 +389,33 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		label.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
 		stamp.Parent = box
 		Motion.stamp(stamp)
+		return stamp
+	end
+
+	-- After it has played, the stamp shrinks and its row with it (D-093), so the
+	-- week's results are not pushed down by a headline already read.
+	local function shrinkLater(box: Frame, stamp: GuiObject)
+		local full = box.Size
+		local smallH = math.floor(full.Y.Offset * STAMP_SMALL)
+		task.delay(STAMP_SHRINK_AFTER, function()
+			if stamp.Parent ~= box or box.Parent == nil then
+				return
+			end
+			local small = UDim2.new(full.X.Scale, full.X.Offset, 0, smallH)
+			if Motion.reduced() then
+				box.Size = small
+				Motion.scale(stamp).Scale = STAMP_SMALL
+			else
+				Motion.tween(box, { Size = small }, Motion.t.base)
+				Motion.tween(Motion.scale(stamp), { Scale = STAMP_SMALL }, Motion.t.base)
+			end
+		end)
 	end
 
 	-- ------------------------------------------------------------ state
 
 	local planView: View? = nil
+	local decisionView: View? = nil -- the Decision step's view: the polls before the stances (D-099)
 	local step: number? = nil
 	local tally: RevealSteps.Tally? = nil
 	-- Steps shown: -2 before the first tick, -1 during "Both plans are in".
@@ -378,6 +424,7 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 	local choiceRung = false -- the stance's flips have had their rings (no week start to tally from)
 	local oldView: View? = nil
 	local tipShown = false
+	local skipped = { mine = false, theirs = false } -- a side with no action this week
 
 	local function themName(view: View): string
 		return Model.firstName(config, view, Model.opponentOf(view))
@@ -499,12 +546,15 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		movesRow.Visible = #moves > 0
 	end
 
+	-- The reveal's tip shows once (D-093): seen as soon as it has shown.
 	local function maybeTip()
 		if tipShown then
 			return
 		end
 		tipShown = true
-		CoachTip.show(root, { id = "reveal.week", order = 2 })
+		if CoachTip.show(root, { id = "reveal.week", order = 2 }) ~= nil then
+			CoachTip.markSeen("reveal.week")
+		end
 	end
 
 	local function startResolve(p: Payload)
@@ -518,6 +568,10 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		-- The trailing player's moves first, from the polls before the week.
 		local built = RevealSteps.build(config, oldView, view, p.events)
 		tally = built
+		-- Who did nothing at all this week: their group says "Skipped" (D-093).
+		local all = Words.group(view, p.events)
+		skipped = { mine = #all.mine == 0, theirs = #all.theirs == 0 }
+		introLine.Text = "Both plans are in"
 		orderLine.Text = Words.orderLine(view, built.first, built.trails, themName(view))
 		hooks.swing(nil)
 		Audio.play("whoosh")
@@ -646,10 +700,14 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			focus = lead.state
 		end
 		local grouped = Words.group(view, events)
-		fillLines(youLines, grouped.mine)
-		fillLines(themLines, grouped.theirs)
+		local mineLines = if #grouped.mine == 0 and skipped.mine then { Words.SKIPPED } else grouped.mine
+		local theirLines = if #grouped.theirs == 0 and skipped.theirs
+			then { Words.SKIPPED }
+			else grouped.theirs
+		fillLines(youLines, mineLines)
+		fillLines(themLines, theirLines)
 		youGroup.Visible = true
-		themGroup.Visible = #grouped.theirs > 0
+		themGroup.Visible = #theirLines > 0
 
 		-- The stances: their numbers behind Why?. Their points land on the map
 		-- with their steps; with no week start to tally from, the map badges
@@ -691,6 +749,10 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 			end
 		end
 		ringFlips(view, rings)
+		local celebrate = hooks.celebrate
+		if celebrate and #rings > 0 then
+			celebrate(view, rings)
+		end
 		local map = hooks.map
 		if map then
 			-- A leader change also bumps the state in its new leader's color.
@@ -744,7 +806,9 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		if not flipsRung then
 			-- Beat three, once: the stamp, the sweep, rings on what the polls flipped.
 			flipsRung = true
-			stampInto(pollsStampBox, Words.SETTLE, Kit.colors.raisedHover, "RevealPollsStamp")
+			pollsStampBox.Size = UDim2.new(1, 0, 0, Kit.size.heading + 28 + STAMP_SLACK)
+			local stamp = stampInto(pollsStampBox, Words.SETTLE, Kit.colors.raisedHover, "RevealPollsStamp")
+			shrinkLater(pollsStampBox, stamp)
 			if old then
 				sweep(view)
 				ringFlips(view, steps[n].flips)
@@ -757,18 +821,177 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 		summary.Text = if #flips > 0 then "Tap a state for details." else "No state changed leader this week."
 	end
 
+	-- ------------------------------------------------------------ stances (D-099)
+
+	local STANCE_INTRO = REVEAL_INTRO + 0.3 -- s of "Both stances are in" before the stances land
+	local stanceShown = -2 -- -1 during the intro, 1 once the stances have landed
+	local stanceOld: View? = nil
+
+	-- This week's resolved Choice result (D-099: logged as its step closes).
+	local function weekChoice(view: View): SimState.EventResult?
+		for k = #view.eventLog, 1, -1 do
+			local entry = view.eventLog[k]
+			if entry.week == view.week and entry.choices ~= nil then
+				return entry
+			end
+		end
+		return nil
+	end
+
+	local function startStance(p: Payload)
+		step = p.step
+		stanceShown = -2
+		flipsRung = false
+		local view = p.view
+		local old = decisionView
+		stanceOld = if old and old.week == view.week then old else nil
+		hooks.swing(nil)
+		Audio.play("whoosh")
+		eyebrow.Text = string.upper(`Week {view.week} · stances`)
+		title.Text = `You vs {themName(view)}`
+		introLine.Text = Words.STANCES_IN
+		orderLine.Text = if view.event then view.event.name else ""
+		youHead.Text = "Your stance"
+		themHead.Text = `{themName(view)}'s stance`
+		local them = Model.opponentOf(view)
+		portrait(
+			youDot,
+			view.players[view.you].candidate,
+			Model.candidateName(config, view, view.you),
+			Kit.playerColor(view, view.you)
+		)
+		portrait(
+			themDot,
+			view.players[them].candidate,
+			Model.candidateName(config, view, them),
+			Kit.playerColor(view, them)
+		)
+		changed.Visible = false
+		summary.Text = ""
+		tallyLine.Text = ""
+		tallyLine.Visible = false
+		pollsBox.Visible = false
+		estimateText.Text = ""
+		choiceText.Text = ""
+		setWhy(false)
+	end
+
+	local function tickStance(p: Payload, now: number)
+		local view = p.view
+		local count = if now - p.stageStart < STANCE_INTRO then -1 else 1
+		if count == stanceShown then
+			return
+		end
+		stanceShown = count
+		local old = stanceOld
+		if count < 0 then
+			intro.Visible = true
+			groups.Visible = false
+			changed.Visible = false
+			Motion.pop(introLine)
+			Motion.enter(orderLine, 4)
+			hooks.caption(Words.STANCES_IN)
+			hooks.paint(old or view)
+			return
+		end
+		intro.Visible = false
+		groups.Visible = true
+		local entry = weekChoice(view)
+		local lines: { string } = if entry then Swing.choiceLines(config, view, entry) else {}
+		local mine: { string } = {}
+		local theirs: { string } = {}
+		for _, line in lines do
+			local yours = string.sub(line, 1, 9) == "You took "
+				or string.find(line, "cancelled", 1, true) ~= nil
+			if yours then
+				table.insert(mine, line)
+			elseif string.sub(line, 1, 10) == "They took " then
+				table.insert(theirs, (string.gsub(line, "^They took ", `{themName(view)} took `)))
+			end
+		end
+		fillLines(youLines, mine)
+		fillLines(themLines, theirs)
+		youGroup.Visible = true
+		themGroup.Visible = #theirs > 0
+		-- What moved: the republished polls against the ones before the stances.
+		local flips: { Swing.Flip } = {}
+		local moves: { Words.Move } = {}
+		if old then
+			local changes = Words.pollChanges(old, view)
+			flips, moves = changes.flips, changes.moves
+			local net: { [string]: number } = {}
+			for _, move in moves do
+				net[move.state] = move.delta
+			end
+			if entry and entry.moves then
+				-- Every state a stance touched shows its points toward you (D-066's step look).
+				hooks.swing({ net = Swing.net(entry.moves, view), flips = flips, step = true })
+			else
+				hooks.swing({ net = Words.topMarks(net, flips), flips = flips })
+			end
+		elseif entry then
+			flips = Swing.flips(entry.flips)
+			hooks.swing({ net = Words.topMarks(Swing.net(entry.moves, view), flips), flips = flips })
+		end
+		hooks.paint(view)
+		if entry then
+			choiceText.Text = table.concat(lines, "\n")
+			setWhy(true)
+		end
+		showFlips(view, flips)
+		showMoves(view, moves)
+		changed.Visible = #flips > 0 or #moves > 0
+		title.Text = Words.flipHeadline(view, flips, themName(view))
+		if old then
+			local ground = if #flips == 0 then Words.groundLine(old, view, Lens.CLOSE) else nil
+			tallyLine.Text = ground
+				or Words.projectionLine(old.projectedEV[view.you] or 0, view.projectedEV[view.you] or 0)
+		end
+		tallyLine.Visible = old ~= nil
+		hooks.caption(
+			if #flips > 0 then Words.flipHeadline(view, flips, themName(view)) else Words.STANCES_DONE
+		)
+		if not flipsRung then
+			flipsRung = true
+			ringFlips(view, flips)
+			local map = hooks.map
+			if map then
+				for _, flip in flips do
+					map:pulse(
+						flip.state,
+						if flip.to > 0 then Kit.playerColor(view, flip.to) else Kit.colors.muted
+					)
+				end
+			end
+			local celebrate = hooks.celebrate
+			if celebrate then
+				celebrate(view, flips)
+			end
+			Motion.pop(title)
+			Motion.enter(tallyLine, 4)
+			enterChanged()
+		end
+		summary.Text = Words.STANCES_NEXT
+		hooks.focus(model.selected)
+	end
+
 	local reveal: Reveal = {
 		root = root,
 		remember = function(_self: Reveal, view: View)
 			planView = view
 		end,
+		before = function(_self: Reveal, view: View)
+			decisionView = view
+		end,
 		render = function(_self: Reveal, p: Payload)
-			root.Visible = p.reveal == "Resolve"
-			groups.Visible = p.reveal == "Resolve" and shown >= 0
-			intro.Visible = p.reveal == "Resolve" and shown == -1
-			choiceText.Visible = p.reveal == "Resolve" and choiceText.Text ~= ""
-			estimateText.Visible = p.reveal == "Resolve" and estimateText.Text ~= ""
-			if p.reveal ~= "Resolve" then
+			local stance = p.reveal == "Stance"
+			local on = p.reveal == "Resolve" or stance
+			root.Visible = on
+			groups.Visible = if stance then stanceShown >= 0 else on and shown >= 0
+			intro.Visible = if stance then stanceShown == -1 else on and shown == -1
+			choiceText.Visible = on and choiceText.Text ~= ""
+			estimateText.Visible = on and estimateText.Text ~= ""
+			if not on then
 				changed.Visible = false
 				pollsBox.Visible = false
 				tallyLine.Visible = false
@@ -782,9 +1005,19 @@ function Reveal.new(parent: Instance, model: Model.Model, order: number, hooks: 
 				tickResolve(p, now)
 				choiceText.Visible = choiceText.Text ~= ""
 				estimateText.Visible = estimateText.Text ~= ""
+			elseif p.reveal == "Stance" then
+				if step ~= p.step then
+					startStance(p)
+				end
+				tickStance(p, now)
+				choiceText.Visible = choiceText.Text ~= ""
+				estimateText.Visible = false
 			end
 		end,
-		status = function(_self: Reveal, _p: Payload): string
+		status = function(_self: Reveal, p: Payload): string
+			if p.reveal == "Stance" then
+				return if stanceShown < 0 then Words.STANCES_IN else Words.STANCES_DONE
+			end
 			local n = if tally then #(tally :: RevealSteps.Tally).steps else 0
 			if shown < 0 then
 				return "Both plans are in"

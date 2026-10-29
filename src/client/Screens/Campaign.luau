@@ -6,7 +6,7 @@
 -- hero (left on 16:9, top on phones) with the lens chips and a "Map key" button
 -- over it; beside it (below on phones) a scrolling side column and, pinned under
 -- it, the action bar with Lock in. The same screen plays the resolve reveal and
--- the debate reveal.
+-- the debate reveal, and a Choice week's stance result before the plan (D-099).
 --
 -- A landscape phone (D-089, Kit.compact): the map column is a chip rail (Key,
 -- Close, the lenses 2 x 2) beside the map, the full height under the header;
@@ -42,6 +42,7 @@ local Numbers = require(Shared.UI.Numbers)
 local Plan = require(Shared.Sim.Plan)
 local PlanDraft = require(Shared.UI.PlanDraft)
 local PlanPreview = require(Shared.UI.PlanPreview)
+local Swing = require(Shared.UI.Swing)
 local Session = require(Shared.Net.Session)
 local ViewModule = require(Shared.Sim.View)
 
@@ -62,6 +63,7 @@ local Model = require(script.Parent.CampaignParts.Model)
 local Motion = require(script.Parent.Parent.UI.Motion)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
 local PlanList = require(script.Parent.CampaignParts.PlanList)
+local PlanSlots = require(script.Parent.CampaignParts.PlanSlots)
 local Reveal = require(script.Parent.CampaignParts.Reveal)
 local StateCard = require(script.Parent.CampaignParts.StateCard)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
@@ -89,6 +91,10 @@ local SWATCH = 20 -- px, a color step's dot in the map key
 local KEY_ROW_H = 24 -- px, one color step's row in the map key
 local LOCKED_RISE = 4 -- px, the opponent's "locked in ✓" line rises this far
 local LOCKED_WORD = Model.OPPONENT_LOCKED
+local CONFETTI_N = 24 -- confetti pieces for flips your way in a reveal (decorative)
+local FLY_SECONDS = 0.7 -- s, a "+28" chip's flight from the state to your score
+local SUGGEST_EVERY = 1.6 -- s between the tutorial's pulses on its suggested state (D-093)
+local SUGGEST_STATE = "OH" -- the tutorial's suggested first state, when it is a key state or nothing is
 
 -- LayoutOrder of each side-column panel.
 local ORDER = {
@@ -147,6 +153,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local lastBodySize = Vector2.new(-1, -1)
 	local placedStrip = -1 -- the event strip's height when the body was last placed
 	local away = false -- the opponent's seat was disconnected at the last look
+	local suggestAt = 0 -- the tutorial's next pulse on its suggested state
 	local backUntil = 0 -- "Opponent: back" shows until then
 
 	-- ------------------------------------------------------------ build: frame
@@ -291,6 +298,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		primaryName = "LockIn",
 		secondaryName = "BankButton",
 	})
+	-- The plan's slots in the status row (D-093), in place of the one-line text.
+	local barSlots = PlanSlots.new(bar.root, { mini = true, name = "BarSlots" })
+	barSlots.root.Visible = false
+
 	bar.primary.Activated:Connect(function()
 		local p = model.payload
 		if p == nil then
@@ -309,7 +320,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		if Model.planning(p) then
 			lockPlan()
-		elseif p.reveal == "Resolve" then
+		elseif p.reveal == "Resolve" or p.reveal == "Stance" then
 			model.skipStep = p.step
 			ctx.net.skip()
 			model.render()
@@ -322,6 +333,62 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		ctx.net.bank()
 	end)
+
+	-- Flips your way during a reveal (D-066, D-099): a "+28" chip flies from the
+	-- state to your score and confetti falls on the map. Decorative: nothing
+	-- under reduced motion (the score still counts, the rings still show).
+	local function celebrate(view: View, flips: { Swing.Flip })
+		if Motion.reduced() or not alive then
+			return
+		end
+		local ev, first = 0, nil
+		for _, flip in flips do
+			if flip.to == view.you then
+				ev += flip.ev
+				first = first or flip.state
+			end
+		end
+		if first == nil or ev <= 0 then
+			return
+		end
+		local mine = Kit.playerColor(view, view.you)
+		Motion.confetti(mapHolder, { mine, Kit.colors.warn, Kit.colors.text }, CONFETTI_N)
+		local node = map.root:FindFirstChild(first, true) :: GuiObject?
+		local target = top.root:FindFirstChild("YouVotes", true) :: GuiObject?
+		if node == nil or target == nil or not node:IsA("GuiObject") then
+			return
+		end
+		local origin = parent.AbsolutePosition
+		local function middle(object: GuiObject): (number, number)
+			local at, size = object.AbsolutePosition, object.AbsoluteSize
+			return at.X + size.X / 2 - origin.X, at.Y + size.Y / 2 - origin.Y
+		end
+		local fromX, fromY = middle(node)
+		local toX, toY = middle(target)
+		local chip = Kit.text(`+{ev}`, {
+			Name = "FlyGain",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(fromX, fromY),
+			Size = UDim2.fromOffset(0, Kit.size.heading + 8),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Font = Kit.font.display,
+			TextSize = Kit.size.heading,
+			TextColor3 = Kit.textColor(mine),
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			BackgroundColor3 = Kit.colors.background,
+			BackgroundTransparency = 0.15,
+			ZIndex = 70,
+			Parent = parent,
+		})
+		chip:SetAttribute("Decor", true)
+		Kit.corner(6).Parent = chip
+		Motion.pop(chip)
+		Motion.tween(chip, { Position = UDim2.fromOffset(toX, toY) }, FLY_SECONDS, Motion.ease.soft)
+		task.delay(FLY_SECONDS, function()
+			chip:Destroy()
+		end)
+	end
 
 	local reveal = Reveal.new(side, model, ORDER.reveal, {
 		-- The reveal's latest line becomes the header's now line.
@@ -346,6 +413,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			model.revealSwing = swing
 		end,
 		map = map,
+		celebrate = celebrate,
 	})
 	local keyRow = KeyRow.new(side, model, ORDER.keys)
 	local card = StateCard.new(side, model, ORDER.card, ORDER.list)
@@ -470,7 +538,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			-- from week 2, when nothing is picked. Never over the state's actions.
 			-- The tutorial's last week leads with ground game (D-080; the tip
 			-- exists only in the tutorial's copy, CoachTip.has). Idle money
-			-- (D-086) gets its tip whatever is picked, under the state card.
+			-- (D-086) gets its tip whatever is picked, at the top (D-093).
 			local last = p.view.week >= config.WEEKS
 			spare = PlanDraft.idleCash(config, p.view, model.draft)
 			local order: { string } = if #model.draft.actions > 0
@@ -493,13 +561,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				end
 			end
 		end
+		-- The idle-money tip stands at the top of the column, where it is seen
+		-- (D-093: under the state card it was below the fold on a phone). On a
+		-- landscape phone it waits while a state's card (its action tray) is open.
+		local deferred = want == "campaign.cash" and model.compact == true and model.selected ~= nil
+		if deferred then
+			want = nil
+		end
 		local current = tip
 		if current and (tipId ~= want or current.root.Parent == nil) then
 			if current.root.Parent ~= nil then
 				current.root:Destroy()
 			end
 			-- The idle-money tip is shown once: gone (money spent, locked in) is seen.
-			if tipId == "campaign.cash" then
+			if tipId == "campaign.cash" and not deferred then
 				CoachTip.markSeen("campaign.cash")
 			end
 			tip, tipId = nil, nil
@@ -517,9 +592,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 						Numbers.money(spare)
 					)
 					else nil,
-				order = if want == "campaign.actions" or want == "campaign.cash"
-					then ORDER.tipAfter
-					else ORDER.tip,
+				order = if want == "campaign.actions" then ORDER.tipAfter else ORDER.tip,
 			})
 			tipId = if tip then want else nil
 		end
@@ -748,7 +821,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return "back"
 		elseif p.stage == "Input" then
 			return if seat.locked then LOCKED_WORD else "thinking"
-		elseif p.reveal == "Resolve" and seat.skip then
+		elseif (p.reveal == "Resolve" or p.reveal == "Stance") and seat.skip then
 			return "skipped"
 		end
 		return "watching"
@@ -800,6 +873,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			opponentWas = opponentNow
 		end
+		local slotsShown = false
 		if Model.planning(p) then
 			primary.Name = "LockIn"
 			primary.Visible = true
@@ -819,6 +893,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					bar:setStatus(turnedDown.text, "bad")
 				else
 					bar:setStatus(planStatus(), "muted")
+					-- The slots say it: icon and state per action (D-093).
+					slotsShown = true
+					local profile = PlanDraft.profile(config, p.view)
+					barSlots:render(
+						Words.planSlots(model.draft.actions, profile.apPerWeek, config.PIVOT_AP),
+						true
+					)
 				end
 			end
 			local seat = p.seats[p.you]
@@ -830,7 +911,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			else
 				bar:setSecondary(nil, false)
 			end
-		elseif p.reveal == "Resolve" then
+		elseif p.reveal == "Resolve" or p.reveal == "Stance" then
 			primary.Name = "SkipButton"
 			primary.Visible = true
 			local seat = p.seats[p.you]
@@ -845,6 +926,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bar:setSecondary(nil, false)
 			bar:setStatus("Campaign", "muted")
 		end
+		barSlots.root.Visible = slotsShown
+		barSlots.root.Size = bar.status.Size
+		bar.status.Visible = not slotsShown
 		parent:SetAttribute("PrimaryOptional", not primary.Visible)
 	end
 
@@ -917,7 +1001,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.moreIssues = false
 		model.pivotStage = nil
 		model.selected = if closing then nil else id
+		if model.compact == true and not closing then
+			-- A landscape phone (D-093): the card's action tray opens in view.
+			side.CanvasPosition = Vector2.new(0, 0)
+		end
 		CoachTip.markSeen("campaign.map")
+		-- The first tap closes the tip that asked for it (D-093), whatever it was.
+		local open = tip
+		if not closing and open and tipId ~= "campaign.cash" and open.root.Parent ~= nil then
+			open:dismiss()
+		end
 		Audio.play("select")
 		-- On a phone the list covers the card: close it. On 16:9 it stays open.
 		if model.portrait then
@@ -983,7 +1076,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			model.draft = PlanDraft.new()
 			model.draftStep = nil
 		end
-		if p.reveal == "Resolve" then
+		if p.reveal == "Stance" then
+			-- A stance's result (D-099) plays from the Decision step's polls.
+			local before = state.previous
+			if before ~= nil and before.reveal == nil and before.view.phase == "Decision" then
+				reveal:before(before.view)
+			end
+		end
+		if p.reveal == "Resolve" or p.reveal == "Stance" then
 			-- The reveal sets the header's score (the week's start) before it renders.
 			reveal:tick(p, now)
 		end
@@ -1015,6 +1115,29 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			reveal:tick(p, now)
 			planList:tick(now)
+			-- The tutorial points at a first state to tap (D-093): a soft pulse
+			-- until something is picked. Decorative: none under reduced motion.
+			if
+				p.tutorial == true
+				and Model.planning(p)
+				and model.selected == nil
+				and #model.draft.actions == 0
+				and not Motion.reduced()
+				and now >= suggestAt
+			then
+				suggestAt = now + SUGGEST_EVERY
+				local keys = KeyStates.of(config, p.view)
+				local suggested = SUGGEST_STATE
+				if #keys > 0 then
+					suggested = keys[1].id
+					for _, keyState in keys do
+						if keyState.id == SUGGEST_STATE then
+							suggested = SUGGEST_STATE
+						end
+					end
+				end
+				map:pulse(suggested, Kit.colors.text)
+			end
 			renderBar(p, now)
 			-- The timer is about to end on a plan that was never locked: lock the
 			-- draft as it stands. A draft with a problem is left to the server's default.

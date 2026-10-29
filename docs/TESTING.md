@@ -1304,3 +1304,17 @@ Agents: `lune run tests difficulty`, `lune run tests Polls`, `lune run tests/har
 4. **Easy is unchanged.** One game on Easy. **Expect:** it feels the same as in 0.16.0. *Send back:* OK or what felt different.
 5. **The underdog boost stops when you catch up.** In any bot game, fall behind early (skip weeks 1-3), then catch up. Open **News +** each week. **Expect:** "You are underdog tier …" while you are well behind; the week the polls' projection shows you level or ahead (within 10 EV), the line is gone, and it does not come back after one bad week. *Send back:* the weeks it was on and off.
 6. *Send back:* any Output errors from `Session` or `Bot`.
+
+## The week's flow and the campaign screen (D-093, D-099)
+
+Play a practice match on a phone (landscape) and on the iPad.
+
+1. **A Choice week.** Pick a stance and lock in. *Expected:* right away a "WEEK N · STANCES" panel: "Both stances are in", then your stance and the bot's with their totals, the map's colors move, flipped states ring and say FLIP, the score counts, "Projection: … → …" and What changed. Skip ends it (both must tap). Then the plan opens with its full timer, on the new polls. *Send back:* a screenshot of the result panel on each device.
+2. **Phone tray.** On the phone, tap any state. *Expected:* six action buttons (Rally, Fundraise, Ad / Attack, Poll, Ground) visible without scrolling, each with its gain; the state's name and poll bar under them. *Send back:* a screenshot.
+3. **Plan slots.** Rally twice in one state and run an ad. *Expected:* the bottom bar shows "PA ×2", an outlined empty slot and the ad's tile; the plan card shows the same as big tiles; tapping a tile removes one. *Send back:* anything that reads wrong.
+4. **Header.** *Expected:* both candidates' faces beside the scores; no overlapping names on the phone; money as a gold coin and white number.
+5. **Event strip.** *Expected:* a colored left edge and plate per event kind and a "THIS WEEK" tag; in week 1 next week's event says "NEXT WEEK", dimmed. Tap it: the sheet fits its text, has a colored head with a big icon and a "Got it" button that closes it.
+6. **Week results.** *Expected:* the "New polls are in" stamp shrinks after about a second; the "Both plans are out!" tip only in the first week; a week where the bot (or you) did nothing says "Skipped: no actions this week"; a flip your way flies "+N" to your score with confetti. With Reduce motion on (Lobby corner): no confetti or flying chip, the numbers still change.
+7. **Tutorial.** Start the tutorial. *Expected:* a state (often Ohio) pulses until you tap any state, and that tap closes the tip.
+8. **Idle money.** Keep $6+ unspent in week 3 or later. *Expected:* the "You have $X spare" tip at the top of the side column (on the phone, after you close the state you opened).
+

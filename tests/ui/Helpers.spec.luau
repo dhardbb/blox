@@ -383,15 +383,21 @@ describe("PlanDraft weekly events", function()
 	end)
 
 	it("reports last week's event with both stances and the points each asked for", function()
-		local match = planWeek(1, true)
+		-- The stances resolve as their Decision step closes (D-099).
+		local match = Match.new(C, 1, { "a", "b" })
+		local pick = { candidate = "okafor", platform = { "Jobs", "Health", "Schools" } }
+		match = Match.advance(C, match, { pick, pick })
+		while not (match.phase == "Decision" and match.decision == "Stance") do
+			match = Match.advance(C, match, {})
+		end
 		local week = match.week
-		match.players[1].stance, match.players[2].stance = "B", "A" -- as their Decision step set them
-		local after = Match.advance(C, match, {})
-		while after.phase ~= "Plan" and after.week == week do
+		local after = Match.advance(C, match, { { choice = "B" }, { choice = "A" } })
+		after = Match.advance(C, after, {}) -- the week's plan resolves
+		while after.phase ~= "Plan" and after.week == week + 1 do
 			after = Match.advance(C, after, {})
 		end
 		local event = Events.at(match) :: Events.Definition
-		local logged = after.eventLog[#after.eventLog]
+		local logged = Swing.lastChoice(View.build(C, after, 1)) :: State.EventResult
 		local moves = logged.moves :: { State.StateMove }
 		local mine = View.build(C, after, 1)
 		expect(mine.week):toBe(week + 1)

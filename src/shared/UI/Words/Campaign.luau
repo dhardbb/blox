@@ -15,6 +15,7 @@
 --   Words.reason(code) -> string              a greyed-out button's reason
 --   Words.swapTitle(config) -> string         the issue-swap chooser's title (the plan's Pivot)
 --   Words.planLine(actions) -> string         "Rally OH · Ad PA · Poll TX"
+--   Words.planSlots(actions, apPerWeek, pivotAP) -> { Slot }   the plan as slots (D-093)
 --   Words.stanceEffect(preview) -> string     "+4 states · −2 states"
 --   Words.stanceParts(preview) -> (string?, string?)   "+4 states", "−2 states"
 --   Words.key(id) -> { string }               the map key's lines for a lens
@@ -50,17 +51,18 @@ local function whole(value: number): string
 end
 
 -- The action buttons on the state card, in order, and what each one's Plan kind is.
+-- `short`: the state card's button word, where the full name is long (D-093).
 Words.ACTIONS = table.freeze({
 	{ name = "Rally", label = "Rally", kind = "Rally" },
 	{ name = "Fundraise", label = "Fundraise", kind = "Fundraise" },
 	{ name = "Ad", label = "Ad", kind = "Media" },
-	{ name = "Attack", label = "Attack ad", kind = "Attack" },
+	{ name = "Attack", label = "Attack ad", kind = "Attack", short = "Attack" },
 	{ name = "Poll", label = "Poll", kind = "Poll" },
-	{ name = "Gotv", label = "Ground game", kind = "Gotv" },
+	{ name = "Gotv", label = "Ground game", kind = "Gotv", short = "Ground" },
 	{ name = "RegionPoll", label = "Region poll", kind = "RegionPoll" },
 	-- The plan's Pivot is "Swap issue" on screen (the debate has its own Pivot move).
 	{ name = "PivotButton", label = "Swap issue", kind = "Pivot" },
-} :: { { name: string, label: string, kind: string } })
+} :: { { name: string, label: string, kind: string, short: string? } })
 
 -- The buttons whose cost line adds "no action" (D-086): they cost money and no
 -- action point (Plan.cost; tests/ui/CampaignWords.spec checks it).
@@ -241,6 +243,66 @@ function Words.planLine(actions: { Plan.Action }): string
 		table.insert(parts, Words.actionShort(action))
 	end
 	return table.concat(parts, " · ")
+end
+
+-- One slot of the plan (D-093): an action (repeats merged, `count` > 1 shows
+-- "×2"), or an empty action slot. `ap` slots are the week's actions (Rally,
+-- Fundraise, Swap issue); the rest cost money only and follow them. `index` is
+-- the draft index of the group's last action (a tap removes that one).
+export type Slot = {
+	kind: string?, -- nil: an empty action slot
+	label: string, -- "OH", "OH ×2", "Midwest", "Swap", or "" when empty
+	count: number,
+	ap: boolean,
+	index: number?,
+}
+
+-- The plan as slots: the action slots first (`apPerWeek` of them, `pivotAP`
+-- each for a swap; the empty ones last), then the money-only actions.
+function Words.planSlots(actions: { Plan.Action }, apPerWeek: number, pivotAP: number): { Slot }
+	local apSlots: { Slot } = {}
+	local others: { Slot } = {}
+	local byKey: { [string]: Slot } = {}
+	local used = 0
+	for k, action in actions do
+		local kind = action.kind
+		local ap = kind == "Rally" or kind == "Fundraise" or kind == "Pivot"
+		local where = if kind == "RegionPoll"
+			then (if action.region then (Issues.regionName :: any)[action.region] or action.region else "?")
+			elseif kind == "Pivot" then "Swap"
+			else action.state or "?"
+		local key = `{kind}|{where}`
+		local units = if kind == "Gotv" then action.units or 1 else 1
+		local slot = byKey[key]
+		if slot then
+			slot.count += units
+			slot.index = k
+		else
+			slot = { kind = kind, label = where, count = units, ap = ap, index = k }
+			byKey[key] = slot
+			table.insert(if ap then apSlots else others, slot)
+		end
+		if ap then
+			used += if kind == "Pivot" then pivotAP else 1
+		end
+	end
+	local out: { Slot } = {}
+	for _, slot in apSlots do
+		if slot.count > 1 then
+			slot.label = `{slot.label} ×{slot.count}`
+		end
+		table.insert(out, slot)
+	end
+	for _ = used + 1, apPerWeek do
+		table.insert(out, { kind = nil, label = "", count = 0, ap = true, index = nil })
+	end
+	for _, slot in others do
+		if slot.count > 1 then
+			slot.label = `{slot.label} ×{slot.count}`
+		end
+		table.insert(out, slot)
+	end
+	return out
 end
 
 -- ---------------------------------------------------------------- decisions

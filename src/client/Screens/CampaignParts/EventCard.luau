@@ -99,7 +99,22 @@ local STRIP_H = 52 -- px, the strip: a touch target with two one-line texts
 local STRIP_TITLE_H = Kit.size.body + 4 -- px, its title line (bold body)
 local STRIP_LINE_H = Kit.size.caption + 4 -- px, its effect line (caption)
 local STRIP_CLOSING_H = STRIP_H + STRIP_LINE_H + Kit.space.xs -- px, the strip with its closing-weeks line too (S3)
-local STRIP_SHEET_H = 0.5 -- share of the screen the details sheet takes
+local STRIP_SHEET_H = 0.5 -- most of the screen the details sheet takes (it fits its content, D-093)
+local STRIP_SHEET_MIN = 0.4 -- least of the screen it takes
+local SHEET_CHROME = 136 -- px the sheet adds around its body (title row, padding, and slack for wrapped lines)
+local SHEET_ICON = 56 -- px, the sheet's big event icon plate
+local SHEET_HEAD_H = SHEET_ICON + 2 * Kit.space.sm -- px, its colored header band
+local STRIP_BAR = 4 -- px, the strip's left edge in its event's color
+local STRIP_TAG_W = 92 -- px, the "THIS WEEK" / "NEXT WEEK" tag on the strip
+-- Each event kind's color on the strip, its plate and its sheet (D-093). Data
+-- colors (the player palette), so the kinds tell apart at a glance.
+local KIND_COLORS: { [string]: Color3 } = {
+	Spotlight = Kit.color(Colors.player.Violet),
+	Regional = Kit.color(Colors.player.Teal),
+	Windfall = Kit.color(Colors.player.Amber),
+	Choice = Kit.color(Colors.player.Emerald),
+	Closing = Kit.color(Colors.player.Cobalt),
+}
 local EVENT_ICONS: { [string]: string } = {
 	Spotlight = "tv", -- the issue is on every channel
 	Regional = "megaphone", -- rallies in one region
@@ -403,7 +418,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 						name = ` · {entry.name}`
 					end
 				end
-				taken.Text = `Your stance: {mine}{name}. Secret until the week resolves.`
+				taken.Text = `Your stance: {mine}{name}.`
 			end
 			local me = view.players[view.you]
 			for k, line in Explain.choiceLines(config, view.issueMap, event, me.platform, Events.baseOf(me)) do
@@ -462,9 +477,12 @@ end
 -- The event strip under the header (D-065): see the top of this file.
 function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.Model): EventStrip
 	local config = model.config
-	local sheet = Sheet.new(sheetParent, { title = "This week", name = "EventSheet", height = STRIP_SHEET_H })
+	-- The sheet fits its content (D-093): `sheetOptions.height` is set just before it opens.
+	local sheetOptions = { title = "This week", name = "EventSheet", height = STRIP_SHEET_H }
+	local sheet = Sheet.new(sheetParent, sheetOptions)
+	local openSheet: () -> ()
 	local root = Kit.cardButton(function()
-		sheet:open()
+		openSheet()
 	end, {
 		Name = "EventCard",
 		-- A fixed height, so the map under it never jumps: two one-line texts.
@@ -493,15 +511,33 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 	plate.Position = UDim2.fromScale(0, 0.5)
 	plate.BackgroundColor3 = Kit.color(Colors.player.Amber)
 	plate.Parent = root
+	-- The left edge in the event's color (D-093), over the card's padding.
+	local edge = Kit.dataColor(Kit.new("Frame", {
+		Name = "EventEdge",
+		Position = UDim2.fromOffset(-(Kit.space.sm + Kit.space.xs), -Kit.space.sm),
+		Size = UDim2.new(0, STRIP_BAR, 1, 2 * Kit.space.sm),
+		BorderSizePixel = 0,
+		BackgroundColor3 = KIND_COLORS.Windfall,
+		Parent = root,
+	}) :: Frame)
 	local textX = STRIP_ICON + Kit.space.sm + Kit.space.xs
 	local textW = -(textX + STRIP_ARROW + Kit.space.xs)
+	-- "THIS WEEK" or "NEXT WEEK" (dimmed) at the title line's right end (D-093).
+	local whenTag = Kit.pill("THIS WEEK", "text", {
+		Name = "EventWhen",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -(STRIP_ARROW + Kit.space.xs), 0.5, 0),
+		Size = UDim2.fromOffset(STRIP_TAG_W, Kit.PILL_H),
+		AutomaticSize = Enum.AutomaticSize.None,
+		Parent = root,
+	})
 	-- One line each; a name too long for a narrow column shrinks (never under
 	-- Kit.MIN_TEXT; a landscape phone's side column, D-089), then ends in "…",
 	-- rather than pushing the map down.
 	local title = Kit.text("", {
 		Name = "EventTitle",
 		Position = UDim2.new(0, textX, 0.5, -STRIP_TITLE_H),
-		Size = UDim2.new(1, textW, 0, STRIP_TITLE_H),
+		Size = UDim2.new(1, textW - STRIP_TAG_W - Kit.space.xs, 0, STRIP_TITLE_H),
 		AutomaticSize = Enum.AutomaticSize.None,
 		Font = Kit.font.bold,
 		TextWrapped = false,
@@ -560,6 +596,30 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 		}
 		return if caption then Kit.caption("", props) else Kit.text("", props)
 	end
+	-- The sheet's head (D-093): a band in the event's color with its big icon
+	-- and its kind ("WINDFALL · THIS WEEK").
+	local head = Kit.dataColor(Kit.new("Frame", {
+		Name = "EventSheetHead",
+		LayoutOrder = 0,
+		Size = UDim2.new(1, 0, 0, SHEET_HEAD_H),
+		BorderSizePixel = 0,
+		BackgroundColor3 = KIND_COLORS.Windfall,
+		BackgroundTransparency = 0.75,
+		Parent = sheet.body,
+	}) :: Frame)
+	Kit.corner(Kit.radius.panel).Parent = head
+	local headPlate = Kit.dataColor(Kit.iconPlate("vote", SHEET_ICON, Kit.colors.background))
+	headPlate.Name = "EventSheetIcon"
+	headPlate.AnchorPoint = Vector2.new(0, 0.5)
+	headPlate.Position = UDim2.new(0, Kit.space.sm, 0.5, 0)
+	headPlate.Parent = head
+	local headLabel = Kit.text("", {
+		Name = "EventSheetKind",
+		Position = UDim2.fromOffset(SHEET_ICON + 2 * Kit.space.sm, 0),
+		Size = UDim2.new(1, -(SHEET_ICON + 3 * Kit.space.sm), 1, 0),
+		Font = Kit.font.bold,
+		Parent = head,
+	})
 	local effect = detail("EventEffect", 1, false)
 	effect.Font = Kit.font.medium
 	local flavor = detail("EventText", 2, true)
@@ -569,6 +629,64 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 	nextLine.TextColor3 = Kit.colors.text
 	local closingDetail = detail("ClosingDetail", 6, true)
 	closingDetail.TextColor3 = Kit.colors.text
+	Kit.button("Got it", function()
+		sheet:close()
+	end, {
+		variant = "secondary",
+		Name = "EventGotIt",
+		LayoutOrder = 99,
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
+		Parent = sheet.body,
+	})
+
+	-- Opens the sheet as tall as its content needs (D-093), between
+	-- STRIP_SHEET_MIN and STRIP_SHEET_H of the screen (a landscape phone's
+	-- sheet takes the whole height anyway, D-089).
+	openSheet = function()
+		local holder = sheet.root.Parent
+		local screenH = if holder and holder:IsA("GuiObject") then (holder :: GuiObject).AbsoluteSize.Y else 0
+		local need = SHEET_CHROME
+		for _, child in sheet.body:GetChildren() do
+			if child:IsA("GuiObject") and child.Visible then
+				need += child.AbsoluteSize.Y + Kit.space.sm
+			end
+		end
+		if screenH > 0 then
+			sheetOptions.height = math.clamp(need / screenH, STRIP_SHEET_MIN, STRIP_SHEET_H)
+		end
+		sheet:open()
+	end
+
+	-- Paints the strip and the sheet's head in a kind's color and icon (once per `key`).
+	local paintedKey: string? = nil
+	local function paintKind(kind: string, upcoming: boolean, iconOf: () -> GuiObject, key: string?)
+		local want = `{key or kind}|{upcoming}`
+		if paintedKey == want then
+			return
+		end
+		paintedKey = want
+		local color = KIND_COLORS[kind] or KIND_COLORS.Windfall
+		plate.BackgroundColor3 = color
+		plate.BackgroundTransparency = if upcoming then 0.45 else 0
+		edge.BackgroundColor3 = color
+		edge.BackgroundTransparency = if upcoming then 0.6 else 0
+		head.BackgroundColor3 = color
+		headPlate.BackgroundColor3 = color
+		whenTag.Text = if upcoming then "NEXT WEEK" else "THIS WEEK"
+		whenTag.TextColor3 = if upcoming then Kit.colors.muted else Kit.colors.text
+		title.TextColor3 = if upcoming then Kit.colors.muted else Kit.colors.text
+		line.TextColor3 = if upcoming then Kit.colors.muted else Kit.colors.text
+		for _, child in headPlate:GetChildren() do
+			if child:IsA("GuiObject") then
+				child:Destroy()
+			end
+		end
+		local icon = iconOf()
+		icon.Name = "Icon"
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.fromScale(0.5, 0.5)
+		icon.Parent = headPlate
+	end
 
 	local pulsedFor: string? = nil -- the event the strip last pulsed for
 	local iconKind: string? = nil -- the kind whose icon the plate shows
@@ -614,6 +732,11 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 					icon.Position = UDim2.fromScale(0.5, 0.5)
 					icon.Parent = plate
 				end
+				paintKind("Closing", false, function()
+					return Kit.icon("clock", math.floor(SHEET_ICON * 2 / 3), Kit.colors.background)
+				end, "Closing")
+				headLabel.Text = string.upper(closingWords.title)
+				whenTag.Visible = not model.portrait
 				title.Text = closingWords.title
 				line.Text = closingWords.alone
 				title.Position = UDim2.new(0, textX, 0.5, -STRIP_TITLE_H)
@@ -664,7 +787,21 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 				icon.Position = UDim2.fromScale(0.5, 0.5)
 				icon.Parent = plate
 			end
-			title.Text = Words.eventTitle(shown, event == nil)
+			paintKind(shown.kind, event == nil, function()
+				local px = math.floor(SHEET_ICON * 2 / 3)
+				return if issue and useIssue
+					then Kit.issueIcon(issue, px, Kit.colors.background)
+					else Kit.icon(EVENT_ICONS[shown.kind] or "vote", px, Kit.colors.background)
+			end, iconFor)
+			headLabel.Text =
+				string.upper(`{shown.kind} · {if event == nil then "next week" else "this week"}`)
+			-- Next week's: the tag says when, the title is its name alone. A
+			-- portrait screen has no room for the tag: the title says it.
+			local tagged = not model.portrait
+			whenTag.Visible = tagged
+			title.Size =
+				UDim2.new(1, if tagged then textW - STRIP_TAG_W - Kit.space.xs else textW, 0, STRIP_TITLE_H)
+			title.Text = if event == nil and tagged then shown.name else Words.eventTitle(shown, event == nil)
 			line.Text = Words.eventLine(config, shown, if event then view.stance else nil)
 			sheet:setTitle(Words.eventTitle(shown, event == nil))
 			effect.Text = Words.percent(PlanDraft.eventEffect(config, shown))
@@ -682,7 +819,7 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 						name = ` · {entry.name}`
 					end
 				end
-				taken.Text = `Your stance: {mine}{name}. Secret until the week resolves.`
+				taken.Text = `Your stance: {mine}{name}.`
 			end
 			nextLine.Visible = event ~= nil and upcoming ~= nil
 			if event and upcoming then

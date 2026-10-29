@@ -649,7 +649,7 @@ function Explain.underdogText(config: Config, view: View, p: number): string?
 		if p == view.you then
 			table.insert(
 				parts,
-				`You are underdog tier {player.underdogTier}: {boost} (you were behind in the polls lately; it fades once you stay ahead)`
+				`You are underdog tier {player.underdogTier}: {boost} (you were behind in the polls lately; it ends once the polls show you level)`
 			)
 		else
 			-- Their first name (a custom name whole), as the Campaign screen says it.
@@ -1031,7 +1031,7 @@ function Explain.help(config: Config, view: View?): { Section }
 			c.UNDERDOG_RALLY_1
 		)}, fundraisers {times(c.UNDERDOG_FUND_1)}. Tier 2 at {c.UNDERDOG_EV_2}+: rallies {times(
 			c.UNDERDOG_RALLY_2
-		)}, fundraisers {times(c.UNDERDOG_FUND_2)}. You drop a tier only once the gap is {c.UNDERDOG_HYSTERESIS} EV under its line.`,
+		)}, fundraisers {times(c.UNDERDOG_FUND_2)}. Tier 2 drops to tier 1 only once the gap is {c.UNDERDOG_HYSTERESIS} EV under its line; the boost ends as soon as the latest polls put you within {c.UNDERDOG_EV_1 - c.UNDERDOG_HYSTERESIS} EV.`,
 		`Closing weeks: from week {c.CLOSING_FROM_WEEK} to election night, rallies and ads (attack ads too) count +{pct(
 			c.CLOSING_MULT - 1
 		)} ({times(c.CLOSING_MULT)}), for both of you. The event strip says so from the week before.`,

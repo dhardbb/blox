@@ -22,6 +22,7 @@ export type Message = {
 
 export type State = {
 	payload: Session.StatePayload?,
+	previous: Session.StatePayload?, -- the payload before `payload` (same match): a stance's result reads the polls before it (D-099)
 	lobby: Remotes.LobbyStatus?,
 	messages: { Message }, -- newest last, for toasts and the week card
 	resultSeen: boolean, -- the player dismissed the last match's result screen
@@ -42,6 +43,7 @@ local lastMessageId = 0 -- id of the newest message ever said
 
 local state: State = {
 	payload = nil,
+	previous = nil,
 	lobby = nil,
 	messages = {},
 	resultSeen = false,
@@ -85,6 +87,7 @@ function Store.setPayload(payload: Session.StatePayload)
 	if state.leaving ~= nil and state.leaving == payload.matchId and payload.stage == "Over" then
 		state.resultSeen = true
 	end
+	state.previous = if previous ~= nil and previous.matchId == payload.matchId then previous else nil
 	state.payload = payload
 	changed()
 end

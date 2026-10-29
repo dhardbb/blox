@@ -2,14 +2,15 @@
 -- The screens for stances and debates (D-042) on the fake engine: a Choice week
 -- previews the selected (or held) stance on the map with green and orange
 -- outlines, the biggest gains' tags and ▲ / ▼ flip tags (D-079), and says which states you need; the debate reveal names the states each
--- topic swung and calls out every flip and gaffe; the resolve reveal after a
--- Choice week does the same for both stances; Results says what debates and
+-- topic swung and calls out every flip and gaffe; a Choice week's stance
+-- result before the plan (D-099) does the same for both stances; Results says what debates and
 -- stances decided. Every moment passes the strict UI audit at 1280x720, 844x390
 -- and 390x844. The words themselves are Swing.spec's job: here the screens must
 -- show exactly what Shared/UI/Swing says.
 
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
+local Fixtures = require("@ui/Fixtures")
 local Numbers = require("@ui/Numbers")
 local Rig = require("./Rig")
 local State = require("@sim/State")
@@ -344,20 +345,22 @@ describe("Stances: the debate on the map (D-072)", function()
 	end)
 end)
 
-describe("Stances: the resolve reveal after a Choice week", function()
+describe("Stances: their result before the plan (D-099)", function()
 	it("says what both stances moved and flipped, on the panel and the map", function()
-		local world, peer = open("ChoiceResolve", nil)
-		FakeRoblox.run(world, RESOLVE_DONE)
+		local world, peer = open("StanceResult", nil)
+		FakeRoblox.run(world, 1.5)
 		local view = viewOf(world, peer)
-		local entry = Swing.lastChoice(view) :: any
-		check(entry ~= nil, "no Choice result in the view")
+		local entry = view.eventLog[#view.eventLog] :: any
+		check(entry ~= nil and entry.choices ~= nil and entry.week == view.week, "no Choice result this week")
 		local lines = Swing.choiceLines(C, view, entry)
+		check(Rig.contains(textOf(peer, "RevealLine1"), "You took "), textOf(peer, "RevealLine1"))
+		check(Rig.contains(textOf(peer, "RevealThem1"), " took "), textOf(peer, "RevealThem1"))
 		local label = need(peer, "RevealChoice")
 		expect(label.Text):toBe(table.concat(lines, "\n"))
 		check(not shown(label), "the stance numbers show before Why?")
 		tap(world, peer, "WhyButton")
 		check(shown(label), "Why? does not show the stance lines")
-		-- Without last week's polls (a fixture), the map badges what the stances
+		-- Without the polls before (a rejoin), the map badges what the stances
 		-- moved: the flips and the biggest moves only.
 		local flips = Swing.flips(entry.flips)
 		local flipped: { [string]: boolean } = {}
@@ -374,7 +377,26 @@ describe("Stances: the resolve reveal after a Choice week", function()
 			end
 		end
 		check(tagCount(peer, view) <= LABELS, `{tagCount(peer, view)} tags on the map`)
-		check(Rig.contains(textOf(peer, "FeedEvent"), lines[1]), textOf(peer, "FeedEvent"))
+		Rig.noErrors(world)
+	end)
+
+	it("from the Decision step's polls: the tally and every moved state on the map", function()
+		local world, peer = open("Stance", nil)
+		local before, after = Fixtures.stanceResult(C)
+		Rig.push(world, peer, before)
+		FakeRoblox.run(world, 0.1)
+		local shift = world.clock - after.stageStart
+		after.stageStart += shift
+		after.deadline = (after.deadline :: number) + shift
+		Rig.push(world, peer, after)
+		SCREEN = "Campaign"
+		FakeRoblox.run(world, 0.2)
+		expect(textOf(peer, "RevealIntro")):toBe("Both stances are in")
+		FakeRoblox.run(world, 1.3)
+		local tally = need(peer, "RevealTally")
+		check(shown(tally), "no tally line once the stances land")
+		check(Rig.contains(tally.Text, "Projection: ") or Rig.contains(tally.Text, "close state"), tally.Text)
+		expect(textOf(peer, "SkipButton")):toBe("Skip")
 		Rig.noErrors(world)
 	end)
 end)

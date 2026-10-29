@@ -958,6 +958,29 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Campaign", "Fundraise")
 		end,
 	},
+	{
+		-- The plan as slots (D-093): a rally in PA twice is one "PA ×2" tile, an
+		-- ad follows; the card's action tray on a landscape phone.
+		name = "10s-plan-slots-d17",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "PA")
+			tapIf(world, peer, "Campaign", "Rally")
+			tapIf(world, peer, "Campaign", "Rally")
+			tapIf(world, peer, "Campaign", "Ad")
+		end,
+	},
+	{
+		-- The event's sheet (D-093): its colored head with the big icon, sized to
+		-- its content, "Got it" at the end.
+		name = "09w-event-sheet-d17",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "EventCard")
+		end,
+	},
 	-- The plan preview (D-071): an empty plan, then a rally in PA twice and one in OH.
 	{ name = "10c-plan-preview-empty", moment = "Plan", screen = "Campaign" },
 	{
@@ -1124,6 +1147,40 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "18-choice-resolve", moment = "ChoiceResolve", screen = "Campaign" },
+	{
+		-- A stance's result before the plan (D-099): "Both stances are in", the
+		-- map still on the polls before them.
+		name = "18a-stance-intro-d17",
+		moment = "Stance",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local before, after = Fixtures.stanceResult(Config.defaults)
+			Rig.push(world, peer, before)
+			FakeRoblox.run(world, 0.1)
+			local shift = world.clock - after.stageStart
+			after.stageStart += shift
+			after.deadline += shift
+			Rig.push(world, peer, after)
+			FakeRoblox.run(world, 0.2)
+		end,
+	},
+	{
+		-- ... and once the stances land: both sides' lines, the map on the new
+		-- polls with every moved state badged, the tally and What changed.
+		name = "18b-stance-result-d17",
+		moment = "Stance",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local before, after = Fixtures.stanceResult(Config.defaults)
+			Rig.push(world, peer, before)
+			FakeRoblox.run(world, 0.1)
+			local shift = world.clock - after.stageStart
+			after.stageStart += shift
+			after.deadline += shift
+			Rig.push(world, peer, after)
+			FakeRoblox.run(world, 1.5)
+		end,
+	},
 	{ name = "19-debate-clash", moment = "Clash", screen = "Debate" },
 	{ name = "20-debate-verdict", moment = "Debate", screen = "Debate" },
 	{ name = "21-election-start", moment = "Election", screen = "Election" },

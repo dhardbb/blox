@@ -1,10 +1,12 @@
 --!strict
--- The week's plan as a list (docs/UI-STYLE.md §4.5): a title row "Your plan ·
--- 2 of 3 actions" with a two-tap Clear (the first tap asks "Clear? tap again" for
--- PlanList.CONFIRM_SECONDS), then one row per action with a × to remove it. The
--- plan in one line lives in the action bar's status (so a phone sees it without
--- scrolling); the actions and money left are on the header's now line. Shown
--- only while planning.
+-- The week's plan (docs/UI-STYLE.md §4.5): its action slots first (D-093,
+-- CampaignParts/PlanSlots: one tile per action with its icon and state, repeats
+-- merged "×2", an outlined tile per free action slot; a tap on a tile removes
+-- that action), then one row per action with its details and a × to remove
+-- it, and a two-tap Clear (the first tap asks "Clear? tap again" for
+-- PlanList.CONFIRM_SECONDS). The slots also stand in the action bar's status
+-- row (so a phone sees them without scrolling); the actions and money left are
+-- on the header's now line. Shown only while planning.
 --
 --   local plan = PlanList.new(parent, model, order)
 --   plan:render(p) · plan:tick(now) · plan.root (Frame "PlanList")
@@ -15,18 +17,20 @@
 -- change, whichever part of the screen made it (the state card, the pivot
 -- chooser, ×, Clear). A new draft (a new week) starts quietly.
 --
--- Element names: PlanTitle, ClearButton, PlanItems, PlanItem<k>, RemoveItem<k>,
--- PlanEmpty.
+-- Element names: PlanSlots (Slot<k>, SlotEmpty<k>), PlanTitle (hidden: "2 of 3
+-- actions"), ClearButton, PlanItems, PlanItem<k>, RemoveItem<k>, PlanEmpty.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Plan = require(ReplicatedStorage.Shared.Sim.Plan)
 local PlanDraft = require(ReplicatedStorage.Shared.UI.PlanDraft)
+local Words = require(ReplicatedStorage.Shared.UI.Words.Campaign)
 
 local Audio = require(script.Parent.Parent.Parent.UI.Audio)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Model = require(script.Parent.Model)
 local Motion = require(script.Parent.Parent.Parent.UI.Motion)
+local PlanSlots = require(script.Parent.PlanSlots)
 
 local PlanList = {}
 
@@ -44,9 +48,33 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 	local config = model.config
 	local root = Kit.card({ Name = "PlanList", LayoutOrder = order, Parent = parent })
 
+	-- The slots replace the "Your plan · 2 of 3 actions" title (D-093).
+	local slots = PlanSlots.new(root, {
+		name = "PlanSlots",
+		order = 0,
+		onTap = function(slot)
+			local now = model.payload
+			local index = slot.index
+			if
+				now == nil
+				or not Model.editable(model, now)
+				or index == nil
+				or model.draft.actions[index] == nil
+			then
+				return
+			end
+			local action = model.draft.actions[index]
+			if action.kind == "Gotv" and (action.units or 1) > 1 then
+				action.units = (action.units or 1) - 1
+			else
+				PlanDraft.remove(model.draft, index)
+			end
+			model.render()
+		end,
+	})
 	local titleRow = Kit.box({
 		Name = "PlanTitleRow",
-		LayoutOrder = 1,
+		LayoutOrder = 3,
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = root,
 	})
@@ -56,6 +84,7 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 		Font = Kit.font.bold,
 		TextScaled = true,
 		TextWrapped = false,
+		Visible = false,
 		Parent = titleRow,
 	})
 	local armedUntil: number? = nil
@@ -91,7 +120,7 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 	})
 	Kit.list("Vertical", Kit.space.xs).Parent = items
 	local empty =
-		Kit.caption("Tap a state, then an action.", { Name = "PlanEmpty", LayoutOrder = 3, Parent = root })
+		Kit.caption("Tap a state, then an action.", { Name = "PlanEmpty", LayoutOrder = 1, Parent = root })
 
 	local function clearItems()
 		for _, child in items:GetChildren() do
@@ -146,7 +175,8 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 			local canEdit = Model.editable(model, p)
 			local cost = PlanDraft.cost(config, view, model.draft)
 			local profile = PlanDraft.profile(config, view)
-			title.Text = `Your plan · {cost.ap} of {profile.apPerWeek} actions`
+			title.Text = `{cost.ap} of {profile.apPerWeek} actions`
+			slots:render(Words.planSlots(model.draft.actions, profile.apPerWeek, config.PIVOT_AP), canEdit)
 			local flights: { [number]: boolean } = {}
 			for _, stop in PlanDraft.route(view, model.draft) do
 				flights[stop.index] = stop.flight
@@ -212,6 +242,7 @@ function PlanList.new(parent: Instance, model: Model.Model, order: number): Plan
 			-- fading out keeps it open).
 			items.Visible = #model.draft.actions > 0 or removed
 			renderClear(canEdit, model.ctx.now())
+			titleRow.Visible = clear.Visible
 		end,
 		tick = function(_self: PlanList, now: number)
 			local p = model.payload

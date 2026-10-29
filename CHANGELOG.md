@@ -4,6 +4,20 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### The week's flow and the campaign screen (D-093, D-099)
+
+Studio checklist: `docs/TESTING.md`, "The week's flow and the campaign screen (D-093, D-099)". Nothing needed from the humans.
+
+- **Stances count before you plan.** In a Choice week, both stances now take effect the moment the stance step ends: a short result (4 s, skippable) shows both sides' stances, the map moving, flips and the new projection, and then you plan on those polls. Debates already worked this way. Both stances are public from then on.
+- **Actions without scrolling on a phone.** Tap a state on a landscape phone and its six actions sit at the top of the side column as a 3 x 2 tray (name and gain), above the state's name.
+- **The plan as slots.** Three action slots (outlined when empty, icon and state when used, "PA ×2" for repeats) in the bottom bar and the plan card; tap a slot to remove that action.
+- **Header:** faces beside both scores (names hidden on a phone, where they overlapped), money as a gold coin and a plain number.
+- **Event strip and sheet:** a color per event kind, a "THIS WEEK" tag, next week's event dimmed with "NEXT WEEK"; the sheet fits its content, has a colored head with a big icon and a "Got it" button.
+- **Week results:** the "New polls are in" stamp shrinks after it plays, the tip shows once, a side that did nothing says "Skipped"; a flip your way flies "+28" to your score with confetti (not under Reduce motion).
+- **State card:** bigger effect text (16 px), "Attack" and "Ground" on the buttons.
+- **Tutorial:** a suggested state pulses until you tap one; the first tap closes the tip. The idle-money tip moved to the top of the column.
+- **Underdog wording** matches D-096: the boost ends once the polls show you level.
+
 ### More eccentric candidates (D-097)
 
 Studio checklist: `docs/TESTING.md`, "More eccentric candidates (D-097)". **Needed from the humans:** upload the eight new portrait PNGs in `assets/portraits/` and send back their asset ids (or patch them into `src/client/UI/Assets.luau`); until then the game shows the old faces with the new names.

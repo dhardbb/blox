@@ -162,7 +162,9 @@ local function entryText(view: View, entry: Entry, eventName: string?): string
 		local stanceName: string = id
 		for _, result in view.eventLog do
 			local definition = Events.byId[result.id]
-			if result.week == view.week - 1 and definition then
+			-- Last week's, or this week's stances resolved before the plan (D-099).
+			local current = result.week == view.week and result.choices ~= nil
+			if (result.week == view.week - 1 or current) and definition then
 				local stance = Events.stance(definition, id)
 				if stance then
 					stanceName = `{id} · {stance.name}`
@@ -174,15 +176,18 @@ local function entryText(view: View, entry: Entry, eventName: string?): string
 	return kind
 end
 
--- The name of last week's event (the one a Choice line answers).
+-- The name of the event a Choice line answers: last week's, or this week's
+-- once its stances resolved before the plan (D-099).
 local function lastEventName(view: View): string?
+	local name: string? = nil
 	for _, result in view.eventLog do
 		local definition = Events.byId[result.id]
-		if result.week == view.week - 1 and definition then
-			return definition.name
+		local current = result.week == view.week and result.choices ~= nil
+		if (result.week == view.week - 1 or current) and definition then
+			name = definition.name
 		end
 	end
-	return nil
+	return name
 end
 
 -- Whether an event belongs in the week's groups.
@@ -642,6 +647,11 @@ end
 -- line behind "Why?" on the per-move numbers, what the new polls changed, and
 -- a leader change at a glance.
 Words.SETTLE = "New polls are in"
+-- A stance's result before the plan (D-099).
+Words.STANCES_IN = "Both stances are in"
+Words.STANCES_DONE = "The stances moved the polls"
+Words.STANCES_NEXT = "Your week's plan is next."
+Words.SKIPPED = "Skipped: no actions this week" -- a side that did nothing in the week's results (D-093)
 Words.ESTIMATE_NOTE =
 	"≈ Each move's points are estimated from the polls you both saw. The new polls are the real numbers."
 
