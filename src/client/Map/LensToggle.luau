@@ -12,6 +12,8 @@
 --   LensToggle.setNarrow(toggle, on)   one row of the rail's narrow cells, each icon
 --                                        over its word (LensToggle.NARROW_W wide), where
 --                                        the full row does not fit (D-092)
+--   LensToggle.fillNarrow(toggle, left)  the narrow cells sharing the row right of
+--                                        `left` px equally (a phone's lens row, D-100)
 --   LensToggle.row(parent, tabs, close)  the tabs at the parent's right edge and the
 --                                        Close races toggle left of them, narrowing the
 --                                        tabs while the parent is too narrow for both
@@ -207,6 +209,27 @@ function LensToggle.setNarrow(toggle: Toggle, on: boolean)
 		end
 	end
 	root.Size = UDim2.fromOffset(if on then LensToggle.NARROW_W else LensToggle.WIDTH, LensToggle.HEIGHT)
+end
+
+-- The narrow cells (setNarrow) sharing the row right of `left` px of the
+-- parent equally (D-100: a phone's lens row shares its width with the Map
+-- key and Close races, which did not fit beside four 56 px cells). Sized by
+-- scale, so the row follows its parent; at a 390 pt phone a cell is about 52.
+function LensToggle.fillNarrow(toggle: Toggle, left: number)
+	local root = toggle.root
+	if root:FindFirstChildOfClass("UIGridLayout") then
+		return
+	end
+	local n = #Lens.ORDER
+	for _, child in root:GetChildren() do
+		if child:IsA("TextButton") then
+			layoutTab(child, true)
+			child.Size = UDim2.new(1 / n, -math.ceil((n - 1) * GAP / n), 0, LensToggle.HEIGHT)
+		end
+	end
+	root.AnchorPoint = Vector2.new(1, 0)
+	root.Position = UDim2.fromScale(1, 0)
+	root.Size = UDim2.new(1, -left, 0, LensToggle.HEIGHT)
 end
 
 -- The Close races toggle with its switch over its word (`on`, where a row is

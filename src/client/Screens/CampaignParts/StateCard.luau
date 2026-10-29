@@ -11,10 +11,11 @@
 --   Message  (Jobs) (Health) (More +)                        rallies and ads talk about
 --   ( More actions + )                ( Details + )
 --
--- A portrait phone shows Rally, Fundraise and Ad; a wide screen also Attack ad, Poll and
--- Ground game. A landscape phone (D-093) shows all six as a 3 x 2 tray of short
--- buttons (name and gain, "Rally / +3.9") first in the card, above its title,
--- so they show without scrolling (the header's now line names the state). "More actions" adds the rest (Region poll, Pivot). Pivot opens
+-- A wide screen shows Rally, Fundraise, Ad, Attack ad, Poll and Ground game as
+-- big buttons. A phone shows all six as a 3 x 2 tray of short buttons (name and
+-- gain, "Rally / +3.9"): in portrait (D-100) after the title and the poll, in
+-- the bottom sheet above Lock in; on a landscape phone (D-093) first in the
+-- card, above its title (the header's now line names the state). "More actions" adds the rest (Region poll, Pivot). Pivot opens
 -- its chooser in place of the buttons. "Details" opens the numbers: the polls,
 -- momentum and its drift, ground game, top issues, and one line per action with
 -- the full math (Shared/UI/Explain), a details area.
@@ -82,7 +83,6 @@ local COLUMNS = 3 -- action buttons, message chips and pivot choices per row
 -- over the next row's names (fix17).
 local ACTION_H = 96 -- px
 local ACTION_TRAY_H = 52 -- px, an action button in a landscape phone's tray (D-093): its name over its gain, two lines
-local MAIN_PHONE = 3 -- action buttons a portrait phone shows before "More actions"
 local MAIN_TRAY = 6 -- ... a landscape phone's tray: 3 x 2, first in the card (D-093)
 -- A greyed-out tray button's reason in two short words (the tray has one line).
 local TRAY_REASON: { [string]: string } = {
@@ -204,7 +204,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 
 	local actionsBox = Kit.stack({ Name = "Actions", LayoutOrder = 4, Parent = root }, "Vertical", GAP)
 	local actionGrid, actionSize, actionLayout = grid(actionsBox, "ActionGrid", 1, ACTION_H)
-	local trayShown = false -- the buttons are a landscape phone's tray (D-093)
+	local trayShown = 0 -- the buttons are a phone's tray: 0 no, 1 portrait (D-100), 2 a landscape phone (D-093)
 	local addAction: (name: string) -> ()
 	local pivotOpen: () -> ()
 	type ActionButton = {
@@ -787,14 +787,17 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local pivotWhy = pivotProblem(view)
 		local message: Issue = Model.messageIssue(model, view, id)
 		local opponent = Model.firstName(config, view, Model.opponentOf(view))
-		local tray = model.compact == true
-		local main = if tray then MAIN_TRAY elseif model.portrait then MAIN_PHONE else MAIN_WIDE
-		if tray ~= trayShown then
-			-- A landscape phone (D-093): the actions are a 3 x 2 tray of short
-			-- buttons, first in the card, so they show without scrolling.
-			trayShown = tray
+		-- A phone (D-093 landscape, D-100 portrait): the six actions are a 3 x 2
+		-- tray of short buttons, so they show without scrolling. On a landscape
+		-- phone the tray comes first in the card; in portrait's sheet it comes
+		-- after the title and the poll, above Lock in.
+		local tray = model.compact == true or model.portrait
+		local main = if tray then MAIN_TRAY else MAIN_WIDE
+		local trayKey = if model.compact == true then 2 elseif tray then 1 else 0
+		if trayKey ~= trayShown then
+			trayShown = trayKey
 			Layout.setGrid(actionLayout, COLUMNS, if tray then ACTION_TRAY_H else ACTION_H, GAP)
-			actionsBox.LayoutOrder = if tray then 0 else 4
+			actionsBox.LayoutOrder = if model.compact == true then 0 else 4
 			for _, parts in actionButtons do
 				parts.button.Size = actionLayout.CellSize
 			end

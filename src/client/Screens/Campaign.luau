@@ -13,6 +13,15 @@
 -- the event strip is the first thing in the side column, and steps aside with
 -- the key states line while a state's card is open.
 --
+-- A phone (portrait, D-100): map first with a bottom sheet. The header (two
+-- rows), the event strip and the map with its lens row stay on screen, never
+-- scrolled; the side column is a sheet under the map whose height follows what
+-- it holds: closed, the key states line and any coach tip above the action bar;
+-- a tapped state's card (its six actions a 3 x 2 tray, Lock in under them);
+-- a reveal's results and steps (SHEET_REVEAL of the body). The map shrinks to
+-- the room above the sheet, so the whole map and the selected state stay in
+-- view; the rest of the column (plan, week, all states) scrolls inside it.
+--
 -- Side column, top to bottom: the reveal panel (during reveals), the key states
 -- line while planning (CampaignParts/KeyRow, D-088: the same states glow on the
 -- map), a first-match coach tip, the state card (only once a state is tapped),
@@ -85,7 +94,11 @@ local KEY_ICON = 24 -- px, its icon plate
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
 local COMPACT_MAP_SHARE = 0.6 -- share of the width the map and its chip rail take on a landscape phone (D-089)
 local RAIL_W = 2 * LensToggle.BUTTON_W + Kit.space.xs -- px, a landscape phone's chip rail left of the map: two chips a row
-local PORTRAIT_MAP_MAX = 0.57 -- most of the body height the map may take on phones (D-079: room for the tall map and its two chip rows)
+local SHEET_REVEAL = 0.58 -- share of a phone's body a reveal's sheet takes (D-100: the map keeps the rest, the lens row steps aside, the steps are readable)
+local SHEET_CARD = 0.67 -- share of a phone's body a state's card sheet takes (its title, poll and six actions over Lock in)
+local SHEET_PEEK_MAX = 0.5 -- most of a phone's body the closed sheet takes (the key states line, a coach tip)
+local SHEET_PAD = Kit.space.sm -- px, the sheet's top edge to its first panel
+local SHEET_TIP_H = 100 -- px, a coach tip in the closed sheet (two lines and Got it, padded)
 local BACK_SECONDS = 4 -- how long "<name>: back" shows after a reconnect
 local SWATCH = 20 -- px, a color step's dot in the map key
 local KEY_ROW_H = 24 -- px, one color step's row in the map key
@@ -153,6 +166,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local portrait: boolean? = nil
 	local lastBodySize = Vector2.new(-1, -1)
 	local placedStrip = -1 -- the event strip's height when the body was last placed
+	local lensRowShown = true -- the lens row is up (a phone's open card hides it, D-100)
 	local away = false -- the opponent's seat was disconnected at the last look
 	local suggestAt = 0 -- the tutorial's next pulse on its suggested state
 	local backUntil = 0 -- "Opponent: back" shows until then
@@ -207,6 +221,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Side column: the scrolling panels over the pinned action bar.
 	local sideColumn = Kit.box({ Name = "SideColumn", Parent = body })
+	-- A phone's sheet (D-100): a raised panel with rounded top corners behind
+	-- the column, so what rises from the bottom reads as one sheet.
+	local sheetBack = Kit.new("Frame", {
+		Name = "SheetBack",
+		Position = UDim2.fromOffset(-Kit.space.sm, 0),
+		Size = UDim2.new(1, 2 * Kit.space.sm, 1, Kit.space.lg),
+		BackgroundColor3 = Kit.colors.surface,
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Visible = false,
+		Parent = sideColumn,
+	})
+	sheetBack:SetAttribute("Decor", true)
+	Kit.corner(Kit.radius.panel).Parent = sheetBack
 	local side = Kit.new("ScrollingFrame", {
 		Name = "Side",
 		BackgroundTransparency = 1,
@@ -264,8 +292,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		LensToggle.setColumns(lensToggle, nil)
 		lensToggle.root.AnchorPoint = Vector2.new(1, 0)
 		lensToggle.root.Position = UDim2.fromScale(1, 0)
-		mapHolder.Position = UDim2.fromOffset(0, LENS_H + Kit.space.xs)
-		mapHolder.Size = UDim2.new(1, 0, 1, -(LENS_H + Kit.space.xs))
+		local lensH = if lensRowShown then LENS_H + Kit.space.xs else 0
+		mapHolder.Position = UDim2.fromOffset(0, lensH)
+		mapHolder.Size = UDim2.new(1, 0, 1, -lensH)
+		if model.portrait then
+			-- A phone (D-100): the key's "?", the Close races toggle (its
+			-- switch over its word) and the four tabs (icon over word) fill
+			-- the row between them, so nothing overlaps (the toggle sat on
+			-- the Votes tab).
+			keyButton.Size = UDim2.fromOffset(KEY_NARROW, LENS_H)
+			keyLabel.Visible = false
+			LensToggle.setCloseNarrow(closeChip, true)
+			closeChip.root.Position = UDim2.fromOffset(KEY_NARROW + Kit.space.xs, 0)
+			LensToggle.fillNarrow(lensToggle, KEY_NARROW + LensToggle.CLOSE_NARROW_W + 2 * Kit.space.xs)
+			return
+		end
 		local full = KEY_W + LensToggle.CLOSE_W + LensToggle.WIDTH + 2 * Kit.space.xs <= width
 		local keyW = if full then KEY_W else KEY_NARROW
 		-- Narrower still (a portrait tablet's column): the tabs' narrow cells (D-092).
@@ -576,8 +617,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		-- The idle-money tip stands at the top of the column, where it is seen
 		-- (D-093: under the state card it was below the fold on a phone). On a
-		-- landscape phone it waits while a state's card (its action tray) is open.
-		local deferred = want == "campaign.cash" and model.compact == true and model.selected ~= nil
+		-- phone it waits while a state's card (its action tray) is open.
+		local deferred = want == "campaign.cash"
+			and (model.compact == true or model.portrait)
+			and model.selected ~= nil
 		if deferred then
 			want = nil
 		end
@@ -605,8 +648,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 						Numbers.money(spare)
 					)
 					else nil,
-				-- A landscape phone's side column is short: the tip goes first,
-				-- so its Got it never sits under the action bar (D-090).
+				-- A landscape phone's side column is short: the tip goes
+				-- first, so its Got it never sits under the action bar (D-090).
 				order = if model.compact == true
 					then ORDER.tipTop
 					elseif want == "campaign.actions" then ORDER.tipAfter
@@ -614,9 +657,51 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			})
 			tipId = if tip then want else nil
 		end
+		-- A phone (D-100): the tip is pinned in the sheet just above the bar:
+		-- first while it is closed, after an open state's card (so the card's
+		-- actions come first).
+		local shown = tip
+		if shown and model.portrait then
+			shown.root.LayoutOrder = if model.selected ~= nil then ORDER.tipAfter else ORDER.tipTop
+		end
 	end
 
 	-- ------------------------------------------------------------ layout
+
+	-- A phone's sheet (D-100): what it is showing now.
+	local function sheetMode(): "reveal" | "card" | "peek"
+		local p = model.payload
+		if p ~= nil and p.reveal ~= nil then
+			return "reveal"
+		end
+		return if model.selected ~= nil then "card" else "peek"
+	end
+	-- The sheet's height for a body `height` tall: a reveal's takes
+	-- SHEET_REVEAL, a state's card SHEET_CARD of the body; closed, the action
+	-- bar, the key states line and a coach tip (up to SHEET_PEEK_MAX). At least
+	-- one row of the column shows, so the rest of it (plan, week, all states)
+	-- is a scroll away, never out of reach. Fixed heights, not measured ones:
+	-- the map does not jump as a panel's text wraps.
+	local function sheetWant(height: number): number
+		local barH = Kit.BAR_H + GAP
+		local mode = sheetMode()
+		if mode == "reveal" then
+			return math.floor(height * SHEET_REVEAL)
+		elseif mode == "card" then
+			return math.floor(height * SHEET_CARD)
+		end
+		local content = 0
+		if keyRow.root.Visible then
+			content += Kit.MIN_TOUCH + GAP
+		end
+		local open = tip
+		if open and open.root.Parent ~= nil then
+			content += SHEET_TIP_H + GAP
+		end
+		local least = barH + SHEET_PAD + Kit.MIN_TOUCH + GAP
+		return math.floor(math.max(least, math.min(barH + SHEET_PAD + content, height * SHEET_PEEK_MAX)))
+	end
+	local placedSheet = -1 -- the sheet height the body was last placed for (a phone)
 
 	local function placeBody(isPortrait: boolean, topHeight: number)
 		local stripHeight = eventStrip:height()
@@ -629,6 +714,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				eventStrip.root.Parent = side
 				eventStrip.root.LayoutOrder = ORDER.strip
 			end
+			sheetBack.Visible = false
 			body.Position = UDim2.fromOffset(0, topHeight + GAP)
 			body.Size = UDim2.new(1, 0, 1, -(topHeight + GAP))
 			-- The map column is as wide as the map at this height (up to
@@ -655,13 +741,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local bodyTop = topHeight + GAP + (if stripHeight > 0 then stripHeight + GAP else 0)
 		body.Position = UDim2.fromOffset(0, bodyTop)
 		body.Size = UDim2.new(1, 0, 1, -bodyTop)
+		sheetBack.Visible = isPortrait
+		side.Position = UDim2.fromOffset(0, if isPortrait then SHEET_PAD else 0)
+		side.Size = UDim2.new(1, 0, 1, -(Kit.BAR_H + GAP + (if isPortrait then SHEET_PAD else 0)))
 		if isPortrait then
+			-- A phone (D-100): the map and its lens row take what the sheet
+			-- leaves (D-079: the map stands up, 1.25 instead of 1.6), and the
+			-- sheet takes everything under the map.
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
-			-- The map's box for this room (D-079: it stands up on a phone, 1.25 instead of 1.6).
-			local maxHeight = height * PORTRAIT_MAP_MAX
+			local want = sheetWant(height)
+			placedSheet = want
+			local lensH = if lensRowShown then LENS_H + Kit.space.xs else 0
+			local maxHeight = math.max(height - want - GAP - lensH, 0)
 			local mapHeight = math.floor(math.min(width / map:aspectFor(width, maxHeight), maxHeight))
-			local areaHeight = mapHeight + LENS_H + Kit.space.xs
+			local areaHeight = mapHeight + lensH
 			mapArea.Size = UDim2.new(1, 0, 0, areaHeight)
 			sideColumn.Position = UDim2.fromOffset(0, areaHeight + GAP)
 			sideColumn.Size = UDim2.new(1, 0, 1, -(areaHeight + GAP))
@@ -685,8 +779,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			weekCard:setPortrait(isPortrait)
 		elseif
 			eventStrip:height() ~= placedStrip
-			or (isPortrait or isCompact)
-				and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
+			or (isPortrait or isCompact) and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
+			or isPortrait and sheetWant(body.AbsoluteSize.Y) ~= placedSheet
 		then
 			placeBody(isPortrait, top:place(isPortrait))
 		end
@@ -970,11 +1064,20 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		keyRow:render(p, keysFor(p))
 		card:render(p)
 		eventStrip:render(p)
-		if model.compact == true and model.selected ~= nil then
-			-- A landscape phone (D-089): an open card takes the strip's place in
-			-- the short side column, as it takes the key states line's.
+		if (model.compact == true or model.portrait) and model.selected ~= nil and p.reveal == nil then
+			-- A phone (D-089, D-100): an open card takes the strip's place, as
+			-- it takes the key states line's (the week card below it in the
+			-- column repeats the event).
 			eventStrip.root.Visible = false
 		end
+		-- A phone's open card or a reveal (D-100): the lens row steps aside
+		-- too, so the map keeps its size above the sheet; it comes back after.
+		local lensRow = not (model.portrait and (model.selected ~= nil or p.reveal ~= nil))
+		keyButton.Visible = lensRow
+		lensToggle.root.Visible = lensRow
+		closeChip.root.Visible = lensRow
+		local relaid = lensRow ~= lensRowShown
+		lensRowShown = lensRow
 		if p.reveal == nil or p.reveal == "Debate" then
 			paintMapFor(view, view)
 			map:select(model.selected)
@@ -987,8 +1090,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		lensToggle.refresh()
 		closeChip.refresh()
 		renderBar(p, now)
-		if top:render(now) or eventStrip:height() ~= placedStrip then
+		if top:render(now) or eventStrip:height() ~= placedStrip or relaid then
 			relayout(true)
+		else
+			-- A phone's sheet follows what it holds (D-100).
+			relayout()
 		end
 	end
 	model.render = render
@@ -1019,8 +1125,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		model.moreIssues = false
 		model.pivotStage = nil
 		model.selected = if closing then nil else id
-		if model.compact == true and not closing then
-			-- A landscape phone (D-093): the card's action tray opens in view.
+		if (model.compact == true or model.portrait) and not closing then
+			-- A phone (D-093, D-100): the card's action tray opens in view.
 			side.CanvasPosition = Vector2.new(0, 0)
 		end
 		CoachTip.markSeen("campaign.map")
