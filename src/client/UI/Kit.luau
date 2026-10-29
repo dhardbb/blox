@@ -344,6 +344,7 @@ Kit.colors = {
 	onLoss = Kit.color(Colors.onLoss),
 	goodEdge = Kit.color(Colors.goodEdge),
 	glow = Kit.color(Colors.glow),
+	keyGold = Kit.color(Colors.keyGold), -- a key state's edge on the map and its swatch (D-101)
 }
 Kit.colors.bad = Kit.colors.loss -- the semantic name for a loss or an error (orange, never red)
 

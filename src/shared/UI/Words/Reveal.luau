@@ -746,7 +746,7 @@ function Words.help(config: Config): { Tab }
 			id = "turn",
 			label = "Your turn",
 			title = "Your turn",
-			text = `Each week you get {config.AP_PER_WEEK} actions and some money. Tap a state, pick an action, repeat, then press Lock in. Your opponent plans at the same time, in secret. When both lock in, the week plays out and new polls come in. Rallies move you; a far stop costs a flight. Glowing key states decide {config.EV_TO_WIN}: aim there.`,
+			text = `Each week you get {config.AP_PER_WEEK} actions and some money. Tap a state, pick an action, repeat, then press Lock in. Your opponent plans at the same time, in secret. When both lock in, the week plays out and new polls come in. Rallies move you; a far stop costs a flight. Gold-edged key states decide {config.EV_TO_WIN}: aim there.`,
 			sections = { "flights", "map" },
 		},
 		{

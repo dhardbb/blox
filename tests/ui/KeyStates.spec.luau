@@ -252,6 +252,57 @@ describe("Key states on the Campaign screen (D-088)", function()
 		end)
 	end
 
+	it("draws each key state with a solid gold edge over every outline, no glow (D-101)", function()
+		local Colors = require("@ui/Colors")
+		local world, peer = Rig.fixture("Plan")
+		local map = Rig.need(peer, "Campaign", "NodeMap")
+		check(map:GetAttribute("Shapes") == true, "the Plan fixture shows the circles, not the real map")
+		local gold = Colors.keyGold
+		local function isGold(c: any): boolean
+			return math.round(c.R * 255) == gold.r
+				and math.round(c.G * 255) == gold.g
+				and math.round(c.B * 255) == gold.b
+		end
+		-- Texas also selected: the selection's outline stays, the gold sits inside it.
+		Rig.tap(world, peer, "Campaign", "TX")
+		local edges = 0
+		for _, key in KeyStates.of(C, Fixtures.payload(C, "Plan").view) do
+			local node = map.Nodes:FindFirstChild(key.id)
+			if node:FindFirstChild("Chip") == nil then
+				local edge = map.Outlines:FindFirstChild(`KeyEdge{key.id}`)
+				check(edge ~= nil and edge.Visible, `{key.id} has no gold edge`)
+				local parts = edge:GetChildren()
+				check(#parts > 2, `{key.id}'s edge has {#parts} parts`)
+				for _, part in parts do
+					check(
+						isGold(part.BackgroundColor3) and part.BackgroundTransparency == 0,
+						`{part.Name} is not solid gold`
+					)
+					expect(part.Size.Y.Offset):toBe(3)
+				end
+				for _, other in map.Outlines:GetChildren() do
+					-- Every other outline (the key edges share one level).
+					if string.sub(other.Name, 1, 3) ~= "Key" then
+						check(other.ZIndex < edge.ZIndex, `{other.Name} is drawn over {key.id}'s gold edge`)
+					end
+				end
+				local bloom = map.Shadows:FindFirstChild(`Bloom{key.id}`)
+				check(bloom == nil or not bloom.Visible or key.id == "TX", `{key.id} still glows`)
+				edges += 1
+			end
+		end
+		check(edges >= 1, "no key state on the map itself")
+		local tx = map.Outlines:FindFirstChild("OutlineTX")
+		check(
+			tx ~= nil and tx.Visible and tx:GetAttribute("Rank") == "selected",
+			"Texas lost its selection outline"
+		)
+		-- The swatch the legend and the key states line share is the same gold.
+		local legend = Rig.need(peer, "Campaign", "MapLegend")
+		check(isGold(legend.Item1.Mark.Edge1.BackgroundColor3), "the legend's swatch is not gold")
+		Rig.noErrors(world)
+	end)
+
 	it("a tap on a name selects that state, as a tap on the map does", function()
 		local world, peer = Rig.fixture("Plan")
 		local keys = KeyStates.of(C, Fixtures.payload(C, "Plan").view)

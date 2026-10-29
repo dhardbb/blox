@@ -16,45 +16,47 @@ local CHAR_W = 8 -- px, an estimated caption character (to drop items on a phone
 local PIP = 8 -- px, a pip mark
 local ICON = Kit.MIN_ICON -- px, an issue symbol mark (D-076)
 local KEY_W, KEY_H = 16, 10 -- px, a key state's swatch (D-088)
-local KEY_FILL = 0.75 -- its glow's transparency
-local KEY_LINE = 2 -- px, its dashes
-local KEY_GAP = 3 -- px between two dashes
+local KEY_LINE = 2 -- px, its gold edge (D-101)
+local KEY_INNER_FADE = 0.3 -- the dark keyline inside it (ShapeMap.KEY_LINE_FADE)
 local ROW_H = Kit.size.caption + 2 -- px
 
 export type Rect = { x: number, y: number, w: number, h: number }
 
--- A key state's mark (D-088), as the map draws one: a faint glow inside a
--- dashed accent outline, KEY_W x KEY_H. The legend row and the Campaign's key
--- states line both use it.
+-- A key state's mark (D-101), as the map draws one: a solid gold edge with
+-- the dark keyline inside it, KEY_W x KEY_H. The legend row and the Campaign's
+-- key states line both use it.
 function Legend.keySwatch(parent: Instance, order: number): Frame
 	local swatch = Kit.new("Frame", {
 		Name = "Mark",
 		LayoutOrder = order,
 		Size = UDim2.fromOffset(KEY_W, KEY_H),
-		BackgroundColor3 = Kit.colors.accent,
-		BackgroundTransparency = KEY_FILL,
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = parent,
 	}) :: Frame
-	-- Two dashes along the top and the bottom, one down each side.
-	local dash = math.floor((KEY_W - KEY_GAP) / 2)
-	local function bar(name: string, x: number, y: number, w: number, h: number)
-		Kit.new("Frame", {
-			Name = name,
-			Position = UDim2.fromOffset(x, y),
-			Size = UDim2.fromOffset(w, h),
-			BackgroundColor3 = Kit.colors.accent,
-			BorderSizePixel = 0,
-			Parent = swatch,
-		})
+	local function box(name: string, inset: number, px: number, color: Color3, fade: number)
+		local w, h = KEY_W - 2 * inset, KEY_H - 2 * inset
+		for k, bar in
+			{
+				{ 0, 0, w, px },
+				{ 0, h - px, w, px },
+				{ 0, px, px, h - 2 * px },
+				{ w - px, px, px, h - 2 * px },
+			}
+		do
+			Kit.new("Frame", {
+				Name = `{name}{k}`,
+				Position = UDim2.fromOffset(inset + bar[1], inset + bar[2]),
+				Size = UDim2.fromOffset(bar[3], bar[4]),
+				BackgroundColor3 = color,
+				BackgroundTransparency = fade,
+				BorderSizePixel = 0,
+				Parent = swatch,
+			})
+		end
 	end
-	bar("TopLeft", 0, 0, dash, KEY_LINE)
-	bar("TopRight", KEY_W - dash, 0, dash, KEY_LINE)
-	bar("BottomLeft", 0, KEY_H - KEY_LINE, dash, KEY_LINE)
-	bar("BottomRight", KEY_W - dash, KEY_H - KEY_LINE, dash, KEY_LINE)
-	local side = KEY_H - 2 * KEY_GAP
-	bar("Left", 0, KEY_GAP, KEY_LINE, side)
-	bar("Right", KEY_W - KEY_LINE, KEY_GAP, KEY_LINE, side)
+	box("Edge", 0, KEY_LINE, Kit.colors.keyGold, 0)
+	box("Line", KEY_LINE, 1, Kit.colors.background, KEY_INNER_FADE)
 	return swatch
 end
 

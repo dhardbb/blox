@@ -1135,8 +1135,22 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- D-092: a key state (Texas: dashed, its owner's ring in the gaps) selected:
-		-- the selection's outline on top, every outline inside its own state.
+		-- D-101: the key states' gold edge on the palest player colors (Amber
+		-- for you, Teal for them): the dark keyline inside it keeps it apart.
+		name = "10k-key-amber-ks",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			payload.view.players[1].color = "Amber"
+			payload.view.players[2].color = "Teal"
+			Rig.push(world, peer, payload)
+		end,
+	},
+	{
+		-- D-092: a key state (Texas: its gold edge, D-101, inside its owner's
+		-- ring) selected: the selection's outline outside it, every outline
+		-- inside its own state.
 		name = "10k-select-key-c17",
 		moment = "Plan",
 		screen = "Campaign",
