@@ -495,8 +495,9 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 	plate.Parent = root
 	local textX = STRIP_ICON + Kit.space.sm + Kit.space.xs
 	local textW = -(textX + STRIP_ARROW + Kit.space.xs)
-	-- One line each; a name too long for a narrow phone ends in "…" rather than
-	-- pushing the map down (the snapshot audit checks the whole deck at 390 px).
+	-- One line each; a name too long for a narrow column shrinks (never under
+	-- Kit.MIN_TEXT; a landscape phone's side column, D-089), then ends in "…",
+	-- rather than pushing the map down.
 	local title = Kit.text("", {
 		Name = "EventTitle",
 		Position = UDim2.new(0, textX, 0.5, -STRIP_TITLE_H),
@@ -504,6 +505,7 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 		AutomaticSize = Enum.AutomaticSize.None,
 		Font = Kit.font.bold,
 		TextWrapped = false,
+		TextScaled = true,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextYAlignment = Enum.TextYAlignment.Bottom,
 		Parent = root,
@@ -516,6 +518,7 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 		Font = Kit.font.medium,
 		TextColor3 = Kit.colors.text,
 		TextWrapped = false,
+		TextScaled = true,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Parent = root,
@@ -529,6 +532,7 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 		Font = Kit.font.medium,
 		TextColor3 = Kit.colors.text,
 		TextWrapped = false,
+		TextScaled = true,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Visible = false,

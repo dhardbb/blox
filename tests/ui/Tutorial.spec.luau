@@ -16,7 +16,7 @@ local check, need, tap, shown = Rig.check, Rig.need, Rig.tap, Rig.shown
 local C = Config.defaults
 
 local SIZES = {
-	{ name = "phone", screen = { x = 390, y = 844 } },
+	{ name = "phone", screen = { x = 844, y = 390 } },
 	{ name = "iPad", screen = { x = 1024, y = 768 } },
 	{ name = "desktop", screen = { x = 1280, y = 720 } },
 }

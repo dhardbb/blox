@@ -15,7 +15,7 @@ local Rig = require("./Rig")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
-local PHONE = { x = 390, y = 844 }
+local PHONE = { x = 844, y = 390 }
 local MATCH_LIMIT = 600 -- simulated seconds for a whole autoplayed match
 
 local function check(condition: boolean, message: string)

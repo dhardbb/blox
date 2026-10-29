@@ -148,7 +148,8 @@ local function plural(n: number, word: string): string
 end
 
 function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
-	local page = Layout.page(parent, { maxWidth = MAX_WIDTH, footer = Kit.BAR_H, header = TAB_H })
+	local page =
+		Layout.page(parent, { maxWidth = MAX_WIDTH, footer = Kit.BAR_H, header = TAB_H, side = true })
 
 	local rendered: Session.StatePayload? = nil
 	local celebrated: string? = nil -- the match whose moment has played
@@ -793,7 +794,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local function relayout()
 		page.setPortrait(ctx.portrait())
-		if not tabbed then
+		if not tabbed and not page.sideways() then
 			-- No tabs: the column starts at the top.
 			local footerH = Kit.BAR_H + Layout.GAP
 			page.scroll.Position = UDim2.fromOffset(0, 0)

@@ -23,7 +23,7 @@ local C = Config.defaults
 local SIZES = {
 	{ name = "1280x720", screen = { x = 1280, y = 720 } },
 	{ name = "844x390", screen = { x = 844, y = 390 } },
-	{ name = "390x844", screen = Rig.PHONE },
+	{ name = "390x844", screen = { x = 390, y = 844 } },
 }
 local RESOLVE_DONE = 30 -- s, the resolve reveal has listed every event by then
 

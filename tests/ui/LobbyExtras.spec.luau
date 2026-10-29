@@ -193,12 +193,30 @@ describe("Lobby: the leaderboard (D-059)", function()
 		Rig.noErrors(world)
 	end)
 
-	it("shows the top 3 on a 390x844 phone beside a one-row Daily Race card (0.15.0)", function()
-		local world, peer = Rig.fixture("Lobby", PHONE)
+	it("shows the top 3 on a 390x844 portrait screen beside a one-row Daily Race card (0.15.0)", function()
+		local world, peer = Rig.fixture("Lobby", { x = 390, y = 844 })
 		local card = need(peer, "Lobby", "LeaderboardCard")
 		check(card:FindFirstAncestor("Idle") ~= nil, "the card is not in the column")
 		check(Rig.findIn(peer, "Lobby", "Row_3") ~= nil, "no third row")
 		expect(Rig.findIn(peer, "Lobby", "Row_4")):toBe(nil)
+		local play = need(peer, "Lobby", "DailyPlay")
+		check(play:FindFirstAncestor("DailyHead") ~= nil, "the Daily card is not one row on a phone")
+		expect(strictAudit(world, peer, "Lobby")):toBe(0)
+		Rig.noErrors(world)
+	end)
+
+	it("splits a landscape phone's Lobby into the column and the brand pane (D-089)", function()
+		local world, peer = Rig.fixture("Lobby", PHONE)
+		local card = need(peer, "Lobby", "LeaderboardCard")
+		local brand = need(peer, "Lobby", "Brand")
+		check(card:FindFirstAncestor("Brand") ~= nil, "the card is not in the brand pane")
+		check(brand:FindFirstChild("Title") ~= nil, "the wordmark is not in the brand pane")
+		local practice = need(peer, "Lobby", "Practice")
+		check(
+			practice.AbsolutePosition.X + practice.AbsoluteSize.X <= brand.AbsolutePosition.X + 0.5,
+			"Play vs Bot is not left of the brand pane"
+		)
+		check(shownIn(peer, "Lobby", "LeaderboardYou"), "no viewer line")
 		check(shownIn(peer, "Lobby", "LeaderboardYou"), "no viewer line")
 		-- The Daily Race card is one row: its buttons sit in its head.
 		local play = need(peer, "Lobby", "DailyPlay")

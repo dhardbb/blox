@@ -30,7 +30,7 @@ local Words = require("@ui/Words/Campaign")
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local C = Config.defaults
-local PHONE = { x = 390, y = 844 }
+local PHONE = { x = 844, y = 390 }
 local MOMENTS = { "Plan", "ChoiceWeek", "Resolve" } -- debates have their own screen (D-072, tests/ui/Debate.spec)
 
 -- Fails the spec with a readable message.
@@ -159,9 +159,9 @@ describe("Campaign screen", function()
 		end)
 	end
 
-	it("mounts in phone portrait with the map on top", function()
+	it("mounts in portrait with the map on top", function()
 		for _, moment in MOMENTS do
-			local _, peer = mountsCleanly(moment, PHONE)
+			local _, peer = mountsCleanly(moment, Rig.PORTRAIT)
 			local area = find(peer, "MapArea")
 			check(area.Size.X.Scale == 1, `{moment}: the map is not full width on a phone`)
 			check(shown(find(peer, "Score")), `{moment}: the phone header has no score row`)
@@ -433,7 +433,7 @@ describe("Campaign screen", function()
 		{
 			{ name = "16:9", screen = nil },
 			{ name = "iPad", screen = { x = 1024, y = 768 } },
-			{ name = "phone", screen = PHONE },
+			{ name = "portrait", screen = Rig.PORTRAIT },
 		}
 	do
 		it(
@@ -510,7 +510,9 @@ describe("Campaign screen", function()
 		noErrors(world)
 	end)
 
-	for _, size in { { name = "phone", screen = PHONE }, { name = "iPad", screen = { x = 1024, y = 768 } } } do
+	for _, size in
+		{ { name = "portrait", screen = Rig.PORTRAIT }, { name = "iPad", screen = { x = 1024, y = 768 } } }
+	do
 		it(
 			`never lets a pin cover a state's code or value, and shows both pins in one state ({size.name})`,
 			function()
@@ -566,8 +568,8 @@ describe("Campaign screen", function()
 		)
 	end
 
-	it("fits every event in the deck on one line on a phone (D-065)", function()
-		local world, peer = mountsCleanly("Plan", PHONE)
+	it("fits every event in the deck on one line in portrait (D-065)", function()
+		local world, peer = mountsCleanly("Plan", Rig.PORTRAIT)
 		local base = Rig.payloadOf(world, peer)
 		for _, definition in Events.deck do
 			for _, upcoming in { false, true } do
@@ -947,8 +949,8 @@ describe("Campaign state list", function()
 		Rig.noErrors(world)
 	end)
 
-	it("selects the states the phone map hides, in two taps", function()
-		local world, peer = Rig.fixture("Plan", Rig.PHONE)
+	it("selects the states the portrait map hides, in two taps", function()
+		local world, peer = Rig.fixture("Plan", Rig.PORTRAIT)
 		for _, id in { "MA", "DE", "DC", "CT", "WV" } do
 			Rig.tap(world, peer, "Campaign", "StatesToggle")
 			Rig.tap(world, peer, "Campaign", `Row_{id}`)

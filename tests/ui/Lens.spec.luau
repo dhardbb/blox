@@ -551,8 +551,10 @@ describe("Map lenses", function()
 				end
 				local chips = Rig.need(peer, "Campaign", "LensToggle")
 				local map = mapOf(peer, "Campaign")
+				-- Above the map, or (a landscape phone's rail, D-089) left of it.
 				check(
-					chips.AbsolutePosition.Y + chips.AbsoluteSize.Y <= map.AbsolutePosition.Y + 0.5,
+					chips.AbsolutePosition.Y + chips.AbsoluteSize.Y <= map.AbsolutePosition.Y + 0.5
+						or chips.AbsolutePosition.X + chips.AbsoluteSize.X <= map.AbsolutePosition.X + 0.5,
 					`{moment} at {size.x}x{size.y}: the chips overlap the map`
 				)
 				Rig.noErrors(world)

@@ -18,7 +18,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 
 local AUDIT_OK = "UI audit Election: 0 problem(s)"
 local FULL_TIME = 50 -- s, past the 45 s stage
-local PHONE = { x = 390, y = 844 }
+local PHONE = { x = 844, y = 390 }
 local BAR_H = 84 -- px, Kit.BAR_H
 local STRIP_H = 72 -- px, the counters strip
 
@@ -233,7 +233,7 @@ describe("Election screen", function()
 		expect(visible(rig.peer, "Tiebreak")):toBe(true)
 	end)
 
-	it("mounts in phone portrait without errors", function()
+	it("mounts in portrait without errors", function()
 		local rig = fixtureRig({ x = 390, y = 844 })
 		FakeRoblox.run(rig.world, 1)
 		noErrors(rig.world)
@@ -412,9 +412,13 @@ describe("Election screen: style v2 (WP-C)", function()
 		noErrors(rig.world)
 	end)
 
-	it("uses first names on a phone and full names at 16:9, never truncated", function()
+	it("uses first names in portrait and full names at 16:9 and on a landscape phone", function()
 		local wide = fixtureRig(nil)
-		local phone = fixtureRig(PHONE)
+		local phone = fixtureRig({ x = 390, y = 844 })
+		local landscape = fixtureRig(PHONE)
+		local long = tostring(inScreen(landscape.peer, "YouSide"):FindFirstChild("Name").Text)
+		check(string.find(long, " ", 1, true) ~= nil, `landscape phone name "{long}" is not the full name`)
+		noErrors(landscape.world)
 		local full = tostring(inScreen(wide.peer, "YouSide"):FindFirstChild("Name").Text)
 		local short = tostring(inScreen(phone.peer, "YouSide"):FindFirstChild("Name").Text)
 		check(string.find(full, " ", 1, true) ~= nil, `wide name "{full}" is not the full name`)

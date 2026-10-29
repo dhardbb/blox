@@ -206,7 +206,7 @@ end)
 
 describe("ActionBar", function()
 	it("pins an 84 px bar to the bottom with one PrimaryAction", function()
-		local c = client(Rig.PHONE)
+		local c = client(Rig.PORTRAIT)
 		local ActionBar = load(c, "ActionBar")
 		local presses = 0
 		local bar = ActionBar.new(c.stage, {

@@ -35,7 +35,7 @@ type World = FakeRoblox.World
 type Peer = FakeRoblox.Peer
 
 local SIZES = {
-	{ name = "phone", x = 390, y = 844 },
+	{ name = "phone", x = 844, y = 390 }, -- a landscape phone (D-089): an iPhone 12-16 in points; 824x312 for a screen after the top bar
 	{ name = "ipad", x = 1024, y = 768 },
 	{ name = "desktop", x = 1280, y = 720 },
 }

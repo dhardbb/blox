@@ -36,6 +36,7 @@ local Sheet = {}
 local Z = 30 -- above the screen (Help is 40, the toast 50)
 local PORTRAIT_HEIGHT = 0.7 -- share of the screen a phone sheet takes
 local WIDE_HEIGHT = 0.8 -- share of the screen height on a wide screen
+local COMPACT_HEIGHT = 1 -- share of the screen height on a landscape phone: every sheet takes it all (D-089)
 local SHADOW_DY = 8 -- px
 local SHADOW_SPREAD = 20 -- px
 local OPEN_FROM = 0.96 -- the panel's scale as it opens on a wide screen
@@ -173,9 +174,15 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 			panel.Size = UDim2.fromScale(1, options.height or PORTRAIT_HEIGHT)
 			widthCap.MaxSize = Vector2.new(math.huge, math.huge)
 		else
+			-- A landscape phone (D-089): height is what is short, so the panel
+			-- takes the whole height whatever share the sheet asked for.
+			local holder = root.Parent
+			local short = holder ~= nil
+				and holder:IsA("GuiObject")
+				and Kit.compact((holder :: GuiObject).AbsoluteSize)
 			panel.AnchorPoint = Vector2.new(0.5, 0.5)
 			panel.Position = UDim2.fromScale(0.5, 0.5)
-			panel.Size = UDim2.fromScale(1, options.height or WIDE_HEIGHT)
+			panel.Size = UDim2.fromScale(1, if short then COMPACT_HEIGHT else options.height or WIDE_HEIGHT)
 			widthCap.MaxSize = Vector2.new(Kit.SHEET_MAX_W, math.huge)
 		end
 	end

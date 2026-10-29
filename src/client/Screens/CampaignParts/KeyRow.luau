@@ -3,7 +3,7 @@
 -- column while you plan, "Key states" and one chip per key state ("PA 19"),
 -- biggest first. The same states glow on the map (Map/MapInterface Mark.key).
 -- Tapping a chip selects that state, as tapping it on the map does. On a phone
--- the line steps aside while a state's card is open, so the card's actions stay
+-- (and a landscape phone, D-089) the line steps aside while a state's card is open, so the card's actions stay
 -- in view.
 --
 -- Reads only the player's own View through Shared/UI/KeyStates (public polls).
@@ -66,7 +66,8 @@ function KeyRow.new(parent: Instance, model: Model.Model, order: number): KeyRow
 
 	function self.render(_: KeyRow, _p: Model.Payload, keys: { KeyStates.Key })
 		-- On a phone an open card takes the line's place.
-		local visible = #keys > 0 and not (model.portrait and model.selected ~= nil)
+		local visible = #keys > 0
+			and not ((model.portrait or model.compact == true) and model.selected ~= nil)
 		root.Visible = visible
 		root:SetAttribute("Count", #keys)
 		local ids: { string } = {}

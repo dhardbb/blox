@@ -64,7 +64,8 @@ export type Ctx = {
 	store: Store,
 	net: Net,
 	now: () -> number, -- server time (workspace:GetServerTimeNow())
-	portrait: () -> boolean, -- true when the screen is taller than wide (phones)
+	portrait: () -> boolean, -- true when the screen is taller than wide (a portrait tablet; phones are landscape, D-089)
+	compact: (() -> boolean)?, -- true on a landscape phone: wider than tall, under Kit.COMPACT_H high (D-089)
 	help: (() -> ())?, -- opens the "How it works" overlay (UI/Help), when App mounted one
 	leave: (() -> ())?, -- opens the "Leave match" confirmation (UI/LeaveMatch, D-059)
 	report: ((seat: number) -> ())?, -- opens the "Report name" confirmation for a seat (UI/ReportName, D-069)

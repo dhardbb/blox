@@ -13,7 +13,8 @@
 -- now" line), the map (left on 16:9, top on phones) previewing the selected
 -- stance with a two-dot key over it, and one panel with the pinned action bar
 -- under it: the question, the three stances as big chips with what each does in
--- a few words, and "Why?" for the rest. On a phone every option is on the first screen. Nothing else: no state
+-- a few words, and "Why?" for the rest. A landscape phone (D-089) keeps the
+-- 16:9 layout with the map column as wide as the map at that height. On a phone every option is on the first screen. Nothing else: no state
 -- card, plan list or week card.
 --
 -- Motion and sound (docs/DESIGN.md D-053): a new decision's options pop in one
@@ -60,6 +61,7 @@ local GAP = Kit.space.sm -- px between the big blocks
 local CAPTION_H = 20 -- px, the map key above the map
 local DOT = 12 -- px, a key dot
 local MAP_SHARE = 0.55 -- share of the width the map takes on 16:9 (the panel gets more room than on the plan screen)
+local COMPACT_MAP_SHARE = 0.42 -- most of the width the map takes on a landscape phone (D-089: the stances get the room)
 local PORTRAIT_MAP_MAX = 0.3 -- most of the body height the map may take on phones (the options come first)
 local LOCKED_RISE = 4 -- px, the opponent's "locked in ✓" line rises this far
 
@@ -238,6 +240,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			sideColumn.Position = UDim2.fromOffset(0, areaHeight + GAP)
 			sideColumn.Size = UDim2.new(1, 0, 1, -(areaHeight + GAP))
 			lastBodySize = body.AbsoluteSize
+		elseif model.compact == true then
+			-- A landscape phone (D-089): the map column as wide as the map at
+			-- this height, the panel the rest.
+			local width = parent.AbsoluteSize.X
+			local height = parent.AbsoluteSize.Y - (topHeight + GAP) - CAPTION_H - Kit.space.xs
+			local maxW = math.floor(width * COMPACT_MAP_SHARE)
+			local mapW = if maxW > 0 and height > 0
+				then math.floor(math.min(maxW, height * map:aspectFor(maxW, height)))
+				else maxW
+			mapArea.Size = UDim2.new(0, math.max(mapW, 0), 1, 0)
+			sideColumn.Position = UDim2.fromOffset(mapW + GAP, 0)
+			sideColumn.Size = UDim2.new(1, -(mapW + GAP), 1, 0)
+			lastBodySize = body.AbsoluteSize
 		else
 			mapArea.Size = UDim2.new(MAP_SHARE, -GAP // 2, 1, 0)
 			sideColumn.Position = UDim2.new(MAP_SHARE, GAP // 2, 0, 0)
@@ -247,14 +262,17 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local function relayout(force: boolean?)
 		local isPortrait = ctx.portrait()
-		if isPortrait ~= portrait or force then
+		local isCompact = Kit.compact(parent.AbsoluteSize)
+		if isPortrait ~= portrait or isCompact ~= (model.compact == true) or force then
 			portrait = isPortrait
 			model.portrait = isPortrait
+			model.compact = isCompact
 			placeBody(isPortrait, top:place(isPortrait))
 		elseif
-			isPortrait and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
+			(isPortrait or isCompact)
+			and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
 		then
-			placeBody(true, top:place(true))
+			placeBody(isPortrait, top:place(isPortrait))
 		end
 	end
 

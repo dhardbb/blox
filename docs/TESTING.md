@@ -1177,6 +1177,20 @@ Agents: `lune run tests "Bot difficulty"`, `lune run tests Lobby`, `lune run tes
 7. **The Daily Race.** Play today's race. **Expect:** the bot plays as hard as before this change (it is the old Hard bot), and the timers are the normal ones. Open **Today's board**: "Ranked by your final vote margin over the bot. …" (no level named).
 8. **The bot game while you wait.** Find match, wait 30 s, tap **Play a bot while you wait**. **Expect:** the bot plays at the level picked under Play vs Bot (Easy unless you changed it), with that level's timers.
 9. *Send back:* your result and final score on each level you tried, a phone and an iPad screenshot of the Lobby, and anything that felt too easy or too hard.
+## Landscape phones (unreleased, D-089)
+
+Agents: `lune run tests` (phone sizes are 844x390), `lune run tests/ui/snap.luau -- --size phone` (and `ipad`, `desktop`; 0 audit findings; look at every phone PNG).
+
+1. **On a phone.** Join on a phone held upright. **Expect:** the game opens in landscape. Turn the phone the other way round (cable on the other side): the game turns with it. It never shows in portrait.
+2. **Studio's device emulator.** Test → Device: pick an iPhone (e.g. iPhone 14) and set it to landscape (the rotate button). Also try a small one (iPhone SE) and an iPad. **Expect** on the phones: nothing cut off at any edge or under Roblox's buttons or the notch.
+3. **Lobby.** **Expect:** buttons on the left (Play vs Bot, the levels, Find match / Play a friend, How to play, Daily Race); on the right, under the two corner buttons, the LANDSLIDE logo and the leaderboard card. Play a friend, How to play and See all open sheets that fill the height and close with ×.
+4. **Pick a candidate and issues, the draft and the map reveal.** **Expect:** the map on the left is as tall as the screen allows; the picks, the Strongholds card and Lock in are on the right.
+5. **Plan a week.** **Expect:** Key, Close and the four lenses as a small 2-column block left of the map; the week's event at the top of the right column, then the key states. Tap a state: its card opens on the right (the event and key states step aside), scroll it for the actions, add one, Lock in. Close the card: the event comes back.
+6. **A stance, a debate, the week's results, election night.** **Expect:** the stance options on the right (scroll for B and C); the debate as three columns: map, the two candidates with the crowd meter and the question, your moves with Lock in; the results and election night readable without overlap.
+7. **Results.** **Expect:** "You won/lost" and the details on the left (scroll), Summary / Map / Graph at the top right, Back to lobby and Rematch at the bottom right.
+8. **iPad and desktop.** **Expect:** every screen exactly as in 0.16.0.
+9. *Send back:* the phone model, a screenshot of each screen above (phone), and anything you had to scroll for that felt wrong.
+
 ## Key states (unreleased, D-088)
 
 Agents: `lune run tests "Key states"` and `lune run tests KeyStates`, `lune run tests/ui/snap.luau -- key --size phone` (and `ipad`, `desktop`; shots `09k`, `09l`, `30h`; also `09`, `13`, `30a`; 0 audit findings), `lune run tests/harness/novice.luau keys`.

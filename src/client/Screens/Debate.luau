@@ -26,6 +26,10 @@
 --   (Stake Zinger: win ×2 · used either way)  Buster: thinking…   [+15 s][ Lock in ]
 --   Buster: thinking…  [+15 s][ Lock in ]
 --
+-- A landscape phone (D-089, Kit.compact): three columns, each the full height
+-- under the header: the map, the stage (its own scroll), and the moves (or
+-- the clash) with the pinned action bar, so the moves show without scrolling.
+--
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:
 -- { move = "Defend"|"Attack"|"Pivot", zinger = boolean }, a time-bank chunk
 -- (ctx.net.bank) in a round, or a skip on the verdict. The server validates it (Sim/Debate); a timer that runs out sends
@@ -66,6 +70,8 @@ local MAP_SHARE = 0.5 -- share of the width the map takes on 16:9
 local PORTRAIT_MAP_MAX = 0.24 -- most of the body height the map may take on phones (the moves come first; under about 170 px a top-row tag pokes out)
 local LOCKED_RISE = 4 -- px, the opponent's "locked in ✓" line rises this far
 local MAP_INSET = 24 -- px above the map (room for a top-row state's tag)
+local COMPACT_MAP_SHARE = 0.28 -- most of the width the map takes on a landscape phone (D-089)
+local COMPACT_STAGE_SHARE = 0.33 -- share of the width the stage column takes there (its crowd meter on a row of its own)
 
 -- The first debate of this session tags the safe moves (the coach tip says why).
 local safeWeek: string? = nil
@@ -141,6 +147,21 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	Kit.list("Vertical", GAP).Parent = side
 	Kit.new("UIPadding", { PaddingRight = UDim.new(0, 10), Parent = side })
+
+	-- A landscape phone's middle column (D-089): the stage stands here.
+	local stageColumn = Kit.new("ScrollingFrame", {
+		Name = "StageColumn",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollBarThickness = 6,
+		Visible = false,
+		Parent = body,
+	})
+	Kit.list("Vertical", GAP).Parent = stageColumn
+	Kit.new("UIPadding", { PaddingRight = UDim.new(0, 10), Parent = stageColumn })
 
 	local stage = Stage.new(side, model, 1)
 	local moves = Moves.new(side, model, pick, 2)
@@ -219,6 +240,38 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function placeBody(isPortrait: boolean, topHeight: number)
 		body.Position = UDim2.fromOffset(0, topHeight + GAP)
 		body.Size = UDim2.new(1, 0, 1, -(topHeight + GAP))
+		local compact = model.compact == true
+		stageColumn.Visible = compact
+		local stageHome = if compact then stageColumn else side
+		if stage.root.Parent ~= stageHome then
+			stage.root.Parent = stageHome
+		end
+		local narrow = stage.setNarrow
+		if narrow then
+			narrow(stage, compact)
+		end
+		if compact then
+			-- A landscape phone (D-089): map | stage | moves and the bar.
+			local width = parent.AbsoluteSize.X
+			local height = parent.AbsoluteSize.Y - (topHeight + GAP) - MAP_INSET
+			local maxW = math.floor(width * COMPACT_MAP_SHARE)
+			local mapW = if maxW > 0 and height > 0
+				then math.floor(math.min(maxW, height * map:aspectFor(maxW, height)))
+				else maxW
+			local stageW = math.floor(width * COMPACT_STAGE_SHARE)
+			-- Room on the left too, for a west-coast state's swing tag.
+			mapW = math.max(mapW - MAP_INSET, 0)
+			mapArea.Position = UDim2.fromOffset(MAP_INSET, 0)
+			mapArea.Size = UDim2.new(0, mapW, 1, 0)
+			stageColumn.Position = UDim2.fromOffset(MAP_INSET + mapW + GAP, 0)
+			stageColumn.Size = UDim2.new(0, stageW, 1, 0)
+			local sideX = MAP_INSET + mapW + GAP + stageW + GAP
+			sideColumn.Position = UDim2.fromOffset(sideX, 0)
+			sideColumn.Size = UDim2.new(1, -sideX, 1, 0)
+			lastBodySize = body.AbsoluteSize
+			return
+		end
+		mapArea.Position = UDim2.new()
 		if isPortrait then
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
@@ -238,14 +291,17 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local function relayout(force: boolean?)
 		local isPortrait = ctx.portrait()
-		if isPortrait ~= portrait or force then
+		local isCompact = Kit.compact(parent.AbsoluteSize)
+		if isPortrait ~= portrait or isCompact ~= (model.compact == true) or force then
 			portrait = isPortrait
 			model.portrait = isPortrait
+			model.compact = isCompact
 			placeBody(isPortrait, top:place(isPortrait))
 		elseif
-			isPortrait and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
+			(isPortrait or isCompact)
+			and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
 		then
-			placeBody(true, top:place(true))
+			placeBody(isPortrait, top:place(isPortrait))
 		end
 	end
 

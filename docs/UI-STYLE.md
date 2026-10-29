@@ -11,7 +11,7 @@ Scope guard, same as before: no rule, sim, server or payload changes; screens re
 ## 0. Looking at the UI without Studio
 
 ```sh
-lune run tests/ui/snap.luau                      # every shot at phone 390x844, iPad 1024x768, desktop 1280x720
+lune run tests/ui/snap.luau                      # every shot at phone 844x390 (landscape, D-089), iPad 1024x768, desktop 1280x720
 lune run tests/ui/snap.luau -- campaign          # shots whose name contains "campaign"
 lune run tests/ui/snap.luau -- --size phone      # one size: phone | ipad | desktop
 lune run tests/ui/snap.luau -- --no-png          # SVG only (not on a Mac)

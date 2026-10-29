@@ -80,6 +80,7 @@ function Clash.new(parent: Instance, model: Model.Model, order: number): Clash
 			Font = Kit.font.bold,
 			TextSize = Kit.size.heading,
 			TextWrapped = false,
+			TextScaled = true, -- "Pivot 5 · Zinger" shrinks in a landscape phone's column (D-089)
 			Parent = box,
 		})
 		return box, who, move

@@ -35,6 +35,13 @@ Studio checklist: `docs/TESTING.md`, "Harder bot levels and a quicker underdog b
 
 - **The comeback boost ends the week the polls show you level or ahead** (within 10 EV), instead of fading over several weeks, and has to build up again before it returns. It went to a player who was really 20+ EV ahead in 18% of boosted weeks; now 8.5%. It also switches on and off less (2.7 times a match, was 3.1). `UNDERDOG_SMOOTHING` 0.4 → 0.35. Still public polls only.
 - **Okafor vs Venkat is even** (51% over 4,000 matches); the 14% flag in the last report was a 14-game sample.
+### Landscape phones (D-089)
+
+Studio checklist: `docs/TESTING.md`, "Landscape phones (D-089)". Nothing needed from the humans (the setting is in the project file; a place file you publish by hand needs StarterGui → ScreenOrientation = LandscapeSensor, which the game also sets itself).
+
+- **Phones play in landscape only.** The game turns with the phone either way round (LandscapeSensor). iPad and desktop look the same as before.
+- **Every screen has a landscape phone layout:** the map on the left at the full height, a compact column on the right. The Lobby splits into the buttons and a pane with the logo and leaderboard; the plan screen puts the lens buttons in a small rail beside the map and the week's event at the top of the right column; the debate shows the map, the stage and your moves side by side; Results shows the summary on the left and the tabs and buttons on the right; every sheet (How to play, Help, Leave match…) takes the full height.
+- The phone snapshots are now 844 x 390.
 
 ## 0.16.0: Easier bots, key states, new-player fixes (Oct 25, 2026)
 

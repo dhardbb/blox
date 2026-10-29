@@ -18,7 +18,7 @@ type Shot = {
 }
 
 local SIZES = {
-	{ name = "phone", x = 390, y = 844 },
+	{ name = "phone", x = 844, y = 390 },
 	{ name = "16:9", x = 1280, y = 720 },
 }
 

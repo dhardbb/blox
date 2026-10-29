@@ -8,6 +8,11 @@
 -- it, the action bar with Lock in. The same screen plays the resolve reveal and
 -- the debate reveal.
 --
+-- A landscape phone (D-089, Kit.compact): the map column is a chip rail (Key,
+-- Close, the lenses 2 x 2) beside the map, the full height under the header;
+-- the event strip is the first thing in the side column, and steps aside with
+-- the key states line while a state's card is open.
+--
 -- Side column, top to bottom: the reveal panel (during reveals), the key states
 -- line while planning (CampaignParts/KeyRow, D-088: the same states glow on the
 -- map), a first-match coach tip, the state card (only once a state is tapped),
@@ -76,6 +81,8 @@ local KEY_W = 88 -- px, the map key chip
 local KEY_NARROW = Kit.MIN_TOUCH -- px, ... its icon alone (a phone, so the Close chip fits)
 local KEY_ICON = 24 -- px, its icon plate
 local MAP_SHARE = 0.62 -- share of the width the map takes on 16:9
+local COMPACT_MAP_SHARE = 0.6 -- share of the width the map and its chip rail take on a landscape phone (D-089)
+local RAIL_W = 2 * LensToggle.BUTTON_W + Kit.space.xs -- px, a landscape phone's chip rail left of the map: two chips a row
 local PORTRAIT_MAP_MAX = 0.57 -- most of the body height the map may take on phones (D-079: room for the tall map and its two chip rows)
 local BACK_SECONDS = 4 -- how long "<name>: back" shows after a reconnect
 local SWATCH = 20 -- px, a color step's dot in the map key
@@ -85,6 +92,7 @@ local LOCKED_WORD = Model.OPPONENT_LOCKED
 
 -- LayoutOrder of each side-column panel.
 local ORDER = {
+	strip = -1, -- the event strip, on a landscape phone only (D-089)
 	reveal = 0,
 	keys = 1, -- the key states line while planning (D-088)
 	tip = 2, -- a coach tip before anything is picked
@@ -225,6 +233,26 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	end)
 	-- On a phone the key chip is its icon alone, so Close fits beside the lenses.
 	local function placeChips(width: number)
+		if model.compact == true then
+			-- A landscape phone (D-089): the chips are a rail left of the map,
+			-- Key and Close on top, the four lenses two by two under them, so
+			-- the map takes the whole height.
+			local chipW = LensToggle.BUTTON_W
+			keyButton.Size = UDim2.fromOffset(chipW, LENS_H)
+			keyLabel.Visible = false
+			closeChip.root.Position = UDim2.fromOffset(chipW + Kit.space.xs, 0)
+			LensToggle.setColumns(lensToggle, 2)
+			lensToggle.root.AnchorPoint = Vector2.new(0, 0)
+			lensToggle.root.Position = UDim2.fromOffset(0, LENS_H + Kit.space.xs)
+			mapHolder.Position = UDim2.fromOffset(RAIL_W + GAP, 0)
+			mapHolder.Size = UDim2.new(1, -(RAIL_W + GAP), 1, 0)
+			return
+		end
+		LensToggle.setColumns(lensToggle, nil)
+		lensToggle.root.AnchorPoint = Vector2.new(1, 0)
+		lensToggle.root.Position = UDim2.fromScale(1, 0)
+		mapHolder.Position = UDim2.fromOffset(0, LENS_H + Kit.space.xs)
+		mapHolder.Size = UDim2.new(1, 0, 1, -(LENS_H + Kit.space.xs))
 		local full = KEY_W + LensToggle.CLOSE_W + LensToggle.WIDTH + 2 * Kit.space.xs <= width
 		local keyW = if full then KEY_W else KEY_NARROW
 		keyButton.Size = UDim2.fromOffset(keyW, LENS_H)
@@ -500,9 +528,38 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- ------------------------------------------------------------ layout
 
 	local function placeBody(isPortrait: boolean, topHeight: number)
-		-- The event strip under the header, then the body under it.
 		local stripHeight = eventStrip:height()
 		placedStrip = stripHeight
+		if model.compact == true then
+			-- A landscape phone (D-089): the body right under the header, the map
+			-- and its chip rail on the left the whole height, and the event strip
+			-- first in the side column (still seen without scrolling, D-065).
+			if eventStrip.root.Parent ~= side then
+				eventStrip.root.Parent = side
+				eventStrip.root.LayoutOrder = ORDER.strip
+			end
+			body.Position = UDim2.fromOffset(0, topHeight + GAP)
+			body.Size = UDim2.new(1, 0, 1, -(topHeight + GAP))
+			-- The map column is as wide as the map at this height (up to
+			-- COMPACT_MAP_SHARE); the side column takes the rest.
+			local bodyW = parent.AbsoluteSize.X
+			local height = parent.AbsoluteSize.Y - (topHeight + GAP)
+			local maxW = math.floor(bodyW * COMPACT_MAP_SHARE) - RAIL_W - GAP
+			local mapW = if maxW > 0 and height > 0
+				then math.floor(math.min(maxW, height * map:aspectFor(maxW, height)))
+				else maxW
+			local areaW = RAIL_W + GAP + math.max(mapW, 0)
+			mapArea.Size = UDim2.new(0, areaW, 1, 0)
+			sideColumn.Position = UDim2.fromOffset(areaW + GAP, 0)
+			sideColumn.Size = UDim2.new(1, -(areaW + GAP), 1, 0)
+			placeChips(areaW)
+			lastBodySize = body.AbsoluteSize
+			return
+		end
+		if eventStrip.root.Parent ~= parent then
+			eventStrip.root.Parent = parent
+		end
+		-- The event strip under the header, then the body under it.
 		eventStrip.root.Position = UDim2.fromOffset(0, topHeight + GAP)
 		local bodyTop = topHeight + GAP + (if stripHeight > 0 then stripHeight + GAP else 0)
 		body.Position = UDim2.fromOffset(0, bodyTop)
@@ -528,14 +585,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local function relayout(force: boolean?)
 		local isPortrait = ctx.portrait()
-		if isPortrait ~= portrait or force then
+		local isCompact = Kit.compact(parent.AbsoluteSize)
+		if isPortrait ~= portrait or isCompact ~= (model.compact == true) or force then
 			portrait = isPortrait
 			model.portrait = isPortrait
+			model.compact = isCompact
 			placeBody(isPortrait, top:place(isPortrait))
 			weekCard:setPortrait(isPortrait)
 		elseif
 			eventStrip:height() ~= placedStrip
-			or isPortrait
+			or (isPortrait or isCompact)
 				and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
 		then
 			placeBody(isPortrait, top:place(isPortrait))
@@ -809,6 +868,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		keyRow:render(p, keysFor(p))
 		card:render(p)
 		eventStrip:render(p)
+		if model.compact == true and model.selected ~= nil then
+			-- A landscape phone (D-089): an open card takes the strip's place in
+			-- the short side column, as it takes the key states line's.
+			eventStrip.root.Visible = false
+		end
 		if p.reveal == nil or p.reveal == "Debate" then
 			paintMapFor(view, view)
 			map:select(model.selected)

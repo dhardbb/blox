@@ -50,6 +50,12 @@
 -- shows the top 3 when the screen is at least PHONE_BOARD_H tall (a 390x844
 -- phone), more for an admin's Review names button, else "You" and See all.
 -- iPad and desktop keep the column, the full Daily card and the card beside.
+--
+-- A landscape phone (D-089, Kit.compact: height is short): two panes. The
+-- column of buttons on the left (no eyebrow, the one-row Daily card), and on
+-- the right, under the corner toggles, the "Brand" pane: the wordmark, the
+-- record and the leaderboard card ("You" and See all, the top 3 when tall
+-- enough).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -87,6 +93,8 @@ local REVIEW_ROOM = Kit.MIN_TOUCH + Kit.space.sm -- px an admin's Review names b
 local NOTE_ROOM = BotLevel.NOTE_HEIGHT + Kit.space.xs -- px the bot level's line takes (a phone shorter than PHONE_BOARD_H + this drops the eyebrow)
 local STAGE_GLOW = 1.1 -- the stage glow's size, a share of the screen (an ellipse)
 local STAGE_FADE = 0.75 -- its transparency: a lit table, not a spotlight
+local COLUMN_SHARE = 0.56 -- share of a landscape phone's width the button column takes (D-089)
+local COMPACT_BOARD_H = 440 -- px of screen height for the top 3 in a landscape phone's brand pane (else "You" and See all)
 local CODE_PLATE_H = Kit.size.hero + 2 * Kit.space.lg -- px, the private match code's plate
 local CODE_GLOW_FADE = 0.9 -- a faint white light inside the code plate
 
@@ -260,6 +268,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end,
 	})
 	local board = Leaderboard.new(parent, ctx)
+	-- A landscape phone's right pane (D-089): wordmark, record, leaderboard.
+	local brand = Kit.box({ Name = "Brand", Visible = false, Parent = parent })
+	local brandList = Kit.list("Vertical", Kit.space.sm)
+	brandList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	brandList.VerticalAlignment = Enum.VerticalAlignment.Center
+	brandList.Parent = brand
+	Kit.new("UIPadding", { PaddingTop = UDim.new(0, CORNER_CLEAR), Parent = brand })
 	-- The Daily Race (D-082): one card in the column.
 	local daily = DailyRace.new(parent, ctx, { LayoutOrder = 5, Parent = idle })
 
@@ -410,32 +425,70 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local padding = content:FindFirstChildOfClass("UIPadding") :: UIPadding
 	local colorHolder = Kit.outer(colorPick.button)
 	local howToHolder = Kit.outer(howToPlay)
+	local reviewHolder = Kit.outer(review.button)
 	local function relayout()
 		local size = parent.AbsoluteSize
-		local phone = size.X < SIDE_MIN_W
+		local compact = Kit.compact(size)
+		local phone = size.X < SIDE_MIN_W or compact
+		-- A landscape phone: the wordmark and the record move to the brand pane.
+		brand.Visible = compact
+		local top = if compact then brand else content
+		if title.Parent ~= top then
+			title.Parent = top
+			stats.Parent = top
+		end
 		-- A short phone drops the eyebrow for the level's line (D-087), so the
 		-- leaderboard's top 3 still fits from PHONE_BOARD_H.
-		eyebrow.Visible = size.Y >= SHORT_SCREEN and (not phone or size.Y >= PHONE_BOARD_H + NOTE_ROOM)
+		eyebrow.Visible = not compact
+			and size.Y >= SHORT_SCREEN
+			and (not phone or size.Y >= PHONE_BOARD_H + NOTE_ROOM)
 		-- A phone's column starts below the corner toggles (the eyebrow and the
-		-- wordmark never sit under them); beside the card it is clear of them.
-		padding.PaddingTop = UDim.new(0, if phone then CORNER_CLEAR else 0)
+		-- wordmark never sit under them); beside the card it is clear of them,
+		-- and so is a landscape phone's (the toggles are over the brand pane).
+		padding.PaddingTop = UDim.new(0, if phone and not compact then CORNER_CLEAR else 0)
 		spacer.Visible = not phone
 		daily.setCompact(phone)
-		-- How to play beside the Color button on a phone, when it shows.
-		local paired = phone and colorPick.button.Visible
+		-- How to play beside the Color button on a phone, when it shows; on a
+		-- landscape phone an admin's Review names button joins the row too.
+		local reviewInRow = compact and review.button.Visible
+		local paired = phone and (colorPick.button.Visible or reviewInRow)
 		extras.Visible = paired
 		local holder = if paired then extras else idle
 		if howToHolder.Parent ~= holder then
 			howToHolder.Parent = holder
 			colorHolder.Parent = holder
 		end
-		local half = UDim2.new(0.5, -Kit.space.sm / 2, 0, Kit.MIN_TOUCH)
-		howToHolder.Size = if paired then half else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
-		colorHolder.Size = if paired then half else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+		local reviewParent = if reviewInRow then extras else idle
+		if reviewHolder.Parent ~= reviewParent then
+			reviewHolder.Parent = reviewParent
+		end
+		local cells = 1 + (if colorPick.button.Visible then 1 else 0) + (if reviewInRow then 1 else 0)
+		local cell = UDim2.new(1 / cells, -Kit.space.sm * (cells - 1) / cells, 0, Kit.MIN_TOUCH)
+		howToHolder.Size = if paired then cell else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+		colorHolder.Size = if paired then cell else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+		reviewHolder.Size = if reviewInRow then cell else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
 		howToHolder.LayoutOrder = if paired then 1 else 4
 		colorHolder.LayoutOrder = if paired then 2 else 6
+		reviewHolder.LayoutOrder = if reviewInRow then 3 else 7
 		-- The leaderboard: beside the column when there is room, else at its end.
 		local card = board.card
+		if compact then
+			content.AnchorPoint = Vector2.new(0, 0)
+			content.Position = UDim2.new()
+			content.Size = UDim2.new(COLUMN_SHARE, -BOARD_GAP // 2, 1, 0)
+			brand.Position = UDim2.new(COLUMN_SHARE, BOARD_GAP // 2, 0, 0)
+			brand.Size = UDim2.new(1 - COLUMN_SHARE, -BOARD_GAP // 2, 1, 0)
+			card.Parent = brand
+			card.LayoutOrder = 8
+			card.AnchorPoint = Vector2.new(0, 0)
+			card.Position = UDim2.new()
+			card.Size = UDim2.fromScale(1, 0)
+			local needed = COMPACT_BOARD_H + (if review.button.Visible then REVIEW_ROOM else 0)
+			board.setRows(if size.Y >= needed then Leaderboard.COMPACT else 0)
+			return
+		end
+		content.AnchorPoint = Vector2.new(0.5, 0)
+		content.Size = UDim2.fromScale(1, 1)
 		if not phone then
 			local shift = (BOARD_W + BOARD_GAP) / 2
 			content.Position = UDim2.new(0.5, -shift, 0, 0)

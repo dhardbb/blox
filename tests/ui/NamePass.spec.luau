@@ -18,7 +18,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local PASS = 5551234 -- a made-up pass id for these worlds
 local STORE = "PlayerData_v1"
 local SIZES = {
-	{ x = 390, y = 844 },
+	{ x = 844, y = 390 },
 	{ x = 1024, y = 768 },
 	{ x = 1280, y = 720 },
 }

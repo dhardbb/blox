@@ -6,6 +6,9 @@
 --
 --   LensToggle.new(parent, onChange) -> Toggle   the chips alone (the caller places root)
 --   LensToggle.bar(parent, config, onChange) -> Toggle   a full-width row: legend, then chips
+--   LensToggle.setColumns(toggle, n)   lay a toggle's chips out n to a row (a
+--                                        landscape phone's 2 x 2 rail, D-089); n nil
+--                                        or ≥ 4: the one row again
 --   LensToggle.close(parent, onChange) -> Toggle  the "Close" filter chip (D-079):
 --                                        on, only the states within Lens.CLOSE
 --                                        points keep their fill and value;
@@ -28,6 +31,7 @@ local GAP = Kit.space.xs -- px, between chips
 LensToggle.HEIGHT = Kit.MIN_TOUCH
 LensToggle.WIDTH = #Lens.ORDER * BUTTON_W + (#Lens.ORDER - 1) * GAP
 LensToggle.CLOSE_W = 60 -- px, the Close chip
+LensToggle.BUTTON_W = BUTTON_W
 
 export type Toggle = {
 	root: Frame,
@@ -85,6 +89,39 @@ function LensToggle.new(parent: Instance, onChange: (Lens.Id) -> ()): Toggle
 	toggle = { root = root, refresh = refresh }
 	refresh()
 	return toggle
+end
+
+-- Lays `toggle`'s chips out `columns` to a row (D-089: two on a landscape
+-- phone's rail beside the map), or in one row when `columns` is nil or covers
+-- them all. The root takes the grid's size.
+function LensToggle.setColumns(toggle: Toggle, columns: number?)
+	local root = toggle.root
+	local n = #Lens.ORDER
+	local cols = math.clamp(columns or n, 1, n)
+	local rows = math.ceil(n / cols)
+	local list = root:FindFirstChildOfClass("UIListLayout")
+	local grid = root:FindFirstChildOfClass("UIGridLayout")
+	if cols >= n then
+		if grid then
+			grid:Destroy()
+		end
+		if list == nil then
+			Kit.list("Horizontal", GAP).Parent = root
+		end
+	else
+		if list then
+			list:Destroy()
+		end
+		local g = grid
+			or Kit.new("UIGridLayout", {
+				SortOrder = Enum.SortOrder.LayoutOrder,
+				Parent = root,
+			}) :: UIGridLayout
+		g.CellSize = UDim2.fromOffset(BUTTON_W, LensToggle.HEIGHT)
+		g.CellPadding = UDim2.fromOffset(GAP, GAP)
+	end
+	root.Size =
+		UDim2.fromOffset(cols * BUTTON_W + (cols - 1) * GAP, rows * LensToggle.HEIGHT + (rows - 1) * GAP)
 end
 
 -- The Close filter chip: selected while the filter is on; a tap flips it,

@@ -190,7 +190,12 @@ describe("Playtest copy: the closing weeks (S3)", function()
 			local strip = Rig.need(peer, "Campaign", "EventCard")
 			check(strip.AbsoluteSize.Y > plain, "the strip did not grow")
 			local body = Rig.need(peer, "Campaign", "Body")
-			check(strip.AbsolutePosition.Y + strip.AbsoluteSize.Y <= body.AbsolutePosition.Y, "over the map")
+			-- Above the map, or (a landscape phone, D-089) in the side column beside it.
+			check(
+				strip.AbsolutePosition.Y + strip.AbsoluteSize.Y <= body.AbsolutePosition.Y
+					or strip:FindFirstAncestor("SideColumn") ~= nil,
+				"over the map"
+			)
 			expect(strictAudit(world, peer, "Campaign")):toBe(0)
 			Rig.tap(world, peer, "Campaign", "EventCard", 0.5)
 			has(text(peer, "ClosingDetail"), "until election night")

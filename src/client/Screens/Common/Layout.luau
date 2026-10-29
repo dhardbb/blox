@@ -3,12 +3,19 @@
 -- optional pinned header and footer around a scrolling, centered column (capped
 -- width on wide screens, full width on phone portrait), and grids whose column
 -- count the screen sets from ctx.portrait().
+--
+-- A landscape phone (D-089, Kit.compact): a page made with `side = true` puts
+-- its header and footer in a column on the right (header at the top, footer at
+-- the bottom, SIDE_SHARE of the width) and gives the scroll area the whole
+-- height on the left, as height is what such a screen lacks. Without `side`
+-- the page keeps its rows.
 
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 
 local Layout = {}
 
 Layout.GAP = Kit.space.sm -- px between grid cells and stacked rows
+Layout.SIDE_SHARE = 0.4 -- share of a landscape phone's width a `side` page's header and footer column takes (D-089)
 
 export type Page = {
 	root: Frame,
@@ -17,12 +24,14 @@ export type Page = {
 	scroll: ScrollingFrame,
 	footer: Frame?, -- pinned lane below the scroll area
 	setPortrait: (portrait: boolean) -> (),
+	sideways: () -> boolean, -- the header and footer stand in a right column now (a `side` page on a landscape phone)
 }
 
 export type PageOptions = {
 	maxWidth: number, -- px, the widest the column gets
 	header: number?, -- px height of the pinned header
 	footer: number?, -- px height of the pinned footer
+	side: boolean?, -- on a landscape phone, header and footer move to a right column (D-089)
 }
 
 -- A frame centered in `parent` that never grows wider than `maxWidth`.
@@ -76,9 +85,31 @@ function Layout.page(parent: Instance, options: PageOptions): Page
 		footer = Layout.lane(bar, options.maxWidth, { Name = "Footer", Size = UDim2.fromScale(1, 1) })
 	end
 
+	local sideways = false
 	-- The page looks the same in both orientations; screens still call this when
 	-- ctx.portrait() flips, so a page that needs to differ has one place to do it.
+	-- A `side` page on a landscape phone also lays itself out here (D-089).
 	local function setPortrait(_portrait: boolean)
+		sideways = options.side == true and Kit.compact(root.AbsoluteSize)
+		if sideways then
+			local share = Layout.SIDE_SHARE
+			local half = Layout.GAP // 2
+			scroll.Position = UDim2.new()
+			scroll.Size = UDim2.new(1 - share, -half, 1, 0)
+			if header then
+				header.Position = UDim2.new(1 - share / 2, half // 2, 0, 0)
+				header.Size = UDim2.new(share, -half, 0, headerH)
+			end
+			if footerBar then
+				footerBar.Size = UDim2.new(share, -half, 0, footerH)
+				footerBar.Position = UDim2.new(1 - share, half, 1, 0)
+			end
+			return
+		end
+		if header then
+			header.Position = UDim2.fromScale(0.5, 0)
+			header.Size = UDim2.new(1, 0, 0, headerH)
+		end
 		local top = if headerH > 0 then headerH + Layout.GAP else 0
 		local bottom = if footerH > 0 then footerH + Layout.GAP else 0
 		scroll.Position = UDim2.fromOffset(0, top)
@@ -97,6 +128,9 @@ function Layout.page(parent: Instance, options: PageOptions): Page
 		scroll = scroll,
 		footer = footer,
 		setPortrait = setPortrait,
+		sideways = function(): boolean
+			return sideways
+		end,
 	}
 end
 

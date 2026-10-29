@@ -512,7 +512,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local button = Kit.chip("", function()
 			if model.selected ~= id then
 				model.selectState(id)
-			elseif model.portrait then
+			elseif model.portrait or model.compact == true then
 				list:setExpanded(false)
 				model.render()
 			end
@@ -751,7 +751,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local pivotWhy = pivotProblem(view)
 		local message: Issue = Model.messageIssue(model, view, id)
 		local opponent = Model.firstName(config, view, Model.opponentOf(view))
-		local main = if model.portrait then MAIN_PHONE else MAIN_WIDE
+		local main = if model.portrait or model.compact == true then MAIN_PHONE else MAIN_WIDE
 		for k, entry in Words.ACTIONS do
 			local parts = actionButtons[entry.name]
 			local problem: string?
