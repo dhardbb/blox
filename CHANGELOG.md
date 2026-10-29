@@ -2,6 +2,10 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+- **Key states wear a solid gold edge** (D-101, the designer's pick): the soft glow and dashed white outline are gone; each key state has a solid pale-gold line just inside its own border, inside any home, stronghold or selection outline, with a thin dark line inside it so it reads on Amber and Teal states. Northeast chips get a gold plate. The map key, legend swatch, Key states line, tutorial tip and Help say "gold edge". Every map outline now has clean corners (no spikes along coasts). Test: `docs/TESTING.md`, "Key states' gold edge".
+
 ## 0.17.0: Landscape phones, new looks, match records, stronger Medium and Hard (Oct 29, 2026)
 
 ### Fixes from the merged-build review

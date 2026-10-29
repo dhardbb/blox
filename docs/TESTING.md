@@ -1204,6 +1204,8 @@ Agents: `lune run tests` (phone sizes are 844x390), `lune run tests/ui/snap.luau
 
 ## Key states (unreleased, D-088)
 
+*D-101 replaced the glow and dashed outline with a solid gold edge: for the look, follow "Key states' gold edge" below; the rest of this list still holds.*
+
 Agents: `lune run tests "Key states"` and `lune run tests KeyStates`, `lune run tests/ui/snap.luau -- key --size phone` (and `ipad`, `desktop`; shots `09k`, `09l`, `30h`; also `09`, `13`, `30a`; 0 audit findings), `lune run tests/harness/novice.luau keys`.
 
 1. **The glow.** Start a Practice match (any level) and look at week 1's plan screen. **Expect:** 3 states (sometimes fewer) glow softly and wear a dashed white outline; a home state or stronghold among them shows its owner's color between the white dashes. Nothing else on the map moved: every state's "XX 19" label is where it was, the ★ battlegrounds, the candidate faces, the Close chip and the lenses work as before. Switch lenses: the glow stays in Votes, Issues, Polls and Money. A Northeast state in the chip rows (NJ, MA…) glows as a white halo around its chip instead.
@@ -1391,3 +1393,12 @@ Use a phone held sideways (or Studio's device emulator at 844 x 390 landscape) a
 7. **Debate, phone.** **Expect:** the header reads "Week N · Round 2/3".
 8. *Send back:* anything that still overlaps, and any Output errors from `Lobby`, `Leaderboard`, `HowTo`, `Draft` or `EventCard`.
 
+## Key states' gold edge (unreleased, D-101)
+
+Agents: `lune run tests KeyStates`; `lune run tests/ui/snap.luau -- key --size phone` (and `ipad`, `desktop`): `09k`, `10k-select-key-c17`, `10k-key-amber-ks`, 0 audit findings.
+
+1. **The edge.** Start a Practice match and look at week 1's plan. **Expect:** 2-3 states have a solid pale-gold line just inside their border; no glow, no dashes. A home state or stronghold among them keeps its colored ring outside the gold. The legend under the map and the "Key states" line show a small gold box.
+2. **With everything else on.** Tap a key state: **expect** the white selection outside the gold, both whole. Plan a rally there and switch lenses (Votes, Issues, Polls, Money): the plan pin, the preview chip and every label stay readable over the gold.
+3. **Pale colors.** Play once as Amber (or against Amber or Teal). **Expect:** the gold still stands out on an Amber or Teal state (a thin dark line runs inside it) and does not look like the Amber player color or the orange of a loss.
+4. **The words.** Key → "Gold edge: a key state, where 270 is decided this week." Tutorial's tip: "Gold-edged states decide 270. Put your rallies and ads there."
+5. *Send back:* a phone and an iPad screenshot of a plan screen, and whether the gold is easy to see and easy to tell from the Amber color.
