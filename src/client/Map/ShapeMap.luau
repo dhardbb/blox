@@ -22,20 +22,23 @@
 -- a neighbor's square never steals it; the chip band picks the nearest chip; a
 -- border or the sea goes to the square that was pressed.
 --
--- Labels: on a big map the code sits on the anchor and the lens value under it
--- where the state has LENS_ROOM px of room. On a compact map (narrower than
--- COMPACT_W: a phone) each state gets one line: "PA 19", or the value alone
--- where the state is smaller than LENS_ROOM, nudged off its anchor (with a thin
--- leader) rather than over a neighbor's. A chip shows its code and value side
--- by side when it is wide, stacked when it is tall enough, else its code.
--- The Polls lens is one pill per state: the lead, then ▲ momentum and the
--- ground-game pips inside the same pill; nothing of it shows without the lead.
+-- Labels (D-092, amending D-079): every state's code stands at its home, its
+-- anchor (or up to CODE_SHIFT px off it where two codes would touch), the
+-- same in every lens, week and screen. Its info (the lens value, then the
+-- plan's badge, the preview's number, a reveal's tag) joins the code on one
+-- plate, right after it ("PA 19"), else under it (a phone: else over it);
+-- where none of those is clear, only the info moves, on its own plate with a
+-- leader back to the code, never right of, under or over another code. On a
+-- phone a lone value with no clear spot near its code hides (its card has
+-- it). Chips keep their line centered in the chip. The Polls lens is one
+-- line per state: the lead, then ▲ momentum and the ground-game pips.
 --
 -- Selection, an owner's ring and a moved state's halo draw the state's outline
 -- ("Outlines" layer: thin rotated frames along the layout's edges; a chip's own
 -- border for a callout state); a Mark can dash it (a poll that missed) or draw
--- the state hollow (not called yet). Candidate pins (Map/Pins) stand beside the
--- label: a face at rest, the name tab while their state is selected or when
+-- the state hollow (not called yet). Outlines run just inside their own
+-- state (D-092), so neighbors' never cover each other; the selection is on
+-- top. Candidate pins (Map/Pins) stand beside the label: a face at rest, the name tab while their state is selected or when
 -- the pin asks for it. The legend row (setLegend) uses the strip under the map.
 --
 -- Everything else matches NodeMap's API and names (Nodes/<id> with Label, Lens,
@@ -71,6 +74,18 @@ local PART_PAD = 3 -- px, a lens pill's side padding
 local PLATE_SIZES = { 14, 13, 12 } -- px, a plate's text: the largest at which every plate finds a clear spot (12: the floor)
 local PLATE_PAD = 2 -- px, a plate's padding left and right
 local PLATE_PAD_Y = 2 -- px, ... above and below
+local COMPACT_PAD = 1 -- px, both paddings on a compact map (D-092: a phone's 42 codes need the room)
+local CODE_SHIFT = 4 -- px, the most a code's home may sit off its anchor so two codes never overlap (D-092)
+local OFF_GAPS = { 8, 13, 19, 26, 34, 44, 56 } -- px between a code and its info when the info stands off (D-092: the leader shows)
+local OFF_DIRS = { { 1, 0 }, { 1, 1 }, { 1, -1 }, { 0, 1 }, { 0, -1 }, { -1, 1 }, { -1, -1 }, { -1, 0 } } -- ... tried in this order
+local OFF_CLEAR = 3 -- px an info that stands off keeps from every other label
+local COMPACT_OFF = 3 -- OFF_GAPS a phone's lone value may try (up to 19 px off) before it hides
+local OFF_ZONE = 8 -- px right of, under and over every other code where an info that stands off should not go
+local PLATE_LEADER_PX = 1.5 -- an info's leader to its code
+local PLATE_LEADER_FADE = 0.2
+local SIDES: { string } = { "R", "B" } -- where a state's info joins its code, in this order (D-092): right, else under it (never left: "10 WI" reads as its left neighbor's)
+local COMPACT_SIDES: { string } = { "R", "B", "A" } -- ... on a phone, else over it too (still one plate: fewer leaders on a crowded map)
+local OFF_FAR_COST = 150 -- layout score for each OFF_GAPS step farther an info stands off
 local PLATE_REACH = 0.05 -- how far a plate may stand off its state (past its own edge), share of the map's width, before the next size down is tried
 local PLATE_GAP = 2 -- px between a plate's code and its value
 local CAPS_EM: { [string]: number } = { I = 0.32, J = 0.58, L = 0.6, M = 0.86, W = 0.96 } -- bold capitals off CODE_CHAR
@@ -110,9 +125,6 @@ local MARK_LEADER_FADE = 0.5 -- a mark leader's transparency
 local CODE_COST = 1000 -- layout score per px² of a mark over a code or off the map
 local MARK_COST = 20 -- ... per px² over another mark
 local FAR_COST = 40 -- ... for each step farther from the code
-local NUDGES = { 3, 6, 10, 15, 21, 28 } -- px a compact label may move off its anchor
-local FAR_NUDGES = { 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78 } -- ... a plate that has to move, with a leader to its state
-local NUDGE_COST = 25 -- layout score per px a compact label moves
 local CODE_CHAR = 0.72 -- a code character's width, share of its height (bold capitals)
 local TAG_CHAR = 8 -- px, ... of a tag
 local TAG_H = Kit.size.caption + 5 -- px, the tag's height
@@ -167,14 +179,21 @@ type Part = {
 	filled: boolean, -- a pill in its own color (a Polls lead) inside the plate
 }
 
--- Where the last mark layout put a state's label: its center in px from the
--- anchor, and the plate's text size (a state without a lens value shows its
--- bare code instead of a plate).
+-- Where the last mark layout put a state's label (D-092): the code's center
+-- in px from the anchor (always on it, 0, 0, for a state on the land), the
+-- plate's text size (a state without a lens value shows its bare code instead
+-- of a plate), and where its info went: `attached` right after the code on
+-- one plate, else the info's own plate centered `ix`, `iy` px from the
+-- anchor, with a leader back to the code.
 type Place = {
 	x: number,
 	y: number,
 	s: number,
 	plate: boolean,
+	attached: boolean?,
+	side: string?, -- the side of the code the info joins (SIDES), nil when it stands off
+	ix: number?, -- the value's center, px from the anchor
+	iy: number?,
 }
 
 type Node = {
@@ -204,12 +223,15 @@ type Node = {
 	badgeStroke: UIStroke,
 	outline: Frame?,
 	outlineParts: { Frame },
+	outlineNormals: { { number } }, -- each part's inward normal (px per px of inset) and its place in box fractions (D-092)
 	preview: TextLabel?, -- the plan preview's tag (D-071), made on first use
 	bloom: ImageLabel?,
 	wantRow: boolean, -- the lens line has something to show here
 	rowKey: string, -- what the lens row shows (the layout redoes itself when it changes)
-	plate: Frame, -- the label's plate: "PA 19", code then value (D-079)
+	plate: Frame, -- the label's plate: "PA 19", code then value (D-079); the code alone when its info stands off (D-092)
 	plateEdge: UIStroke,
+	infoPlate: Frame, -- the value's own plate when it stands off its code (D-092)
+	infoEdge: UIStroke,
 	outlined: boolean, -- a battleground: the plate wears the white outline (D-058)
 	place: Place?,
 }
@@ -668,6 +690,26 @@ function ShapeMap.new(): MapInterface.Map
 		plateEdge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		plateEdge.Transparency = PART_EDGE
 		plateEdge.Parent = plate
+		-- The value's own plate, when the value has to stand off its code (D-092).
+		local infoPlate = Kit.new("Frame", {
+			Name = "InfoPlate",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(0, 0),
+			BackgroundColor3 = Kit.colors.field,
+			BackgroundTransparency = PART_BG,
+			BorderSizePixel = 0,
+			ZIndex = 4,
+			Visible = false,
+			Parent = hit,
+		})
+		infoPlate:SetAttribute("Overhang", true)
+		Kit.new("UICorner", { CornerRadius = UDim.new(0, TAG_RADIUS), Parent = infoPlate })
+		local infoEdge = Kit.stroke(Kit.colors.line, 1)
+		infoEdge.Name = "Edge"
+		infoEdge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		infoEdge.Transparency = PART_EDGE
+		infoEdge.Parent = infoPlate
 
 		local label = Kit.text(id, {
 			Name = "Label",
@@ -801,12 +843,15 @@ function ShapeMap.new(): MapInterface.Map
 			badgeStroke = badgeStroke,
 			outline = nil,
 			outlineParts = {},
+			outlineNormals = {},
 			preview = nil,
 			bloom = nil,
 			wantRow = false,
 			rowKey = "",
 			plate = plate,
 			plateEdge = plateEdge,
+			infoPlate = infoPlate,
+			infoEdge = infoEdge,
 			outlined = false,
 			place = nil,
 		}
@@ -866,6 +911,7 @@ function ShapeMap.new(): MapInterface.Map
 			(node.outline :: Frame):Destroy()
 			node.outline = nil
 			table.clear(node.outlineParts)
+			table.clear(node.outlineNormals)
 		end
 		if node.bloom then
 			(node.bloom :: ImageLabel):Destroy()
@@ -1010,40 +1056,79 @@ function ShapeMap.new(): MapInterface.Map
 			return existing
 		end
 		local frame = Kit.box({ Name = `Outline{node.id}`, Visible = false, Parent = outlineLayer })
+		local aspect = geo.aspect
 		for r, ring in node.shape.edges do
 			local n = #ring
+			-- Which side of this ring is inside: the left of its longest edge, or
+			-- the right (tested a hair off that edge's middle).
+			local longest, at = -1, 1
 			for i = 1, n, 2 do
 				local j = if i + 2 > n then 1 else i + 2
-				table.insert(
-					node.outlineParts,
-					segment(
-						frame,
-						geo.aspect,
-						ring[i],
-						ring[i + 1],
-						ring[j],
-						ring[j + 1],
-						OUTLINE_PX,
-						Kit.colors.accent,
-						`E{r}_{i}`
-					)
+				local dx, dy = ring[j] - ring[i], (ring[j + 1] - ring[i + 1]) / aspect
+				local length = dx * dx + dy * dy
+				if length > longest then
+					longest, at = length, i
+				end
+			end
+			local sign = 1
+			do
+				local j = if at + 2 > n then 1 else at + 2
+				local dx, dy = ring[j] - ring[at], (ring[j + 1] - ring[at + 1]) / aspect
+				local length = math.max(math.sqrt(dx * dx + dy * dy), 1e-9)
+				local mx, my = (ring[at] + ring[j]) / 2, (ring[at + 1] + ring[j + 1]) / 2
+				local step = 0.002
+				-- The left normal of (dx, dy) in width units is (dy, -dx); y back to box fractions.
+				if not geo.contains(node.id, mx + dy / length * step, my - dx / length * step * aspect) then
+					sign = -1
+				end
+			end
+			for i = 1, n, 2 do
+				local j = if i + 2 > n then 1 else i + 2
+				local part = segment(
+					frame,
+					aspect,
+					ring[i],
+					ring[i + 1],
+					ring[j],
+					ring[j + 1],
+					OUTLINE_PX,
+					Kit.colors.accent,
+					`E{r}_{i}`
 				)
+				table.insert(node.outlineParts, part)
+				local dx, dy = ring[j] - ring[i], (ring[j + 1] - ring[i + 1]) / aspect
+				local length = math.max(math.sqrt(dx * dx + dy * dy), 1e-9)
+				table.insert(node.outlineNormals, {
+					sign * dy / length,
+					-sign * dx / length,
+					part.Position.X.Scale,
+					part.Position.Y.Scale,
+				})
 			end
 		end
 		node.outline = frame
 		return frame
 	end
 
+	-- Which outline wins where two states' outlines meet (D-092): the
+	-- selection over a moved state's halo over a key state's dashes over an
+	-- owner's ring over a hollow state's hairline.
+	local OUTLINE_RANK = { selected = 5, halo = 4, key = 3, ring = 2, hollow = 1 }
+
 	-- The state's outline in `color` (nil: none), `px` thick; `dashed` shows
 	-- one segment in DASH_EVERY; `fade` its transparency; `alt` fills a dashed
-	-- outline's gaps in a second color (a key state's owner ring, D-088).
+	-- outline's gaps in a second color (a key state's owner ring, D-088). The
+	-- line runs just inside the state's own border (D-092), so two neighbors'
+	-- outlines sit side by side instead of one covering the other; `rank`
+	-- (OUTLINE_RANK) puts the more important one on top where they still touch.
 	local function setOutline(
 		node: Node,
 		color: Color3?,
 		px: number,
 		dashed: boolean?,
 		fade: number?,
-		alt: Color3?
+		alt: Color3?,
+		rank: string?
 	)
 		if node.ladder then
 			local stroke = node.chipStroke :: UIStroke
@@ -1060,6 +1145,9 @@ function ShapeMap.new(): MapInterface.Map
 		end
 		local frame = outlineOf(node)
 		frame.Visible = true
+		frame.ZIndex = OUTLINE_RANK[rank or "ring"] or 1
+		frame:SetAttribute("Rank", rank or "ring")
+		local inset = px / 2
 		for k, part in node.outlineParts do
 			local gap = dashed and k % DASH_EVERY ~= 1
 			part.BackgroundColor3 = if gap and alt then alt else color
@@ -1067,6 +1155,10 @@ function ShapeMap.new(): MapInterface.Map
 			part.Visible = not gap or alt ~= nil
 			local size = part.Size
 			part.Size = UDim2.new(size.X.Scale, px, 0, px)
+			local normal = node.outlineNormals[k]
+			if normal then
+				part.Position = UDim2.new(normal[3], normal[1] * inset, normal[4], normal[2] * inset)
+			end
 		end
 	end
 
@@ -1136,6 +1228,14 @@ function ShapeMap.new(): MapInterface.Map
 	-- one text size for the whole map (PLATE_SIZES, largest first) and moves a
 	-- plate whole, with a leader, when it does not fit on its state.
 
+	-- A plate's padding left and right, and above and below (tighter on a phone).
+	local function pads(): (number, number)
+		if compact() then
+			return COMPACT_PAD, COMPACT_PAD
+		end
+		return PLATE_PAD, PLATE_PAD_Y
+	end
+
 	-- A code's width: bold capitals, the narrow and wide ones measured apart.
 	local function codeW(node: Node, s: number): number
 		local em = 0
@@ -1190,7 +1290,8 @@ function ShapeMap.new(): MapInterface.Map
 	-- The plate at text size `s`: its width and height in px.
 	local function measurePlate(node: Node, s: number): (number, number)
 		local rw, rh = measureRow(node, s)
-		return PLATE_PAD + codeW(node, s) + PLATE_GAP + rw + PLATE_PAD, math.max(s, rh) + 2 * PLATE_PAD_Y
+		local px, py = pads()
+		return px + codeW(node, s) + PLATE_GAP + rw + px, math.max(s, rh) + 2 * py
 	end
 
 	-- Sizes the row's pieces for text size `s`.
@@ -1224,11 +1325,14 @@ function ShapeMap.new(): MapInterface.Map
 	end
 
 	-- Puts the plate (or the bare code) where the last layout placed it; a
-	-- callout state's chip lays out its own (layoutChip).
+	-- callout state's chip lays out its own (layoutChip). The code stands on
+	-- its anchor (D-092); the value follows it on the same plate, or stands
+	-- off on its own plate where the layout moved it.
 	local function applyPlace(node: Node)
 		if node.ladder then
 			return
 		end
+		node.infoPlate.Visible = false
 		local place = node.place
 		if place == nil then
 			-- Until the layout runs (next frame): the bare code on the anchor.
@@ -1249,20 +1353,40 @@ function ShapeMap.new(): MapInterface.Map
 			return
 		end
 		sizeRow(node, s)
-		local pw, ph = measurePlate(node, s)
+		local _, ph = measurePlate(node, s)
 		local cw = codeW(node, s)
 		local rw = measureRow(node, s)
-		local left = place.x - pw / 2 + PLATE_PAD
-		node.plate.Visible = true
-		node.plate.Size = UDim2.fromOffset(pw, ph)
-		node.plate.Position = onAnchorAt(node, place.x, place.y)
-		-- The code hugs the gap and the value starts at it: the same spacing
-		-- on every plate, whatever the estimates miss.
-		node.label.TextXAlignment = Enum.TextXAlignment.Right
+		local px = pads()
+		-- The code (its text right-aligned against the value's gap: the same
+		-- spacing on every plate, whatever the estimates miss).
+		node.label.TextXAlignment = if place.side == "R" or place.side == nil
+			then Enum.TextXAlignment.Right
+			else Enum.TextXAlignment.Center
 		node.label.Size = UDim2.fromOffset(cw, s)
-		node.label.Position = onAnchorAt(node, left + cw / 2, place.y)
+		node.label.Position = onAnchorAt(node, place.x, place.y)
+		node.plate.Visible = true
 		node.lensRow.Visible = true
-		node.lensRow.Position = onAnchorAt(node, left + cw + PLATE_GAP + rw / 2, place.y)
+		local ix, iy = place.ix or 0, place.iy or 0
+		node.lensRow.Position = onAnchorAt(node, ix, iy)
+		-- The code's box and the value's, around their text.
+		local c0, c1 = place.x - cw / 2 - px, place.x + cw / 2 + px
+		local ch = ph
+		local v0, v1 = ix - rw / 2 - px, ix + rw / 2 + px
+		if place.attached ~= false and place.side ~= nil then
+			-- One plate around both.
+			local x0, x1 = math.min(c0, v0), math.max(c1, v1)
+			local y0 = math.min(place.y - ch / 2, iy - ph / 2)
+			local y1 = math.max(place.y + ch / 2, iy + ph / 2)
+			node.plate.Size = UDim2.fromOffset(x1 - x0, y1 - y0)
+			node.plate.Position = onAnchorAt(node, (x0 + x1) / 2, (y0 + y1) / 2)
+			return
+		end
+		-- The info stands off: the code on its own plate, the value on another.
+		node.plate.Size = UDim2.fromOffset(c1 - c0, ch)
+		node.plate.Position = onAnchorAt(node, place.x, place.y)
+		node.infoPlate.Visible = true
+		node.infoPlate.Size = UDim2.fromOffset(v1 - v0, ph)
+		node.infoPlate.Position = onAnchorAt(node, ix, iy)
 	end
 
 	-- The map's plate text size (the last layout's; chips follow it).
@@ -1326,7 +1450,7 @@ function ShapeMap.new(): MapInterface.Map
 		local pw, ph = measurePlate(node, s)
 		local cw = codeW(node, s)
 		local rw = measureRow(node, s)
-		local left = shift - pw / 2 + PLATE_PAD
+		local left = shift - pw / 2 + (pads())
 		node.plate.Visible = true
 		node.plate.Size = UDim2.fromOffset(pw, ph)
 		node.plate.Position = onAnchorAt(node, shift, 0)
@@ -1352,7 +1476,8 @@ function ShapeMap.new(): MapInterface.Map
 			part.filled = filled
 			outlined = outlined or spec.outlined == true
 			part.label.Visible = true
-			part.label.Text = spec.text
+			-- A phone's map shows the short form where there is one (D-092).
+			part.label.Text = if spec.short and compact() then spec.short else spec.text
 			part.label.TextColor3 = if filled then onFill(color) else color
 			part.label.BackgroundColor3 = if filled then color else Kit.colors.field
 			-- On the plate: no plate of its own, unless filled (a lead in its color).
@@ -1427,6 +1552,9 @@ function ShapeMap.new(): MapInterface.Map
 		node.plateEdge.Color = if outlined then Kit.colors.text else Kit.colors.line
 		node.plateEdge.Transparency = if outlined then 0 else PART_EDGE
 		node.plateEdge.Thickness = if outlined then Kit.MARK_STROKE else 1
+		node.infoEdge.Color = node.plateEdge.Color
+		node.infoEdge.Transparency = node.plateEdge.Transparency
+		node.infoEdge.Thickness = node.plateEdge.Thickness
 		local keys = { upText, tostring(#runs), tostring(outlined) }
 		for _, spec in parts do
 			table.insert(keys, `{spec.text}:{spec.icon or ""}:{spec.glyphs or 0}:{spec.filled}`)
@@ -1495,18 +1623,18 @@ function ShapeMap.new(): MapInterface.Map
 		node.hit:SetAttribute("Key", key) -- for the specs (D-088)
 		-- What moved (a preview, a reveal) outranks an owner's ring while it shows.
 		if isSelected then
-			setOutline(node, Kit.colors.accent, SELECTED_PX)
+			setOutline(node, Kit.colors.accent, SELECTED_PX, nil, nil, nil, "selected")
 		elseif halo then
-			setOutline(node, halo, if strong then SELECTED_PX else OUTLINE_PX)
+			setOutline(node, halo, if strong then SELECTED_PX else OUTLINE_PX, nil, nil, nil, "halo")
 		elseif key and node.chip == nil then
 			-- A key state (D-088): dashed, so it never reads as the selection; an
 			-- owner's ring fills the gaps in its color, so both still read.
 			local ring = if mark then mark.ring else nil
-			setOutline(node, Kit.colors.accent, SELECTED_PX, true, nil, ring)
+			setOutline(node, Kit.colors.accent, SELECTED_PX, true, nil, ring, "key")
 		elseif mark and mark.ring then
-			setOutline(node, mark.ring, if dashed then OUTLINE_PX else SELECTED_PX, dashed)
+			setOutline(node, mark.ring, if dashed then OUTLINE_PX else SELECTED_PX, dashed, nil, nil, "ring")
 		elseif hollow then
-			setOutline(node, Kit.colors.line, HAIRLINE_PX, false, PART_EDGE)
+			setOutline(node, Kit.colors.line, HAIRLINE_PX, false, PART_EDGE, nil, "hollow")
 		else
 			setOutline(node, nil, 0)
 		end
@@ -1678,13 +1806,10 @@ function ShapeMap.new(): MapInterface.Map
 	local ABOVE: { Dir } =
 		{ { 0, -1 }, { 1, -1 }, { -1, -1 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 1, 1 }, { -1, 1 } }
 	local LEFT: { Dir } = { { -1, 0 } }
-	-- A compact label's nudges: down and up first (along the label), then sideways.
-	local NUDGE_DIRS: { Dir } =
-		{ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } }
 	-- Spot distances, shares of the gap to the code's edge: marks stay close
 	-- (a short leader at most); pins may go a little farther.
 	local NEAR = { 1, 1.6 }
-	local PIN_REACH = { 1, 1.6, 2.3, 3.2, 4.2 } -- pins go farther rather than cover a code or a value
+	local PIN_REACH = { 1, 1.6, 2.3, 3.2, 4.2, 5.4, 6.8 } -- pins go farther rather than cover a code or a value
 	local PIN_GAP = 2 -- px between pins that share a state
 	local PIN_CLEAR = 3 -- px kept clear above and below a pin
 	local occupied: { Box } = {} -- the codes and the marks of the last layout
@@ -1777,52 +1902,17 @@ function ShapeMap.new(): MapInterface.Map
 		return bx, by, far, covers
 	end
 
-	-- The best spot for a `w` x `h` compact label centered near (x, y): on it,
-	-- or nudged up to the last NUDGES step; returns its center and whether it
-	-- still covers a label.
-	local function nudgeSpot(
-		x: number,
-		y: number,
-		w: number,
-		h: number,
-		reach: number?,
-		far: boolean?
-	): (number, number, boolean, number)
-		local best, bx, by, covers = math.huge, x, y, true
-		-- Tested a little bigger than drawn: text widths are estimates.
-		local hw, hh = w / 2 + UNIT_MARGIN, h / 2 + UNIT_MARGIN
-		local function try(px: number, py: number, moved: number)
-			local score, bad = cost({ x0 = px - hw, y0 = py - hh, x1 = px + hw, y1 = py + hh }, #occupied)
-			score += moved * NUDGE_COST
-			if score < best then
-				best, bx, by, covers = score, px, py, bad
-			end
-		end
-		try(x, y, 0)
-		local steps: { number } = if far then FAR_NUDGES else NUDGES
-		for _, d in steps do
-			if not covers or d > (reach or math.huge) then
-				break -- a clean spot nearer the anchor already (or as far as this label may go)
-			end
-			for _, dir in NUDGE_DIRS do
-				local len = math.sqrt(dir[1] * dir[1] + dir[2] * dir[2])
-				try(x + dir[1] * d / len, y + dir[2] * d / len, d)
-			end
-		end
-		return bx, by, covers, best
-	end
-
 	-- A thin line from a code to a mark that stands off it.
-	local function leader(fromX: number, fromY: number, toX: number, toY: number)
+	local function leader(fromX: number, fromY: number, toX: number, toY: number, px: number?, fade: number?)
 		local dx, dy = toX - fromX, toY - fromY
 		Kit.new("Frame", {
 			Name = "MarkLeader",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromOffset((fromX + toX) / 2, (fromY + toY) / 2),
-			Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy), LEADER_PX),
+			Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy), px or LEADER_PX),
 			Rotation = math.deg(math.atan2(dy, dx)),
 			BackgroundColor3 = Kit.colors.text,
-			BackgroundTransparency = MARK_LEADER_FADE,
+			BackgroundTransparency = fade or MARK_LEADER_FADE,
 			BorderSizePixel = 0,
 			Parent = markLeaders,
 		})
@@ -1849,6 +1939,84 @@ function ShapeMap.new(): MapInterface.Map
 			table.insert(parts, `{entry.pin.state}:{entry.pin.tag}:{entry.frame.Size.X.Offset}`)
 		end
 		return table.concat(parts, "|")
+	end
+
+	-- Each code's home on a map `bw` x `bh` (D-092): its anchor, or up to
+	-- CODE_SHIFT px off it where two codes at the smallest plate size would
+	-- overlap (VA and WV, IN and OH on a phone), still inside its state. It
+	-- depends on the map's size alone, so a code never moves between lenses,
+	-- weeks or screens.
+	local homeKey = ""
+	local homes: { [string]: { number } } = {}
+	local function codeHomes(bw: number, bh: number): { [string]: { number } }
+		local key = `{geo.kind}:{bw}x{bh}:{compact()}`
+		if key == homeKey then
+			return homes
+		end
+		homeKey = key
+		table.clear(homes)
+		local s = PLATE_SIZES[#PLATE_SIZES]
+		local px, py = pads()
+		local list: { { id: string, ax: number, ay: number, x: number, y: number, hw: number, hh: number } } =
+			{}
+		for _, node in nodes do
+			if not node.ladder then
+				local em = 0
+				for _, code in utf8.codes(node.id) do
+					em += CAPS_EM[utf8.char(code)] or CODE_CHAR
+				end
+				local ax, ay = node.lx * bw, node.ly * bh
+				table.insert(list, {
+					id = node.id,
+					ax = ax,
+					ay = ay,
+					x = ax,
+					y = ay,
+					hw = (em * s + 2) / 2 + px + 0.5,
+					hh = s / 2 + py + 0.5,
+				})
+			end
+		end
+		for _ = 1, 12 do
+			local moved = false
+			for i, a in list do
+				for j = i + 1, #list do
+					local b = list[j]
+					local ox = a.hw + b.hw - math.abs(a.x - b.x)
+					local oy = a.hh + b.hh - math.abs(a.y - b.y)
+					if ox > 0 and oy > 0 then
+						-- Apart along the shorter way, half each, never past CODE_SHIFT
+						-- from the anchor or out of the state.
+						local dx, dy = 0, 0
+						if ox <= oy then
+							dx = (ox / 2 + 0.01) * (if a.x <= b.x then -1 else 1)
+						else
+							dy = (oy / 2 + 0.01) * (if a.y <= b.y then -1 else 1)
+						end
+						for k, entry in { a, b } do
+							local sign = if k == 1 then 1 else -1
+							local nx =
+								math.clamp(entry.x + sign * dx, entry.ax - CODE_SHIFT, entry.ax + CODE_SHIFT)
+							local ny =
+								math.clamp(entry.y + sign * dy, entry.ay - CODE_SHIFT, entry.ay + CODE_SHIFT)
+							if
+								(nx ~= entry.x or ny ~= entry.y) and geo.contains(entry.id, nx / bw, ny / bh)
+							then
+								entry.x, entry.y = nx, ny
+								moved = true
+							end
+						end
+					end
+				end
+			end
+			if not moved then
+				break
+			end
+		end
+		for _, entry in list do
+			homes[entry.id] = { entry.x - entry.ax, entry.y - entry.ay }
+		end
+		return homes
 	end
 
 	local function layoutMarks()
@@ -1890,13 +2058,15 @@ function ShapeMap.new(): MapInterface.Map
 			occupy({ x0 = r.x * bw, y0 = r.y * bh, x1 = (r.x + r.w) * bw, y1 = (r.y + r.h) * bh })
 		end
 
-		-- Every state's label, biggest states first (the states your plan moves
-		-- before them: their lines carry its numbers): its plate (or its bare
-		-- code, without a lens value) on its anchor, or nudged off it, or moved
-		-- whole to the nearest clear spot with a leader (D-079). The plan's
-		-- badge leads the line, the plan preview's number and a reveal's tag end
-		-- it. One text size for every plate: the largest at which all of them
-		-- find a clear spot.
+		-- Every state's label (D-092, amending D-079): its code stands on its
+		-- anchor, always; its info (the lens value, then the plan's badge, the
+		-- plan preview's number and a reveal's tag) follows the code on the same
+		-- line, on one plate with it ("PA 19"). Where that spot is taken, only
+		-- the info moves: to the nearest clear spot, on its own plate, with a
+		-- leader back to the code. The codes go down first, all of them; then
+		-- the infos, biggest states first (the states your plan moves before
+		-- them). One text size for every plate: the largest at which every info
+		-- finds a clear spot near its code.
 		local labelOrder = {}
 		for _, node in nodes do
 			if not node.ladder then
@@ -1929,13 +2099,16 @@ function ShapeMap.new(): MapInterface.Map
 		end
 		type Spot = {
 			node: Node,
-			x: number,
+			code: Box, -- the code's box (its plate, or the bare code), on the anchor
+			x: number, -- the info line's center
 			y: number,
 			lineW: number,
 			h: number,
-			coreL: number,
-			coreW: number,
-			coreH: number,
+			valueW: number, -- the value's plate (0: none)
+			attached: boolean,
+			side: string?, -- the side of the code it joins (SIDES)
+			hidden: boolean?, -- a phone's value with no clear spot near its code: not shown (D-092)
+			codeS: number,
 		}
 		local spots: { Spot } = {}
 		local chosenS = PLATE_SIZES[#PLATE_SIZES]
@@ -1954,117 +2127,306 @@ function ShapeMap.new(): MapInterface.Map
 				end
 			end
 		end
-		for k, s in PLATE_SIZES do
-			if s > cap then
-				continue
-			end
+		local bestFails, bestS, laidS = math.huge, chosenS, nil :: number?
+		local home = codeHomes(bw, bh)
+		local px = pads()
+		local function layoutAt(s: number): number
 			resetTo(fixed)
 			table.clear(spots)
 			local fails = 0
+			-- The codes, fixed at their homes.
+			local codeBoxes: { [Node]: Box } = {}
+			local codeSize: { [Node]: number } = {}
 			for _, node in labelOrder do
-				local ax, ay = node.lx * bw, node.ly * bh
-				local coreW, coreH
+				local at = home[node.id] or { 0, 0 }
+				local cx, cy = node.lx * bw + at[1], node.ly * bh + at[2]
+				local cw, ch, cs
 				if node.wantRow then
-					coreW, coreH = measurePlate(node, s)
+					cs = s
+					cw, ch = codeW(node, s) + 2 * px, select(2, measurePlate(node, s))
 				else
 					local lh = if isCompact then math.min(labelPx(node), s) else labelPx(node)
-					coreW, coreH = codeW(node, math.min(lh, Kit.size.heading)), lh
+					cs = lh
+					cw, ch = codeW(node, math.min(lh, Kit.size.heading)), lh
 				end
+				local box = { x0 = cx - cw / 2, y0 = cy - ch / 2, x1 = cx + cw / 2, y1 = cy + ch / 2 }
+				codeBoxes[node] = box
+				codeSize[node] = cs
+				if (cost(box, #occupied)) > CODE_COST then
+					fails += 1 -- two codes over each other: a smaller size may part them
+				end
+				occupy(box)
+			end
+			-- The infos: joined to their code on the first clear side, else as
+			-- near as is clear, on their own plate.
+			for _, node in labelOrder do
+				local code = codeBoxes[node]
+				local cx, cy = (code.x0 + code.x1) / 2, (code.y0 + code.y1) / 2
 				local tag = node.preview
 				local tagW = if tag and tag.Visible then textW(tag.Text, TAG_CHAR) + 2 * TAG_PAD else 0
 				local planBadge = node.hit:FindFirstChild("PlanBadge") :: GuiObject?
-				local badgeW = if planBadge then PLAN_BADGE_PX + UNIT_GAP else 0
 				local markW = if node.badge.Visible then textW(node.badge.Text, TAG_CHAR) + 2 * TAG_PAD else 0
-				local lineW = badgeW
-					+ coreW
-					+ (if tagW > 0 then UNIT_GAP + tagW else 0)
-					+ (if markW > 0 then UNIT_GAP + markW else 0)
+				local valueW = if node.wantRow then measureRow(node, s) + 2 * px else 0
+				local lineW = valueW
+				for _, w in { if planBadge then PLAN_BADGE_PX else 0, tagW, markW } do
+					if w > 0 then
+						lineW += (if lineW > 0 then UNIT_GAP else 0) + w
+					end
+				end
+				local spot: Spot = {
+					node = node,
+					code = code,
+					x = cx,
+					y = cy,
+					lineW = lineW,
+					h = 0,
+					valueW = valueW,
+					attached = true,
+					side = nil,
+					codeS = codeSize[node],
+				}
+				table.insert(spots, spot)
+				if lineW <= 0 then
+					continue
+				end
+				local ph = code.y1 - code.y0
 				local h = math.max(
-					coreH,
+					if node.wantRow then ph else 0,
 					if tagW > 0 or markW > 0 then TAG_H else 0,
 					if planBadge then PLAN_BADGE_PX else 0
 				)
-				local x, y, covers = nudgeSpot(ax, ay, lineW, h, nil, true)
-				-- A miss: no clear spot, or one so far that the plate reads as a
-				-- neighbor's (the next size down is tried first).
-				if
-					covers
-					or math.abs(x - ax) > PLATE_REACH * bw + lineW / 2
-					or math.abs(y - ay) > PLATE_REACH * bw + h / 2
-				then
-					fails += 1
+				spot.h = h
+				-- A value shares the code's plate (its text PLATE_GAP after the
+				-- code's on the right); tags alone keep a gap.
+				local join = if valueW > 0 then PLATE_GAP - 2 * px else UNIT_GAP
+				local placed = false
+				-- (A line with the plan's or a reveal's tags may sit over its code too.)
+				local sides: { string } = if isCompact or lineW > valueW then COMPACT_SIDES else SIDES
+				for _, side in sides do
+					local x, y
+					if side == "R" then
+						x, y = code.x1 + join + lineW / 2, cy
+					elseif side == "L" then
+						x, y = code.x0 - (if valueW > 0 then 0 else UNIT_GAP) - lineW / 2, cy
+					elseif side == "B" then
+						x, y = cx, code.y1 + h / 2
+					else
+						x, y = cx, code.y0 - h / 2
+					end
+					-- Checked outside the code's own box only (the plate joins it),
+					-- a little bigger than drawn (text widths are estimates).
+					local test = {
+						x0 = x - lineW / 2 - UNIT_MARGIN,
+						y0 = y - h / 2 - UNIT_MARGIN,
+						x1 = x + lineW / 2 + UNIT_MARGIN,
+						y1 = y + h / 2 + UNIT_MARGIN,
+					}
+					if side == "R" then
+						test.x0 = math.max(test.x0, code.x1)
+					elseif side == "L" then
+						test.x1 = math.min(test.x1, code.x0)
+					else
+						-- Under or over: the joined plate is as wide as the code at least.
+						test.x0 = math.min(test.x0, code.x0 - UNIT_MARGIN)
+						test.x1 = math.max(test.x1, code.x1 + UNIT_MARGIN)
+						if side == "B" then
+							test.y0 = math.max(test.y0, code.y1)
+						else
+							test.y1 = math.min(test.y1, code.y0)
+						end
+					end
+					local score = cost(test, #occupied)
+					-- Under or over, a value wider than its code widens the plate
+					-- beside the code too.
+					local u0, u1 = math.min(x - lineW / 2, code.x0), math.max(x + lineW / 2, code.x1)
+					local stacked = side ~= "R" and side ~= "L"
+					if stacked and score <= 0 then
+						for _, band in { { u0, code.x0 }, { code.x1, u1 } } do
+							if band[2] - band[1] > 0.5 then
+								score += cost(
+									{ x0 = band[1], y0 = code.y0, x1 = band[2], y1 = code.y1 },
+									#occupied
+								)
+							end
+						end
+					end
+					if score <= 0 then
+						spot.x, spot.y, spot.side = x, y, side
+						placed = true
+						if stacked then
+							-- The plate's whole width, the code's row included, is taken.
+							occupy({
+								x0 = u0,
+								y0 = math.min(y - h / 2, code.y0),
+								x1 = u1,
+								y1 = math.max(y + h / 2, code.y1),
+							})
+						end
+						break
+					end
 				end
-				-- Never off the map (a little in from the edge: widths are estimates).
-				local edge = lineW / 2 + EDGE_CLEAR
-				x = math.clamp(x, edge, math.max(edge, bw - edge))
-				y = math.clamp(y, h / 2, math.max(h / 2, bh - h / 2))
-				occupy({ x0 = x - lineW / 2, y0 = y - h / 2, x1 = x + lineW / 2, y1 = y + h / 2 })
-				table.insert(spots, {
-					node = node,
-					x = x,
-					y = y,
-					lineW = lineW,
-					h = h,
-					coreL = x - lineW / 2 + badgeW,
-					coreW = coreW,
-					coreH = coreH,
-				})
+				if not placed then
+					-- Off its code, far enough that the leader shows and kept clear
+					-- of every other label, so it never reads as a neighbor's.
+					local best, x, y, covers, far = math.huge, cx, cy, true, 0
+					local hw, hh = (code.x1 - code.x0) / 2, (code.y1 - code.y0) / 2
+					-- A phone's value alone stays near its code or hides (its card
+					-- has it): a long leader across a crowded small map reads worse
+					-- than a missing number. Tags (the plan's, a reveal's) always show.
+					local tagged = lineW > valueW
+					local reach = if isCompact and not tagged then COMPACT_OFF else #OFF_GAPS
+					for r, gap in OFF_GAPS do
+						if r > reach then
+							break
+						end
+						for k, dir in OFF_DIRS do
+							local tx = cx + dir[1] * (hw + gap + lineW / 2)
+							local ty = cy + dir[2] * (hh + gap + h / 2)
+							local score, bad = cost({
+								x0 = tx - lineW / 2 - OFF_CLEAR,
+								y0 = ty - h / 2 - OFF_CLEAR,
+								x1 = tx + lineW / 2 + OFF_CLEAR,
+								y1 = ty + h / 2 + OFF_CLEAR,
+							}, #occupied)
+							score += (r - 1) * OFF_FAR_COST + k
+							-- Not where another code's own info would join it (right of,
+							-- under or over it): there it would read as that state's.
+							for other, box in codeBoxes do
+								if other ~= node then
+									local zones = {
+										{ box.x1, box.y0, box.x1 + OFF_ZONE, box.y1 },
+										{ box.x0, box.y1, box.x1, box.y1 + OFF_ZONE },
+										{ box.x0, box.y0 - OFF_ZONE, box.x1, box.y0 },
+									}
+									for _, z in zones do
+										local ow = math.min(tx + lineW / 2, z[3])
+											- math.max(tx - lineW / 2, z[1])
+										local oh = math.min(ty + h / 2, z[4]) - math.max(ty - h / 2, z[2])
+										if ow > 0 and oh > 0 then
+											score += ow * oh * CODE_COST
+										end
+									end
+								end
+							end
+							-- Its leader must not run under another label.
+							local fx, fy = math.clamp(tx, code.x0, code.x1), math.clamp(ty, code.y0, code.y1)
+							local ex = math.clamp(fx, tx - lineW / 2, tx + lineW / 2)
+							local ey = math.clamp(fy, ty - h / 2, ty + h / 2)
+							local length = math.sqrt((ex - fx) ^ 2 + (ey - fy) ^ 2)
+							local steps = math.floor(length / 3)
+							for i = 1, steps - 1 do
+								local t = i / steps
+								local qx, qy = fx + (ex - fx) * t, fy + (ey - fy) * t
+								score += (cost(
+									{ x0 = qx - 0.5, y0 = qy - 0.5, x1 = qx + 0.5, y1 = qy + 0.5 },
+									#occupied
+								))
+							end
+							if score < best then
+								best, x, y, covers, far = score, tx, ty, bad, gap
+							end
+						end
+					end
+					if covers or far > PLATE_REACH * bw then
+						fails += 1
+					end
+					if covers and isCompact and not tagged then
+						spot.hidden = true
+					end
+					-- Never off the map (a little in from the edge: widths are estimates).
+					local edge = lineW / 2 + EDGE_CLEAR
+					spot.x = math.clamp(x, edge, math.max(edge, bw - edge))
+					spot.y = math.clamp(y, h / 2, math.max(h / 2, bh - h / 2))
+					spot.attached = false
+				end
+				if not spot.hidden then
+					occupy({
+						x0 = spot.x - lineW / 2,
+						y0 = spot.y - h / 2,
+						x1 = spot.x + lineW / 2,
+						y1 = spot.y + h / 2,
+					})
+				end
 			end
-			chosenS = s
-			lastFails = fails
-			if fails == 0 or k == #PLATE_SIZES then
+			return fails
+		end
+		for _, s in PLATE_SIZES do
+			if s > cap then
+				continue
+			end
+			local fails = layoutAt(s)
+			laidS = s
+			if fails < bestFails then
+				bestFails, bestS = fails, s
+			end
+			if fails == 0 then
 				break
 			end
 		end
-		local plateLeaders = 0
+		-- The size with the fewest misses (the largest of those) is the one laid out.
+		if laidS ~= bestS then
+			bestFails = layoutAt(bestS)
+		end
+		chosenS, lastFails = bestS, bestFails
+		local plateLeaders, hiddenCount = 0, 0
 		for _, spot in spots do
 			local node = spot.node
 			local ax, ay = node.lx * bw, node.ly * bh
-			local cx = spot.coreL + spot.coreW / 2
-			codes[node.id] = {
-				x0 = spot.x - spot.lineW / 2,
-				y0 = spot.y - spot.h / 2,
-				x1 = spot.x + spot.lineW / 2,
-				y1 = spot.y + spot.h / 2,
-			}
+			local code = spot.code
+			codes[node.id] = code
 			node.place = {
-				x = cx - ax,
-				y = spot.y - ay,
-				s = if node.wantRow
-					then chosenS
-					else (if isCompact then math.min(labelPx(node), chosenS) else labelPx(node)),
-				plate = node.wantRow,
+				x = (code.x0 + code.x1) / 2 - ax,
+				y = (code.y0 + code.y1) / 2 - ay,
+				s = if node.wantRow then chosenS else spot.codeS,
+				plate = node.wantRow and not spot.hidden,
+				attached = spot.attached,
+				side = spot.side,
+				ix = spot.x - spot.lineW / 2 + spot.valueW / 2 - ax,
+				iy = spot.y - ay,
 			}
-			local left = spot.x - spot.lineW / 2
-			local tail = spot.coreL + spot.coreW
-			local tag = node.preview
-			if tag and tag.Visible then
-				local tagW = textW(tag.Text, TAG_CHAR) + 2 * TAG_PAD
-				tag.AnchorPoint = Vector2.new(0.5, 0.5)
-				tag.Position = UDim2.new(node.lx, tail + UNIT_GAP + tagW / 2 - ax, node.ly, spot.y - ay)
-				tail += UNIT_GAP + tagW
-			end
-			if node.badge.Visible then
-				local markW = textW(node.badge.Text, TAG_CHAR) + 2 * TAG_PAD
-				node.badge.AnchorPoint = Vector2.new(0.5, 0.5)
-				node.badge.Position =
-					UDim2.new(node.lx, tail + UNIT_GAP + markW / 2 - ax, node.ly, spot.y - ay)
-			end
-			local planBadge = node.hit:FindFirstChild("PlanBadge") :: GuiObject?
-			if planBadge then
-				planBadge.Position = onAnchorAt(node, left + PLAN_BADGE_PX / 2 - ax, spot.y - ay)
-			end
-			-- Moved off its state's anchor: a thin leader from the plate back to it.
-			local c = {
-				x0 = spot.coreL,
-				y0 = spot.y - spot.coreH / 2,
-				x1 = spot.coreL + spot.coreW,
-				y1 = spot.y + spot.coreH / 2,
-			}
-			if ax < c.x0 - 1 or ax > c.x1 + 1 or ay < c.y0 - 1 or ay > c.y1 + 1 then
-				leader(ax, ay, math.clamp(ax, c.x0, c.x1), math.clamp(ay, c.y0, c.y1))
-				if node.wantRow then
-					plateLeaders += 1
+			if spot.hidden then
+				hiddenCount += 1
+			elseif spot.lineW > 0 then
+				local left = spot.x - spot.lineW / 2
+				local tail = if spot.valueW > 0 then left + spot.valueW else left - UNIT_GAP
+				local planBadge = node.hit:FindFirstChild("PlanBadge") :: GuiObject?
+				if planBadge then
+					planBadge.Position =
+						onAnchorAt(node, tail + UNIT_GAP + PLAN_BADGE_PX / 2 - ax, spot.y - ay)
+					tail += UNIT_GAP + PLAN_BADGE_PX
+				end
+				local tag = node.preview
+				if tag and tag.Visible then
+					local tagW = textW(tag.Text, TAG_CHAR) + 2 * TAG_PAD
+					tag.AnchorPoint = Vector2.new(0.5, 0.5)
+					tag.Position = UDim2.new(node.lx, tail + UNIT_GAP + tagW / 2 - ax, node.ly, spot.y - ay)
+					tail += UNIT_GAP + tagW
+				end
+				if node.badge.Visible then
+					local markW = textW(node.badge.Text, TAG_CHAR) + 2 * TAG_PAD
+					node.badge.AnchorPoint = Vector2.new(0.5, 0.5)
+					node.badge.Position =
+						UDim2.new(node.lx, tail + UNIT_GAP + markW / 2 - ax, node.ly, spot.y - ay)
+				end
+				-- The info stands off its code: a thin leader from the code's
+				-- plate to the info's.
+				if not spot.attached then
+					local info = {
+						x0 = left,
+						y0 = spot.y - spot.h / 2,
+						x1 = left + spot.lineW,
+						y1 = spot.y + spot.h / 2,
+					}
+					local fx = math.clamp(spot.x, code.x0, code.x1)
+					local fy = math.clamp(spot.y, code.y0, code.y1)
+					local tx = math.clamp(fx, info.x0, info.x1)
+					local ty = math.clamp(fy, info.y0, info.y1)
+					if math.abs(tx - fx) + math.abs(ty - fy) > 2 then
+						leader(fx, fy, tx, ty, PLATE_LEADER_PX, PLATE_LEADER_FADE)
+					end
+					if node.wantRow then
+						plateLeaders += 1
+					end
 				end
 			end
 			applyPlace(node)
@@ -2080,6 +2442,7 @@ function ShapeMap.new(): MapInterface.Map
 		end
 		root:SetAttribute("PlateMisses", lastFails)
 		root:SetAttribute("PlateLeaders", plateLeaders)
+		root:SetAttribute("PlateHidden", hiddenCount)
 		local codeCount = #occupied
 		lastCodeCount = codeCount
 

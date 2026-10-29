@@ -1,5 +1,5 @@
 --!strict
--- UI/Icons (docs/GAMEPLAN §2.3, WP-3): the twelve Lucide icons. Every name has
+-- UI/Icons (docs/GAMEPLAN §2.3, WP-3): the fourteen Lucide icons. Every name has
 -- a glyph and an id that is "" (glyph until uploaded) or "rbxassetid://<n>";
 -- every name has its PNG and source SVG under assets/icons/; every action icon
 -- Kit uses exists; Kit.icon draws the glyph while the id is "".
@@ -28,6 +28,8 @@ local NAMES = {
 	"plane",
 	"flame", -- D-090
 	"bug", -- D-090
+	"scale",
+	"chart-column",
 }
 local KINDS = { "Rally", "Fundraise", "Media", "Attack", "Poll", "RegionPoll", "Gotv" }
 

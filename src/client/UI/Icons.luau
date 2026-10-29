@@ -33,6 +33,8 @@ local Icons: { [string]: Icon } = {
 	-- D-090: not uploaded yet (assets/icons/README.md); the glyph shows until then.
 	flame = { id = "", glyph = "♦" }, -- a Daily Race streak
 	bug = { id = "", glyph = "¤" }, -- Report a bug
+	scale = { id = "", glyph = "◊" }, -- the Issues map tab (D-092; to upload)
+	["chart-column"] = { id = "", glyph = "%" }, -- the Polls map tab (D-092; to upload)
 }
 
 return Icons

@@ -6,7 +6,7 @@ Fourteen [Lucide](https://lucide.dev) icons (ISC License, see `docs/CREDITS.md`)
 
 ## Uploaded ids
 
-All twelve are uploaded as Roblox images, named after their icon names, and their ids are in `src/client/UI/Icons.luau`. To replace one, upload the new PNG (Studio MCP `upload_image`, or Creator Hub: Create → Development items → Images) and set its `id` there. An icon whose id is `""` draws its glyph instead; the glyphs stay in `Icons.luau` as that fallback.
+All but `scale` and `chart-column` (D-092, the map tabs: they draw their glyph until uploaded) are uploaded as Roblox images, named after their icon names, and their ids are in `src/client/UI/Icons.luau`. To replace one, upload the new PNG (Studio MCP `upload_image`, or Creator Hub: Create → Development items → Images) and set its `id` there. An icon whose id is `""` draws its glyph instead; the glyphs stay in `Icons.luau` as that fallback.
 
 | File | Icon name (`Icons.luau` key) | Used for | Image id |
 |---|---|---|---|
@@ -24,3 +24,5 @@ All twelve are uploaded as Roblox images, named after their icon names, and thei
 | `plane.png` | `plane` | A flight | `rbxassetid://136061807700836` |
 | `flame.png` | `flame` | A Daily Race streak (D-090) | not uploaded yet (`""`) |
 | `bug.png` | `bug` | Report a bug (D-090) | not uploaded yet (`""`) |
+| `scale.png` | `scale` | The Issues map tab | not uploaded yet |
+| `chart-column.png` | `chart-column` | The Polls map tab | not uploaded yet |

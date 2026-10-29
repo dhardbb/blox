@@ -243,19 +243,24 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function placeChips(width: number)
 		if model.compact == true then
 			-- A landscape phone (D-089): the chips are a rail left of the map,
-			-- Key and Close on top, the four lenses two by two under them, so
-			-- the map takes the whole height.
-			local chipW = LensToggle.BUTTON_W
-			keyButton.Size = UDim2.fromOffset(chipW, LENS_H)
-			keyLabel.Visible = false
-			closeChip.root.Position = UDim2.fromOffset(chipW + Kit.space.xs, 0)
+			-- so the map takes the whole height: the labeled "Map key" on top,
+			-- the four lens tabs two by two, then the Close races toggle
+			-- (D-092: full rail width, so neither reads as a tab).
+			keyButton.Size = UDim2.fromOffset(RAIL_W, LENS_H)
+			keyLabel.Text = "Map key"
+			keyLabel.Visible = true
 			LensToggle.setColumns(lensToggle, 2)
 			lensToggle.root.AnchorPoint = Vector2.new(0, 0)
 			lensToggle.root.Position = UDim2.fromOffset(0, LENS_H + Kit.space.xs)
+			local tabsH = 2 * LENS_H + Kit.space.xs
+			LensToggle.setCloseNarrow(closeChip, false)
+			closeChip.root.Position = UDim2.fromOffset(0, LENS_H + tabsH + 2 * Kit.space.xs)
+			closeChip.root.Size = UDim2.fromOffset(RAIL_W, LENS_H)
 			mapHolder.Position = UDim2.fromOffset(RAIL_W + GAP, 0)
 			mapHolder.Size = UDim2.new(1, -(RAIL_W + GAP), 1, 0)
 			return
 		end
+		keyLabel.Text = "Key"
 		LensToggle.setColumns(lensToggle, nil)
 		lensToggle.root.AnchorPoint = Vector2.new(1, 0)
 		lensToggle.root.Position = UDim2.fromScale(1, 0)
@@ -263,6 +268,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		mapHolder.Size = UDim2.new(1, 0, 1, -(LENS_H + Kit.space.xs))
 		local full = KEY_W + LensToggle.CLOSE_W + LensToggle.WIDTH + 2 * Kit.space.xs <= width
 		local keyW = if full then KEY_W else KEY_NARROW
+		-- Narrower still (a portrait tablet's column): the tabs' narrow cells (D-092).
+		local narrow = keyW + LensToggle.CLOSE_W + LensToggle.WIDTH + 2 * Kit.space.xs > width
+		LensToggle.setNarrow(lensToggle, narrow)
+		LensToggle.setCloseNarrow(
+			closeChip,
+			narrow and keyW + LensToggle.CLOSE_W + LensToggle.NARROW_W + 2 * Kit.space.xs > width
+		)
 		keyButton.Size = UDim2.fromOffset(keyW, LENS_H)
 		keyLabel.Visible = full
 		closeChip.root.Position = UDim2.fromOffset(keyW + Kit.space.xs, 0)

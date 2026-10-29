@@ -6,6 +6,11 @@
 --   lune run tests/ui/snap.luau -- campaign          shots whose name contains "campaign"
 --   lune run tests/ui/snap.luau -- --size phone      one size: phone | ipad | desktop
 --   lune run tests/ui/snap.luau -- --no-png          SVG only
+--   lune run tests/ui/snap.luau -- --no-inset        lay the screens out on the whole
+--                                                    screen (before D-092; the default,
+--                                                    as in game, lays them out without
+--                                                    the top bar's 58 px, the strip
+--                                                    Snapshot draws)
 --
 -- Writes build/snaps/<size>/<shot>.svg (build/ is gitignored) and, on a Mac,
 -- a .png next to each (qlmanage renders, sips crops; nothing is installed).
@@ -1129,6 +1134,36 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "Campaign", "LensClose")
 		end,
 	},
+	{
+		-- D-092: a key state (Texas: dashed, its owner's ring in the gaps) selected:
+		-- the selection's outline on top, every outline inside its own state.
+		name = "10k-select-key-c17",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "TX")
+		end,
+	},
+	{
+		-- D-092: the crowded Ohio valley with Kentucky selected; codes stay on
+		-- their states, values beside them or off with a leader.
+		name = "11c-select-crowded-c17",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "KY")
+		end,
+	},
+	{
+		-- D-092: Money's dollars with the Close races toggle on.
+		name = "14d-money-close-c17",
+		moment = "Plan",
+		screen = "Campaign",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "LensMoney")
+			tapIf(world, peer, "Campaign", "LensClose")
+		end,
+	},
 	{ name = "15-campaign-choice-week", moment = "ChoiceWeek", screen = "Campaign" },
 	{
 		-- Beat one of the reveal: "Both plans are in" and who goes first.
@@ -1754,6 +1789,7 @@ local SHOTS: { Shot } = {
 local filter: string? = nil
 local onlySize: string? = nil
 local png = true
+local inset = true -- the game area loses the top bar's 58 px, as in game (D-092)
 do
 	local args = process.args
 	local i = 1
@@ -1764,6 +1800,8 @@ do
 			i += 1
 		elseif arg == "--no-png" then
 			png = false
+		elseif arg == "--no-inset" then
+			inset = false
 		elseif arg ~= "--" then
 			filter = arg
 		end
@@ -1822,7 +1860,8 @@ for _, size in SIZES do
 			continue
 		end
 		print(`{size.name} {shot.name}`)
-		local world, peer = Rig.fixture(shot.moment, { x = size.x, y = size.y })
+		local world, peer =
+			Rig.fixture(shot.moment, { x = size.x, y = size.y, inset = if inset then 58 else nil })
 		if shot.steps then
 			shot.steps(world, peer)
 		end

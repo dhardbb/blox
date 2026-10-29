@@ -552,7 +552,7 @@ describe("Kit polish: icons", function()
 			check(icon.glyph ~= "", `{name} has no glyph`)
 			check(icon.id == "" or string.match(icon.id, "^rbxassetid://%d+$") ~= nil, `{name} id {icon.id}`)
 		end
-		expect(n >= 12):toBe(true) -- later batches add icons (D-090: flame, bug); Icons.spec names them
+		expect(n >= 12):toBe(true) -- later batches add icons (D-090: flame, bug; D-092: scale, chart-column); Icons.spec names them
 	end)
 end)
 

@@ -24,11 +24,11 @@
 --           and who is working it", so it may carry three marks; the map's
 --           legend row (Lens.mapLegend) says what they mean. Your internal
 --           poll numbers stay on the state card (Details)
---   Money   the Lens.MONEY_TOP richest pools for one more fundraiser this
---           week (Explain.action, the state card's number), each with 1 to 3
---           gold coins by how far it is above the median pool (D-079: 51
---           near-identical dollar figures said nothing; the dollars are on the
---           card); dim when your plan already empties the pool
+--   Money   what one more fundraiser would raise there this week
+--           (Explain.action, the state card's number) as dollars on every
+--           state ("$6.1", D-092: the user asked for the values back after
+--           D-079's coins); the Lens.MONEY_TOP richest pools in gold; dim when
+--           your plan already empties the pool
 --
 -- Close (D-079): a filter on top of any lens, remembered like the lens. On, a
 -- state whose public-poll lead (or lean, before the first poll) is more than
@@ -84,10 +84,9 @@ Lens.TIE = 0.5 -- a public-poll lead under this many points reads "tie"
 Lens.DRAINED = 0.05 -- $ a fundraiser would still raise: under this, the pool is spent
 Lens.MOMENTUM = 0.05 -- a momentum lead under this shows no chevron (nobody drifts)
 Lens.STRONG = 2 -- a momentum lead of this much or more shows ▲▲
-Lens.MONEY_TOP = 8 -- Money marks this many of the richest pools (ties by votes)
-Lens.COIN_TIERS = table.freeze({ 1.12, 1.25 }) -- x the median pool: 2 coins from the first, 3 from the second
+Lens.MONEY_TOP = 8 -- Money shows this many of the richest pools in gold (ties by votes)
 Lens.CLOSE = 8 -- points: the Close filter keeps states within this lead
-local COIN = Kit.color(Colors.player.Amber) -- the Money lens's coin (gold, the event strip's money plate)
+local COIN = Kit.color(Colors.player.Amber) -- the Money lens's gold (the event strip's money plate)
 
 -- Short codes for the issues (UI/IssueIcons): what the map shows while an
 -- issue's symbol is missing. An issue without one shows its first three letters.
@@ -131,7 +130,7 @@ function Lens.legend(_config: ConfigModule.Config, id: Id): string
 	elseif id == "Polls" then
 		return `Poll lead · {Kit.glyph.up} momentum · {Kit.glyph.bullet} ground game`
 	elseif id == "Money" then
-		return `Coins: the {Lens.MONEY_TOP} richest pools for a fundraiser`
+		return `$ one fundraiser raises · gold: the {Lens.MONEY_TOP} richest`
 	end
 	return `Votes · {Kit.STAR} = battleground`
 end
@@ -288,41 +287,28 @@ local function moneyLine(ctx: Context, s: StateView): Line
 	local drained = money < Lens.DRAINED
 	return {
 		parts = {
-			{ text = Numbers.money(money), color = if drained then Kit.colors.muted else Kit.colors.text },
+			{
+				text = Numbers.money(money),
+				-- A phone's map drops the "$" (the lens and its legend say it is money).
+				short = string.gsub(Numbers.money(money), "%$", ""),
+				color = if drained then Kit.colors.muted else Kit.colors.text,
+			},
 		},
 		dim = drained,
 	}
 end
 
--- How many coins (1 to 3) a pool of `money` earns against the `median` pool.
-function Lens.coinTier(money: number, median: number): number
-	if median <= 0 then
-		return 1
-	end
-	local ratio = money / median
-	if ratio >= Lens.COIN_TIERS[2] then
-		return 3
-	elseif ratio >= Lens.COIN_TIERS[1] then
-		return 2
-	end
-	return 1
-end
-
--- Money marks the MONEY_TOP richest pools with 1 to 3 coins by how far each
--- is above the median pool; the dollars are on the state card (D-079).
+-- Money shows every pool's dollars and the MONEY_TOP richest in gold
+-- (D-092; before, D-079 drew 1 to 3 coins on those 8 and no dollars).
 local function topPools(ctx: Context, lines: { [string]: Line })
 	local ids: { string } = {}
 	local amount: { [string]: number } = {}
-	local all: { number } = {}
 	for _, s in ctx.view.states do
 		amount[s.id] = Lens.fundraise(ctx, s.id)
-		table.insert(all, amount[s.id])
 		if amount[s.id] >= Lens.DRAINED then
 			table.insert(ids, s.id)
 		end
 	end
-	table.sort(all)
-	local median = all[(#all + 1) // 2] or 0
 	table.sort(ids, function(a: string, b: string): boolean
 		if math.abs(amount[a] - amount[b]) > 1e-9 then
 			return amount[a] > amount[b]
@@ -338,17 +324,9 @@ local function topPools(ctx: Context, lines: { [string]: Line })
 		keep[ids[k]] = true
 	end
 	for id, line in lines do
-		if keep[id] then
-			line.parts = {
-				{
-					text = "",
-					glyph = "coins",
-					glyphs = Lens.coinTier(amount[id], median),
-					glyphColor = COIN,
-				},
-			}
-		elseif not line.dim then
-			line.parts = {}
+		local part = line.parts[1]
+		if keep[id] and part then
+			part.color = Kit.textColor(COIN)
 		end
 	end
 end
@@ -374,7 +352,8 @@ function Lens.mapLegend(ctx: Context, id: Id): { LegendItem }?
 	local items: { LegendItem } = {
 		{ mark = "up", text = "momentum" },
 		-- ▲▲: a momentum lead of Lens.STRONG or more (D-079).
-		{ mark = "none", text = `{Kit.glyph.up}{Kit.glyph.up} strong`, color = Kit.colors.muted },
+		-- (Dropped first on a phone's narrow strip, D-092; the Map key still says it.)
+		{ mark = "none", text = `{Kit.glyph.up}{Kit.glyph.up} strong`, color = Kit.colors.muted, drop = 1 },
 		{ mark = "pip", color = colorOf(view, view.you), text = "" },
 	}
 	local rival = nil
