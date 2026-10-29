@@ -76,7 +76,11 @@ local StateCard = {}
 local GAP = Kit.space.sm
 local MAX_PILLS = 3
 local COLUMNS = 3 -- action buttons, message chips and pivot choices per row
-local ACTION_H = 72 -- px, one action button: its name over what it does, three lines (64 -> 72: ground game's two lines and its "$2.5 · no action", D-086)
+-- One action button: its name over what it does and, for an ad or ground
+-- game, its "$2.5 · no action" (64 -> 72, D-086). An iPad's narrow column
+-- wraps "+1.5 on election day" to three lines: at 72 the text ran out of the button
+-- over the next row's names (fix17).
+local ACTION_H = 96 -- px
 local ACTION_TRAY_H = 52 -- px, an action button in a landscape phone's tray (D-093): its name over its gain, two lines
 local MAIN_PHONE = 3 -- action buttons a portrait phone shows before "More actions"
 local MAIN_TRAY = 6 -- ... a landscape phone's tray: 3 x 2, first in the card (D-093)
