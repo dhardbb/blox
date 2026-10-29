@@ -31,16 +31,21 @@
 --
 -- Styles restrict the balanced policy for the harness's dominance checks.
 --
--- Difficulty (practice mode, D-057, D-087). The four levels a player picks
--- map to play profiles (Bot.styleFor); they differ only in judgment, never in
--- cash, AP or information, and every one decides from its own View:
+-- Difficulty (practice mode, D-057, D-087, D-095). The four levels a player
+-- picks map to play profiles (Bot.styleFor); they differ only in judgment, never
+-- in cash, AP or information, and every one decides from its own View:
 --   Easy     "Rookie"    misjudges every state's worth hard and stubbornly (a
 --                        random factor drawn once a match), random stances and
 --                        debate moves (BOT_ROOKIE_*)
 --   Medium   "Casual"    the same, a milder misjudgment (BOT_CASUAL_*)
---   Hard     "Hazy"      a mild misjudgment redrawn every plan, half its stances
---                        and debate moves random (BOT_HAZY_*; D-057's Easy)
---   Extreme  "Balanced"  the standard bot (the balance harness's; D-057's Medium)
+--   Hard     "Sharp"     a slight misjudgment redrawn every plan, a quarter of
+--                        its stances and debate moves random (BOT_SHARP_*)
+--   Extreme  "Expert"    the standard bot, but it expects the campaign to move
+--                        the polls much further before election night
+--                        (BOT_EXPERT_CAMPAIGN_VARIANCE), so it fights for every
+--                        state still in reach instead of only today's close ones
+-- "Hazy" (D-057's Easy, D-087's Hard) and "Balanced" (the standard bot, D-087's
+-- Extreme) are no player's level since D-095; the harnesses still name them.
 -- The misjudging profiles also draft on that hazy read. "Foresight" and
 -- "Strategist" (D-057's Hard and Extreme) are no player's level now; the Daily
 -- Race plays Foresight (Config.DAILY_BOT_STYLE) so its boards keep their
@@ -92,12 +97,13 @@ export type Style =
 	| "NicheIssues" -- the standard bot, but runs on the three lowest-EV issues (the niche check for D-047)
 	| "Rookie" -- the Easy level: misjudges hard, once a match; random stances and debate moves (D-087)
 	| "Casual" -- the Medium level: misjudges less, once a match; random stances and debate moves (D-087)
-	| "Hazy" -- the Hard level: a mild misjudgment redrawn every plan, half its decisions random (D-057's Easy)
+	| "Hazy" -- no level (D-095): a mild misjudgment redrawn every plan, half its decisions random (D-057's Easy, D-087's Hard)
+	| "Sharp" -- the Hard level: a slight misjudgment redrawn every plan, a quarter of its decisions random (D-095)
+	| "Expert" -- the Extreme level: the standard bot with a longer view of how far the campaign moves the polls (D-095)
 	| "Foresight" -- no level (D-087); the Daily Race's bot: predicts the opponent, weighs the chance of 270 (D-057's Hard)
 	| "Strategist" -- no level (D-087): Foresight pushed further (D-057's Extreme)
 
--- Practice difficulty: the level a player picks (D-057, D-087). Extreme plays
--- the standard Balanced bot.
+-- Practice difficulty: the level a player picks (D-057, D-087, D-095).
 export type Difficulty = "Easy" | "Medium" | "Hard" | "Extreme"
 
 local Bot = {}
@@ -118,15 +124,15 @@ function Bot.difficulty(value: any): Difficulty
 	return DEFAULT_DIFFICULTY
 end
 
--- The style a difficulty plays (D-087: Extreme is the standard Balanced bot).
+-- The style a difficulty plays (D-087, D-095).
 function Bot.styleFor(difficulty: Difficulty?): Style
 	local level = Bot.difficulty(difficulty)
 	if level == "Medium" then
 		return "Casual"
 	elseif level == "Hard" then
-		return "Hazy"
+		return "Sharp"
 	elseif level == "Extreme" then
-		return "Balanced"
+		return "Expert"
 	end
 	return "Rookie"
 end
@@ -151,6 +157,17 @@ function Bot.misjudgment(config: Config, style: Style?): Misjudgment?
 		}
 	elseif style == "Hazy" then
 		return { noise = config.BOT_HAZY_NOISE, once = config.BOT_HAZY_ONCE, slip = config.BOT_HAZY_SLIP }
+	elseif style == "Sharp" then
+		return { noise = config.BOT_SHARP_NOISE, once = config.BOT_SHARP_ONCE, slip = config.BOT_SHARP_SLIP }
+	end
+	return nil
+end
+
+-- The margin variance a style expects the campaign to add per week left: the
+-- Expert's own (D-095), else the standard bot's (Bot.tuning.campaignVariance).
+local function campaignVarianceFor(config: Config, style: Style?): number?
+	if style == "Expert" then
+		return config.BOT_EXPERT_CAMPAIGN_VARIANCE
 	end
 	return nil
 end
@@ -398,10 +415,10 @@ type Estimate = {
 	weight: number, -- scales what a point of margin here is worth (1 for Medium; D-057)
 }
 
-local function buildEstimates(config: Config, view: View): { Estimate }
+local function buildEstimates(config: Config, view: View, variance: number?): { Estimate }
 	local me, them = view.you, opponentOf(view)
 	local weeksLeft = math.max(0, config.WEEKS - view.week)
-	local campaign = T.campaignVariance * weeksLeft
+	local campaign = (variance or T.campaignVariance) * weeksLeft
 	local fresh: { [string]: any } = {}
 	for _, poll in view.internalPolls do
 		fresh[poll.state] = poll
@@ -944,7 +961,7 @@ function Bot.plan(config: Config, view: View, rng: Rng.Rng, style: Style?): any
 	if style == "Random" then
 		return Bot.randomPlan(config, view, rng)
 	end
-	local estimates = buildEstimates(config, view)
+	local estimates = buildEstimates(config, view, campaignVarianceFor(config, style))
 	local weights = Bot.misjudgedWeights(config, view, rng, style)
 	if weights then
 		for i, e in estimates do
@@ -1332,7 +1349,7 @@ function Bot.debate(config: Config, view: View, rng: Rng.Rng, style: Style?): an
 	then
 		return { move = Debate.MOVES[Rng.nextInt(rng, 1, #Debate.MOVES)], zinger = randomZinger() }
 	end
-	local estimates = buildEstimates(config, view)
+	local estimates = buildEstimates(config, view, campaignVarianceFor(config, style))
 	local cells = debateCells(config, view.issueMap, estimates, board, me, them, 1)
 	local move: number
 	local weights = EVEN
@@ -1369,7 +1386,7 @@ end
 -- A Decision phase (D-044): this week's stance. Every style decides the same
 -- way except Random and RandomStance (Bot.choose).
 function Bot.decide(config: Config, view: View, rng: Rng.Rng, style: Style?): any
-	local estimates = buildEstimates(config, view)
+	local estimates = buildEstimates(config, view, campaignVarianceFor(config, style))
 	return { choice = Bot.choose(config, view, estimates, rng, style) }
 end
 

@@ -220,17 +220,22 @@ local Config = {
 
 	-- Practice bot levels (D-057, D-087). They differ only in judgment: no level
 	-- gets other cash, AP or information, and every one decides from its own
-	-- View. Extreme is the standard (balance harness) bot and reads none of these.
+	-- View. Extreme plays the standard (balance harness) bot's judgment with a longer view (BOT_EXPERT_*).
 	-- Misjudging means each state's worth times a random log-normal factor.
 	BOT_ROOKIE_NOISE = 4, -- Easy: spread (log scale) of that factor; 4 all but ignores which states matter (the novice study's option A)
 	BOT_ROOKIE_ONCE = true, -- Easy: the factor is drawn once a match, so it stays wrong the same way every week, as a beginner does
 	BOT_ROOKIE_SLIP = 1, -- Easy: chance a debate move or a Choice stance is picked at random (always)
-	BOT_CASUAL_NOISE = 1.5, -- Medium: spread of that factor (the study's soft setting)
+	BOT_CASUAL_NOISE = 0.5, -- Medium: spread of that factor (1.5 -> 0.5, D-095: Medium was too easy; typical novice 41% -> ~22%)
 	BOT_CASUAL_ONCE = true, -- Medium: drawn once a match
 	BOT_CASUAL_SLIP = 1, -- Medium: chance a debate move or a Choice stance is random (always)
-	BOT_HAZY_NOISE = 0.45, -- Hard (D-057's Easy): spread of that factor
-	BOT_HAZY_ONCE = false, -- Hard: redrawn every plan, so it mostly averages out over a match
-	BOT_HAZY_SLIP = 0.5, -- Hard: chance a debate move or a Choice stance is random
+	BOT_SHARP_NOISE = 0.3, -- Hard (D-095): spread of that factor
+	BOT_SHARP_ONCE = false, -- Hard: redrawn every plan, so it mostly averages out over a match
+	BOT_SHARP_SLIP = 0.25, -- Hard: chance a debate move or a Choice stance is random
+	BOT_EXPERT_CAMPAIGN_VARIANCE = 24, -- Extreme (D-095): margin variance it expects the campaign to add per week left (the standard bot's 2); beats the standard bot ~80%
+	-- No player's level since D-095 (D-057's Easy, D-087's Hard); the tutorial harness's careless stand-in.
+	BOT_HAZY_NOISE = 0.45, -- Hazy: spread of that factor
+	BOT_HAZY_ONCE = false, -- Hazy: redrawn every plan
+	BOT_HAZY_SLIP = 0.5, -- Hazy: chance a debate move or a Choice stance is random
 	-- No player's level since D-087 (D-057's Hard and Extreme); the Daily Race plays Foresight.
 	BOT_FORESIGHT_WIN_CHANCE = 1, -- Foresight: how far state worth follows the chance of reaching 270 rather than expected EV (0 = the standard bot's worth)
 	BOT_FORESIGHT_SHARE = 1, -- Foresight: share of the opponent's predicted plan counted against this week's margins

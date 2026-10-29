@@ -1,23 +1,22 @@
 --!strict
--- Bot difficulty check (D-057, D-087): one level (or profile) against another,
+-- Bot difficulty check (D-057, D-087, D-095): one level (or profile) against another,
 -- seats alternating, two different candidates per match, every bot deciding
 -- from its own View. Prints each pairing's win rate with its 95% band, and how
 -- long one bot decision takes (mean, 99th percentile and worst, per bot and
 -- phase). Name a level (Easy, Medium, Hard, Extreme) or a profile (Rookie,
--- Casual, Hazy, Balanced, Foresight, Strategist).
+-- Casual, Sharp, Expert, Hazy, Balanced, Foresight, Strategist).
 --
---   lune run tests/harness/difficulty.luau                  -- the D-087 table, 400 matches a pairing (~1 min)
+--   lune run tests/harness/difficulty.luau                  -- the D-095 table, 400 matches a pairing (~1 min)
 --   lune run tests/harness/difficulty.luau 1000             -- the table, 1,000 a pairing
 --   lune run tests/harness/difficulty.luau Hard Extreme 800 -- one pairing (first named = the reported side)
 --   lune run tests/harness/difficulty.luau Easy Medium BOT_ROOKIE_NOISE=3   -- a Config variant
 --
 -- Each level should lose clearly to the next one up (the easier side reported;
--- D-087's 1,000-match run: Easy vs Medium 21.8%, Medium vs Hard 9.1%, Hard vs
--- Extreme 18.0%; Easy and Medium win almost nothing against the two above), and
--- the Daily Race's bot (Foresight) beats Extreme 68.9%, as D-057's Hard beat
--- Medium on the same seeds before D-087. How the levels fare against
--- new players is tests/harness/novice.luau ladder. Seats alternate and seeds are
--- fixed (300001 on), so a run repeats exactly.
+-- D-095 has the 1,000-match run), Extreme should beat every other profile, and
+-- the Daily Race's bot (Foresight, unchanged) is checked against the standard
+-- bot (Balanced) as D-087 did. How the levels fare against new players is
+-- tests/harness/novice.luau ladder. Seats alternate and seeds are fixed (300001
+-- on), so a run repeats exactly.
 
 local process = require("@lune/process")
 
@@ -28,7 +27,7 @@ local Match = require("@sim/Match")
 local Rng = require("@sim/Rng")
 local View = require("@sim/View")
 
-local PROFILES = { "Rookie", "Casual", "Hazy", "Balanced", "Foresight", "Strategist" }
+local PROFILES = { "Rookie", "Casual", "Sharp", "Expert", "Hazy", "Balanced", "Foresight", "Strategist" }
 
 local N = 400
 local named: { string } = {}
@@ -149,7 +148,9 @@ else
 			pairing(a, Bot.DIFFICULTIES[j])
 		end
 	end
-	pairing("Foresight", "Extreme") -- the Daily Race's bot (D-082's Hard) vs the standard bot
+	pairing("Foresight", "Balanced") -- the Daily Race's bot (D-082's Hard) vs the standard bot
+	pairing("Extreme", "Foresight") -- Extreme (the Expert) vs the Daily Race's bot
+	pairing("Extreme", "Strategist") -- and vs D-057's Extreme
 end
 
 print("")
