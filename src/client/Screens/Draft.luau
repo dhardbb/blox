@@ -236,7 +236,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- A note in the panel: a raised strip with its lines, outlined (orange for
 	-- a warning); it grows with them.
-	local function note(name: string, order: number): (Frame, UIStroke)
+	local function noteBox(name: string, order: number): (Frame, UIStroke)
 		local frame = Kit.panel({
 			Name = name,
 			LayoutOrder = order,
@@ -264,7 +264,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- Under the header of a battleground round: what nominating does, for both,
 	-- and (D-091, from playtests) that the rival may nominate your strongholds.
-	local roundNote, roundBar = note("RoundNote", ORDER.caption)
+	local roundNote, roundBar = noteBox("RoundNote", ORDER.caption)
 	local roundCaption = Kit.text(Words.battlegroundCaption(config), {
 		Name = "RoundCaption",
 		LayoutOrder = 1,
@@ -286,7 +286,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = roundNote,
 	})
 	-- Why the last tap was refused, with the rule behind it (D-091).
-	local noticeBox = note("Notice", ORDER.notice)
+	local noticeBox = noteBox("Notice", ORDER.notice)
 	local notice = Kit.text("", {
 		Name = "NoticeText",
 		Size = UDim2.fromScale(1, 0),
