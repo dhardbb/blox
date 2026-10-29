@@ -9,10 +9,10 @@
 -- headlessly (tests/net/Session.spec.luau).
 --
 -- Stages: "Input" (players submit for a Select, Draft, Decision, Debate round or
--- Plan phase; a Decision has its own TIMER_DECISION and no reveal after it,
--- D-044), "Show" (map reveal, the debate's intro, election night), "Reveal"
+-- Plan phase; a Decision has its own TIMER_DECISION, D-044, and a stance's
+-- result shows after it, TIMER_STANCE_REVEAL, before the plan, D-099), "Show" (map reveal, the debate's intro, election night), "Reveal"
 -- (draft reveal, resolve animation, a debate round's clash and the debate's
--- verdict, D-072), "Over". A debate week runs: intro (Show) -> three times
+-- verdict, D-072, a stance's result, D-099), "Over". A debate week runs: intro (Show) -> three times
 -- [round (Input, TIMER_DEBATE_ROUND) -> clash (Reveal)] -> verdict (Reveal). Every stage change bumps `step`; clients stamp each
 -- request with the step they saw, and stale requests are rejected.
 --
@@ -47,7 +47,7 @@ type Config = ConfigModule.Config
 
 export type SeatKind = "Human" | "Bot"
 export type Stage = "Input" | "Show" | "Reveal" | "Over"
-export type RevealKind = "Draft" | "Resolve" | "Debate" | "DebateIntro" | "Clash" | "Verdict" -- "Debate" is no longer sent (D-072)
+export type RevealKind = "Draft" | "Resolve" | "Debate" | "DebateIntro" | "Clash" | "Verdict" | "Stance" -- "Debate" is no longer sent (D-072)
 export type Reason = "Election" | "Forfeit" | "Abandoned"
 
 export type Seat = {
@@ -698,10 +698,15 @@ local function closeInput(session: Session, now: number)
 		then config.DRAFT_REVEAL
 		elseif phase == "Plan" then Resolve.revealTime(config, session.events)
 		elseif phase == "Debate" then config.TIMER_DEBATE_CLASH
+		elseif phase == "Decision" and #session.events > 0 then config.TIMER_STANCE_REVEAL
 		else 0
 	if reveal > 0 then
 		setStage(session, "Reveal", now, reveal)
-		session.reveal = if phase == "Draft" then "Draft" elseif phase == "Debate" then "Clash" else "Resolve"
+		session.reveal = if phase == "Draft"
+			then "Draft"
+			elseif phase == "Debate" then "Clash"
+			elseif phase == "Decision" then "Stance"
+			else "Resolve"
 		-- After the last round the match has left the Debate phase: the verdict follows.
 		session.verdictNext = phase == "Debate" and session.match.phase ~= "Debate"
 		broadcast(session)
@@ -1266,9 +1271,9 @@ function Session.skip(session: Session, p: number, step: any, now: number): (boo
 	end
 	local config = session.config
 	-- Draft reveals, the debate's intro and its clashes are short and not
-	-- skippable; its verdict is (D-072).
+	-- skippable; its verdict is (D-072), and so is a stance's result (D-099).
 	local resolving = session.stage == "Reveal" and session.reveal == "Resolve"
-	local verdict = session.stage == "Reveal" and session.reveal == "Verdict"
+	local verdict = session.stage == "Reveal" and (session.reveal == "Verdict" or session.reveal == "Stance")
 	local election = session.stage == "Show" and session.match.phase == "Election"
 	if not resolving and not verdict and not election then
 		return false, Session.Reason.NotSkippable

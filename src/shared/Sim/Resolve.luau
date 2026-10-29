@@ -1,10 +1,11 @@
 --!strict
 -- Weekly resolution in a fixed order: costs and flights, rallies, fundraisers,
--- media and attacks, pivots, the Choice event's stances, momentum, drift, then
+-- media and attacks, pivots, the event log, momentum, drift, then
 -- upkeep and polls. This week's event (Sim/Events) boosts rallies, media and
--- fundraisers within EVENT_CAP per player, state and week (D-027); a Choice
+-- fundraisers within EVENT_CAP per player, state and week (D-027). A Choice
 -- event's stances, taken in the week's Decision phase before the plan (D-044),
--- move the states that react to them (D-039).
+-- move the states that react to them (D-039) as that phase closes, before the
+-- plan (Resolve.stances, D-099).
 --
 -- Every step reads one start-of-step snapshot and applies all players' effects
 -- together (D-001), so the order of players in the match never matters.
@@ -303,79 +304,27 @@ function Resolve.week(config: Config, match: MatchState, plans: { Plan.Plan }): 
 		Support.national(config, match.states, national)
 	end
 
-	-- 5b. The Choice event (D-039): every player's secret stance, taken in the
-	-- week's Decision phase (D-044), moves the states that react to it, all from
-	-- one snapshot. Every event is logged publicly.
+	-- 5b. The week's event goes in the public log. A Choice event's stances
+	-- resolved when its Decision step closed (Resolve.stances, D-099), before the
+	-- plan; a caller that skipped that step (an old spec) resolves them here.
 	if event ~= nil then
-		local result: State.EventResult =
-			{ week = week, id = event.id, choices = nil, moves = nil, flips = nil }
 		if event.kind == "Choice" then
-			local choices: { Types.Choice } = {}
-			for p in match.players do
-				choices[p] = match.players[p].stance or Events.defaultChoice()
+			local done = Resolve.choiceResult(match, week)
+			if done == nil then
+				for _, e in Resolve.stances(config, match) do
+					table.insert(events, e)
+				end
+				done = Resolve.choiceResult(match, week)
 			end
-			local bases: { { string } } = {}
 			for p, player in match.players do
-				bases[p] = Events.baseOf(player)
+				cards[p].choice = player.stance or (if done and done.choices then done.choices[p] else nil)
 			end
-			local moves: { State.StateMove } = {}
-			batch = {}
-			for i, s in match.states do
-				local points = table.create(n, 0)
-				local any = false
-				for p, player in match.players do
-					points[p] = Events.stanceEffect(
-						config,
-						match.issueMap,
-						event,
-						choices[p],
-						i,
-						player.platform,
-						bases[p]
-					)
-					any = any or points[p] ~= 0
-				end
-				if any then
-					table.insert(moves, { state = s.id, points = points })
-					local entry = slot(batch, i, s)
-					for p = 1, n do
-						if points[p] > 0 then
-							entry.du += Support.addGain(config, s, p, points[p], entry.delta)
-						elseif points[p] < 0 then
-							entry.du += Support.addLoss(p, -points[p], entry.delta)
-						end
-					end
-				end
-			end
-			-- Leader changes on the start-of-week polls, the ones both players saw.
-			result.flips = Polls.projectFlips(match, moves)
-			local before: { { number } } = {}
-			for i, s in match.states do
-				before[i] = table.clone(s.support)
-			end
-			flush(match, batch)
-			for i, s in match.states do
-				for p = 1, n do
-					s.stanceShift[p] += s.support[p] - before[i][p]
-				end
-			end
-			for p in match.players do
-				cards[p].choice = choices[p]
-				local total = 0
-				for _, move in moves do
-					total += move.points[p]
-				end
-				table.insert(events, {
-					kind = "Choice",
-					player = p,
-					issue = choices[p] :: string,
-					amount = total,
-				})
-			end
-			result.choices = choices
-			result.moves = moves
+		else
+			table.insert(
+				match.eventLog,
+				{ week = week, id = event.id, choices = nil, moves = nil, flips = nil }
+			)
 		end
-		table.insert(match.eventLog, result)
 	end
 
 	-- 6. Momentum: decay, add this week's gains (scaled per candidate), clamp.
@@ -487,6 +436,108 @@ Resolve.REVEAL_STILL = table.freeze({
 	InternalPolls = true,
 	Flights = true,
 } :: { [string]: boolean })
+
+-- Week `week`'s resolved Choice result, if its stances have resolved.
+function Resolve.choiceResult(match: MatchState, week: number): State.EventResult?
+	local event = Events.at(match, week)
+	for k = #match.eventLog, 1, -1 do
+		local entry = match.eventLog[k]
+		if entry.week == week and entry.choices ~= nil and event ~= nil and entry.id == event.id then
+			return entry
+		end
+	end
+	return nil
+end
+
+-- The Choice event (D-039, D-099): every player's stance, taken in the week's
+-- Decision step (D-044), moves the states that react to it, all from one
+-- snapshot (D-001), as soon as that step closes, so both players see what the
+-- stances did before they plan the week. The public polls are republished
+-- with the same error terms (Polls.refresh, like a debate round's), the result
+-- goes in the public log, and both stances are public from then on. Draws
+-- nothing from the seed. Returns the events: one "Choice" per player (its
+-- total points) and a "PollFlip" (issue "Stance") per state whose public
+-- leader changed. Does nothing outside a Choice week or once resolved.
+-- Mutates `match`.
+function Resolve.stances(config: Config, match: MatchState): { Event }
+	local events: { Event } = {}
+	local week = match.week
+	local event = Events.at(match)
+	if event == nil or event.kind ~= "Choice" or Resolve.choiceResult(match, week) ~= nil then
+		return events
+	end
+	local n = #match.players
+	local choices: { Types.Choice } = {}
+	for p in match.players do
+		choices[p] = match.players[p].stance or Events.defaultChoice()
+	end
+	local bases: { { string } } = {}
+	for p, player in match.players do
+		bases[p] = Events.baseOf(player)
+	end
+	local moves: { State.StateMove } = {}
+	local batch: Batch = {}
+	for i, s in match.states do
+		local points = table.create(n, 0)
+		local any = false
+		for p, player in match.players do
+			points[p] =
+				Events.stanceEffect(config, match.issueMap, event, choices[p], i, player.platform, bases[p])
+			any = any or points[p] ~= 0
+		end
+		if any then
+			table.insert(moves, { state = s.id, points = points })
+			local entry = slot(batch, i, s)
+			for p = 1, n do
+				if points[p] > 0 then
+					entry.du += Support.addGain(config, s, p, points[p], entry.delta)
+				elseif points[p] < 0 then
+					entry.du += Support.addLoss(p, -points[p], entry.delta)
+				end
+			end
+		end
+	end
+	-- The log keeps the leader changes on the polls both players saw (D-039);
+	-- the republished polls' own changes go out as PollFlip events.
+	local projected = Polls.projectFlips(match, moves)
+	local before: { { number } } = {}
+	for i, s in match.states do
+		before[i] = table.clone(s.support)
+	end
+	flush(match, batch)
+	for i, s in match.states do
+		for p = 1, n do
+			s.stanceShift[p] += s.support[p] - before[i][p]
+		end
+	end
+	local flips = Polls.refresh(match)
+	for p in match.players do
+		local total = 0
+		for _, move in moves do
+			total += move.points[p]
+		end
+		table.insert(events, {
+			kind = "Choice",
+			player = p,
+			issue = choices[p] :: string,
+			amount = total,
+		})
+	end
+	for _, flip in flips do
+		table.insert(events, {
+			kind = "PollFlip",
+			player = flip.to,
+			state = flip.state,
+			issue = "Stance",
+			amount = StateData.byId[flip.state].ev,
+		})
+	end
+	table.insert(
+		match.eventLog,
+		{ week = week, id = event.id, choices = choices, moves = moves, flips = projected }
+	)
+	return events
+end
 
 -- The steps the week's reveal has at most on any screen: each player's moves
 -- (or one step for only still events), one for events with no player, and the

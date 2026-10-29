@@ -47,6 +47,7 @@ local function clean(id: string?): State.MatchState
 		s.lean, s.leanTo = 0, nil
 		s.battleground, s.owner, s.isHome = false, nil, false
 		s.momentum = { 0, 0 }
+		s.stanceShift = { 0, 0 } -- a stance the fixture's own week 2 took (D-099)
 		s.pool = s.capacity
 		s.poll = { support = { 35, 35 }, undecided = 30 }
 	end

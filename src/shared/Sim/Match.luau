@@ -3,7 +3,7 @@
 -- (home, then nominations) -> week n -> ... -> Election -> Done, where a week is
 --   [Debate round 1 -> 2 -> 3] -> [Decision "Stance"] -> Plan
 -- (the debate's live rounds only in debate weeks, D-072, Sim/Debate; the stance
--- only in Choice weeks, D-044, Sim/Decision).
+-- only in Choice weeks, D-044, Sim/Decision; its stances resolve as it closes, D-099).
 --
 -- Pure: Match.new(config, seed, playerIds, colorPass?) builds a match; Match.advance(config,
 -- match, inputs) returns a new state plus events and never mutates its argument.
@@ -627,6 +627,11 @@ function Match.advance(
 		end
 	elseif phase == "Decision" then
 		Decision.apply(config, match, collect(config, match, given))
+		-- The stances resolve now, before the plan (D-099): both players plan on
+		-- the polls they made.
+		if match.decision == "Stance" then
+			events = Resolve.stances(config, match)
+		end
 		decideOrPlan(match, nil)
 	elseif phase == "Plan" then
 		events = Resolve.week(config, match, collect(config, match, given))
