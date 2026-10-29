@@ -376,7 +376,7 @@ function Words.key(id: string): { string }
 			"▲ momentum (▲▲ strong) in its color; ● your ground game, ○ theirs polled."
 		)
 	elseif id == "Money" then
-		table.insert(lines, "Coins: the 8 states where a fundraiser raises most; more coins, more money.")
+		table.insert(lines, "The number is what one fundraiser raises there; gold: the 8 richest.")
 		table.insert(lines, "Faded: your plan already empties that state's money.")
 	else
 		table.insert(lines, "The number is how many votes the state is worth.")
@@ -385,7 +385,7 @@ function Words.key(id: string): { string }
 	table.insert(lines, Words.KEY_MAP)
 	table.insert(lines, "Faint numbers: what your plan moves there, if nothing else changes.")
 	table.insert(lines, "Faces: where each candidate is (yours is bigger); tap the state for the name.")
-	table.insert(lines, "Close: shows only the states within 8 points; the rest fade.")
+	table.insert(lines, "Close races: shows only the states within 8 points; the rest fade.")
 	table.insert(lines, "Tap a state to see it and act there.")
 	return lines
 end

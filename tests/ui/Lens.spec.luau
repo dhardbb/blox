@@ -7,11 +7,13 @@
 -- the strict UI audit, with each mark inside the map, at phone and tablet sizes
 -- on the Campaign and Draft screens.
 
+local Colors = require("@ui/Colors")
 local Config = require("@sim/Config")
 local Explain = require("@ui/Explain")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
 local IssueMap = require("@sim/IssueMap")
+local Numbers = require("@ui/Numbers")
 local PlanDraft = require("@ui/PlanDraft")
 local Rig = require("./Rig")
 local StateData = require("@sim/StateData")
@@ -387,10 +389,10 @@ describe("Map lenses", function()
 	end)
 
 	it(
-		"Money: 1 to 3 coins on the 8 richest pools by the median; dimmed once your plan empties one",
+		"Money: every state's dollars, the 8 richest in gold, no coins; dimmed once your plan empties one",
 		function()
 			local world, peer = Rig.fixture("Plan")
-			local Lens = modules(world, peer)
+			local Lens, Kit = modules(world, peer)
 			Rig.tap(world, peer, "Campaign", "LensMoney")
 			local view = Fixtures.payload(C, "Plan").view
 			local empty = PlanDraft.new()
@@ -399,30 +401,23 @@ describe("Map lenses", function()
 				table.insert(amounts, Explain.action(C, view, empty, s.id, "Fundraise").money or 0)
 			end
 			table.sort(amounts)
-			local median = amounts[(#amounts + 1) // 2]
 			local floor = amounts[#amounts - Lens.MONEY_TOP + 1]
-			local marked = 0
+			local gold = Kit.textColor(Kit.color(Colors.player.Amber))
+			local golden = 0
 			for _, s in view.states do
 				local money = Explain.action(C, view, empty, s.id, "Fundraise").money or 0
+				-- D-092: the dollars on every state, as on its card.
+				expect(pills(peer, "Campaign", s.id)):toEqual({ Numbers.money(money) })
 				local row = mapOf(peer, "Campaign").Nodes:FindFirstChild(s.id).Lens
-				local coins = 0
 				for _, child in row:GetChildren() do
-					if string.match(child.Name, "^Glyph") then
-						coins += 1
-					end
+					check(not string.match(child.Name, "^Glyph"), `{s.id} still has a coin`)
 				end
-				if coins > 0 then
-					marked += 1
-					check(money >= floor - 1e-9, `{s.id} has coins but is not among the richest`)
-					expect(coins):toBe(Lens.coinTier(money, median))
-					-- No dollar figure on the map: it is on the card.
-					expect(#pills(peer, "Campaign", s.id)):toBe(0)
+				if same(pill(peer, "Campaign", s.id, 1).TextColor3, gold) then
+					golden += 1
+					check(money >= floor - 1e-9, `{s.id} is gold but not among the richest`)
 				end
 			end
-			check(marked > 0 and marked <= Lens.MONEY_TOP, `{marked} pools marked on the map`)
-			expect(Lens.coinTier(5, 5)):toBe(1)
-			expect(Lens.coinTier(5.7, 5)):toBe(2)
-			expect(Lens.coinTier(6.5, 5)):toBe(3)
+			expect(golden):toBe(Lens.MONEY_TOP)
 			-- Enough fundraisers in OH take the whole pool: one more raises nothing.
 			local draft = PlanDraft.new()
 			for _ = 1, 40 do
@@ -516,7 +511,7 @@ describe("Map lenses", function()
 		expect(selected(peer, "Draft")):toEqual({ "Money" })
 		local function anyMoney(screen: string, _view: any): boolean
 			for _, inst in mapOf(peer, screen):GetDescendants() do
-				if string.match(inst.Name, "^Glyph") then
+				if string.match(inst.Name, "^Part%d") and string.sub(tostring(inst.Text), 1, 1) == "$" then
 					return true
 				end
 			end
