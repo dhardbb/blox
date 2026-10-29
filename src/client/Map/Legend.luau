@@ -15,16 +15,16 @@ local GAP = 6 -- px between items
 local CHAR_W = 8 -- px, an estimated caption character (to drop items on a phone)
 local PIP = 8 -- px, a pip mark
 local ICON = Kit.MIN_ICON -- px, an issue symbol mark (D-076)
-local KEY_W, KEY_H = 16, 10 -- px, a key state's swatch (D-088)
-local KEY_LINE = 2 -- px, its gold edge (D-101)
-local KEY_INNER_FADE = 0.3 -- the dark keyline inside it (ShapeMap.KEY_LINE_FADE)
+local KEY_W, KEY_H = 18, 12 -- px, a key state's swatch (D-088)
+local KEY_LINE = 4 -- px, its highlighter band (D-101; ShapeMap.KEY_PX, a little narrower at this size)
+local KEY_FADE = 0.35 -- ... its transparency (ShapeMap.KEY_FADE)
 local ROW_H = Kit.size.caption + 2 -- px
 
 export type Rect = { x: number, y: number, w: number, h: number }
 
--- A key state's mark (D-101), as the map draws one: a solid gold edge with
--- the dark keyline inside it, KEY_W x KEY_H. The legend row and the Campaign's
--- key states line both use it.
+-- A key state's mark (D-101), as the map draws one: a highlighter-yellow
+-- band, KEY_W x KEY_H. The legend row and the Campaign's key states line both
+-- use it.
 function Legend.keySwatch(parent: Instance, order: number): Frame
 	local swatch = Kit.new("Frame", {
 		Name = "Mark",
@@ -55,8 +55,7 @@ function Legend.keySwatch(parent: Instance, order: number): Frame
 			})
 		end
 	end
-	box("Edge", 0, KEY_LINE, Kit.colors.keyGold, 0)
-	box("Line", KEY_LINE, 1, Kit.colors.background, KEY_INNER_FADE)
+	box("Edge", 0, KEY_LINE, Kit.colors.keyGold, KEY_FADE)
 	return swatch
 end
 

@@ -37,6 +37,7 @@ export type Data = {
 	ASPECT: number,
 	atlases: { { file: string, w: number, h: number } },
 	borders: Rect & { file: string, pw: number, ph: number },
+	ink: Rect & { file: string, pw: number, ph: number },
 	legend: Rect,
 	shapes: { Shape },
 }
@@ -49,6 +50,7 @@ local data: Data = {
 		{ file = "assets/map/map-states-2.png", w = 926, h = 281 },
 	},
 	borders = { file = "assets/map/map-borders.png", x = 0.0055, y = 0.0088, w = 0.8686, h = 0.8755, pw = 1023, ph = 645 },
+	ink = { file = "assets/map/map-ink.png", x = 0.0061, y = 0.0044, w = 0.8708, h = 0.8844, pw = 1023, ph = 650 },
 	legend = { x = 0.0055, y = 0.8888, w = 0.8686, h = 0.1068 },
 	shapes = {
 		{

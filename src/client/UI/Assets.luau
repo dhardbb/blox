@@ -10,9 +10,14 @@
 --   mapStates1, mapStates2   assets/map/map-states-<k>.png: the real map's state
 --           fill atlases (D-070, scripts/mapgen/make.py), tinted per state
 --   mapBorders  assets/map/map-borders.png: the state border lines, tinted dark
+--   mapStates1a, mapStates2a  assets/map/map-states-<k>a.png: the same atlases as
+--           marker scribble slanted / (the whiteboard map, seat 1)
+--   mapStates1b, mapStates2b  ... slanted \ (seat 2)
+--   mapInk  assets/map/map-ink.png: every border and the coast in wobbly marker
 --
 -- If a map id is ever emptied again, the game falls back to the circle map
--- (Map/NodeMap) until all three are set.
+-- (Map/NodeMap) until all three are set. Until all four scribbled atlases are
+-- set the map keeps the flat fills, and until mapInk is set the old borders.
 --
 -- While an id is "" the helpers still build their ImageLabel (attribute Asset
 -- names it, so the headless snapshots draw a stand-in) but it shows nothing in
@@ -35,6 +40,11 @@ export type Assets = {
 	mapStates1: Asset,
 	mapStates2: Asset,
 	mapBorders: Asset,
+	mapStates1a: Asset,
+	mapStates2a: Asset,
+	mapStates1b: Asset,
+	mapStates2b: Asset,
+	mapInk: Asset,
 	portraits: { [string]: number },
 }
 
@@ -55,6 +65,11 @@ local Assets: Assets = {
 	mapStates1 = { id = "rbxassetid://105693687672536", kind = "atlas" },
 	mapStates2 = { id = "rbxassetid://84531905119471", kind = "atlas" },
 	mapBorders = { id = "rbxassetid://127447041117262", kind = "overlay" },
+	mapStates1a = { id = "", kind = "atlas" }, -- map-states-1a.png (not uploaded yet)
+	mapStates2a = { id = "", kind = "atlas" }, -- map-states-2a.png
+	mapStates1b = { id = "", kind = "atlas" }, -- map-states-1b.png
+	mapStates2b = { id = "", kind = "atlas" }, -- map-states-2b.png
+	mapInk = { id = "", kind = "overlay" }, -- map-ink.png
 }
 
 return table.freeze(Assets)

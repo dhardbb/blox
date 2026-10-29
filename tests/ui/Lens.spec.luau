@@ -141,19 +141,16 @@ describe("Map lenses", function()
 				local part = pill(peer, "Campaign", s.id, 1)
 				local plate = mapOf(peer, "Campaign").Nodes:FindFirstChild(s.id).Plate
 				local edge = plate:FindFirstChild("Edge")
-				-- "PA 19": one dark plate, the number white on it (never orange).
+				-- "PA 19": written on the board in ink (never orange), no plate behind it.
 				check(same(part.TextColor3, Kit.colors.text), `{s.id}: the number is not the text color`)
-				check(
-					plate.Visible and same(plate.BackgroundColor3, Kit.colors.field),
-					`{s.id}: no field plate`
-				)
+				check(plate.Visible and plate.BackgroundTransparency == 1, `{s.id}: a plate behind the label`)
 				if s.battleground then
 					-- D-056/D-058: a battleground is good news: a star and a white
 					-- outline on the same plate, never a white fill (that means "selected").
 					expect(pills(peer, "Campaign", s.id)):toEqual({ Kit.STAR .. ev })
 					check(
 						same(edge.Color, Kit.colors.text) and edge.Transparency == 0,
-						`{s.id}: a battleground's plate is not outlined in white`
+						`{s.id}: a battleground's plate is not outlined in ink`
 					)
 				else
 					expect(pills(peer, "Campaign", s.id)):toEqual({ ev })
@@ -588,13 +585,14 @@ describe("Lens motion", function()
 		end
 		check(shownPills > 10, `only {shownPills} lens pills`)
 		Rig.tap(world, peer, "Campaign", "OH", 0.5)
-		-- The real map outlines the selection (3 px); a callout state's chip edge draws in.
+		-- The real map outlines the selection in thick marker (4 px); a callout
+		-- state's chip edge draws in.
 		local outline = map.Outlines:FindFirstChild("OutlineOH")
 		check(outline ~= nil and outline.Visible, "no selection outline")
-		expect(outline:GetChildren()[1].Size.Y.Offset):toBe(3)
+		expect(outline:GetChildren()[1].Size.Y.Offset):toBe(4)
 		Rig.tap(world, peer, "Campaign", "RI", 0.5)
 		local ring = map.Nodes.RI.Chip:FindFirstChildOfClass("UIStroke")
-		expect(ring.Thickness):toBe(3)
+		expect(ring.Thickness):toBe(4)
 		Rig.noErrors(world)
 	end)
 end)

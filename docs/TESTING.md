@@ -1422,3 +1422,20 @@ Use a real phone held upright (iPhone or Android) through the published experien
 11. **Lobby as an admin, phone.** Tap the clock (timers) toggle. **Expect:** all corner buttons on screen; "Timers off (admin)" shows under them.
 12. **End screen, phone.** **Expect:** each candidate card reads e.g. "Goldie / 378 votes / You · 31 states / 2 topics won", nothing cut off.
 13. *Send back:* anything still hidden under the bar or overlapping, with a screenshot, and any Output errors from `Campaign`, `TopBar`, `Decision`, `Debate`, `Settings` or `App`.
+
+## Whiteboard map
+
+The map's whiteboard look (`docs/proposals/whiteboard.md`). Test on the Plan screen and on Election night, at phone (390 x 844), iPad (1024 x 768) and desktop (1280 x 720). Send back a screenshot of each.
+
+Before the new map images are uploaded (ids empty in `src/client/UI/Assets.luau`):
+
+1. Start a practice match. **Expect:** the map looks as before (flat colors, old borders), except: codes and numbers are hand-lettered with no dark plates behind them; key states have a see-through yellow band inside their border and an asterisk after the code ("TX*"); Alaska's and Hawaii's boxes are thin pencil lines with square corners.
+2. Tap a key state. **Expect:** a thick black outline around it, drawn over the yellow band, with the band still visible inside it. Tap a neighbor: the two outlines sit side by side, neither covers the other.
+3. On a phone, read every state code. **Expect:** every code readable; none moves when you switch lenses (Votes, Issues, Polls, Money); a value may move around its code. **Send back:** any code that is hard to read.
+4. Election night: watch a few calls. **Expect:** the state just called turns highlighter yellow with a thick black outline, no dark shadow, and its code stays readable; the next call moves the yellow on.
+
+After uploading `assets/map/map-states-1a.png`, `map-states-2a.png`, `map-states-1b.png`, `map-states-2b.png` and `map-ink.png` (ids into `Assets.luau`: `mapStates1a`, `mapStates2a`, `mapStates1b`, `mapStates2b`, `mapInk`):
+
+5. Start a practice match. **Expect:** states colored in with marker scribble; your states' strokes slant one way (`/` for the first seat), your rival's the other (`\`); toss-ups blank board; leans lighter than safe states. Black wobbly marker lines for every border and the coast; Alaska and Hawaii outlined in their boxes.
+6. Turn on a greyscale filter (Mac: System Settings, Accessibility, Display, Color filters, Grayscale). **Expect:** who leads each state still reads from the slant alone.
+7. **Send back:** screenshots, and whether the scribble reads as marker or as a pattern.

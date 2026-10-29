@@ -27,9 +27,32 @@ type Mounted = {
 	map: any,
 }
 
--- The real map filling a `w` x `h` frame on a client (Rig turns NodeMap.preview on).
-local function mount(w: number, h: number): Mounted
+-- Stand-in ids for the whiteboard images (scribbled atlases, the ink
+-- overlay), as if uploaded, on top of the real ones.
+local function whiteboardAssets(world: FakeRoblox.World, peer: FakeRoblox.Peer): { [string]: any }
+	local Assets = FakeRoblox.require(world, peer, "src/client/UI/Assets.luau")
+	local list: { [string]: any } = table.clone(Assets)
+	local n = 0
+	for _, key in { "mapStates1a", "mapStates2a", "mapStates1b", "mapStates2b" } do
+		n += 1
+		list[key] = { id = `rbxassetid://9000{n}`, kind = "atlas" }
+	end
+	list.mapInk = { id = "rbxassetid://90009", kind = "overlay" }
+	return list
+end
+
+-- The real map filling a `w` x `h` frame on a client (Rig turns NodeMap.preview
+-- on); `whiteboard`: with the whiteboard's images as if uploaded.
+local function mount(w: number, h: number, whiteboard: boolean?): Mounted
 	local world, peer = Rig.fixture("Lobby", nil)
+	if whiteboard then
+		FakeRoblox.setModuleField(
+			world,
+			"src/client/Map/ShapeMap.luau",
+			"assets",
+			whiteboardAssets(world, peer)
+		)
+	end
 	local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 	local Audit = FakeRoblox.require(world, peer, "src/client/UI/Audit.luau")
 	local NodeMap = FakeRoblox.require(world, peer, "src/client/Map/NodeMap.luau")
@@ -129,6 +152,101 @@ describe("ShapeMap", function()
 		check(same(root.Shapes.ShapeVT.ImageColor3, m.Kit.color(Colors.neutral)), "VT fill")
 		-- A callout state's chip wears the same fill.
 		check(same(button(m, "VT").Chip.BackgroundColor3, m.Kit.color(Colors.neutral)), "VT chip fill")
+	end)
+
+	it("picks the scribble by the leading seat: / for seat 1, \\ for seat 2, none for a toss-up", function()
+		local m = mount(390, 244)
+		local ShapeMap = FakeRoblox.require(m.world, m.peer, "src/client/Map/ShapeMap.luau")
+		expect(ShapeMap.leaderOf({ 52, 40 })):toBe(1)
+		expect(ShapeMap.leaderOf({ 40, 52 })):toBe(2)
+		expect(ShapeMap.leaderOf({ 50, 48 })):toBe(nil) -- a toss-up band: blank board
+		expect(ShapeMap.leaderOf({ 45, 45 })):toBe(nil)
+		expect(ShapeMap.leaderOf(nil)):toBe(nil)
+		expect(ShapeMap.slant(1)):toBe("/")
+		expect(ShapeMap.slant(2)):toBe("\\")
+		local full = whiteboardAssets(m.world, m.peer)
+		expect(ShapeMap.hatched(full)):toBe(true)
+		expect(ShapeMap.fillAsset(1, 1, full)):toBe("mapStates1a")
+		expect(ShapeMap.fillAsset(2, 2, full)):toBe("mapStates2b")
+		expect(ShapeMap.fillAsset(1, nil, full)):toBe("mapStates1")
+		-- One seat's scribbles alone never show: the map would mix looks.
+		local half = table.clone(full)
+		half.mapStates2b = { id = "", kind = "atlas" }
+		expect(ShapeMap.hatched(half)):toBe(false)
+		expect(ShapeMap.fillAsset(1, 1, half)):toBe("mapStates1")
+		expect(ShapeMap.inked(half)):toBe(true)
+		half.mapInk = { id = "", kind = "overlay" }
+		expect(ShapeMap.inked(half)):toBe(false)
+
+		-- On the map, as if uploaded: Ohio leads for seat 1, Texas leans to
+		-- seat 2, Vermont and Iowa are toss-ups (no scribble), Ohio hollow keeps its paper fill.
+		local wb = mount(390, 244, true)
+		local blue, red = { r = 70, g = 110, b = 220 }, { r = 220, g = 70, b = 80 }
+		local view = {
+			states = {
+				{ id = "OH", poll = { support = { 52, 40 }, undecided = 8 } },
+				{ id = "TX", leanTo = 2, lean = 5 },
+				{ id = "IA", poll = { support = { 47, 46 }, undecided = 7 } },
+				{ id = "VT" },
+			},
+		}
+		wb.map:setView(view :: any, { blue, red })
+		local shapes = wb.map.root.Shapes
+		local function atlasId(id: string, suffix: string): string
+			return full[`mapStates{MapShape.get(id).atlas}{suffix}`].id
+		end
+		expect(shapes.ShapeOH.Image):toBe(atlasId("OH", "a"))
+		expect(shapes.ShapeOH:GetAttribute("Hatch")):toBe("/")
+		expect(shapes.ShapeTX.Image):toBe(atlasId("TX", "b"))
+		expect(shapes.ShapeTX:GetAttribute("Hatch")):toBe("\\")
+		for _, id in { "IA", "VT" } do
+			expect(shapes[`Shape{id}`]:GetAttribute("Hatch")):toBe("")
+			expect(shapes[`Shape{id}`].ImageTransparency):toBe(1)
+		end
+		-- The band still steps the strength: the tint is the band fill.
+		local Colors = require("@ui/Colors")
+		check(
+			same(shapes.ShapeOH.ImageColor3, wb.Kit.color(Colors.bandFill({ 52, 40 }, { blue, red }))),
+			"OH's scribble is not its band's tint"
+		)
+		wb.map:setMarks({ OH = { hollow = true } })
+		expect(shapes.ShapeOH.Image):toBe(atlasId("OH", ""))
+		expect(shapes.ShapeOH:GetAttribute("Hatch")):toBe("")
+		-- The ink overlay in ink; Alaska and Hawaii get their coasts drawn.
+		local borders = wb.map.root.Borders.BorderLines
+		expect(borders:GetAttribute("Asset")):toBe("mapInk")
+		expect(borders.Image):toBe(full.mapInk.id)
+		expect(borders.ImageColor3):toBe(wb.Kit.colors.text)
+		check(wb.map.root.Outlines:FindFirstChild("CoastAK") ~= nil, "no coast around Alaska")
+
+		-- Not uploaded yet (the real ids): the flat fills and the old borders.
+		m.map:setView(view :: any, { blue, red })
+		local flat = m.map.root.Shapes
+		local Assets = FakeRoblox.require(m.world, m.peer, "src/client/UI/Assets.luau")
+		expect(flat.ShapeOH.Image):toBe((Assets :: any)[`mapStates{MapShape.get("OH").atlas}`].id)
+		expect(flat.ShapeOH:GetAttribute("Hatch")):toBe("")
+		expect(flat.ShapeVT.ImageTransparency):toBe(0)
+		expect(m.map.root.Borders.BorderLines:GetAttribute("Asset")):toBe("mapBorders")
+		check(m.map.root.Outlines:FindFirstChild("CoastAK") == nil, "a coast over the old borders")
+	end)
+
+	it("highlights the latest call: a yellow fill, a thick ink outline, no dark glow", function()
+		local m = mount(832, 520)
+		m.map:setMarks({ TX = { ring = m.Kit.colors.accent } })
+		settle(m)
+		local root = m.map.root
+		local spot = root.Shapes:FindFirstChild("SpotTX")
+		check(spot ~= nil and spot.Visible, "no highlighter fill on Texas")
+		expect(spot.ImageColor3):toBe(m.Kit.colors.keyGold)
+		local outline = root.Outlines:FindFirstChild("OutlineTX")
+		check(outline ~= nil and outline.Visible, "no outline on Texas")
+		expect(outline:GetChildren()[1].BackgroundColor3):toBe(m.Kit.colors.accent)
+		expect(outline:GetChildren()[1].Size.Y.Offset):toBe(4)
+		local bloom = root.Shadows:FindFirstChild("BloomTX")
+		check(bloom == nil or not bloom.Visible, "Texas still glows")
+		expect(button(m, "TX").Label.TextColor3):toBe(m.Kit.colors.text)
+		m.map:setMarks({})
+		check(not spot.Visible, "the highlighter stayed after the call moved on")
 	end)
 
 	it("gives every state a tap target of at least 36 px; callouts get chips and one bracket", function()
