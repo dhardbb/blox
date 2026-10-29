@@ -4,6 +4,20 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## 0.17.0: Landscape phones, new looks, match records, stronger Medium and Hard (Oct 29, 2026)
 
+### Fixes from the merged-build review
+
+A look at every screen of the merged 0.17 build at phone, iPad and desktop sizes. Studio checklist: `docs/TESTING.md`, "Fixes from the merged-build review (0.17.0)". No rule or number changes.
+
+- **Plan screen, phone:** the week's event strip no longer squeezes a "THIS WEEK" tag beside the name ("Windfall · Sm…"); the full name shows ("Windfall · Small-dollar surge"), and next week's event says "Next week: …" in its title.
+- **Lobby, phone:** the leaderboard card shows the top 3 again (a tighter card: your rank under the title, smaller rows). With the Color, Review names or Bug reports row, the level's one-line note steps aside so the column no longer runs under the top bar and off the bottom.
+- **How to play, phone:** Back, the dots and Next sit in the sheet's title row, so Next is always in view (the Actions page's picture used to push it out of sight) and "Play the tutorial" shows whole.
+- **Sheets, phone:** rows sit a little closer, so "Play a friend" shows the code box and Join without scrolling. **Your color:** "Get the Color Pass" comes right under its line, above the greyed colors.
+- **Draft, iPad:** the "Leans to you / Leans to Buster" key no longer wraps word by word; the two keys stack on one line each (on the map reveal's narrow row, just "You" and the rival's name). The Strongholds card gives a long state name more room, and "Best picks" no longer covers "30 votes" with the "+2 Buster" pill.
+- **Plan screen, iPad:** the six action buttons are taller, so "+1.5 on election day" and its "$2.5 · no action" stay inside the button instead of running over the next row's names.
+- **Stance week, phone:** an option's name can take three lines ("C · Leave it to the districts (safe)") without covering its numbers.
+- **Debate, phone:** the header reads "Week 9 · Round 2/3" (it lost the "3" of "Round 2 of 3").
+- **Map key line, phone:** when the issue symbols' key is too long, the last item is dropped instead of running under the small states' chips. **Select:** the step dots no longer touch "Candidate" and "Issues".
+
 ### Debate, election night and the end screen (D-098)
 
 Studio checklist: `docs/TESTING.md`, "Debate, election night and the end screen (D-098)". Nothing needed from the humans.

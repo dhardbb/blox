@@ -1374,3 +1374,20 @@ Play vs Bot on the iPad and on a phone held sideways (or Studio's device emulato
 9. **Stance week.** **Expect:** each option has a "Net +N" (green) or "Net −N" (orange) pill; the picked option (C at first) has a check at its top right; the "Helps you / Hurts you" key above the map is bigger. On a sideways phone the three options sit side by side and all three are visible without scrolling. *Send back:* an iPad and a phone screenshot.
 10. **Last seconds.** On any of these screens, let the timer run below 10 seconds without locking in. **Expect:** the timer turns orange (as before) and the Lock in button pulses once and shows a grey veil that shrinks to the left as the time runs out. With Settings → Reduce motion on, there is no pulse (the veil still shrinks).
 11. *Send back:* any Output errors from `Select`, `Draft`, `Decision` or `EventCard`.
+
+## Fixes from the merged-build review (0.17.0)
+
+Agents: `lune run tests Lobby`, `lune run tests Draft`, `lune run tests Lens`; snapshots `lune run tests/ui/snap.luau -- --size phone` (and `ipad`, `desktop`), 0 findings in `build/snaps/audit.txt`. Shots to look at: `01-lobby`, `01g-lobby-admin`, `02h-howto-3-actions`, `02b-lobby-friend`, `02c-lobby-color-locked`, `09-campaign-plan`, `12-lens-issues`, `30b-tutorial-stance`, `08a-debate-round` (phone); `06-draft`, `05-map-reveal` (iPad).
+
+Use a phone held sideways (or Studio's device emulator at 844 x 390 landscape) and the iPad.
+
+1. **Lobby, phone.** **Expect:** under the LANDSLIDE logo, the Leaderboard card with "You: #… · …" under its title and three rows (gold, silver, bronze) above the bottom edge. As an admin (Color, Review names, Bug reports row showing): Play vs Bot starts below the top bar and the Daily Race card ends above the bottom edge. *Send back:* a screenshot.
+2. **How to play, phone.** Open it and step to page 3 (Your actions). **Expect:** Back, the dots and Next at the top beside the page title; Next works on every page without scrolling. *Send back:* OK or a screenshot.
+3. **Play a friend and Your color, phone.** **Expect:** the code box and Join visible without scrolling; without the Color Pass, "Get the Color Pass" right under the first line.
+4. **Plan screen, phone.** **Expect:** the event strip shows the event's whole name (e.g. "Windfall · Small-dollar surge") with no "THIS WEEK" tag; with Esme's preview, the title starts with "Next week:".
+5. **Draft on the iPad.** **Expect:** above the map, left of Close races, "● Leans to you" over "● Leans to Buster", each on one line; on the map reveal just "You" and the rival's name.
+5b. **Plan screen on the iPad.** Tap a state. **Expect:** each of the six action buttons holds its name, what it does and (Ad, Attack, Ground) its price line, with nothing spilling onto the button below.
+6. **Stance week, phone.** **Expect:** each of the three options shows its whole name, then its numbers, then the Net pill, with nothing on top of anything.
+7. **Debate, phone.** **Expect:** the header reads "Week N · Round 2/3".
+8. *Send back:* anything that still overlaps, and any Output errors from `Lobby`, `Leaderboard`, `HowTo`, `Draft` or `EventCard`.
+
