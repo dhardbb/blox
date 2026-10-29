@@ -45,6 +45,7 @@ type Row = {
 	ev: TextLabel,
 	lean: TextLabel,
 	index: number, -- position in view.states
+	fitVotes: () -> (), -- ends the votes cell at the lean pill's left
 }
 
 local StateList = {}
@@ -58,6 +59,7 @@ local X_RANK, W_RANK = 0, 0.07
 local X_CODE, W_CODE = 0.07, 0.12
 local X_NAME, W_NAME = 0.19, 0.33
 local X_EV, W_EV = 0.52, 0.23
+local PILL_CHAR_W = 8 -- px, a caption character in the lean pill (an estimate, on the wide side)
 
 local function cell(
 	parent: Instance,
@@ -157,10 +159,20 @@ function StateList.new(onTap: (id: string) -> ()): List
 				Parent = button,
 			}),
 			index = indexOf[id],
+			fitVotes = function() end,
 		}
 		row.code.Text = id
 		row.name.Text = record.name
 		row.ev.Text = Words.votes(record.ev)
+		-- The votes end where the lean pill starts: "+2 Buster" is wider than
+		-- the last quarter, and ran over "30 votes" on an iPad (fix17).
+		-- (Estimated from its text: an AutomaticSize width is not known until
+		-- the next frame.)
+		row.fitVotes = function()
+			local text = row.lean.Text
+			local pillW = (utf8.len(text) or #text) * PILL_CHAR_W + 2 * Kit.space.sm
+			row.ev.Size = UDim2.new(1 - X_EV, -(pillW + Kit.space.sm), 1, 0)
+		end
 		button.Activated:Connect(function()
 			onTap(id)
 		end)
@@ -222,6 +234,7 @@ function StateList.new(onTap: (id: string) -> ()): List
 
 			local to = sv.leanTo
 			row.lean.Text = Words.lean(sv.lean, if to == nil then nil else to == you, opponent)
+			row.fitVotes()
 			-- A lean is filled in its player's color ("+2 Buster" on red, "+2 you"
 			-- on blue) with readable text; "Even" stays a quiet raised tag.
 			local leanColor = if to ~= nil and sv.lean > 0 then info.colors[to] else nil

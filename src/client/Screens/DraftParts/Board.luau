@@ -28,6 +28,7 @@ export type Legend = {
 	row: Frame, -- the two keys; the screen may move it beside the lens chips
 	note: TextLabel,
 	update: (self: Legend, view: View.View, rgb: { Colors.RGB }, opponent: string) -> (),
+	fit: (self: Legend) -> (), -- side by side or stacked for the row's width now (the screen calls it after moving the row)
 }
 
 export type Strongholds = {
@@ -41,10 +42,12 @@ local LINE_H = 20 -- px, one board line (grows if the detail wraps)
 local WHO_W = 64 -- px, "You" / "Buster"
 local HOLD_FACE = 36 -- px, a player's candidate portrait on the strongholds card (D-068; D-091 was 24)
 local HOLD_ROW_H = 28 -- px, one stronghold's row on that card
-local HOLD_CODE_W = 36 -- px, its code ("VA")
-local HOLD_EV_W = 28 -- px, its votes at the right
+local HOLD_CODE_W = 30 -- px, its code ("VA"; 36 left "South Carolina" no room on a phone, fix17)
+local HOLD_EV_W = 24 -- px, its votes at the right
 local SWATCH = 16 -- px, a legend key's dot
 local LEGEND_TINT = 0.6 -- how far a legend dot leans toward the player's color
+local LEGEND_PAIR_W = 300 -- px of row for the two keys side by side; narrower, they stack (an iPad's slot beside the lens chips, fix17)
+local LEGEND_WORDS_W = 160 -- px of row for "Leans to Buster"; narrower (an iPad's map reveal), only the names
 
 local function auto(): { [string]: any }
 	return { Size = UDim2.fromScale(1, 0), AutomaticSize = Enum.AutomaticSize.Y }
@@ -175,6 +178,7 @@ function Board.newLegend(): Legend
 	})
 	local swatches: { Frame } = {}
 	local labels: { TextLabel } = {}
+	local halves: { Frame } = {}
 	for k = 1, 2 do
 		local half = Kit.box({
 			Name = `LegendKey{k}`,
@@ -182,21 +186,51 @@ function Board.newLegend(): Legend
 			Size = UDim2.fromScale(0.5, 1),
 			Parent = row,
 		})
+		halves[k] = half
 		swatches[k] = dot(half, "Swatch", SWATCH)
 		labels[k] = Kit.text("", {
 			Name = "Label",
 			Position = UDim2.fromOffset(SWATCH + Kit.space.sm, 0),
 			Size = UDim2.new(1, -(SWATCH + Kit.space.sm), 1, 0),
 			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextTruncate = Enum.TextTruncate.AtEnd,
 			Parent = half,
 		})
 	end
+	-- Side by side when the row has room, else one over the other (each one
+	-- line, never "Leans / to / Buster" in a narrow half); narrower still, the
+	-- names alone (the colors say the rest, and the Map key spells it out).
+	local words: { string } = { "", "" }
+	local names: { string } = { "", "" }
+	local function placeKeys()
+		local w = row.AbsoluteSize.X
+		local stacked = w > 0 and w < LEGEND_PAIR_W
+		local short = w > 0 and w < LEGEND_WORDS_W
+		for k, label in labels do
+			label.Text = if short then names[k] else words[k]
+		end
+		for k, half in halves do
+			half.Position = if stacked
+				then UDim2.fromScale(0, (k - 1) * 0.5)
+				else UDim2.fromScale((k - 1) * 0.5, 0)
+			half.Size = if stacked then UDim2.fromScale(1, 0.5) else UDim2.fromScale(0.5, 1)
+			swatches[k].Size = if stacked
+				then UDim2.fromOffset(SWATCH * 3 // 4, SWATCH * 3 // 4)
+				else UDim2.fromOffset(SWATCH, SWATCH)
+		end
+	end
+	placeKeys()
+	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeKeys)
 	local note = Kit.caption("", { Name = "LegendNote", LayoutOrder = 2, Parent = root })
 
 	local legend = {} :: any
 	legend.root = root
 	legend.row = row
 	legend.note = note
+	function legend.fit(_self: Legend)
+		placeKeys()
+	end
 
 	function legend.update(_self: Legend, view: View.View, rgb: { Colors.RGB }, opponent: string)
 		local polled = view.states[1] ~= nil and view.states[1].poll ~= nil
@@ -211,10 +245,13 @@ function Board.newLegend(): Legend
 			swatches[k].BackgroundColor3 =
 				Kit.color(Colors.tint(Colors.neutral, rgb[p] or Colors.neutral, LEGEND_TINT))
 			local who = if p == view.you then "you" else opponent
-			labels[k].Text = if polled then `Polls lead to {who}` else `Leans to {who}`
+			words[k] = if polled then `Polls lead to {who}` else `Leans to {who}`
+			names[k] = if p == view.you then "You" else opponent
+			labels[k].Text = words[k]
 			-- The words in the player's readable text color, so the key matches the map.
 			labels[k].TextColor3 = if rgb[p] then Kit.color(Colors.textOn(rgb[p])) else Kit.colors.text
 		end
+		placeKeys() -- the row may have moved (beside the chips, into the panel)
 		note.Text = if polled
 			then "Deeper color: a bigger poll lead. Ring: who drafted it. H: home. ★: battleground."
 			else "Deeper color: a bigger lean. Ring: who drafted it. H: home. ★: battleground."

@@ -558,6 +558,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local portrait = ctx.portrait() or Kit.compact(root.AbsoluteSize)
 		local key = `{portrait}:{mode}`
 		if key == placed then
+			legend:fit()
 			return
 		end
 		placed = key
@@ -587,6 +588,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		revealBoard.Visible = mode == "Reveal"
 		legendSlot.Visible = not portrait
 		boardCard.root.Visible = portrait and mode == "Input"
+		legend:fit()
 	end
 
 	-- ------------------------------------------------------------ actions
