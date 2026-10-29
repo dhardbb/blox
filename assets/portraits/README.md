@@ -1,19 +1,21 @@
 # Candidate portraits
 
-Made by `make.py` (Pillow 11), run from the repository root: `python3 assets/portraits/make.py` (add `--preview DIR` for a sheet of all eight on their plates at 40, 80 and 160 px). See `docs/DESIGN.md` D-068.
+Made by `make.py` (Pillow 11), run from the repository root: `python3 assets/portraits/make.py` (add `--preview DIR` for an unlabeled copy of the sheet). It also writes `sheet.png`: all eight on their plates at 40, 80 and 160 px, labeled. See `docs/DESIGN.md` D-068 and the names-only reskin D-097.
 
-One 512x512 PNG per candidate in `src/shared/Sim/Candidates.luau`, named by candidate id: a flat head-and-shoulders bust on a transparent background, drawn at 4x and scaled down. `Kit.portrait` puts it on a round neutral plate and clips it to the circle (a `UICorner` on the image), so each bust is centered and fits the image's inscribed circle.
+One 512x512 PNG per candidate in `src/shared/Sim/Candidates.luau`, named by candidate id (ids never change, D-097): a flat head-and-shoulders bust on a transparent background, drawn at 4x and scaled down. `Kit.portrait` puts it on a round neutral plate and clips it to the circle (a `UICorner` on the image), so each bust is centered and fits the image's inscribed circle.
 
-| File | Candidate | The prop that hints at the perk |
+| File | Candidate | The look (the headwear sets the silhouette) |
 |---|---|---|
-| `okafor.png` | Dana Okafor, The Fundraiser | gold coin earrings and brooch |
-| `calloway.png` | Rex Calloway, The Barnstormer | straw boater, rolled sleeves, braces |
-| `venkat.png` | Priya Venkat, The Ad Wizard | headset microphone |
-| `hale.png` | Marcus Hale, The Debater | bow tie, suit, beard |
-| `alvarado.png` | June Alvarado, The Insider | access badge on a lanyard, pearls |
-| `reyes.png` | Tomas Reyes, The Insurgent | lightning-bolt pin, bomber jacket |
-| `strand.png` | Helen Strand, The Pollster | round glasses, pencil behind the ear |
-| `begay.png` | Walt Begay, The Organizer | field cap, work vest |
+| `okafor.png` | Goldie Pennywhistle, The Fundraiser | gold-trimmed tricorn, doubloon earrings and pendant |
+| `calloway.png` | Buster Cannonball, The Barnstormer | red stunt helmet with goggles, epaulettes |
+| `venkat.png` | Mavis Glimmer, The Ad Wizard | top hat, high-collared cape, sparkles |
+| `hale.png` | Percy Quibble, The Debater | beret, monocle, handlebar mustache, quill |
+| `alvarado.png` | Opal Crumpet, The Insider | lilac beehive, cat-eye glasses, pearls, gold key |
+| `reyes.png` | Dash Kickflip, The Insurgent | teal-tipped spikes, sweatband, bolt pin |
+| `strand.png` | Esme Moonbeam, The Pollster | starry headscarf, round glasses, crystal ball |
+| `begay.png` | Gus Bramble, The Organizer | ranger hat, bushy white beard, neckerchief, badges |
+
+`sheet.png` is for people only; it is not uploaded.
 
 ## Uploading
 
