@@ -44,6 +44,22 @@
 -- ReadyText) follows the Reason, and the primary button reads "Play a real
 -- match" (not Rematch): it queues for a match against a person.
 --
+-- The end screen's layout (D-098). A compact top section, then two columns on
+-- a wide screen (an iPad, a desktop) and one on a phone:
+--   Top        BannerBox: the "You won" / "You lost" stamp, hero size. After a
+--              landslide LANDSLIDE is the hero instead: "You won" shrinks to a
+--              pill (still Banner, in BannerBox) and the LANDSLIDE stamp under it
+--              wears a gold edge and, for the winner, a gold light sweeping it.
+--              The plain "280 votes to 258" line is gone (the scoreboard says it;
+--              Reason stays for a tiebreak, a forfeit or an abandoned match).
+--   Left       Scoreboard: the race bar, then both candidates side by side, each a
+--              compact card (portrait left; name, "280 votes", "You · 20 states",
+--              debate topics won), then RatingSlot.
+--   Right      RematchSlot (empty: the rematch banner's place), TutorialReady,
+--              DailySummary, Why (WhyHead, Reason_k, NextTime), FullBreakdown.
+-- Two columns once the column is at least TWO_COL_W wide (Columns, SummaryLeft, SummaryRight);
+-- the page is MAX_WIDTH_WIDE there, so the vote counts sit well above the bar.
+--
 -- Rematch (D-083; Net/Rematch): against the bot a new match at the same level
 -- at once; against a person both tap within Config.REMATCH_WINDOW_SECONDS
 -- (the bar's status line counts down: "Waiting for Buster… · 14 s", "Buster wants a
@@ -63,6 +79,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Landslide = require(ReplicatedStorage.Shared.UI.Landslide)
 local LobbyWords = require(ReplicatedStorage.Shared.UI.Words.Lobby)
@@ -89,13 +106,18 @@ local Types = require(script.Parent.Types)
 
 local Screen = {}
 
-local MAX_WIDTH = 640 -- px
+local MAX_WIDTH = 640 -- px, the column on a phone or a narrow window
+local MAX_WIDTH_WIDE = 960 -- px, the page on a wide screen: two columns (D-098)
+local TWO_COL_W = 760 -- px of column from which the summary stands in two columns (D-098)
 local CLOSEST_STATES = 5
 local TOTAL_EV = 538
 local WIN_EV = 270
 local EV_BAR_H = 14 -- px, the race bar's thickness
-local PORTRAIT = 64 -- px, a player's portrait on their card
-local STAMP_SLACK = 36 -- px over the banner stamp's height in its row: room for its tilt
+local PORTRAIT = 56 -- px, a player's portrait on their card (left of the words, D-098)
+local CARD_PAD = 14 -- px, Kit.card's padding
+local STAMP_SLACK = 24 -- px over the banner stamp's height in its row: room for its tilt
+local PILL_ROW = Kit.PILL_H + 4 -- px, the "You won" pill's row over a LANDSLIDE (D-098)
+local LANDSLIDE_EDGE = 3 -- px, the gold edge on the LANDSLIDE stamp (D-098)
 local BANNER_GLOW = 0.6 -- the glow behind the banner, in the winner's color (transparency)
 local BANNER_GLOW_W = 1.1 -- the glow's width, a share of the column
 local COUNT_SECONDS = 0.6 -- s, the vote totals counting up
@@ -103,12 +125,14 @@ local CONFETTI = 50 -- pieces on a win
 local LANDSLIDE_CONFETTI = 100 -- pieces on a landslide win (D-062)
 local LANDSLIDE_DELAY = 0.45 -- s after the banner's stamp, the LANDSLIDE stamp lands
 local LANDSLIDE_TILT = 4 -- degrees: the other way from the banner's −6, so the two read as two moments
-local LANDSLIDE_EYEBROW_H = Kit.size.caption + 6 -- px, "YOU WON BY A" over the stamp
 local LANDSLIDE_LINE_H = Kit.size.caption + 6 -- px, the votes line under it
 local LANDSLIDE_GLOW = 0.45 -- the glow behind the stamp, in the winner's color (transparency)
 local LANDSLIDE_GLOW_W = 1.2 -- its width, a share of the column
 local LANDSLIDE_BREATHE = { 0.45, 0.65, 1.6 } -- the winner's glow breathes between these transparencies, s per breath
 local TAB_H = Kit.MIN_TOUCH -- px, the pinned tab row (D-073)
+-- Gold: the leaderboard's first medal (the Amber player color), the LANDSLIDE's
+-- edge and its light (D-098).
+local GOLD = Kit.color(Colors.player.Amber)
 local TABS = { "Summary", "Map", "Graph" }
 
 local DECIDED_BY: { [string]: string } = {
@@ -154,6 +178,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local rendered: Session.StatePayload? = nil
 	local celebrated: string? = nil -- the match whose moment has played
 	local details: Frame? = nil
+	local columnsList: UIListLayout? = nil -- the summary's two columns (D-098), set by render
+	local sides: { Frame } = {} -- Left and Right
 	local ratingLine: TextLabel? = nil
 	-- The landslide's looping effects (Motion.shine, Motion.breathe): stopped
 	-- when the column is redrawn and when the screen goes.
@@ -307,6 +333,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return won
 	end
 
+	-- A compact player card (D-098): the portrait on the left, the words beside
+	-- it: the name, "280 votes" in Fredoka, "You · 20 states", debate topics won.
 	local function playerCard(
 		into: Instance,
 		current: Session.StatePayload,
@@ -318,7 +346,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local mine = player == current.you
 		local entry = view.players[player]
 		local color = Kit.playerColor(view, player)
-		local center = Enum.TextXAlignment.Center
 		local card = Kit.card({
 			Name = if mine then "Player_You" else "Player_Opponent",
 			LayoutOrder = order,
@@ -327,7 +354,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		})
 		local list = card:FindFirstChildOfClass("UIListLayout")
 		if list then
-			list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			list.FillDirection = Enum.FillDirection.Horizontal
+			list.VerticalAlignment = Enum.VerticalAlignment.Center
 		end
 		-- The winner's card is edged in their color.
 		local result = current.result
@@ -339,61 +367,85 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Kit.portrait(if entry then entry.candidate else nil, name, PORTRAIT, { ring = color })
 		portrait.LayoutOrder = 1
 		portrait.Parent = card
-		Kit.text(name, {
-			Name = "Candidate",
+		-- The words, one line each and never wrapping, so the card's height is
+		-- known: the name, the votes, "You · 20 states", the debate topics won.
+		local lines: { { text: string, name: string, size: number, font: any, color: Color3 } } = {}
+		table.insert(lines, {
+			text = name,
+			name = "Candidate",
+			size = Kit.size.body,
+			font = Kit.font.bold,
+			color = Kit.colors.text,
+		})
+		if election then
+			table.insert(lines, {
+				text = plural(election.ev[player], "vote"),
+				name = "EV",
+				size = Kit.size.heading,
+				font = Kit.font.display,
+				color = Kit.colors.text,
+			})
+		end
+		local tag = if mine then "You" else "Opponent"
+		table.insert(lines, {
+			text = if election then `{tag} · {plural(election.statesWon[player], "state")}` else tag,
+			name = "Tag",
+			size = Kit.size.caption,
+			font = Kit.font.body,
+			color = Kit.colors.muted,
+		})
+		if #view.debates > 0 then
+			table.insert(lines, {
+				text = `{plural(topicsWon(view, player), "debate topic")} won`,
+				name = "Topics",
+				size = Kit.size.caption,
+				font = Kit.font.body,
+				color = Kit.colors.muted,
+			})
+		end
+		local report = ctx.report
+		local reportable = not mine and report ~= nil and entry ~= nil and entry.customName ~= nil
+		local infoH = if reportable then Kit.MIN_TOUCH else 0
+		for _, line in lines do
+			infoH += line.size + 6
+		end
+		-- The card's height from its words (a card is padded 14 px all round).
+		card.AutomaticSize = Enum.AutomaticSize.None
+		card.Size = UDim2.new(0.5, -Kit.space.sm / 2, 0, math.max(PORTRAIT, infoH) + 2 * CARD_PAD)
+		local info = Kit.box({
+			Name = "Info",
 			LayoutOrder = 2,
-			Size = UDim2.new(1, 0, 0, Kit.size.heading + 8),
-			Font = Kit.font.bold,
-			TextSize = Kit.size.heading,
-			TextScaled = true,
-			TextXAlignment = center,
+			Size = UDim2.new(1, -(PORTRAIT + Kit.space.sm), 0, infoH),
 			Parent = card,
 		})
-		label(card, if mine then "You" else "Opponent", {
-			Name = "Tag",
-			LayoutOrder = 3,
-			TextSize = Kit.size.caption,
-			TextColor3 = Kit.colors.muted,
-			TextXAlignment = center,
-		})
+		Kit.list("Vertical", 0).Parent = info
 		local votes: TextLabel? = nil
-		if election then
-			votes = label(card, plural(election.ev[player], "vote"), {
-				Name = "EV",
-				LayoutOrder = 4,
-				Font = Kit.font.display,
-				TextSize = Kit.size.heading,
-				TextXAlignment = center,
+		for k, line in lines do
+			local made = Kit.text(line.text, {
+				Name = line.name,
+				LayoutOrder = k,
+				Size = UDim2.new(1, 0, 0, line.size + 6),
+				Font = line.font,
+				TextSize = line.size,
+				TextColor3 = line.color,
+				TextWrapped = false,
+				TextScaled = true, -- a long name or a narrow card shrinks a line, never wraps it
+				Parent = info,
 			})
-			-- Its own line, so a phone never breaks "20 states" in two.
-			label(card, plural(election.statesWon[player], "state"), {
-				Name = "States",
-				LayoutOrder = 5,
-				TextSize = Kit.size.caption,
-				TextColor3 = Kit.colors.muted,
-				TextXAlignment = center,
-			})
-		end
-		if #view.debates > 0 then
-			label(card, `{plural(topicsWon(view, player), "debate topic")} won`, {
-				Name = "Topics",
-				LayoutOrder = 6,
-				TextSize = Kit.size.caption,
-				TextColor3 = Kit.colors.muted,
-				TextXAlignment = center,
-			})
+			if line.name == "EV" then
+				votes = made
+			end
 		end
 		-- The opponent's custom name (D-069): a quiet way to report it.
-		local report = ctx.report
-		if not mine and report and entry and entry.customName then
+		if reportable and report then
 			Kit.button(SetupWords.REPORT, function()
 				report(player)
 			end, {
 				variant = "ghost",
 				Name = "ReportName",
-				LayoutOrder = 7,
+				LayoutOrder = #lines + 1,
 				Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
-				Parent = card,
+				Parent = info,
 			})
 		end
 		return votes
@@ -502,32 +554,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			order += 1
 			return order
 		end
-		local bannerBox = Kit.box({
-			Name = "BannerBox",
-			LayoutOrder = nextOrder(),
-			Size = UDim2.new(1, 0, 0, Kit.size.hero + 20 + STAMP_SLACK),
-			Parent = column,
-		})
-		if result and result.winner ~= 0 then
-			Kit.glow(
-				bannerBox,
-				Kit.playerColor(view, result.winner),
-				{ scale = BANNER_GLOW_W, stretch = true, transparency = BANNER_GLOW }
-			)
-		end
-		local stamp = Kit.stamp(bannerText, bannerColor, {
-			size = Kit.size.hero,
-			Name = "BannerStamp",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			ZIndex = 2,
-			Parent = bannerBox,
-		})
-		local banner = (stamp:FindFirstChild("Plate") :: Frame):FindFirstChild("Label") :: TextLabel
-		banner.Name = "Banner"
-		banner.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
 
-		-- First names, for the landslide's eyebrow and the reasons below.
+		-- First names, for the landslide's words and the reasons below.
 		local names: { string } = {}
 		for p = 1, #view.players do
 			local entry = view.players[p]
@@ -535,17 +563,56 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			-- A custom name stays whole (D-069); a candidate's goes by its first name.
 			names[p] = if entry and entry.customName then full else string.match(full, "^(%S+)") or full
 		end
-
-		-- A landslide (D-062): the big stamp in the winner's color, for both players.
+		-- A landslide (D-062): LANDSLIDE is the hero; "You won" shrinks to a pill (D-098).
 		local slide = Landslide.moment(ctx.config, view, result, names)
+
+		local stampRow = Kit.size.hero + 20 + STAMP_SLACK
+		local bannerBox = Kit.box({
+			Name = "BannerBox",
+			LayoutOrder = nextOrder(),
+			Size = UDim2.new(1, 0, 0, if slide then PILL_ROW else stampRow),
+			Parent = column,
+		})
+		local stamp: GuiObject
+		if slide then
+			local pill = Kit.pill(bannerText, "text", {
+				Name = "Banner",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				filled = true,
+				fill = bannerColor,
+				Parent = bannerBox,
+			})
+			stamp = pill
+		else
+			if result and result.winner ~= 0 then
+				Kit.glow(
+					bannerBox,
+					Kit.playerColor(view, result.winner),
+					{ scale = BANNER_GLOW_W, stretch = true, transparency = BANNER_GLOW }
+				)
+			end
+			local made = Kit.stamp(bannerText, bannerColor, {
+				size = Kit.size.hero,
+				Name = "BannerStamp",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				ZIndex = 2,
+				Parent = bannerBox,
+			})
+			local banner = (made:FindFirstChild("Plate") :: Frame):FindFirstChild("Label") :: TextLabel
+			banner.Name = "Banner"
+			banner.TextTransparency = 0 -- the resting value Motion.stamp's fade ends on
+			stamp = made
+		end
+
 		local slideStamp: Frame? = nil
 		local slideGlow: ImageLabel? = nil
 		if slide then
-			local stampRow = Kit.size.hero + 20 + STAMP_SLACK
 			local box = Kit.box({
 				Name = "LandslideBox",
 				LayoutOrder = nextOrder(),
-				Size = UDim2.new(1, 0, 0, LANDSLIDE_EYEBROW_H + stampRow + LANDSLIDE_LINE_H),
+				Size = UDim2.new(1, 0, 0, stampRow + LANDSLIDE_LINE_H),
 				Parent = column,
 			})
 			slideGlow = Kit.glow(
@@ -553,17 +620,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				Kit.playerColor(view, slide.winner),
 				{ scale = LANDSLIDE_GLOW_W, stretch = true, transparency = LANDSLIDE_GLOW }
 			)
-			Kit.eyebrow(slide.eyebrow, {
-				Name = "LandslideEyebrow",
-				Size = UDim2.new(1, 0, 0, LANDSLIDE_EYEBROW_H),
-				TextXAlignment = Enum.TextXAlignment.Center,
-				Parent = box,
-			})
 			local made = Kit.stamp(slide.stamp, Kit.playerColor(view, slide.winner), {
 				size = Kit.size.hero,
 				Name = "LandslideStamp",
 				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.new(0.5, 0, 0, LANDSLIDE_EYEBROW_H + stampRow / 2),
+				Position = UDim2.new(0.5, 0, 0, stampRow / 2),
 				Rotation = LANDSLIDE_TILT,
 				ZIndex = 3,
 				Parent = box,
@@ -572,9 +633,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local stampLabel = plate:FindFirstChild("Label") :: TextLabel
 			stampLabel.Name = "LandslideLabel"
 			stampLabel.TextTransparency = 0
+			-- The winner's gold edge (D-098): the leaderboard's first medal, on the
+			-- hero. The loser's stays plain (their moment is quiet).
+			local edge = plate:FindFirstChild("Edge") :: UIStroke?
+			if edge and slide.mine then
+				edge.Color = GOLD
+				edge.Thickness = LANDSLIDE_EDGE
+			end
 			label(box, slide.line, {
 				Name = "LandslideLine",
-				Position = UDim2.fromOffset(0, LANDSLIDE_EYEBROW_H + stampRow),
+				Position = UDim2.fromOffset(0, stampRow),
 				Size = UDim2.new(1, 0, 0, LANDSLIDE_LINE_H),
 				AutomaticSize = Enum.AutomaticSize.None,
 				TextSize = Kit.size.caption,
@@ -583,32 +651,104 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			})
 			slideStamp = made
 		end
-		label(column, reasonText(current, election), {
+		-- The plain "280 votes to 258" repeats the scoreboard (D-098): only a
+		-- tiebreak, a forfeit or an abandoned match says something here.
+		local reason = reasonText(current, election)
+		label(column, reason, {
 			Name = "Reason",
 			LayoutOrder = nextOrder(),
 			Font = Kit.font.medium,
 			TextXAlignment = Enum.TextXAlignment.Center,
+			Visible = not (
+					election ~= nil
+					and DECIDED_BY[election.decidedBy] == nil
+					and result ~= nil
+					and result.reason == "Election"
+				),
 		})
-		-- The tutorial's end (D-080): win or lose, the player is ready for a real match.
-		if current.tutorial then
-			local ready = Kit.card({ Name = "TutorialReady", LayoutOrder = nextOrder(), Parent = column })
-			Kit.heading(LobbyWords.READY_TITLE, { Name = "ReadyTitle", LayoutOrder = 1, Parent = ready })
-			Kit.text(LobbyWords.readyText(ConfigModule.defaults), {
-				Name = "ReadyText",
-				LayoutOrder = 2,
+
+		-- Two columns on a wide screen, one on a phone (relayout sets which).
+		local columns = Kit.box({
+			Name = "Columns",
+			LayoutOrder = nextOrder(),
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = column,
+		})
+		local list = Kit.list("Vertical", Kit.space.md)
+		list.Parent = columns
+		columnsList = list
+		local function side(sideName: string, k: number): Frame
+			local frame = Kit.box({
+				Name = sideName,
+				LayoutOrder = k,
 				Size = UDim2.fromScale(1, 0),
 				AutomaticSize = Enum.AutomaticSize.Y,
-				Parent = ready,
+				Parent = columns,
 			})
+			Kit.list("Vertical", Kit.space.md).Parent = frame
+			return frame
 		end
+		local left = side("SummaryLeft", 1)
+		local right = side("SummaryRight", 2)
+		sides = { left, right }
+		local leftOrder, rightOrder = 0, 0
+		local function leftNext(): number
+			leftOrder += 1
+			return leftOrder
+		end
+		local function rightNext(): number
+			rightOrder += 1
+			return rightOrder
+		end
+
+		-- The scoreboard: the race to 270 (you from the left, your opponent from
+		-- the right; it fills as the screen comes in), then both candidates.
+		local scoreboard = Kit.stack(
+			{ Name = "Scoreboard", LayoutOrder = leftNext(), Parent = left },
+			"Vertical",
+			Kit.space.sm
+		)
+		local them = if you == 1 then 2 else 1
+		if election then
+			local race = Kit.raceBar(scoreboard, {
+				h = EV_BAR_H,
+				mark = WIN_EV / TOTAL_EV,
+				caption = tostring(WIN_EV),
+				name = "EVBar",
+				order = 1,
+			})
+			race.tick.Name = "Marker270"
+			race:setColors(Kit.playerColor(view, you), Kit.playerColor(view, them))
+			race:set(election.ev[you] / TOTAL_EV, election.ev[them] / TOTAL_EV)
+		end
+		local versus = Kit.box({
+			Name = "Versus",
+			LayoutOrder = 2,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = scoreboard,
+		})
+		Kit.list("Horizontal", Kit.space.sm).Parent = versus
+		local players: { number } = { you }
+		for player = 1, #view.players do
+			if player ~= you then
+				table.insert(players, player)
+			end
+		end
+		local voteLabels: { [number]: TextLabel } = {}
+		for index, player in players do
+			voteLabels[player] = playerCard(versus, current, player, index) :: any
+		end
+
 		-- The rating line's room is always there, so the layout never shifts when
 		-- the change arrives (rated matches only).
 		local slot = Kit.box({
 			Name = "RatingSlot",
-			LayoutOrder = nextOrder(),
+			LayoutOrder = leftNext(),
 			Size = UDim2.new(1, 0, 0, Kit.size.body + 6),
 			Visible = current.daily == nil, -- a Daily Race never moves a rating (D-082)
-			Parent = column,
+			Parent = left,
 		})
 		ratingLine = Kit.text("", {
 			Name = "RatingChange",
@@ -618,11 +758,33 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Visible = false,
 			Parent = slot,
 		})
+
+		-- The rematch banner's place (filled by the rematch offer; empty, it takes no room).
+		local rematchSlot = Kit.box({
+			Name = "RematchSlot",
+			LayoutOrder = rightNext(),
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = right,
+		})
+		Kit.list("Vertical", Kit.space.sm).Parent = rematchSlot
+		-- The tutorial's end (D-080): win or lose, the player is ready for a real match.
+		if current.tutorial then
+			local ready = Kit.card({ Name = "TutorialReady", LayoutOrder = rightNext(), Parent = right })
+			Kit.heading(LobbyWords.READY_TITLE, { Name = "ReadyTitle", LayoutOrder = 1, Parent = ready })
+			Kit.text(LobbyWords.readyText(ConfigModule.defaults), {
+				Name = "ReadyText",
+				LayoutOrder = 2,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Parent = ready,
+			})
+		end
 		-- A Daily Race run (D-082): its own summary, filled by update().
 		dailyLine, dailyMore = nil, nil
 		local run = current.daily
 		if run then
-			local box = Kit.card({ Name = "DailySummary", LayoutOrder = nextOrder(), Parent = column })
+			local box = Kit.card({ Name = "DailySummary", LayoutOrder = rightNext(), Parent = right })
 			Kit.eyebrow(`{DailyWords.EYEBROW} · {DailyWords.dateLabel(run.day)}`, {
 				Name = "DailyEyebrow",
 				LayoutOrder = 1,
@@ -644,48 +806,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			})
 		end
 
-		-- The race to 270: you from the left, your opponent from the right (it
-		-- fills as the screen comes in).
-		local them = if you == 1 then 2 else 1
-		if election then
-			local race = Kit.raceBar(column, {
-				h = EV_BAR_H,
-				mark = WIN_EV / TOTAL_EV,
-				caption = tostring(WIN_EV),
-				name = "EVBar",
-				order = nextOrder(),
-			})
-			race.tick.Name = "Marker270"
-			race:setColors(Kit.playerColor(view, you), Kit.playerColor(view, them))
-			race:set(election.ev[you] / TOTAL_EV, election.ev[them] / TOTAL_EV)
-		end
-
-		-- You and your opponent, side by side.
-		local versus = Kit.box({
-			Name = "Versus",
-			LayoutOrder = nextOrder(),
-			Size = UDim2.fromScale(1, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = column,
-		})
-		Kit.list("Horizontal", Kit.space.sm).Parent = versus
-		local players: { number } = { you }
-		for player = 1, #view.players do
-			if player ~= you then
-				table.insert(players, player)
-			end
-		end
-		local voteLabels: { [number]: TextLabel } = {}
-		for index, player in players do
-			voteLabels[player] = playerCard(versus, current, player, index) :: any
-		end
-
 		-- Why: three short reasons, the winner's side.
 		local winner = if result then result.winner else 0
 		local reasons: { string } = if election then Words.keyReasons(ctx.config, view, winner, names) else {}
 		if #reasons > 0 then
 			local why = Kit.stack(
-				{ Name = "Why", LayoutOrder = nextOrder(), Parent = column },
+				{ Name = "Why", LayoutOrder = rightNext(), Parent = right },
 				"Vertical",
 				Kit.space.xs
 			)
@@ -715,10 +841,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end, {
 				variant = "ghost",
 				Name = "FullBreakdown",
-				LayoutOrder = nextOrder(),
+				LayoutOrder = rightNext(),
 				Size = UDim2.fromOffset(180, Kit.MIN_TOUCH),
 				TextXAlignment = Enum.TextXAlignment.Left,
-				Parent = column,
+				Parent = right,
 			})
 		end
 
@@ -776,6 +902,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				local plate = landslide:FindFirstChild("Plate") :: Frame
 				plate.Active = true -- Motion.shine sweeps only an active object
 				table.insert(stops, Motion.shine(plate))
+				-- A gold light (D-098), not the usual white.
+				local band = plate:FindFirstChild("Shine")
+				if band and band:IsA("Frame") then
+					band.BackgroundColor3 = GOLD
+				end
 				local glow = slideGlow
 				if glow then
 					local b = LANDSLIDE_BREATHE
@@ -792,8 +923,40 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 	end
 
+	-- The page's lanes: MAX_WIDTH, or MAX_WIDTH_WIDE on a wide screen (D-098).
+	local laneWidth = MAX_WIDTH
+	local function setLaneWidth(width: number)
+		if width == laneWidth then
+			return
+		end
+		laneWidth = width
+		local lanes: { Frame } = { page.content }
+		if page.header then
+			table.insert(lanes, page.header)
+		end
+		for _, lane in lanes do
+			local cap = lane:FindFirstChildOfClass("UISizeConstraint")
+			if cap then
+				cap.MaxSize = Vector2.new(width, math.huge)
+			end
+		end
+	end
+
 	local function relayout()
 		page.setPortrait(ctx.portrait())
+		-- A wide screen gets the wide page and two columns; a phone one column.
+		local wide = not ctx.portrait() and not page.sideways() and page.root.AbsoluteSize.X >= TWO_COL_W
+		setLaneWidth(if wide then MAX_WIDTH_WIDE else MAX_WIDTH)
+		local list = columnsList
+		if list then
+			-- The wide lane is at least TWO_COL_W here: the page is that wide.
+			local two = wide
+			list.FillDirection = if two then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical
+			local gap = Kit.space.md
+			for _, frame in sides do
+				frame.Size = if two then UDim2.new(0.5, -gap / 2, 0, 0) else UDim2.fromScale(1, 0)
+			end
+		end
 		if not tabbed and not page.sideways() then
 			-- No tabs: the column starts at the top.
 			local footerH = Kit.BAR_H + Layout.GAP
