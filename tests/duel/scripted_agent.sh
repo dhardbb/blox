@@ -9,7 +9,7 @@
 here="$(cd "$(dirname "$0")" && pwd)"
 dir="${1:?usage: scripted_agent.sh DIR N [candidate]}"
 n="${2:?usage: scripted_agent.sh DIR N [candidate]}"
-# Candidates are unique (D-048): by default player 1 is Okafor, player 2 Hale.
+# Candidates are unique (D-048): by default player 1 is Pennywhistle, player 2 Quibble.
 if [ "$n" = 1 ]; then default=okafor; else default=hale; fi
 candidate="${3:-$default}"
 mode="${4:-pass}"

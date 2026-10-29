@@ -187,7 +187,7 @@ end)
 describe("EVChart.markers", function()
 	it("marks every debate and every Choice event of the match, oldest first", function()
 		local view = overView()
-		local markers = EVChart.markers(view, { "Dana", "Rex" })
+		local markers = EVChart.markers(view, { "Goldie", "Buster" })
 		local debates, choices = 0, 0
 		for k, marker in markers do
 			if k > 1 then
@@ -230,11 +230,11 @@ describe("EVChart.markers", function()
 			},
 			eventLog = { { week = 6, id = choice.id, choices = { "A", "C" } } },
 		} :: any
-		local markers = EVChart.markers(view, { "Dana", "Rex" })
+		local markers = EVChart.markers(view, { "Goldie", "Buster" })
 		expect(#markers):toBe(3)
-		expect(markers[1].line):toBe("Week 4 · Debate: Rex won 2 of 3 topics")
+		expect(markers[1].line):toBe("Week 4 · Debate: Buster won 2 of 3 topics")
 		expect(markers[2].line):toBe(
-			`Week 6 · {choice.name}: you chose {choice.stances[1].name}; Rex chose {choice.stances[3].name}`
+			`Week 6 · {choice.name}: you chose {choice.stances[1].name}; Buster chose {choice.stances[3].name}`
 		)
 		expect(markers[3].line):toBe("Week 8 · Debate: even, 1 topic each")
 	end)

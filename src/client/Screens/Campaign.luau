@@ -21,7 +21,7 @@
 -- wears its action's icon badge on the map; a lens switch fades the lens pills;
 -- a plan the server turns down, or a tap on a Lock in greyed out by a problem,
 -- shakes the action bar with the "error" cue. The opponent's line names them:
--- "Rex: thinking…" (the dots move unless motion is reduced), "Rex: locked in ✓".
+-- "Buster: thinking…" (the dots move unless motion is reduced), "Buster: locked in ✓".
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net.
 -- The plan is previewed with Shared/UI/PlanDraft, which mirrors the server's

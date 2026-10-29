@@ -167,7 +167,7 @@ Pivot  = 4 + 1 if it is not on your platform
 score  = strength + counter (Defend beats Attack beats Pivot beats Defend: +2 in round 1, +3 after)
 ```
 
-"Lead the topic's states": the EV of the topic's states where you lead the public poll is more than your opponent's. The higher score wins the round; equal is a split. No dice. A win adds `DEBATE_ROUND_WIN` (0.8) support in each of the winner's landing states (the topic's states for Defend and Attack; for Pivot, the states of the player's platform issue with the most EV in play), ×2 if the winner staked the Zinger (Hale ×4); a split gives `DEBATE_ROUND_SPLIT` (0.5) to each in their own landing states; losing to a counter costs `DEBATE_BACKFIRE` (0.5) where your move aimed. The winner gains crowd by the margin (at most 4, ×Zinger); a final crowd lead of 8 is a standing ovation, +2 momentum in every battleground. Gains use the normal undecided/opponent split; losses go to undecided; both players' effects apply from one snapshot. The public polls are republished after every round with the same error terms, so the map shows each round live. No answer in time is a canned answer: Defend at a flat 2, never countered and never countering. Every number is in `Sim/Config.luau`.
+"Lead the topic's states": the EV of the topic's states where you lead the public poll is more than your opponent's. The higher score wins the round; equal is a split. No dice. A win adds `DEBATE_ROUND_WIN` (0.8) support in each of the winner's landing states (the topic's states for Defend and Attack; for Pivot, the states of the player's platform issue with the most EV in play), ×2 if the winner staked the Zinger (Quibble ×4); a split gives `DEBATE_ROUND_SPLIT` (0.5) to each in their own landing states; losing to a counter costs `DEBATE_BACKFIRE` (0.5) where your move aimed. The winner gains crowd by the margin (at most 4, ×Zinger); a final crowd lead of 8 is a standing ovation, +2 momentum in every battleground. Gains use the normal undecided/opponent split; losses go to undecided; both players' effects apply from one snapshot. The public polls are republished after every round with the same error terms, so the map shows each round live. No answer in time is a canned answer: Defend at a flat 2, never countered and never countering. Every number is in `Sim/Config.luau`.
 
 ### Events (Phase 5)
 
@@ -189,14 +189,14 @@ The character select replaces the original's primary. Eight fictional candidates
 
 | Candidate | Archetype | Perk | Drawback |
 | --- | --- | --- | --- |
-| Dana Okafor | The Fundraiser | Fundraisers yield +25% (applied after the pool cap; the bonus does not drain the pool; D-023, D-037) | None (D-023) |
-| Rex Calloway | The Barnstormer | 4 AP per week | Rallies +2.2 base instead of +3.0 ("more stops, smaller crowds"); media buys cost $4 |
-| Priya Venkat | The Ad Wizard | Media buys cost $2; saturation steps are 65% / 42% (D-037) | Income $2 instead of $4 (D-023, D-037) |
-| Marcus Hale | The Debater | A debate win with his Zinger counts ×4, not ×2 (D-023, D-037, D-072) | Starts with no money |
-| June Alvarado | The Insider | Starts with $18 | Passive income $3 instead of $4 |
-| Tomas Reyes | The Insurgent | Underdog multipliers doubled; momentum gained +50% | Momentum keeps 25% per week instead of 50%; while leading by 40+ projected EV, rallies ×0.9 and fundraisers ×0.85 |
-| Helen Strand | The Pollster | Sees next week's event a week early (her View alone carries it, D-035); two free internal polls per week | Media buys −10% (D-037) |
-| Walt Begay | The Organizer | GOTV units cost $1 and cap at 6 per state | Rallies +2.4 base instead of +3.0 |
+| Goldie Pennywhistle | The Fundraiser | Fundraisers yield +25% (applied after the pool cap; the bonus does not drain the pool; D-023, D-037) | None (D-023) |
+| Buster Cannonball | The Barnstormer | 4 AP per week | Rallies +2.2 base instead of +3.0 ("more stops, smaller crowds"); media buys cost $4 |
+| Mavis Glimmer | The Ad Wizard | Media buys cost $2; saturation steps are 65% / 42% (D-037) | Income $2 instead of $4 (D-023, D-037) |
+| Percy Quibble | The Debater | A debate win with his Zinger counts ×4, not ×2 (D-023, D-037, D-072) | Starts with no money |
+| Opal Crumpet | The Insider | Starts with $18 | Passive income $3 instead of $4 |
+| Dash Kickflip | The Insurgent | Underdog multipliers doubled; momentum gained +50% | Momentum keeps 25% per week instead of 50%; while leading by 40+ projected EV, rallies ×0.9 and fundraisers ×0.85 |
+| Esme Moonbeam | The Pollster | Sees next week's event a week early (her View alone carries it, D-035); two free internal polls per week | Media buys −10% (D-037) |
+| Gus Bramble | The Organizer | GOTV units cost $1 and cap at 6 per state | Rallies +2.4 base instead of +3.0 |
 
 All eight stake one Zinger per debate at ×2 unless the table says otherwise (the debate stat is gone, D-072). These are revision-2 values from a paper review (`DESIGN.md` D-011), except where a later entry is cited; `Candidates.luau` with `DESIGN.md` D-022, D-023 and D-035 has the current numbers, and the harness's 8×8 matchup matrix has the final say. Perks are data in `Candidates.luau` (a table of multipliers and overrides), not special-cased code, so adding a ninth candidate is a data change.
 
@@ -356,7 +356,7 @@ Every value here goes in `Config.luau` with a one-line comment. They are first g
 | DEBATE\_OWN / THEIR / OFF\_ISSUE, DEBATE\_GROUND, DEBATE\_CROWD\_TRAIL | 3 / 2 / 1, 1, 2 | Strength bonuses (D-072) |
 | DEBATE\_COUNTER / DEBATE\_REPEAT | 2, 3, 3 / 2 | Counter bonus by round; last round's move again (D-072) |
 | DEBATE\_ROUND\_WIN / SPLIT / BACKFIRE | 0.8 / 0.5 / 0.5 | Support points in a round's landing states (D-072) |
-| DEBATE\_ZINGERS / DEBATE\_ZINGER\_MULT | 1 / 2 | A staked round you win counts ×2 (Hale ×4) |
+| DEBATE\_ZINGERS / DEBATE\_ZINGER\_MULT | 1 / 2 | A staked round you win counts ×2 (Quibble ×4) |
 | DEBATE\_OVATION / DEBATE\_OVATION\_MOMENTUM | 8 / 2 | Crowd lead for a standing ovation; its battleground momentum |
 | STANCE\_POINTS / STANCE\_HEDGE / STANCE\_SPILL / STANCE\_PLATFORM\_MULT | 1.5 / 0.5 / 0.5 / 1.5 | Choice stances: liked or disliked state / hedge or indifferent state / other states per liked or disliked issue / heard harder on your platform (D-039, D-041) |
 | CLOSING\_MULT / CLOSING\_FROM\_WEEK | 1.15 / 10 |  |

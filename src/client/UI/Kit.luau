@@ -345,7 +345,7 @@ function Kit.textColor(color: Color3): Color3
 	return Kit.color(Colors.textOn(Kit.rgb(color)))
 end
 
--- A player's color as text: names, "Rex leads +3". Fills, dots and bars keep
+-- A player's color as text: names, "Buster leads +3". Fills, dots and bars keep
 -- Kit.playerColor (D-056).
 function Kit.playerText(view: any, p: number): Color3
 	local player = view.players[p]

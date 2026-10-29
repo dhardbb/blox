@@ -7,7 +7,7 @@
 -- Nil unless the match was decided on election night and its winner took
 -- strictly more than LANDSLIDE_EV_SHARE of the votes in play
 -- (Sim/Election.landslide). Both players get it: the winner's is theirs
--- ("YOU WON BY A" / LANDSLIDE), the loser's names the rival ("REX WON BY A").
+-- ("YOU WON BY A" / LANDSLIDE), the loser's names the rival ("BUSTER WON BY A").
 
 local ConfigModule = require("../Sim/Config")
 local Election = require("../Sim/Election")
@@ -25,7 +25,7 @@ Landslide.STAMP = "LANDSLIDE" -- the stamp's text, for both players
 export type Moment = {
 	winner: number, -- the landslide winner's player id (their color colors the stamp)
 	mine: boolean, -- the viewer won it
-	eyebrow: string, -- over the stamp: "You won by a" / "Rex won by a"
+	eyebrow: string, -- over the stamp: "You won by a" / "Buster won by a"
 	stamp: string, -- Landslide.STAMP
 	line: string, -- under it: "You took 412 of 538 votes, over 70%."
 }

@@ -414,13 +414,13 @@ end)
 
 describe("Words.Debate", function()
 	it("names a short name on a stamp and says THEY for a long one", function()
-		expect((Words.crowdStamp(-2, "Rex"))):toBe("REX WON THE CROWD")
+		expect((Words.crowdStamp(-2, "Buster"))):toBe("BUSTER WON THE CROWD")
 		expect((Words.crowdStamp(-2, LONG_NAME))):toBe("THEY WON THE CROWD")
 		expect((Words.crowdStamp(3, LONG_NAME))):toBe("YOU WON THE CROWD")
 		expect((Words.crowdStamp(0, LONG_NAME))):toBe("AN EVEN CROWD")
 		local view: any = { you = 1 }
 		local round: any = { winner = 2, margin = 3 }
-		expect((Words.stamp(view, round, "Rex"))):toBe("REX WINS BY 3")
+		expect((Words.stamp(view, round, "Buster"))):toBe("BUSTER WINS BY 3")
 		expect((Words.stamp(view, round, LONG_NAME))):toBe("THEY WIN BY 3")
 	end)
 
@@ -433,9 +433,9 @@ describe("Words.Debate", function()
 
 	it("says who leads the crowd and what the Zinger does, briefly", function()
 		local view = { you = 1 } :: any
-		expect(Words.crowdLine(view, { 4, 0 }, "Rex")):toBe("You +4")
-		expect(Words.crowdLine(view, { 1, 3 }, "Rex")):toBe("Rex +2")
-		expect(Words.crowdLine(view, { 2, 2 }, "Rex")):toBe("Even")
+		expect(Words.crowdLine(view, { 4, 0 }, "Buster")):toBe("You +4")
+		expect(Words.crowdLine(view, { 1, 3 }, "Buster")):toBe("Buster +2")
+		expect(Words.crowdLine(view, { 2, 2 }, "Buster")):toBe("Even")
 		expect(Words.crowdLine(view, { 1, 3 }, LONG_NAME)):toBe("Them +2")
 		local board = { zingers = 1, zingerMult = 2, theirZingers = 1, theirZingerMult = 4 } :: any
 		-- M1: the Zinger is used up on a split or a loss too (Sim/Debate.round).
@@ -451,10 +451,10 @@ describe("Words.Debate", function()
 		expect(Words.safeZinger(board, wins, true)):toBe(nil)
 		expect(Words.safeZinger(board, risky, true)):toBe(nil)
 		-- S1: the rival's live Zinger, with their name and multiplier.
-		expect(Words.rivalZinger(board, "Rex")):toBe(
-			"Rex still has a Zinger: a round they win, even by 1, can count ×4."
+		expect(Words.rivalZinger(board, "Buster")):toBe(
+			"Buster still has a Zinger: a round they win, even by 1, can count ×4."
 		)
-		expect(Words.rivalZinger({ theirZingers = 0, theirZingerMult = 2 } :: any, "Rex")):toBe(nil)
+		expect(Words.rivalZinger({ theirZingers = 0, theirZingerMult = 2 } :: any, "Buster")):toBe(nil)
 	end)
 
 	it("has a fictional, neutral question for every issue", function()

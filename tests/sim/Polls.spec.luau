@@ -131,7 +131,7 @@ describe("Underdog rubber band", function()
 		expect(player.underdogTier):toBe(1)
 	end)
 
-	it("multipliers by tier, doubled bonus for Tomas", function()
+	it("multipliers by tier, doubled bonus for Dash", function()
 		local match = Fixtures.campaign({ seed = 6, candidates = { "reyes", "okafor" } })
 		match.players[1].underdogTier = 1
 		match.players[2].underdogTier = 2
@@ -143,7 +143,7 @@ describe("Underdog rubber band", function()
 		expect(fund2):toBe(C.UNDERDOG_FUND_2)
 	end)
 
-	it("Tomas's frontrunner drawback turns on when leading by 40+", function()
+	it("Dash's frontrunner drawback turns on when leading by 40+", function()
 		local match = Fixtures.campaign({ seed = 6, candidates = { "reyes", "okafor" } })
 		setPolls(match, true)
 		Polls.updateUnderdog(C, match)
@@ -155,6 +155,6 @@ describe("Underdog rubber band", function()
 			Polls.updateUnderdog(C, match)
 		end
 		expect(match.players[1].frontrunner):toBe(true)
-		expect(match.players[2].frontrunner):toBe(false) -- Dana has no such drawback
+		expect(match.players[2].frontrunner):toBe(false) -- Goldie has no such drawback
 	end)
 end)

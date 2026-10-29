@@ -205,7 +205,7 @@ local function waitFor(world: FakeRoblox.World, predicate: () -> boolean, limit:
 end
 
 -- Select through the real screen, up to (not including) Lock In.
--- A candidate nobody has claimed yet, preferring `want` (default Hale).
+-- A candidate nobody has claimed yet, preferring `want` (default Quibble).
 local function freeCandidate(world: FakeRoblox.World, peer: FakeRoblox.Peer, want: string?): string
 	local p = payloadOf(world, peer)
 	local claims = if p then p.view.claims else {}

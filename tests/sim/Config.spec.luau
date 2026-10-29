@@ -220,7 +220,7 @@ describe("Candidates", function()
 		end
 	end)
 
-	it("everyone stakes a Zinger at the default multiplier except Hale (D-072)", function()
+	it("everyone stakes a Zinger at the default multiplier except Quibble (D-072)", function()
 		for _, id in Candidates.ids do
 			local mult = Candidates.profile(C, id).zingerMult
 			expect(mult):toBe(if id == "hale" then 4 else C.DEBATE_ZINGER_MULT)
@@ -248,6 +248,33 @@ describe("Candidates", function()
 		expect(Candidates.profile(C, "reyes").momentumDecay):toBe(0.25)
 		expect(Candidates.profile(C, "reyes").frontrunnerEV):toBe(40)
 		expect(Candidates.profile(C, "okafor").frontrunnerEV):toBe(nil)
+	end)
+
+	it("keeps the ids and their order through the names-only reskin (D-097)", function()
+		-- Saved records, the Daily Race cycle and the portrait files key on these.
+		expect(Candidates.ids):toEqual({
+			"okafor",
+			"calloway",
+			"venkat",
+			"hale",
+			"alvarado",
+			"reyes",
+			"strand",
+			"begay",
+		})
+		local firsts: { [string]: boolean } = {}
+		local initials: { [string]: boolean } = {}
+		for _, id in Candidates.ids do
+			local p = Candidates.profile(C, id)
+			local first, last = string.match(p.name, "^(%a+) (%a+)$")
+			assert(first and last, `{id}: "{p.name}" is not a first and last name`)
+			expect(firsts[first]):toBe(nil)
+			expect(initials[first:sub(1, 1) .. last:sub(1, 1)]):toBe(nil)
+			firsts[first] = true
+			initials[first:sub(1, 1) .. last:sub(1, 1)] = true
+			expect(#p.bio > 0 and #p.bio <= 80):toBe(true)
+			expect(string.find(p.bio, "\n", 1, true)):toBe(nil)
+		end
 	end)
 
 	it("profiles follow config variants", function()

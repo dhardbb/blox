@@ -1650,3 +1650,33 @@ So the aid alone takes a typical new player from one win in thirteen against Eas
 **Config.** New `KEY_STATES` 3 and `KEY_STATE_BAND` 10: a UI aid, read only by `Shared/UI/KeyStates`. No rule changed: `balance.luau 400` is identical to before (every line). Display constants: `ShapeMap.KEY_BLOOM` 0.5, `KEY_PLATE` 0.6; `NodeMap.KEY_GLOW_FADE` 0.55; `Legend` swatch 16x10, 2 px dashes.
 
 **Tests.** `tests/ui/KeyStates.spec` (the tipping state; the band, the count and biggest-first; a lopsided race keys its tipping state's neighbours, not a far 1-point state; both seats agree on 200 random poll sets; private fields change nothing; the lean before the first poll; nothing in Sim reads it; on the Campaign screen at 16:9 and phone: the line, its chips and the map's Key attributes match `KeyStates.of`, the legend item, audit clean; a chip selects its state and marks the tip seen; the phone hides the line under an open card; the tip after the map tip, its tutorial copy, both ≤ 12 words; none in a reveal; the Map key, Help and All the numbers). `Campaign.spec`, `CampaignWords.spec` (9 key lines now), `Lens.spec` updated. Novice harness: variants `KeyStates` and `KeyHalf` (`tests/lib/Novice`, param `keyFollow`), mode `keys`; the Typical rows reproduce the study exactly (the variant draws no extra random numbers). Snapshots: new `09k-campaign-key-tip`, `09l-campaign-key-tapped`, `30h-tutorial-key-tip`; every shot 0 audit findings at phone, iPad and desktop.
+
+## Names-only reskin
+
+### D-097 — The eight candidates get more eccentric names, personas and portraits; ids, perks and numbers unchanged (user request "replace the names and portraits ... keeping their stats", visual only, no Config changes, Oct 29, 2026, branch `reskin`)
+
+**Why.** The user wanted the roster to feel more eccentric and memorable. The old names read like real people and the portraits like ordinary office photos. This is visual only: no new candidates, no perk, drawback, archetype, issue or number changed.
+
+| id (unchanged) | Was | Now | Persona (the details sheet's second line) | Portrait |
+|---|---|---|---|---|
+| `okafor` | Dana Okafor | Goldie Pennywhistle | A retired treasure hunter who pays for everything in gold doubloons. | gold-trimmed tricorn, doubloon earrings and pendant |
+| `calloway` | Rex Calloway | Buster Cannonball | A retired human cannonball who still can't sit still. | red stunt helmet with goggles, blue showman's suit, epaulettes |
+| `venkat` | Priya Venkat | Mavis Glimmer | A stage magician who can make an ad appear out of thin air. | tall top hat, high-collared purple cape, sparkles |
+| `hale` | Marcus Hale | Percy Quibble | A penniless poet with a booming voice and a comeback for everything. | red beret, monocle, curled handlebar mustache, quill, striped scarf |
+| `alvarado` | June Alvarado | Opal Crumpet | The old palace tea taster, who knows every back door in town. | lilac beehive, cat-eye glasses, pearls, a gold key |
+| `reyes` | Tomas Reyes | Dash Kickflip | A skateboard stunt rider who's at his best coming from way behind. | teal-tipped spikes, sweatband, plaster, bomber with the bolt pin |
+| `strand` | Helen Strand | Esme Moonbeam | A fortune teller who swears her crystal ball is just very good polling. | starry headscarf, round glasses, hoops, a crystal ball |
+| `begay` | Walt Begay | Gus Bramble | A retired scoutmaster who can knock on a thousand doors before lunch. | ranger hat, big white beard, neckerchief, merit badges |
+
+**Ids stay.** Every candidate keeps its id (`okafor` ... `begay`) and its place in `Candidates.ids`, so saved records, match history, the Daily Race's day-by-day candidate cycle (it indexes `Candidates.ids`), debug commands (`select hale ...`), the portrait files and `Assets.portraits` keys all keep working. Only `name` changed, and each entry gained a display-only `bio`. A spec pins the ids and their order, and checks first names and initials are unique (the phone score line uses first names, the plate's fallback uses initials).
+
+**Names.** Two-word, short first names (4 to 6 letters) so the first name reads on a phone score line; every pair of initials differs; none is a real politician, celebrity, brand, party or slogan; all kid-safe. Pronouns and genders match the old roster so the copy that says "his Zinger" (Percy) and "her free polls" (Esme) stays right. The Name Pass still wins over all of this: a custom name replaces `profile.name` wherever the client shows a name (Model, Election, Select, Results, Net), unchanged.
+
+**Persona.** `Profile.bio` is one line, shown as the second (muted) line of the Select details sheet ("About Goldie"), under the archetype. Nothing in the simulation reads it.
+
+**Portraits.** `assets/portraits/make.py` (same pipeline, size, crop, plate and palette) draws the new looks; each gets a big headwear silhouette so they tell apart at 40 px. `assets/portraits/sheet.png` is the contact sheet. The PNG files keep their id names; the old art lives in git history. The game still points at the old Roblox asset ids until the new PNGs are uploaded and the eight numbers in `src/client/UI/Assets.luau` (`portraits`) are replaced; until then Studio shows the old faces beside the new names.
+
+**Copy and tests.** Every example name in code comments, the specs (opponent "Rex" is now "Buster", "Dana" is "Goldie"), `docs/PLAN.md`'s roster table, `docs/TESTING.md` and the prose of `docs/UI-STYLE.md` uses the new names. Older `DESIGN.md` entries and `CHANGELOG.md` releases keep the names of their time, and the `UI-STYLE.md` wireframes keep their placeholder names so their boxes stay aligned.
+
+**Balance.** `balance.luau 400` is identical to before, every line (run on this branch and on its base), and a dump of every profile field other than `name` and `bio` is identical too.
+

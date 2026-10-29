@@ -11,7 +11,7 @@
 -- Layout, top to bottom (a stack in the page's column):
 --   ModeSwitch   two chips, full width: "Final polls" (Mode_Polls) | "Real
 --                results" (Mode_Result), the shown one selected
---   ModeVotes    "Final polls: you 290, Rex 248" / "Election night: you 302, Rex 236"
+--   ModeVotes    "Final polls: you 290, Buster 248" / "Election night: you 302, Buster 236"
 --   MissLine     "Polls missed 3 states: NV, WI, AZ" (or "… called every state right.")
 --   MapBox       the map: each state's fill is the final poll's leader by their
 --                lead (as players saw it the last week) or election night's

@@ -47,8 +47,8 @@ local function deepCopy(value: any): any
 	return out
 end
 
--- The week-3 fixture view with Ohio and both players set by hand: you are Dana
--- Okafor on Jobs/Health/Farms in Ohio, they are Rex Calloway on Schools/Safety/Transit.
+-- The week-3 fixture view with Ohio and both players set by hand: you are Goldie
+-- Pennywhistle on Jobs/Health/Farms in Ohio, they are Buster Cannonball on Schools/Safety/Transit.
 local function ohio(): any
 	local view = deepCopy(Fixtures.payload(C, "Plan").view)
 	local me, them = view.you, if view.you == 1 then 2 else 1
@@ -133,15 +133,15 @@ describe("Explain.action: rallies and ads", function()
 		has(p.text, "closing weeks")
 	end)
 
-	it("uses the candidate's own rally and doubles Reyes's underdog bonus", function()
+	it("uses the candidate's own rally and doubles Kickflip's underdog bonus", function()
 		local view = ohio()
 		view.players[view.you].candidate = "reyes"
 		view.players[view.you].underdogTier = 1
 		local reyes = Candidates.profile(C, "reyes")
 		local p = Explain.action(C, view, PlanDraft.new(), "OH", "Rally", "Health")
 		local under = 1 + (C.UNDERDOG_RALLY_1 - 1) * reyes.underdogScale
-		near(p.you, reyes.rallySupport * C.ISSUE_MULT_PLATFORM * under * sat(40), "Reyes rally")
-		near(p.momentum, C.RALLY_MOMENTUM * reyes.momentumGainMult, "Reyes momentum")
+		near(p.you, reyes.rallySupport * C.ISSUE_MULT_PLATFORM * under * sat(40), "Kickflip rally")
+		near(p.momentum, C.RALLY_MOMENTUM * reyes.momentumGainMult, "Kickflip momentum")
 	end)
 
 	it("adds the event bonus up to the cap", function()

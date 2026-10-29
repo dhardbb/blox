@@ -26,7 +26,7 @@
 -- card shows the candidate's portrait (Kit.portrait, D-068) on a neutral plate,
 -- ringed in a player color only once it is picked (yours) or taken (theirs,
 -- dimmed), and a short strength and weakness (Shared/UI/Words/Setup); the exact
--- numbers are in a sheet ("About Dana"), and "How issues work" explains votes
+-- numbers are in a sheet ("About Goldie"), and "How issues work" explains votes
 -- and boost.
 --
 -- Motion (docs/UI-STYLE.md §2.7.1): each step's cards pop in one after another
@@ -474,7 +474,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				})
 			detailLines[k] = label
 			label.Text = line
-			label.TextColor3 = if k == 1 then Kit.colors.muted else Kit.colors.text
+			label.TextColor3 = if k <= 2 then Kit.colors.muted else Kit.colors.text
 		end
 		candidateSheet:open()
 	end

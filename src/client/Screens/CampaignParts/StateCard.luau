@@ -5,7 +5,7 @@
 --
 --   Ohio · 17 votes                                  [×]
 --   <Battleground> <Your stronghold> <You are here>          at most 3 pills
---   Dana 36 ━━━━━━━━━━━░░░░░░━━━━━━━━━ 35 Rex                the public poll
+--   Goldie 36 ━━━━━━━━━━━░░░░░░━━━━━━━━━ 35 Buster                the public poll
 --   [ Rally        ] [ Fundraise    ] [ Ad           ]       big buttons: what
 --   [ +3.9 support ] [ +$2.4        ] [ +2.1 support ]       each does, in words
 --   Message  (Jobs) (Health) (More +)                        rallies and ads talk about

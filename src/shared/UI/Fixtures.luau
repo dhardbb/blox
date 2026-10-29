@@ -17,8 +17,8 @@ type Config = ConfigModule.Config
 
 export type Moment =
 	"Select" -- character select, nothing chosen yet
-	| "SelectColor" -- the same for a Color Pass owner: you hold Violet, Rex claimed Teal (D-061)
-	| "SelectName" -- Select for a Name Pass owner (D-069): you named your candidate "Captain Zed"; Rex is "Big Wave"
+	| "SelectColor" -- the same for a Color Pass owner: you hold Violet, Buster claimed Teal (D-061)
+	| "SelectName" -- Select for a Name Pass owner (D-069): you named your candidate "Captain Zed"; Buster is "Big Wave"
 	| "SelectNameBuy" -- Select for an eligible player without the Name Pass (D-069)
 	| "MapReveal" -- leans shown
 	| "Draft" -- a nomination round in progress, homes picked and strongholds assigned
@@ -186,7 +186,7 @@ local function play(config: Config, moment: Moment, s: number, candidate: string
 end
 
 -- Select for a Color Pass owner (D-061): two owners, you with Violet saved,
--- the opponent with Teal saved, and the opponent holding Rex Calloway.
+-- the opponent with Teal saved, and the opponent holding Buster Cannonball.
 local function selectColor(config: Config, s: number): Session.StatePayload
 	local session = Session.new(config, "fixture", s, {
 		{ id = "you", kind = "Human", colorPass = true, color = "Violet" },
@@ -243,7 +243,7 @@ Fixtures.THEIR_NAME = "Big Wave"
 
 -- Select for a player who may use the Name Pass (D-069), both seats eligible
 -- (they see custom names): `owned` you own it and named your candidate; the
--- opponent, holding Rex Calloway, is named too. Without `owned`, nobody is named.
+-- opponent, holding Buster Cannonball, is named too. Without `owned`, nobody is named.
 local function selectName(config: Config, s: number, owned: boolean): Session.StatePayload
 	local session = Session.new(config, "fixture", s, {
 		{
@@ -273,7 +273,7 @@ local function selectName(config: Config, s: number, owned: boolean): Session.St
 end
 
 -- The payload seat 1 would receive at `moment`. Seat 1 is played by the bot too,
--- as candidate `candidate` (default Dana Okafor) against Rex Calloway. Stance,
+-- as candidate `candidate` (default Goldie Pennywhistle) against Buster Cannonball. Stance,
 -- ChoiceWeek and ChoiceResolve try the next seeds in turn until one deals a Choice event
 -- into a plan week (weeks 2 to 11), so the result is still fixed by the seed given.
 function Fixtures.payload(

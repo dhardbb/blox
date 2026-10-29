@@ -102,7 +102,7 @@ describe("Match", function()
 			match = Match.advance(C, match, { same, same })
 			local kept = if match.players[1].candidate == "hale" then 1 else 2
 			expect(match.players[kept].candidate):toBe("hale")
-			expect(match.players[kept].cash):toBe(0) -- Hale starts with nothing (D-023)
+			expect(match.players[kept].cash):toBe(0) -- Quibble starts with nothing (D-023)
 			expect(match.players[3 - kept].candidate ~= "hale"):toBe(true)
 			expect(match.players[1].color ~= match.players[2].color):toBe(true)
 		end

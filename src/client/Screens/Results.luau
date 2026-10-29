@@ -12,7 +12,7 @@
 --                 glow behind it; its label is Banner (D-056)
 --   LandslideBox  only after a landslide (D-062: the winner took more than 70%
 --                 of the votes; Shared/UI/Landslide): an eyebrow "YOU WON BY A"
---                 (LandslideEyebrow; "REX WON BY A" for the loser), a big
+--                 (LandslideEyebrow; "BUSTER WON BY A" for the loser), a big
 --                 "LANDSLIDE" stamp in the winner's color tilted the other way
 --                 (LandslideStamp, label LandslideLabel) and "You took 412 of
 --                 538 votes, over 70%." (LandslideLine)
@@ -29,7 +29,7 @@
 --                 won; the winner's card is edged in their color. Player colors
 --                 stay on the portrait ring, the edge and the bar, never on big
 --                 numbers next to the primary button (D-047, D-051).
---   WhyHead       "Why you won" / "Why Rex won" and three bullets Reason_<k>
+--   WhyHead       "Why you won" / "Why Buster won" and three bullets Reason_<k>
 --                 (Shared/UI/Words/Reveal.keyReasons); after a loss, one more
 --                 line NextTime ("Try next time: …", Words.nextTime)
 --   FullBreakdown ghost button: the BreakdownSheet with "What decided it"
@@ -46,7 +46,7 @@
 --
 -- Rematch (D-083; Net/Rematch): against the bot a new match at the same level
 -- at once; against a person both tap within Config.REMATCH_WINDOW_SECONDS
--- (the bar's status line counts down: "Waiting for Rex… · 14 s", "Rex wants a
+-- (the bar's status line counts down: "Waiting for Buster… · 14 s", "Buster wants a
 -- rematch! · 9 s"), then a new match with a new seed and the same seats. The
 -- button says when it can't: "Opponent left", "Rematch expired". In a match
 -- server Back to lobby also asks to go back to a lobby server (Return).

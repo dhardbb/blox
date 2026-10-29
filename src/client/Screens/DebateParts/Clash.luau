@@ -2,7 +2,7 @@
 -- The debate's moments without input (docs/DESIGN.md D-072): the intro before
 -- round 1, a round's clash, and the verdict after round 3.
 --
---   Clash     [ You · Defend 8 ]   [ Rex · Attack 5 ]
+--   Clash     [ You · Defend 8 ]   [ Buster · Attack 5 ]
 --             Your Defend beats Attack: +2
 --             (stamp) YOU WIN BY 3
 --             Your Defend won Jobs by 3: +2.0 in OH, PA ... (Zinger ×2) - PA flipped to you

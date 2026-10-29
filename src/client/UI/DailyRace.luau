@@ -1,6 +1,6 @@
 --!strict
 -- The Daily Race card on the Lobby (docs/DESIGN.md D-082): today's candidate
--- (portrait and name, "Everyone plays as Dana Okafor today"), the time until
+-- (portrait and name, "Everyone plays as Goldie Pennywhistle today"), the time until
 -- the next race, your streak and today's run, and two buttons: "Play today's
 -- race" (op DailyRace; "Practice today's race" once today's run counts) and
 -- "Today's board", a sheet with the day's top 50 by margin and "You: #N".
@@ -18,7 +18,7 @@
 --   daily.tick(now)      the countdown (server time)
 --   daily.setCompact(on) a phone's Lobby (0.15.0): one row, the buttons beside
 --                        the head ("Play" / "Practice", "Top 50"), the title
---                        without its date, "As Dana Okafor", "5h 11m · 3-day
+--                        without its date, "As Goldie Pennywhistle", "5h 11m · 3-day
 --                        streak"; the same names, so taps and specs still work
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

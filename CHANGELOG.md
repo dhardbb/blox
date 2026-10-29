@@ -2,6 +2,17 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### More eccentric candidates (D-097)
+
+Studio checklist: `docs/TESTING.md`, "More eccentric candidates (D-097)". **Needed from the humans:** upload the eight new portrait PNGs in `assets/portraits/` and send back their asset ids (or patch them into `src/client/UI/Assets.luau`); until then the game shows the old faces with the new names.
+
+- **New names, same candidates.** Dana Okafor is now Goldie Pennywhistle, Rex Calloway is Buster Cannonball, Priya Venkat is Mavis Glimmer, Marcus Hale is Percy Quibble, June Alvarado is Opal Crumpet, Tomas Reyes is Dash Kickflip, Helen Strand is Esme Moonbeam, Walt Begay is Gus Bramble. Perks, drawbacks, numbers and issues are exactly as before.
+- **Each has a persona.** "About <name>" on the Select screen opens with a one-line bio under the archetype (Goldie is "a retired treasure hunter who pays for everything in gold doubloons").
+- **New portraits** to match: a tricorn, a stunt helmet, a top hat, a beret and monocle, a lilac beehive, teal-tipped spikes, a starry headscarf and a ranger hat, each easy to tell apart at small sizes. Contact sheet: `assets/portraits/sheet.png`.
+- **Nothing resets.** Candidate ids are unchanged, so saved stats, the Daily Race cycle and boards, and Name Pass names keep working; a custom name still replaces the candidate's name.
+
 ## 0.16.0: Easier bots, key states, new-player fixes (Oct 25, 2026)
 
 ### Bot levels shifted down (D-087)

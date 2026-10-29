@@ -149,7 +149,7 @@ local NOTICES: { [string]: string } = {
 local lastColorClaim: string? = nil
 local lastColorMatch: string? = nil
 
--- "Rex took Crimson first. Pick another color." (D-061): the opponent by their
+-- "Buster took Crimson first. Pick another color." (D-061): the opponent by their
 -- candidate's first name once they hold one; the color last asked for, else the
 -- saved favorite (a tie as Select opened).
 local function colorTakenText(): string

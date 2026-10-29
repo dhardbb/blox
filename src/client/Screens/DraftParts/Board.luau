@@ -37,7 +37,7 @@ export type Strongholds = {
 local Board = {}
 
 local LINE_H = 20 -- px, one board line (grows if the detail wraps)
-local WHO_W = 64 -- px, "You" / "Rex"
+local WHO_W = 64 -- px, "You" / "Buster"
 local FACE = 24 -- px, a player's candidate portrait on the strongholds card (D-068)
 local SWATCH = 16 -- px, a legend key's dot
 local LEGEND_TINT = 0.6 -- how far a legend dot leans toward the player's color
@@ -68,7 +68,7 @@ function Board.candidateName(config: Config, view: View.View, p: number): string
 	return if p == view.you then "You" else "Opponent"
 end
 
--- "You" for the player, the opponent's first name ("Rex") otherwise.
+-- "You" for the player, the opponent's first name ("Buster") otherwise.
 function Board.who(config: Config, view: View.View, p: number): string
 	if p == view.you then
 		return "You"

@@ -17,7 +17,7 @@ local C = Config.defaults
 local SAME = { { "Jobs", "Health", "Schools" }, { "Jobs", "Health", "Schools" } }
 
 -- Week 1 with both players identical, in Ohio, every state reset to 35/35/30 with
--- no lean, momentum, ownership or rubber band. Marcus Hale is the default because
+-- no lean, momentum, ownership or rubber band. Percy Quibble is the default because
 -- his perk touches nothing resolved here.
 local function clean(candidates: { string }?): State.MatchState
 	local match =
@@ -127,7 +127,7 @@ describe("Resolve: rallies, momentum and drift", function()
 		expect(at(match, "OH").momentum[1]):toBe(C.MOMENTUM_CAP * C.MOMENTUM_DECAY)
 	end)
 
-	it("Tomas gains 65% more momentum and keeps only 25%", function()
+	it("Dash gains 65% more momentum and keeps only 25%", function()
 		local match = run(
 			clean({ "reyes", "hale" }),
 			{ { kind = "Rally", state = "OH", issue = "Jobs" } },
@@ -227,7 +227,7 @@ describe("Resolve: fundraisers", function()
 		oh.isHome, oh.owner = true, 1
 		match = run(match, { { kind = "Fundraise", state = "OH" } }, {})
 		local raw = 2 + 6 * 0.35
-		expect(match.players[1].raised):toBeCloseTo(raw * 1.25 * C.HOME_FUNDRAISE_MULT) -- Okafor +25% (D-037)
+		expect(match.players[1].raised):toBeCloseTo(raw * 1.25 * C.HOME_FUNDRAISE_MULT) -- Pennywhistle +25% (D-037)
 		-- Only the raw yield left the pool (since D-034 a week's refill covers it).
 		expect(at(match, "OH").capacity - at(match, "OH").pool):toBeCloseTo(
 			math.max(0, raw - at(match, "OH").capacity * C.POOL_REFILL)
@@ -284,7 +284,7 @@ describe("Resolve: media and attacks", function()
 		expect(at(match, "IA").support[1]):toBeCloseTo(before + 0.96 - C.BACKLASH_PENALTY)
 	end)
 
-	it("Helen's media is 10% weaker; Priya's repeat buys keep 65%", function()
+	it("Esme's media is 10% weaker; Mavis's repeat buys keep 65%", function()
 		local two = {
 			{ kind = "Media", state = "OH", issue = "Jobs" },
 			{ kind = "Media", state = "OH", issue = "Jobs" },

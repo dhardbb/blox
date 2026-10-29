@@ -51,7 +51,7 @@ Header (TURN, REFRESH, player, attempt), the output of your last command file (a
 
 **Debates (D-072)** are three live rounds in weeks 4 and 9, one per topic, each its own turn: `ACTION NEEDED: Week 4 Debate round 1 of 3: Jobs`. Both players pick at once, in secret:
 
-- `defend`, `attack` or `pivot`; add `zinger` to stake your one Zinger on this round (`attack zinger`): a round you win then counts ×2 on the map and the crowd (Hale ×3). Win or lose, it is spent.
+- `defend`, `attack` or `pivot`; add `zinger` to stake your one Zinger on this round (`attack zinger`): a round you win then counts ×2 on the map and the crowd (Quibble ×3). Win or lose, it is spent.
 - Defend beats Attack, Attack beats Pivot, Pivot beats Defend: the counter adds +2 in round 1, +3 after. Higher score wins the round; equal is a split. The same move as last round is −2.
 - `WHAT TO DO` explains the rules; the `BOARD` prints the round: the facts (your issue / theirs, who leads the topic's states, the crowd, Zingers), their strengths, and for each of your moves its strength with its parts and the result cells against their Defend, Attack and Pivot (`vs D +4 · vs A +3 · vs P +0 (split)`), "(cannot lose)" when no cell is below 0, and what a win would flip on today's polls.
 - A win: +1.0 in every state of the topic (Defend, Attack) or of your pivot issue (Pivot); a split +0.5 each; losing to a counter −0.5 where your move aimed. The polls are republished after every round.

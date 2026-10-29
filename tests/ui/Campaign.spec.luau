@@ -603,7 +603,7 @@ describe("Campaign screen", function()
 		check(not shown(find(peer, "EventCard")), "the event card shows next week's event early")
 	end)
 
-	-- Strand's perk (D-035): View.nextEvent is next week's event, for that player only.
+	-- Moonbeam's perk (D-035): View.nextEvent is next week's event, for that player only.
 	it("shows next week's event to a candidate who previews it", function()
 		local world, peer = mountsCleanly("Plan")
 		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))

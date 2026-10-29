@@ -64,7 +64,7 @@ local function keyTip(world: World, peer: Peer)
 end
 
 -- Steps that put deck event `id` in the shown week (or, with `upcoming`, only
--- in next week's preview, as for Helen Strand) on the Plan fixture.
+-- in next week's preview, as for Esme Moonbeam) on the Plan fixture.
 local function withEvent(id: string, upcoming: boolean?): (World, Peer) -> ()
 	return function(world: World, peer: Peer)
 		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
@@ -263,7 +263,7 @@ local function kitGallery(world: World, peer: Peer)
 	})
 	Kit.shadow(spot)
 	local row = Kit.stack({ Name = "Row", Parent = spot }, "Horizontal", Kit.space.sm)
-	Kit.monogram("Dana Okafor", cobalt, 44).Parent = row
+	Kit.monogram("Goldie Pennywhistle", cobalt, 44).Parent = row
 	local words = Kit.stack({ Name = "Words", Size = UDim2.new(1, -52, 0, 0), Parent = row }, "Vertical", 0)
 	Kit.eyebrow("Just called", { LayoutOrder = 1, Parent = words })
 	Kit.text("Utah · 6 votes", { Font = Kit.font.bold, LayoutOrder = 2, Parent = words })
@@ -585,6 +585,16 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- The details sheet with the longest persona line (D-097).
+		name = "03r-select-about-reskin",
+		moment = "Select",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_hale")
+			tapIf(world, peer, "Select", "Details")
+		end,
+	},
+	{
 		name = "04-select-issues",
 		moment = "Select",
 		screen = "Select",
@@ -596,7 +606,7 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
-		-- A Color Pass owner (D-061): Violet held, Teal claimed by Rex.
+		-- A Color Pass owner (D-061): Violet held, Teal claimed by Buster.
 		name = "03b-select-color",
 		moment = "SelectColor",
 		screen = "Select",

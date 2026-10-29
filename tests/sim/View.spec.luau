@@ -368,7 +368,7 @@ describe("View: no leaks", function()
 		expect(view.nextDebate and view.nextDebate.week):toBe(9)
 	end)
 
-	it("Helen Strand sees next week's event; nobody else does (D-035)", function()
+	it("Esme Moonbeam sees next week's event; nobody else does (D-035)", function()
 		local match = Fixtures.advanceTo(
 			Fixtures.campaign({ seed = 5, candidates = { "strand", "okafor" } }),
 			"Plan",
