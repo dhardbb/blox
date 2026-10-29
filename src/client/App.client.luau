@@ -13,6 +13,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Version = require(Shared:WaitForChild("Version"))
@@ -38,16 +39,6 @@ print(`[270] client up: v{Version.VERSION} ({Version.PHASE})`)
 
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-end)
-
--- Phones play in landscape only (D-089). StarterGui.ScreenOrientation (set in
--- default.project.json) applies from join; this repeats it on the player's own
--- PlayerGui so a place file without it behaves the same. LandscapeSensor, not
--- LandscapeRight: the game follows whichever way round the phone is held.
--- Desktop ignores it; a tablet stays landscape too.
-pcall(function()
-	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui") :: PlayerGui
-	playerGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
 end)
 
 -- The board fills the whole screen behind everything; the game itself stays
@@ -98,10 +89,37 @@ local function fitBoard()
 	background.Size = UDim2.fromScale(1 / scale, 1 / scale)
 end
 fitBoard()
+
+-- Phones play upright, tablets on their side (D-100, superseding D-089's
+-- landscape lock). StarterGui.ScreenOrientation is Portrait in
+-- default.project.json (it applies from join, and the Roblox app is upright
+-- until a game starts); a tablet (Kit.isTablet: touch and a shorter side of
+-- 600 pt or more) asks for LandscapeSensor here, which turns with the device
+-- whichever way round it is held. Desktop ignores the property. The answer is
+-- the same however the device is held, so a rotation re-asks the same thing.
+local function orient()
+	local size = viewport()
+	if size == nil or size.X <= 1 or size.Y <= 1 then
+		return -- the camera has not sized itself yet
+	end
+	pcall(function()
+		local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
+		local want = if Kit.isTablet(UserInputService.TouchEnabled, size)
+			then Enum.ScreenOrientation.LandscapeSensor
+			else Enum.ScreenOrientation.Portrait
+		if playerGui.ScreenOrientation ~= want then
+			playerGui.ScreenOrientation = want
+		end
+	end)
+end
+orient()
 pcall(function()
 	local camera = workspace.CurrentCamera
 	if camera then
-		camera:GetPropertyChangedSignal("ViewportSize"):Connect(fitBoard)
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			fitBoard()
+			orient()
+		end)
 	end
 end)
 local container = Kit.box({ Name = "Screens", Parent = background })

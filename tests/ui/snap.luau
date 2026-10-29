@@ -7,9 +7,8 @@
 --                                                    (a,b: either)
 --   lune run tests/ui/snap.luau -- --size phone      one size: phone | ipad | desktop
 --   lune run tests/ui/snap.luau -- --no-png          SVG only
---   lune run tests/ui/snap.luau -- --size phone-land  the orientation study's phones
---                                                    (phone-land, phone-port: with the
---                                                    device's safe areas, see SIZES)
+--   lune run tests/ui/snap.luau -- --size phone-land  the old landscape phone (D-089,
+--                                                    dormant since D-100; see SIZES)
 --   lune run tests/ui/snap.luau -- --measure         also build/snaps/<size>/measure.tsv
 --   lune run tests/ui/snap.luau -- --key-style tint  key states drawn another way
 --                                                    (Map/KeyStyle; into <size>-key-<style>)
@@ -27,7 +26,8 @@
 -- App.client.luau, Shared/UI/Fixtures), then taps through the real screen the
 -- way the specs do (tests/ui/Rig.luau). The picture comes from
 -- tests/lib/Snapshot.luau: layout is approximated (see its header), and the
--- dim strip at the top is the Roblox top bar.
+-- dim strip at the top is the Roblox top bar (on the phone, under the notch's
+-- black cutout; the white pill at the bottom is the home bar).
 
 local fs = require("@lune/fs")
 local process = require("@lune/process")
@@ -58,21 +58,23 @@ type Size = {
 	deviceTop: number?,
 }
 
--- The orientation study's phones (branch orient-study) carry the device's safe
--- areas as well as the top bar, as an iPhone 12-14 (390 x 844 pt) reports them:
--- landscape, 47 pt each side (the notch's side; LandscapeSensor turns either way)
--- and 21 at the bottom (the home bar), the 58 pt top bar across the top;
--- portrait, 47 pt at the top (the notch) with the top bar below it (105 in all)
--- and 34 at the bottom. GuiService:GetInsetArea's documented example
--- (-59, -58, 792, 334 on an 852 x 393 landscape phone) is the same pattern.
--- The fixture has no orientation lock to switch off: the layout follows the
--- size (Kit.sizeClass), so phone-port shows the portrait layouts as they are.
+-- Phones play upright (D-100), so `phone` is a portrait iPhone 12-16 (390 x 844
+-- pt) with its safe areas as well as the top bar: 47 pt at the top (the notch)
+-- with Roblox's 58 pt top bar below it (105 in all) and 34 at the bottom (the
+-- home bar), a 390 x 705 game area. That the portrait top bar sits *below* the
+-- notch is an assumption from ScreenInsets.CoreUISafeInsets (device safe area
+-- plus the top bar) and GuiService:GetInsetArea's documented landscape example
+-- (-59, -58, 792, 334 on an 852 x 393 phone: the notch side and the bar add
+-- up); if the bar shares the notch's band, the game gets 47 px taller and
+-- nothing is lost. To check once on a device (docs/TESTING.md).
+-- `phone-land` (only with --size phone-land) is the old landscape phone (D-089)
+-- with its notch on each side and the home bar: the compact layouts are kept,
+-- dormant, as the fallback if phones ever turn both ways.
 local SIZES: { Size } = {
-	{ name = "phone", x = 844, y = 390 }, -- a landscape phone (D-089): an iPhone 12-16 in points; 824x312 for a screen after the top bar
+	{ name = "phone", x = 390, y = 844, top = 105, deviceTop = 47, bottom = 34 }, -- a portrait phone (D-100)
 	{ name = "ipad", x = 1024, y = 768 },
 	{ name = "desktop", x = 1280, y = 720 },
 	{ name = "phone-land", x = 844, y = 390, study = true, top = 58, left = 47, right = 47, bottom = 21 },
-	{ name = "phone-port", x = 390, y = 844, study = true, top = 105, deviceTop = 47, bottom = 34 },
 }
 
 type Shot = {

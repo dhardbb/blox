@@ -233,6 +233,17 @@ function Kit.compact(size: Vector2): boolean
 	return Kit.sizeClass(size) == "compact"
 end
 
+Kit.TABLET_MIN = 600 -- px (pt), a touch screen's shorter side from which it is a tablet (D-100; Android's sw600dp)
+
+-- Whether a device is a tablet (D-100): a touch screen whose shorter side,
+-- notches left out (Camera.ViewportSize), is at least TABLET_MIN. The shorter
+-- side does not change when the device turns, so the answer is the same held
+-- either way. The largest phones are about 440 pt across; the smallest iPad
+-- (mini) is 744. Tablets play landscape, phones portrait.
+function Kit.isTablet(touch: boolean, screen: Vector2): boolean
+	return touch and math.min(screen.X, screen.Y) >= Kit.TABLET_MIN
+end
+
 -- Durations in seconds; every tween is one of these (docs/UI-STYLE.md, Motion).
 Kit.motion = {
 	fast = 0.12, -- press feedback, chip selection
