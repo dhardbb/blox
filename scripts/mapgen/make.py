@@ -11,8 +11,18 @@ and Hawaii moved under the West. Writes:
                                  into atlases of at most 1024x1024 (Roblox's
                                  upload limit), drawn 4x supersampled for soft
                                  edges; tinted in game with ImageColor3
+  assets/map/map-states-<k>a.png  the same atlases (same packing, same rects)
+  assets/map/map-states-<k>b.png  as marker scribble: white hatch strokes on
+                                 transparent, slanted / (a, seat 1) or \ (b,
+                                 seat 2), so the map reads without color;
+                                 tinted in game like the flat ones
   assets/map/map-borders.png     the inner state borders as white lines on
                                  transparent (at most 1024 wide), tinted dark
+  assets/map/map-ink.png         the whiteboard's map in marker: every border
+                                 and the coast of the lower 48 as slightly
+                                 wobbly white lines (Alaska and Hawaii move
+                                 into insets in game, so they are left out),
+                                 tinted ink
   src/shared/UI/MapShapeData.luau  per state: where its sprite sits in the map
                                  box, its atlas rect, a label anchor (the
                                  middle of the biggest circle inside it), how
@@ -28,12 +38,13 @@ its height.
 import heapq
 import math
 import os
+import random
 import re
 import shutil
 import subprocess
 import sys
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -59,6 +70,19 @@ SUPER = 4  # supersampling for anti-aliased edges
 SPRITE_PAD = 2  # transparent px around each sprite in its atlas
 ATLAS = 1024  # px, the largest image Roblox keeps at full size
 BORDER_PX = 2.2  # border line width in the overlay, px at its own scale
+HATCH_PITCH = 9.0  # atlas px between scribble strokes (about 2 px on a phone's map, 6 on an iPad's)
+HATCH_W = 6.2  # atlas px, a stroke's width (the rest of the pitch is the white gap)
+HATCH_WOBBLE = 0.7  # atlas px, how far a stroke drifts off its line
+HATCH_TURN = 0.05  # radians, how far a stroke may turn off the slant (about 3 degrees)
+HATCH_SUPER = 2  # supersampling for the strokes
+HATCH_GRAIN = 6  # atlas px per cell of the ink's grain (pressure noise)
+HATCH_SLANTS = {"a": "/", "b": "\\"}  # file suffix -> stroke slant (seat 1, seat 2)
+INK_INNER_PX = 2.4  # ink overlay: a border between two states, px at its own scale
+INK_COAST_PX = 3.0  # ... the coast (the land's outline), a little heavier
+INK_WOBBLE = 0.45  # units, how far a marker line strays from the true border
+INK_STEP = 1.5  # units between the wobbly line's points
+INK_PAD = 3.0  # units of margin around the lower 48 in the ink overlay (a coast line's half width fits)
+INK_LEFT_OUT = ("AK", "HI")  # drawn in their insets in game, not where the overlay has them
 SIMPLIFY = 0.6  # units, Douglas-Peucker tolerance for the outlines
 MIN_RING = 3.0  # square units: smaller islands are left out of the outlines
 EDGE_SIMPLIFY = 1.5  # units, the coarser outline the game draws around a selected state
@@ -230,7 +254,22 @@ def load_states():
     missing = [sid for sid in order if sid not in states]
     assert not missing, f"no shape for {missing}"
     borders = [arcs[i] for i in topo.shared_arcs(data, "states")]
-    return states, order, borders
+    # The ink overlay's lines: every arc of the lower 48 and DC, inner or coast.
+    owners = {}
+    for g in data["objects"]["states"]["geometries"]:
+        sid = by_name[g["properties"]["name"]]
+        kind = g["type"]
+        groups = [g["arcs"]] if kind == "Polygon" else g["arcs"] if kind == "MultiPolygon" else []
+        for group in groups:
+            for ring in group:
+                for index in ring:
+                    owners.setdefault(index if index >= 0 else ~index, set()).add(sid)
+    ink = []
+    for i in sorted(owners):
+        if owners[i] & set(INK_LEFT_OUT):
+            continue
+        ink.append((arcs[i], len(owners[i]) == 1))  # (points, is the coast)
+    return states, order, borders, ink
 
 
 # ---------------------------------------------------------------- layout
@@ -288,17 +327,84 @@ def pack(sprites):
         atlases[-1].append((sid, x, y))
         x += w
         shelf = max(shelf, h)
-    images = []
     places = {}
     for k, placed in enumerate(atlases):
+        for sid, px, py in placed:
+            places[sid] = (k + 1, px, py)
+    return compose(sprites, places), places
+
+
+def compose(sprites, places):
+    """The atlas images for `sprites` at `places` ({id: (atlas, x, y)}), so
+    another set of sprites the same sizes lands on the same rects."""
+    count = max(k for k, _, _ in places.values())
+    images = []
+    for k in range(1, count + 1):
+        placed = [(sid, px, py) for sid, (a, px, py) in places.items() if a == k]
         used_h = max(py + sprites[sid].size[1] for sid, _, py in placed)
         used_w = max(px + sprites[sid].size[0] for sid, px, _ in placed)
         image = Image.new("RGBA", (used_w, used_h), (255, 255, 255, 0))
-        for sid, px, py in placed:
+        for sid, px, py in sorted(placed):
             image.paste(sprites[sid], (px, py))
-            places[sid] = (k + 1, px, py)
         images.append(image)
-    return images, places
+    return images
+
+
+def grain(rng, w, h, low, high):
+    """Smooth pressure noise in [low, high] over a w x h image (L, 0 to 255)."""
+    gw, gh = max(2, int(w / HATCH_GRAIN) + 2), max(2, int(h / HATCH_GRAIN) + 2)
+    small = Image.new("L", (gw, gh))
+    small.putdata([int(255 * rng.uniform(low, high)) for _ in range(gw * gh)])
+    return small.resize((w, h), Image.Resampling.BICUBIC)
+
+
+def scribble(sprite, slant, seed):
+    """`sprite` (a white state mask) colored in with marker: dense strokes at
+    `slant` ("/" or "\\"), each a little wobbly and uneven in pressure, with
+    small white gaps between them and where the pen lifts. White on
+    transparent; the alpha carries the texture. Seeded, so it never changes."""
+    w, h = sprite.size
+    rng = random.Random(f"{slant}:{seed}")
+    k = HATCH_SUPER
+    big = Image.new("L", (w * k, h * k), 0)
+    draw = ImageDraw.Draw(big)
+    r = math.sqrt(0.5)
+    sx, sy = (r, -r) if slant == "/" else (r, r)  # along a stroke (y down)
+    cx, cy = w / 2, h / 2
+    reach = math.hypot(w, h) / 2 + HATCH_PITCH  # every stroke runs from -reach to reach about the middle
+    o = -reach + HATCH_PITCH * rng.random()
+    while o < reach:
+        # Each stroke a hair off the slant and off its place, its own width and pressure.
+        turn = rng.uniform(-HATCH_TURN, HATCH_TURN)
+        dx, dy = sx * math.cos(turn) - sy * math.sin(turn), sx * math.sin(turn) + sy * math.cos(turn)
+        nx, ny = -dy, dx  # across the strokes
+        off = o + rng.uniform(-0.9, 0.9)
+        width = max(1, round(HATCH_W * rng.uniform(0.75, 1.2) * k))
+        pressure = rng.uniform(0.75, 1.0)
+        phase, freq = rng.uniform(0, 2 * math.pi), rng.uniform(0.03, 0.08)
+        t = -reach - rng.uniform(0, 12)
+        while t < reach:
+            run = rng.uniform(30, 120)
+            end = min(t + run, reach)
+            pts = []
+            u = t
+            while True:
+                wob = HATCH_WOBBLE * math.sin(u * freq + phase)
+                pts.append(((cx + u * dx + (off + wob) * nx) * k, (cy + u * dy + (off + wob) * ny) * k))
+                if u >= end:
+                    break
+                u = min(u + 4, end)
+            value = int(255 * pressure * rng.uniform(0.86, 1.0))
+            draw.line(pts, fill=value, width=width, joint="curve")
+            # Mostly one stroke after another; now and then the pen lifts.
+            t = end + (rng.uniform(2.0, 5.0) if rng.random() < 0.3 else -1.0)
+        o += HATCH_PITCH * rng.uniform(0.9, 1.1)
+    strokes = big.resize((w, h), Image.Resampling.BOX)
+    strokes = ImageChops.multiply(strokes, grain(rng, w, h, 0.8, 1.0))
+    alpha = ImageChops.multiply(strokes, sprite.getchannel("A"))
+    out = Image.new("RGBA", (w, h), (255, 255, 255, 0))
+    out.putalpha(alpha)
+    return out
 
 
 def borders_image(lines, land):
@@ -318,6 +424,65 @@ def borders_image(lines, land):
     return image, scale
 
 
+def wobbly(line, rng):
+    """`line` (units) resampled every INK_STEP and nudged sideways by a slow,
+    seeded wobble that is zero at both ends (so joined lines stay joined)."""
+    pts = []
+    for i in range(len(line) - 1):
+        (x1, y1), (x2, y2) = line[i], line[i + 1]
+        n = max(1, int(math.hypot(x2 - x1, y2 - y1) / INK_STEP))
+        for j in range(n):
+            pts.append((x1 + (x2 - x1) * j / n, y1 + (y2 - y1) * j / n))
+    pts.append(line[-1])
+    lengths = [0.0]
+    for i in range(1, len(pts)):
+        lengths.append(lengths[-1] + math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
+    total = lengths[-1]
+    p1, p2 = rng.uniform(0, 2 * math.pi), rng.uniform(0, 2 * math.pi)
+    f1, f2 = rng.uniform(0.08, 0.16), rng.uniform(0.25, 0.45)
+    out = []
+    for i, (x, y) in enumerate(pts):
+        a, b = pts[max(0, i - 1)], pts[min(len(pts) - 1, i + 1)]
+        tx, ty = b[0] - a[0], b[1] - a[1]
+        tl = math.hypot(tx, ty) or 1.0
+        s = lengths[i]
+        taper = min(1.0, s / 6.0, (total - s) / 6.0)
+        d = INK_WOBBLE * taper * (0.7 * math.sin(s * f1 + p1) + 0.3 * math.sin(s * f2 + p2))
+        out.append((x - ty / tl * d, y + tx / tl * d))
+    return out
+
+
+def ink_image(lines):
+    """The ink overlay: `lines` [(points, coast)] as wobbly marker strokes,
+    uneven in pressure, over the lower 48 plus INK_PAD; returns the image and
+    its rect in units (x0, y0, x1, y1)."""
+    pts = [p for line, _ in lines for p in line]
+    x0, y0, x1, y1 = bbox(pts)
+    x0, y0, x1, y1 = x0 - INK_PAD, y0 - INK_PAD, x1 + INK_PAD, y1 + INK_PAD
+    scale = min(ATLAS / (x1 - x0), ATLAS / (y1 - y0)) * 0.999
+    w, h = int(math.ceil((x1 - x0) * scale)), int(math.ceil((y1 - y0) * scale))
+    big = Image.new("L", (w * SUPER, h * SUPER), 0)
+    draw = ImageDraw.Draw(big)
+    k = scale * SUPER
+    for index, (line, coast) in enumerate(lines):
+        rng = random.Random(f"ink:{index}")
+        bent = wobbly(line, rng)
+        base = INK_COAST_PX if coast else INK_INNER_PX
+        # In pieces of about 12 points: each its own pressure, so the line
+        # thickens and thins like a marker.
+        for start in range(0, len(bent) - 1, 12):
+            piece = bent[start : start + 13]
+            if len(piece) < 2:
+                continue
+            width = max(1, round(base * rng.uniform(0.85, 1.15) * SUPER))
+            value = int(255 * rng.uniform(0.9, 1.0))
+            draw.line([((x - x0) * k, (y - y0) * k) for x, y in piece], fill=value, width=width, joint="curve")
+    alpha = big.resize((w, h), Image.Resampling.BOX)
+    image = Image.new("RGBA", (w, h), (255, 255, 255, 0))
+    image.putalpha(alpha)
+    return image, (x0, y0, x1, y1)
+
+
 # ---------------------------------------------------------------- output
 
 
@@ -327,7 +492,7 @@ def fmt(v):
 
 
 def main():
-    states, order, border_lines = load_states()
+    states, order, border_lines, ink_lines = load_states()
     box = layout(states)
     left, top, bw, bh = box["left"], box["top"], box["width"], box["height"]
 
@@ -381,8 +546,19 @@ def main():
         name = f"map-states-{k + 1}.png"
         image.save(os.path.join(OUT_ASSETS, name), optimize=True)
         atlas_files.append((name, image.size))
+    # The scribbled sets: the same sprite sizes on the same rects.
+    hatch_files = []
+    for suffix, slant in HATCH_SLANTS.items():
+        scribbled = {sid: scribble(sprites[sid], slant, sid) for sid in order}
+        for k, image in enumerate(compose(scribbled, places)):
+            assert image.size == images[k].size, "a scribbled atlas is not the flat one's size"
+            name = f"map-states-{k + 1}{suffix}.png"
+            image.save(os.path.join(OUT_ASSETS, name), optimize=True)
+            hatch_files.append((name, image.size))
     border, _ = borders_image(border_lines, box["land"])
     border.save(os.path.join(OUT_ASSETS, "map-borders.png"), optimize=True)
+    ink, ink_rect = ink_image(ink_lines)
+    ink.save(os.path.join(OUT_ASSETS, "map-ink.png"), optimize=True)
 
     # Callout chips: one column right of the coast, north to south, evenly spaced.
     col_x, col_w = box["column"]
@@ -431,6 +607,7 @@ def main():
     out("\tASPECT: number,")
     out("\tatlases: { { file: string, w: number, h: number } },")
     out("\tborders: Rect & { file: string, pw: number, ph: number },")
+    out("\tink: Rect & { file: string, pw: number, ph: number },")
     out("\tlegend: Rect,")
     out("\tshapes: { Shape },")
     out("}")
@@ -446,6 +623,11 @@ def main():
     out(
         f'\tborders = {{ file = "assets/map/map-borders.png", x = {fmt(fx(gx0))}, y = {fmt(fy(gy0))}, '
         f"w = {fmt((gx1 - gx0) / bw)}, h = {fmt((gy1 - gy0) / bh)}, pw = {border.size[0]}, ph = {border.size[1]} }},"
+    )
+    ix0, iy0, ix1, iy1 = ink_rect
+    out(
+        f'\tink = {{ file = "assets/map/map-ink.png", x = {fmt(fx(ix0))}, y = {fmt(fy(iy0))}, '
+        f"w = {fmt((ix1 - ix0) / bw)}, h = {fmt((iy1 - iy0) / bh)}, pw = {ink.size[0]}, ph = {ink.size[1]} }},"
     )
     # The legend strip: under all the land (Alaska and Hawaii end above it), left of the chips.
     legend_top = gy1 + PAD / 2
@@ -507,7 +689,10 @@ def main():
     print(f"box {bw:.1f} x {bh:.1f} units; phone scale {PHONE_WIDTH / bw:.3f} px/unit")
     for name, size in atlas_files:
         print(f"  assets/map/{name}  {size[0]}x{size[1]}")
+    for name, size in hatch_files:
+        print(f"  assets/map/{name}  {size[0]}x{size[1]}")
     print(f"  assets/map/map-borders.png  {border.size[0]}x{border.size[1]}")
+    print(f"  assets/map/map-ink.png  {ink.size[0]}x{ink.size[1]}")
     narrow = sorted(
         (info[s]["room"] * PHONE_WIDTH / bw, s) for s in order if s not in LADDER
     )
