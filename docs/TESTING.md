@@ -85,7 +85,7 @@ There's still no game UI. This checks that the simulation, which so far has only
 
 1. Open `270.rbxl` and press **Play** (F5).
    - Output shows `[270] server up: v0.1.0 (1 Simulation core), 12 weeks`.
-   - Within a second or two, Output shows a line like `[270] sim self-test: seed 1761091234: Dana Okafor 281 - 257 Rex Calloway, winner Dana Okafor, 25 phases in 140 ms`.
+   - Within a second or two, Output shows a line like `[270] sim self-test: seed 1761091234: Goldie Pennywhistle 281 - 257 Buster Cannonball, winner Goldie Pennywhistle, 25 phases in 140 ms`.
    - The two EV numbers add up to 538.
    - No red errors, and no `sim self-test FAILED` warning.
 2. Stop and press **Play** again. The seed changes, so the candidates and score should usually change too.
@@ -351,21 +351,21 @@ Send back: one screenshot of each step marked with a phone or 16:9 at the top (M
 
 ## Balance pass 2 (v0.5.0)
 
-Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on screen is Helen Strand's event preview. Two-player test (**Test → Clients and Servers, 2 players**), or **Play vs Bot** where a step says so. Press **F2** for the debug text panel when a step asks for the board.
+Numbers and one perk reshape (`DESIGN.md` D-033 to D-036); the only new thing on screen is Esme Moonbeam's event preview. Two-player test (**Test → Clients and Servers, 2 players**), or **Play vs Bot** where a step says so. Press **F2** for the debug text panel when a step asks for the board.
 
 1. **Debates feel like prep matters.** Pick any two candidates. In week 3 put **4/2/0** on one side and leave the other at 2/2/2 (or play vs bot, which spreads its points). Watch the week-4 debate reveal.
    - The 4-vs-2 topic goes to the 4 most of the time (about 8 in 10 across matches), and the 0-vs-2 topic goes to the 2 almost always, with "gaffe" on the zero. Each topic won reads **+0.3** national, a 3-0 sweep **+1.2**.
    - On the board after the debate, the projected EV should visibly move (one or two close states) when one side wins 2-1 or better.
-2. **Fundraising is flat.** Play vs Bot as Dana Okafor or anyone else. Fundraise **once in your home state** in weeks 1, 2, 3 and 4 (plus whatever else you like).
-   - "You raised" is about the same every week (about $5.5-7 at home for a plain candidate, 50% more for Okafor), not $7 then $4.5. Three home fundraisers in week 1 raise under $10 in total, not $18-20.
+2. **Fundraising is flat.** Play vs Bot as Goldie Pennywhistle or anyone else. Fundraise **once in your home state** in weeks 1, 2, 3 and 4 (plus whatever else you like).
+   - "You raised" is about the same every week (about $5.5-7 at home for a plain candidate, 50% more for Pennywhistle), not $7 then $4.5. Three home fundraisers in week 1 raise under $10 in total, not $18-20.
    - A fundraiser in a state the opponent also funded still splits the pool (lower yield that week).
-3. **Helen Strand's briefing.** Pick Helen Strand on one client. From week 1 on, her event card (and the F2 board line `Next week's event (your pollster's briefing): ...`) names **next week's** event as well as this week's; the other client sees only this week's. In week 11 she sees no preview (week 12 has no event). Her two free polls still work (Poll on two states costs $0).
+3. **Esme Moonbeam's briefing.** Pick Esme Moonbeam on one client. From week 1 on, her event card (and the F2 board line `Next week's event (your pollster's briefing): ...`) names **next week's** event as well as this week's; the other client sees only this week's. In week 11 she sees no preview (week 12 has no event). Her two free polls still work (Poll on two states costs $0).
    - If the campaign screen does not yet show the preview (the client is being updated separately), the F2 board line is what to check.
 4. **Choice weeks have a payoff.** In a Choice week pick different answers on the two clients, e.g. Defend vs Attack, then Ignore vs Defend the next time.
    - The reveal line shows the winner with a **positive** number and the loser with a negative one: Attack over Ignore +0.3 / -0.2, Defend over Attack +0.2 / -0.3, Ignore over Defend +0.2 / -0.2. Same answers: Attack/Attack -0.2 each, Defend/Defend and Ignore/Ignore 0.
-5. **Candidates.** Over several bot matches, Marcus Hale (7 prep) and Helen Strand should win about as often as anyone else; the roster numbers on the Select screen match `Candidates.luau` (Strand: "Sees next week's event a week early; two free internal polls a week").
+5. **Candidates.** Over several bot matches, Percy Quibble (7 prep) and Esme Moonbeam should win about as often as anyone else; the roster numbers on the Select screen match `Candidates.luau` (Moonbeam: "Sees next week's event a week early; two free internal polls a week").
 
-**Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Strand's preview was visible on the campaign screen or only on the F2 board.
+**Send back:** the debate reveal screenshots from step 1 (both weeks), the "You raised" amounts from step 2, and whether Moonbeam's preview was visible on the campaign screen or only on the F2 board.
 
 ## Map lenses (v0.8.0)
 
@@ -488,7 +488,7 @@ Rules only (`DESIGN.md` D-039 to D-041). The screens for them are the section ab
 
 1. Open a practice match, press **F2** for the debug panel, and at Week 1 Plan type `plan ad <your state> jobs`. Should: lock in like `media` did (if you have $3). Send back: the log line.
 2. In the campaign, select a state where one side has momentum (the ▲ on the map). Should: the state card says "about +X support drifts to … next week" and "Drift: … about 0.3 support next week per point of momentum lead shown now …". Next week, check the state moved by about that much if nobody campaigned there. Send back: a screenshot of the card, and the two polls.
-3. Open "?" (How it works) → "Leans, momentum, backlash, underdog". Should: the same drift sentence, with your candidate's numbers (Tomas Reyes: 25% kept, 0.15 per point). Send back: a screenshot.
+3. Open "?" (How it works) → "Leans, momentum, backlash, underdog". Should: the same drift sentence, with your candidate's numbers (Dash Kickflip: 25% kept, 0.15 per point). Send back: a screenshot.
 
 ## Decision screens: debate focus and stances (D-044, v0.8.0)
 
@@ -505,7 +505,7 @@ Playtest 3 asked for debates and event choices "on a separate screen before the 
    - Lock in → the debate plays right away (10 s), then the week's plan (or the stance screen first, if this week also has a Choice event).
    - In the debate reveal and the week card, each topic's score reads e.g. "you 2 focus + 2 platform + 1 stat + roll 3 = 8 · them 1 stat + roll 2 = 3".
 4. **Let the focus timer run out** (week 9, touch nothing). The debate runs with no focus for you; every topic you lost shows a red gaffe line ("Your gaffe on …: -0.6 in …").
-5. **Hale.** Play as Marcus Hale: the focus lines say +3 instead of +2 ("Focus here: 6 vs …").
+5. **Quibble.** Play as Percy Quibble: the focus lines say +3 instead of +2 ("Focus here: 6 vs …").
 6. **Help and F2.** Tap **?** → Debates: it explains the focus (+2, one topic, the screen lists states and EV) and the gaffe with no focus. Press F2 on the focus screen: the board lists each topic's three lines; typing `focus jobs` (a topic of this debate) locks it in; on a stance screen `choice b` does.
 7. **Two players.** Both reach the focus screen together. Lock in on one client: the other client's screen says "Opponent: locked in" and nothing about which topic. When both have locked in, the debate starts at once (no waiting for the timer). The same for a stance screen.
 
@@ -558,9 +558,9 @@ Agents: `lune run tests/ui/snap.luau -- <16..27>` and look at `build/snaps/`; `l
 
 In Studio, Practice, once at 16:9 and once on the iPad (or a phone in portrait):
 
-1. **Week results.** Plan week 1 with two rallies in the same state, lock in, and watch the reveal. **Expect:** "Your week" with one line "Rally in <state> ×2 · <issue>", then "<Rex>'s week". When the new polls arrive, "What changed" lists any state that changed leader in green (to you) or red (to Rex), plus up to 3 tags like "TX +2.0 for you"; the map badges only those states. The first time, a tip says "Both plans are out! Marked states moved the most." Send back a screenshot.
+1. **Week results.** Plan week 1 with two rallies in the same state, lock in, and watch the reveal. **Expect:** "Your week" with one line "Rally in <state> ×2 · <issue>", then "<Buster>'s week". When the new polls arrive, "What changed" lists any state that changed leader in green (to you) or red (to Buster), plus up to 3 tags like "TX +2.0 for you"; the map badges only those states. The first time, a tip says "Both plans are out! Marked states moved the most." Send back a screenshot.
 2. **A Choice week.** After a stance week, the reveal shows "<event>: stance A · …" in each group, and "Why? +" opens the stance numbers.
-3. **Debate (week 4).** **Expect:** a scoreboard, one row per topic ("Safety  2 – 1  You win") with one short line under it, then "You won 2 of 3 topics!" (or Rex's), and "Every state also got …". "Why? +" shows the score breakdown. The map has at most about 8 badges. Send back a screenshot.
+3. **Debate (week 4).** **Expect:** a scoreboard, one row per topic ("Safety  2 – 1  You win") with one short line under it, then "You won 2 of 3 topics!" (or Buster's), and "Every state also got …". "Why? +" shows the score breakdown. The map has at most about 8 badges. Send back a screenshot.
 4. **Election night.** **Expect:** the spotlight card says "Just called · <state> · N votes · Called for <name> by X points" in the winner's color, and "Too close to call … Counting the last votes" (outlined) before a close state. On the iPad/phone the names at the top are first names, never cut off. A tip "States are called one by one. First to 270 wins!" sits above the calls once.
 5. **Results.** **Expect:** "You won"/"You lost", "280 votes to 258", the bar, two cards, "Why you won" with 3 bullets. "Full breakdown →" opens a sheet with what decided it, the closest states and the debates; × closes it. Play again is the only pink button.
 6. **How to play.** Tap **?** during the plan, a stance, and election night. **Expect:** a sheet opens on "Your turn", "Events" and "How to win" respectively, with the countdown at the top right; each tab shows a small picture and a short paragraph; "All the numbers +" shows the full rules. × or tapping outside closes it.
@@ -636,7 +636,7 @@ In Studio, a Practice match on the Mac, then the same on the iPad, sound on.
 5. **Remove it** (× on the plan row). **Expect:** the row fades out, a soft "delete" sound, and Ohio's badge fades away.
 6. **Switch lenses** (Votes → Polls → Money). **Expect:** the little numbers inside the circles fade in; the circles themselves never move.
 7. **Over budget.** Add actions until **Lock in** turns grey and says what is wrong ("Not enough money"), then tap it. **Expect:** the action bar shakes and you hear a short "bonk"; nothing is sent.
-8. **Opponent line.** **Expect:** at the bottom right "Rex: thinking" with dots that step along; when the bot locks in it rises and pops into "Rex: locked in ✓".
+8. **Opponent line.** **Expect:** at the bottom right "Buster: thinking" with dots that step along; when the bot locks in it rises and pops into "Buster: locked in ✓".
 9. **Score.** Lock in and watch the week's results. **Expect:** when the projected votes change, the numbers at the top count to their new value and the bars slide, with a small "+12" chip rising from each name that changed.
 10. **Decisions.** On a stance week (or debate prep) **expect** the three stances (or the topics) to pop in one after another.
 11. **Reduce Motion on** (Esc → Settings), repeat 2, 4, 6 and 8. **Expect:** no pops, rings drawing or sliding, no rising chips, the dots stay "thinking..."; badges, numbers and sounds still appear at once.
@@ -649,14 +649,14 @@ Agents: `lune run tests Reveal`, `lune run tests Election`, `lune run tests Resu
 
 In Studio, a Practice match (Autoplay off) on the Mac, then the same on the iPad. Sound on.
 
-1. **Both plans are in.** Lock in a plan in week 1. **Expect:** a whoosh, then "Both plans are in" in pink at the top of the side panel for half a second, with one line under it: who goes first and why ("Rex trails, so Rex's actions land first", or "Your actions land first" when it's even).
+1. **Both plans are in.** Lock in a plan in week 1. **Expect:** a whoosh, then "Both plans are in" in pink at the top of the side panel for half a second, with one line under it: who goes first and why ("Buster trails, so Buster's actions land first", or "Your actions land first" when it's even).
 2. **Actions land.** **Expect:** the actions come in one or two at a time, the trailing player's first. Each time, the state on the map bumps and sends out a ring in that player's color, with a soft pop (yours a little higher than theirs).
 3. **New polls.** At the end of the week's reveal, **expect** every state that changed leader to ring in its new leader's color with one stinger, and the "What changed" rows to slide in one after another. The vote counts in the top bar count up to their new values.
 4. **Skip** still works at any point and jumps straight to the end of the reveal.
 5. **Debate.** In a debate week, **expect** each topic row to fade in with its verdict pill popping; a topic you win plays a bright hit, a tie or a loss a soft click. The headline pops in after the last topic.
 6. **Election night pacing.** Watch without skipping. **Expect:** safe states go quickly (about one every 0.6 s, done by about 0:18 on the "Results in" clock), then the last 8 and the state that takes someone to 270 slow down: the call holds for a moment, then the spotlight says "Too close to call" (or "Still counting") and names the next state before it is called.
 7. **Each call.** **Expect:** the state's circle fills with the winner's color and rings, the spotlight bumps, the vote numbers count up and the bar grows, and a ding plays that gets higher as the leader nears 270. The state in the spotlight is not also at the top of the list underneath; it joins the list when the next call (or the suspense) replaces it.
-8. **270.** On the call that takes someone to 270, **expect** the spotlight to say "Dana reaches 270!", the 270 tick and "270 to win" to flash pink twice, and a stinger. "Results in" no longer turns red or ticks in its last 5 seconds.
+8. **270.** On the call that takes someone to 270, **expect** the spotlight to say "Goldie reaches 270!", the 270 tick and "270 to win" to flash pink twice, and a stinger. "Results in" no longer turns red or ticks in its last 5 seconds.
 9. **The end.** When every state is called, **expect** the banner in place of the counters, the spotlight gone and the list (all 51 calls) filling the side.
 10. **Results, win.** **Expect:** "You won" pops in, both vote totals count up from 0, confetti in both players' colors falls once, and the victory stinger plays once. On the other player's screen (the loss): "You lost" fades in, no confetti, the defeat sound, and one pink line under the reasons: "Try next time: …".
 11. **Reduce motion** on (Esc → Settings), replay a week and an election night. **Expect:** no bumps, rings, pops or confetti; every line, number and color still arrives, and the sounds still play.
@@ -676,7 +676,7 @@ In Studio, a Practice match on the Mac, then the Lobby, Select and Draft again o
 2. **Settings chips.** Under How to play: **Sound** (outlined) and **Reduce motion**. Tap Sound. **Expect:** its outline goes, the icon turns grey (with a slash or the "off" speaker), and buttons go silent; the ♪ in any header shows muted too. Tap it again: a click, sound is back. Tap Reduce motion. **Expect:** it gets the outline and presses and pops stop (screens only fade). Tap it again.
 3. **Help settings.** In a match tap **?** → How to win. **Expect:** "Settings" with the same two chips at the top, in sync with the Lobby and the ♪ button. Then Actions and Polls: **expect** an icon beside each action name.
 4. **Select.** **Expect:** the eight candidate cards pop in one after another; tapping one pops it and outlines it with a click. After Next, the issue cards pop in the same way, and the issues tip appears with a soft pip. The candidate tip that greets you is silent.
-5. **Draft.** Tap a state in the list or on the map. **Expect:** it pops into the 1st slot, the state bumps on the map, and a soft pop plays; tapping it again takes it back with a lower sound. Tap a state you can't pick: **expect** the reason under the map shakes briefly, with a bonk. After the round, **expect** both "You got / Rex got" cards to pop in, each state rings in its player's color, and a whoosh.
+5. **Draft.** Tap a state in the list or on the map. **Expect:** it pops into the 1st slot, the state bumps on the map, and a soft pop plays; tapping it again takes it back with a lower sound. Tap a state you can't pick: **expect** the reason under the map shakes briefly, with a bonk. After the round, **expect** both "You got / Buster got" cards to pop in, each state rings in its player's color, and a whoosh.
 6. **Toasts.** In the Lobby, Play a friend → type `AB1` → Join. **Expect:** the message box at the top appears in place, shakes, and bonks; after a few seconds it fades out. A notice (not an error) slides down a little instead.
 7. **Icons.** The header ♪ button, the settings chips and the Help pictures show the drawn icons, never grey boxes, on the Mac and on the iPad.
 8. **Reduce motion** (Roblox Settings or the chip). Repeat 1, 4 and 5. **Expect:** no pops, shakes or rings; everything still ends in the same place and sounds still play.
@@ -739,7 +739,7 @@ Needs the Color Pass set up (above). Two owners means the published game with a 
 3. Go to step 2 (issues). **Expect:** the swatches are still there and still work. Lock in, then tap another color before the bot locks: it still changes.
 4. **Two owners, different saved colors** (Teal and Violet), **Find match**. **Expect:** each starts with their own; each sees the other's swatch dimmed with "Taken" and the other's initials; tapping it does nothing.
 5. **Two owners, the same saved color** (both Teal), three matches. **Expect:** one of you is Teal; the other sees "Your opponent took Teal first. Pick another color." and can tap any free swatch. Not always the same person.
-6. **Both tap the same free color at the same moment** (count down together). **Expect:** one gets it; the other sees "Rex took Amber first…" (with the opponent's name) and picks another.
+6. **Both tap the same free color at the same moment** (count down together). **Expect:** one gets it; the other sees "Buster took Amber first…" (with the opponent's name) and picks another.
 7. **Without the pass:** no swatches, only "Your color: Crimson" (or Cobalt).
 8. Output: any line with `rejected ClaimColor` or an error from `Select` or `Session`.
 
@@ -757,7 +757,7 @@ Before testing: the two decoration images need uploading first (`assets/ui/READM
 4. **Hosting a private match:** **Cancel** has an orange outline and orange text.
 5. **Campaign:** the bottom bar sits on its own panel with a soft shadow above it (after the upload). The header's time bar is thicker, rounded, with a glowing white tip, and turns orange in the last 5 seconds; the timer text is orange under 10 seconds. Battleground states show their vote number in a white-outlined tag with a ★ (D-058), not orange.
 6. **A sheet** (Map key, a state's Details): on the iPad it scales in from slightly smaller, has rounder corners and a shadow (after the upload); on a phone it has a small handle bar at the top.
-7. **Losing:** finish a match you lose. "You lost" is orange; nothing on that screen is red unless it is the other player's color. In a debate week, a topic the other player wins shows an orange "Rex wins" tag.
+7. **Losing:** finish a match you lose. "You lost" is orange; nothing on that screen is red unless it is the other player's color. In a debate week, a topic the other player wins shows an orange "Buster wins" tag.
 8. **No errors:** the Output window shows no errors from `Kit`, `Assets`, `Header`, `ActionBar` or `Sheet`, before and after the upload. *Send back:* the Output log.
 
 ## Front-page map (unreleased)
@@ -827,13 +827,13 @@ Agents: `lune run tests difficulty` (sim, net and e2e specs), `lune run tests/ha
 
 Client only: the week's results, the debate, election night and Results. Shadows and glows need the uploaded images (see "Front-page foundation"). Try each step once with Reduce Motion on too: everything should still appear, just without the slam or the flash.
 
-1. **Week results** (end any week): the panel starts with a small grey "WEEK 3 RESULTS" over "You vs Rex"; "Your week" and "Rex's week" each have a colored circle with the candidate's initials. When the new polls are in, the title changes to who flipped what ("You flipped 2 · Rex flipped 1"). Under "What changed", a state that flipped to you has a green ▲ and its line in your color; one that flipped to Rex has an orange ▼ and its line in Rex's (lighter) red. The biggest moves are filled tags: green with ▲, orange with ▼. *Send back:* a screenshot of the finished panel.
-2. **Debate** (week 4 or 9): each topic's score is in the round font; the verdict tags are filled green / orange / grey. After the last topic, "You won 2 of 3 topics!" (or "Rex won …") slams in as a tilted stamp, green or orange. *Send back:* a screenshot, and whether the stamp feels like a moment or like clutter.
+1. **Week results** (end any week): the panel starts with a small grey "WEEK 3 RESULTS" over "You vs Buster"; "Your week" and "Buster's week" each have a colored circle with the candidate's initials. When the new polls are in, the title changes to who flipped what ("You flipped 2 · Buster flipped 1"). Under "What changed", a state that flipped to you has a green ▲ and its line in your color; one that flipped to Buster has an orange ▼ and its line in Buster's (lighter) red. The biggest moves are filled tags: green with ▲, orange with ▼. *Send back:* a screenshot of the finished panel.
+2. **Debate** (week 4 or 9): each topic's score is in the round font; the verdict tags are filled green / orange / grey. After the last topic, "You won 2 of 3 topics!" (or "Buster won …") slams in as a tilted stamp, green or orange. *Send back:* a screenshot, and whether the stamp feels like a moment or like clutter.
 3. **Election night, a call:** each state turns briefly white on the map, then takes the winner's color. The spotlight card shows the winner's initials, "JUST CALLED", and a "CALLED" stamp in the winner's color on its top-right corner. On a phone the stamp stays on screen. *Send back:* a phone screenshot mid-night.
 4. **Election night, suspense:** before a close call the card says "TOO CLOSE TO CALL" in orange with a "?" circle, and that state glows on the map.
 5. **Election night, 270:** when someone reaches 270, the tick flashes and "270 TO WIN" blinks; about half a second later a "270!" stamp lands on the bar. That state keeps a white ring until the end. If that was the last call, the stamp gets a moment before the banner replaces the strip. *Send back:* a screenshot right after the stamp lands.
-6. **Election night, the end:** the banner reads "ELECTION NIGHT" over "Dana Okafor wins 280–258", edged (and, after the upload, glowing) in the winner's color. Feed rows have a thin bar in the winner's color on their left.
-7. **Results, win and loss:** "You won" is a green tilted stamp that slams in, with confetti (both colors and white); "You lost" is an orange stamp with dark text, and nothing on the screen is red except Rex's own color. Below: the race bar with "270" over its tick, then two cards with big initials; the winner's card has a colored edge. **Full breakdown:** the closest states are listed in the players' colors and easy to read. *Send back:* both screenshots on the iPad.
+6. **Election night, the end:** the banner reads "ELECTION NIGHT" over "Goldie Pennywhistle wins 280–258", edged (and, after the upload, glowing) in the winner's color. Feed rows have a thin bar in the winner's color on their left.
+7. **Results, win and loss:** "You won" is a green tilted stamp that slams in, with confetti (both colors and white); "You lost" is an orange stamp with dark text, and nothing on the screen is red except Buster's own color. Below: the race bar with "270" over its tick, then two cards with big initials; the winner's card has a colored edge. **Full breakdown:** the closest states are listed in the players' colors and easy to read. *Send back:* both screenshots on the iPad.
 8. **No errors:** the Output window shows no errors from `Reveal`, `Election` or `Results`.
 
 ## Front-page panels (unreleased, WP-2)
@@ -842,10 +842,10 @@ Client only: the Lobby, Select, the Draft, the stance and debate-prep screens, t
 
 1. **Lobby (iPad, Mac, phone).** "A 1V1 ELECTION STRATEGY GAME" over a big outlined "270" with a soft glow; the background has a faint navy glow. Under **Play vs Bot** the four levels sit in one dark track, the picked one raised with a white outline. The leaderboard's top three have gold, silver and bronze coins; your row is raised with a white bar on its left. On the phone everything fits without scrolling. *Send back:* a screenshot on each device, and whether it looks like a Roblox front-page game.
 2. **Play a friend → Make a code.** "YOUR PRIVATE MATCH", then the code big in the round font on a lit plate; **Cancel** is orange-outlined.
-3. **Select.** Every candidate card has a round portrait with initials in your color (Rex Calloway's, when taken, in Rex's red). Strength green with "+", weakness orange with "−", one line each even on a phone. Under the cards, your candidate's initials in your color and "Your color: …". *Send back:* a phone screenshot.
-4. **Draft.** In the list, each lean is a filled tag: "+2 you" on your color, "+2 Rex" on red; "Even" is plain. On the map, home states have an "H" tag in their owner's color; picked battlegrounds a dark tag with a white ★ outline (on the Votes lens on a wide screen the ★ is in the number instead); your 1st and 2nd picks a dark tag with a white outline. After a round, the two cards say "You got WY" / "Rex got OH" in each color with a ★ Battleground (or Home state) tag. Nothing on the Draft is filled white except Lock in.
+3. **Select.** Every candidate card has a round portrait with initials in your color (Buster Cannonball's, when taken, in Buster's red). Strength green with "+", weakness orange with "−", one line each even on a phone. Under the cards, your candidate's initials in your color and "Your color: …". *Send back:* a phone screenshot.
+4. **Draft.** In the list, each lean is a filled tag: "+2 you" on your color, "+2 Buster" on red; "Even" is plain. On the map, home states have an "H" tag in their owner's color; picked battlegrounds a dark tag with a white ★ outline (on the Votes lens on a wide screen the ★ is in the number instead); your 1st and 2nd picks a dark tag with a white outline. After a round, the two cards say "You got WY" / "Buster got OH" in each color with a ★ Battleground (or Home state) tag. Nothing on the Draft is filled white except Lock in.
 5. **A stance week.** Each of A, B, C has a thin bar on its left; the picked one's bar turns white with the outline. "+21 states" is green, "−10 states" orange. **Debate prep:** "You win 81%" is a green tag; your pick gets the white bar.
-6. **Campaign header.** "310 Dana Okafor" at the left and "Rex Calloway 189" at the right over a thick two-color bar with a white tick at 270; names are readable (lighter red and blue). On a phone only the two numbers show over the bar, on one row. When the score changes the numbers count and the bar slides.
+6. **Campaign header.** "310 Goldie Pennywhistle" at the left and "Buster Cannonball 189" at the right over a thick two-color bar with a white tick at 270; names are readable (lighter red and blue). On a phone only the two numbers show over the bar, on one row. When the score changes the numbers count and the bar slides.
 7. **State card.** The six actions each start with their icon on a small dark circle; the poll is a small race bar with a tick in the middle. The event card shows "THIS WEEK" over "Windfall · …". The **Key** chip (magnifier) beside the lens chips opens "How to read the map".
 8. **Help (?).** The five tabs sit in one dark track (two rows on a phone), the open one raised with a white outline. "How to win" shows the race bar; "Actions" shows each icon on a round plate. At the end, under a thin line, **Leave match** is orange-outlined. **How to play** (Lobby): the step numbers are round, the election-night winners are tags filled blue / red.
 9. **No errors** from `Lobby`, `Leaderboard`, `Select`, `Draft`, `TopBar`, `StateCard`, `EventCard`, `Focus` or `Help` in the Output window. *Send back:* the Output log.
@@ -867,7 +867,7 @@ Needed from the humans, once:
 ### The Landslide stamp (D-062)
 
 A landslide is rare between two good players, so check it offline first:
-1. Workspace → Attributes → add `DebugScreen` (string) = `Landslide`, press Play. **Expect:** Results with the green "You won" stamp, under it "YOU WON BY A" and a big **LANDSLIDE** stamp in your color, tilted the other way, landing a moment after "You won", with lots of confetti, a second sound and a light sweeping across it; under it "You took … of 538 votes, over 70%." Set `DebugScreen` = `LandslideLoss`: the orange "You lost", then "REX WON BY A" and LANDSLIDE in Rex's color, no confetti. Remove the attribute afterwards.
+1. Workspace → Attributes → add `DebugScreen` (string) = `Landslide`, press Play. **Expect:** Results with the green "You won" stamp, under it "YOU WON BY A" and a big **LANDSLIDE** stamp in your color, tilted the other way, landing a moment after "You won", with lots of confetti, a second sound and a light sweeping across it; under it "You took … of 538 votes, over 70%." Set `DebugScreen` = `LandslideLoss`: the orange "You lost", then "BUSTER WON BY A" and LANDSLIDE in Buster's color, no confetti. Remove the attribute afterwards.
 2. In a real practice match, beat the Easy bot by a lot (377 votes or more). **Expect:** the same stamp on your Results. A closer win (under 377) shows no stamp.
 3. Turn on Reduce motion and repeat step 1: the stamp is simply there, nothing slams or sweeps.
 4. **Send back:** an iPad screenshot of each, and whether it feels like a reward.
@@ -876,13 +876,13 @@ A landslide is rare between two good players, so check it offline first:
 
 1. Play a practice match to week 2 or later on the iPad, then on the Mac. **Expect:** right under the score bar and the "Tap a state…" line, a strip across the screen: a gold circle with an icon, the event's name in bold ("Windfall · Small-dollar surge") and one line under it ("Fundraisers where you trail +20%"), and an arrow at the right. The map starts right under it. Nothing about the event is left in the side column.
 2. Tap the strip. **Expect:** a "This week" sheet with the full effect, the story and, in a Spotlight or Regional week, "States marked * …". Close it with × or by tapping outside.
-3. Play through each kind of week you meet (Spotlight, Regional, Windfall, a Choice week after you take a stance: the line says "Stance A: …"). With Helen Strand, week 1 shows "Next week: <name>". During the week's results the strip goes away and comes back with the next week's event, with a small pulse.
+3. Play through each kind of week you meet (Spotlight, Regional, Windfall, a Choice week after you take a stance: the line says "Stance A: …"). With Esme Moonbeam, week 1 shows "Next week: <name>". During the week's results the strip goes away and comes back with the next week's event, with a small pulse.
 4. On a phone-sized window (or the iPad in portrait): the strip is one row and the whole map is still visible without scrolling.
 5. **Send back:** a screenshot of the plan screen on the iPad and on the Mac, and whether you noticed the event sooner than before.
 
 ### Polls at half price (D-063)
 
-1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Helen Strand still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
+1. In a match, tap a state. **Expect:** the Poll action costs $0.5 (free while Esme Moonbeam still has her free polls that week), the Region poll $1.5. Plan one of each: the money line under the plan adds $2.0 in all, and Lock in is allowed with exactly $0.5 left for a poll.
 2. Open **? → Actions** and the poll's "Why?": both prices say $0.5 and $1.5.
 3. **Send back:** whether you polled more than before, and any price on screen that still says $1 or $3 for a poll.
 
@@ -922,8 +922,8 @@ Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- 
 
 1. **Play vs Bot (Medium), on the iPad and a phone.** In week 4 the Debate screen opens: both faces with the crowd meter between them, "WEEK 4 DEBATE · 3 ROUNDS" and the three topics, each tagged with whose issue it is. **Expect:** after 3 s, round 1.
 2. **A round.** The moderator asks a question; the pills say whose issue it is, who leads its states and the counter. There are three big buttons: "Defend 6" with "D +4 · A +3 · P −1" on the right, and so on (your score minus theirs against their Defend, Attack and Pivot). Pivot says which issue's states it would land on. In your first debate, a move that can't lose has a green "Safe" tag and a tip explains it. Tap a move: the map lights where a win would land. Hold a move to preview it without picking. **Why?** shows each strength in parts.
-3. **Lock in** stays greyed ("Pick a move") until you tap one. Tap **Stake Zinger**, then Lock in. **Expect:** "Pivot + Zinger · kept secret"; Rex shows "locked in ✓" when he is done. Let one round run out without picking: you get a weak Defend.
-4. **The clash** (4 s): both moves, the scores, "Your Defend beats Attack: +3", a stamp (YOU WIN BY 3 / REX WINS BY 3 / SPLIT), the line naming the states it swung and any FLIP on the map. The crowd meter slides. *Send back:* a screenshot of one clash.
+3. **Lock in** stays greyed ("Pick a move") until you tap one. Tap **Stake Zinger**, then Lock in. **Expect:** "Pivot + Zinger · kept secret"; Buster shows "locked in ✓" when he is done. Let one round run out without picking: you get a weak Defend.
+4. **The clash** (4 s): both moves, the scores, "Your Defend beats Attack: +3", a stamp (YOU WIN BY 3 / BUSTER WINS BY 3 / SPLIT), the line naming the states it swung and any FLIP on the map. The crowd meter slides. *Send back:* a screenshot of one clash.
 5. **The verdict:** who won the crowd, a line per round, the map showing the whole debate's moves; **Skip** works. Then the stance (in a Choice week) or the plan.
 6. **Week 9:** the same; the Zinger is back. Results' "What decided it" still lists the states debates flipped.
 
@@ -934,7 +934,7 @@ Agents: `lune run tests Debate` (sim, net, UI), `lune run tests/ui/snap.luau -- 
 Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tally"`, `lune run tests/ui/snap.luau -- resolve` (shots `16b-resolve-step1`, `16c-resolve-mid`, `16d-resolve-settle`, `17-resolve-end`; 0 audit findings at all three sizes).
 
 1. **Play vs Bot**, plan week 1 with two or three rallies, lock in. **Expect:** "Both plans are in"; the header's two numbers stay where they were during planning (they no longer jump at once).
-2. **Watch the moves land.** **Expect:** each line ("Rally in Texas · Jobs") is followed at once by its state bumping, its color moving, and a "+3.1" tag (your color) or "−2.0" tag (orange) on every state the move touched. When the move changes who leads a state: FLIP, a flash in the new leader's color, and the header line says so ("Rex: Rally · NY → Rex +28") while the header's numbers count and the bar slides. "Why?" holds one line saying the per-move points are estimates.
+2. **Watch the moves land.** **Expect:** each line ("Rally in Texas · Jobs") is followed at once by its state bumping, its color moving, and a "+3.1" tag (your color) or "−2.0" tag (orange) on every state the move touched. When the move changes who leads a state: FLIP, a flash in the new leader's color, and the header line says so ("Buster: Rally · NY → Buster +28") while the header's numbers count and the bar slides. "Why?" holds one line saying the per-move points are estimates.
 3. **The last step.** **Expect:** the header line says "New polls are in" in the round font; a pulse sweeps the map west to east; the panel shows a "New polls are in" stamp over "Polls shifted N states"; the map and the header land on the new polls (usually a few states move without a move of their own: momentum and poll noise); "What changed" lists the week's flips. When the next week opens, the header's numbers do not change again.
 4. **Skip** (both players, or against the bot). **Expect:** the reveal fast-forwards and ends on the same numbers as step 3.
 4b. **A busy week** (both sides use every action and a few ads). **Expect:** the reveal runs longer (up to 14 s; the timer at the top shows it) and each move still lands with its tag and the header count before the next one; a quiet week stays at 8 s.
@@ -948,7 +948,7 @@ Client only. Agents: `lune run tests RevealSteps`, `lune run tests "running tall
 Client colors only. Agents: `lune run tests/ui/snap.luau -- campaign` (and `-- select`, `-- election`, `-- results`); 0 audit findings. In Studio, play one match vs a bot on the iPad and look at:
 
 1. **Campaign map.** States nobody leads are dark slate circles; leaning states are a deep red or blue (not pink or grey-blue); safe states are bright red or blue. The ring around each state is a soft slate, not near-white. Open **Key**: its swatches match the map. *Send back:* a screenshot of week 3 and whether a narrow lead is easy to spot.
-2. **Names in color** (header, state card, election night): Rex's name is a vivid red, Dana's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
+2. **Names in color** (header, state card, election night): Buster's name is a vivid red, Goldie's a bright blue; both easy to read on the dark cards. Gains ("+ Raises more money") are a clear green, losses still orange.
 3. **Color Pass colors** (if you have the pass): all six swatches look rich, and Amber still reads as gold, not orange. *Send back:* a screenshot of Select with the swatches.
 
 ### Candidate portraits (D-068)
@@ -962,10 +962,10 @@ Client and assets only. Agents: `lune run tests/ui/snap.luau -- select` (and `--
 
 #### In Studio (after the ids are in the build)
 
-1. **Play (F5) → Play vs Bot.** **Expect:** on Select, eight different faces on the same slate-blue plate, no colored rings. Rex Calloway's card (the bot's) is dimmed with a red ring. *Send back:* an iPad screenshot and a phone screenshot.
-2. Tap **Dana Okafor**. **Expect:** her face gets a ring in your color (blue). Tap another: the ring moves.
+1. **Play (F5) → Play vs Bot.** **Expect:** on Select, eight different faces on the same slate-blue plate, no colored rings. Buster Cannonball's card (the bot's) is dimmed with a red ring. *Send back:* an iPad screenshot and a phone screenshot.
+2. Tap **Goldie Pennywhistle**. **Expect:** her face gets a ring in your color (blue). Tap another: the ring moves.
 3. **Faces at small sizes:** can you tell all eight apart on the phone cards (about the size of a fingertip)? *Send back:* which ones look alike, if any.
-4. **Map reveal:** the Strongholds card shows both faces, each ringed in its player's color. **A week's results:** "Your week" and "Rex's week" each start with the face. **Debate (week 4):** the Debate screen's stage shows both faces, ringed in each player's color. **Map pins:** each candidate's pin on the map is their face. **Header (iPad, Mac):** a small face at each end of the score bar. **Election night:** the winner's face in the spotlight card. **Results:** a big face on each player card. **How to play** (Lobby), page 1: two faces over the race bar.
+4. **Map reveal:** the Strongholds card shows both faces, each ringed in its player's color. **A week's results:** "Your week" and "Buster's week" each start with the face. **Debate (week 4):** the Debate screen's stage shows both faces, ringed in each player's color. **Map pins:** each candidate's pin on the map is their face. **Header (iPad, Mac):** a small face at each end of the score bar. **Election night:** the winner's face in the spotlight card. **Results:** a big face on each player card. **How to play** (Lobby), page 1: two faces over the race bar.
 5. **No errors** from `Kit`, `Select`, `TopBar`, `Reveal`, `Debate`, `Pins`, `Election`, `Results` or `HowTo` in the Output window. *Send back:* whether the faces feel friendly and fit the front-page look, and anything that looks off (cut-off hats, blurry edges).
 
 ### The Name Pass (D-069)
@@ -984,15 +984,15 @@ A custom candidate name for players Roblox lets chat (the stand-in for 16+), fil
 
 Studio may not answer the chat-permission check, and its text filter is limited. To try the screens, set `NameEligibility.STUDIO_OVERRIDE = true` in `src/server/NameEligibility.luau` (it only works in Studio; never commit it as true). Purchases are test purchases.
 
-1. As an admin, **Play vs Bot**. **Expect:** under "Your color", a line "Name: Dana Okafor · Rename" (admins have the pass). Without being an admin: **Get the Name Pass** and, under it, "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
-2. **Rename**: the sheet shows the box (stops at 16 characters), the hint, the same rules note, **Use the candidate's name** and **Save name**. Type `  Captain   Zed ` and save. **Expect:** the line reads "Name: Captain Zed"; the header and reveals say "Captain Zed" (still Dana's portrait).
+1. As an admin, **Play vs Bot**. **Expect:** under "Your color", a line "Name: Goldie Pennywhistle · Rename" (admins have the pass). Without being an admin: **Get the Name Pass** and, under it, "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
+2. **Rename**: the sheet shows the box (stops at 16 characters), the hint, the same rules note, **Use the candidate's name** and **Save name**. Type `  Captain   Zed ` and save. **Expect:** the line reads "Name: Captain Zed"; the header and reveals say "Captain Zed" (still Goldie's portrait).
 3. Try `Zed 2024`, `zed.com`, `Zeee`, `A`, `Discord Zed`, `Donald Trump`. **Expect:** each is turned down with a short reason; the name does not change.
 
 #### In a live server (two accounts; the filter only fully works live)
 
-1. With a name set on account A, **Find match** with account B (both allowed to chat). **Expect:** B sees A's custom name. With B's chat turned off (Roblox settings), B sees "Dana Okafor".
+1. With a name set on account A, **Find match** with account B (both allowed to chat). **Expect:** B sees A's custom name. With B's chat turned off (Roblox settings), B sees "Goldie Pennywhistle".
 2. Try a few names on A that Roblox's chat would hide (a rude word, a phone-number-like name spelled out in words). **Expect:** "That name isn't allowed. Try another."
-3. **Report:** on B, tap **?** → **Report "Captain Zed"** → **Report**. **Expect:** B sees "Dana Okafor" from then on (also in the next match against A); a thank-you message. A still sees their own name. The sheet mentions Roblox's own Report.
+3. **Report:** on B, tap **?** → **Report "Captain Zed"** → **Report**. **Expect:** B sees "Goldie Pennywhistle" from then on (also in the next match against A); a thank-you message. A still sees their own name. The sheet mentions Roblox's own Report.
 4. **Review (owner or partner):** in the Lobby, **Review names (1)**. **Expect:** "Captain Zed · by <A's username> · 1 report · <date>". Tap **Keep**: the row goes, A keeps the name. Report it again from B, then **Remove**. **Expect:** A's candidate goes back to its own name with "Your custom name was removed after a review. You can pick a new one."; A can no longer use "Captain Zed", "Capta1n Zed" or "Captain Zed Jr", but can pick another name, "Captain Zeb" included (D-078: whole words only). On another server, A's saved name is cleared when A next joins.
 5. **Admins' free color:** as the owner or partner, with no Color Pass bought, the Lobby shows **Color** with every swatch open.
 6. Output: lines with `name filter failed`, `name eligibility check failed`, `name review`, `rejected SetName`, `rejected ReportName`, `rejected Review`.
@@ -1004,10 +1004,10 @@ Studio may not answer the chat-permission check, and its text filter is limited.
 Results only. Agents: `lune run tests "Results tabs"`, `lune run tests PollMiss`, `lune run tests EVChart`, `lune run tests "Poll history"`, `lune run tests/ui/snap.luau -- 23` (shots `23d` to `23g`; 0 audit findings at all three sizes).
 
 1. **Play vs Bot** to the end on the iPad (Skip through election night). **Expect:** Results looks as before (You won / You lost, the stamp, why) with a row of three tabs at the top: **Summary** (selected), **Map**, **Graph**.
-2. **Map.** Tap it. **Expect:** two buttons "Final polls" (selected) and "Real results"; a line with the polls' votes ("Final polls: you 235, Rex 277"); "Polls missed N states: …"; the map colored by who led each state's last poll, with the lead in each circle; a **MISS** tag on each state the polls got wrong.
+2. **Map.** Tap it. **Expect:** two buttons "Final polls" (selected) and "Real results"; a line with the polls' votes ("Final polls: you 235, Buster 277"); "Polls missed N states: …"; the map colored by who led each state's last poll, with the lead in each circle; a **MISS** tag on each state the polls got wrong.
 3. Tap **Real results**. **Expect:** the map recolors by who actually won each state (the margin in the circle), the votes line says "Election night: …", the MISS tags stay on the same states. Flip back and forth: the MISS states change color.
-4. Tap a MISS state. **Expect:** a line under the map: "<State> · N votes. Final poll: Rex +1. Result: you by 1.3 points. The polls missed it." Tap it again to clear.
-5. **Graph.** **Expect:** a chart with your line and your opponent's in your colors, a white 270 line, week numbers along the bottom (every other week on a phone), the last point "Result" set a little apart with bigger ringed dots, and small "D" (debate) and "S" (stance vote) chips over those weeks. Tap a chip: the line under the chart says what happened ("Week 4 · Debate: Rex won 2 of 3 topics"). Under it: "You: … at the start, … in the final polls, … on election night."
+4. Tap a MISS state. **Expect:** a line under the map: "<State> · N votes. Final poll: Buster +1. Result: you by 1.3 points. The polls missed it." Tap it again to clear.
+5. **Graph.** **Expect:** a chart with your line and your opponent's in your colors, a white 270 line, week numbers along the bottom (every other week on a phone), the last point "Result" set a little apart with bigger ringed dots, and small "D" (debate) and "S" (stance vote) chips over those weeks. Tap a chip: the line under the chart says what happened ("Week 4 · Debate: Buster won 2 of 3 topics"). Under it: "You: … at the start, … in the final polls, … on election night."
 6. **Phone size (390x844) and the Mac.** **Expect:** each tab fits without scrolling; nothing overlaps; the lines look straight and joined (no gaps or stray pieces sticking out of the chart).
 7. **Rejoin:** leave the game on the Results screen and rejoin (if the match result is still shown). **Expect:** the Graph still shows every week.
 8. **Send back:** an iPad screenshot of each tab, whether the MISS tags made the polling errors easy to spot, whether the graph was readable on a phone, and any Output errors from `Results`, `MapTab` or `GraphTab`.
@@ -1214,7 +1214,7 @@ Agents: `lune run tests Debate`, `lune run tests Session`, `lune run tests Swing
 
 1. **The Zinger toggle.** Play vs Bot (Hard, so the round timer is the normal 15 s) to the first debate. **Expect:** the toggle under the moves reads "Stake Zinger: win ×2 · used either way"; tap it: "Zinger staked: win ×2, used either way".
 2. **Safe and the Zinger.** In your first debate a move may carry a green **Safe** tag. If its result cells include "=", tap that move and stake the Zinger. **Expect:** the bar's status line (orange) reads "A split still uses the Zinger". The coach tip reads "Safe can't lose this round, but a split still uses your Zinger." Unstake: the line goes back to "Defend · kept secret".
-3. **Why? shows the downside.** Open **Why?** under the moves. **Expect:** for each move, three lines: its parts, "A win: …", then either "Lose to their <move>: -0.5 in …" (sometimes "; could lose XX (-N EV)") or "Their <move> can't beat it: no backfire." While the bot has not used its Zinger, the last line reads "<bot's first name> still has a Zinger: a round they win, even by 1, can count ×2." (×4 against Hale). After the bot stakes it, that line is gone.
+3. **Why? shows the downside.** Open **Why?** under the moves. **Expect:** for each move, three lines: its parts, "A win: …", then either "Lose to their <move>: -0.5 in …" (sometimes "; could lose XX (-N EV)") or "Their <move> can't beat it: no backfire." While the bot has not used its Zinger, the last line reads "<bot's first name> still has a Zinger: a round they win, even by 1, can count ×2." (×4 against Quibble). After the bot stakes it, that line is gone.
 4. **+15 s in a debate round.** In a round, before locking in, tap **+15 s**. **Expect:** the clock jumps up 15 s; tap again: another 15 s, then the button goes (30 s per match). In a new match, spend one +15 s on a weekly plan, then in the next debate: only one more tap is left. With a second account in a match against each other: the one who did not tap keeps their own clock; if their time runs out first, their round is the weak Defend while the other keeps thinking.
 5. **No +15 s** in the clash, the verdict, after Lock in, in the tutorial, or as an admin with Timers off.
 6. *Send back:* a phone and an iPad screenshot of a debate round with Why? open, and OK or what happened for each step.
@@ -1226,3 +1226,18 @@ Agents: `lune run tests Playtest` and `lune run tests Explain`, `lune run tests/
 2. **Same side.** In a stance week, take the side the bot takes (try A on Easy). **Expect:** if no state flipped, the results' **Why?** ends with "Same side, so most of it cancelled." (also in News next week). Different sides, or both on the safe C: no such line.
 3. **Underdog.** Fall behind early (skip weeks 1 to 3), then catch up. Open **News +**. **Expect:** "You are underdog tier 1: rallies ×1.1, fundraisers ×1.15 (you were behind in the polls lately; it fades once you stay ahead)." with no "EV behind". When the bot is the underdog: "<its first name> has the underdog boost: rallies …, fundraisers …."
 4. **Closing weeks.** Play to week 9. **Expect:** the event strip under the score has a third line "From next week: rallies, ads +15%"; tap it: "Closing weeks start next week: from week 10, every rally and ad (attack ads too) counts 15% more, for both of you." Weeks 10 and 11: "Closing weeks: rallies and ads +15%". Week 12 (no event): the strip reads "Closing weeks" / "Rallies and ads +15%". The map moves down by one line in those weeks; nothing overlaps. **?** → Your turn → All the numbers: the last line of "Leans, momentum, backlash, underdog" is the closing weeks. *Send back:* phone and iPad screenshots of week 10's strip.
+
+## More eccentric candidates (D-097)
+
+Visual only: new names, a persona line and new portraits for the same eight candidates. Nothing about how they play changed.
+
+Before testing: if the new portraits are uploaded and their ids are in `src/client/UI/Assets.luau`, the faces should match `assets/portraits/sheet.png`. If not, the old faces still show; that is expected until the upload.
+
+1. **Select.** Open a practice match. **Expect:** the eight cards read Goldie Pennywhistle, Buster Cannonball, Mavis Glimmer, Percy Quibble, Opal Crumpet, Dash Kickflip, Esme Moonbeam, Gus Bramble, each with the same strength and weakness as before (Buster: "4 actions a week" / "Weaker rallies"). Nothing is cut off on the iPad or a landscape phone. **Send back:** a screenshot of the cards on the iPad.
+2. **About.** Pick Goldie, tap "About Goldie". **Expect:** "The Fundraiser", then the grey line "A retired treasure hunter who pays for everything in gold doubloons.", then the strength, weakness and the three numbers, all fitting the sheet. Try Percy (longest bio). **Send back:** a screenshot of Percy's sheet.
+3. **Portraits** (after the upload). **Expect:** each card's face matches the sheet: tricorn, red stunt helmet, top hat, red beret and monocle, lilac beehive, spiky hair with a sweatband, starry headscarf, ranger hat. They read on the smallest plates too (the week's results, the Lobby's Daily Race card). **Send back:** anything that is hard to tell apart.
+4. **Names in play.** Play a match as Dash against the bot. **Expect:** the top bar, the week's results ("Dash: Rally …"), debates, Election night and Results use "Dash" / "Dash Kickflip"; no old name shows anywhere.
+5. **Daily Race.** Open the Lobby. **Expect:** the Daily Race card says "Everyone plays as <new name> today" for the same candidate as before the update (the cycle did not move), and today's board still shows earlier runs.
+6. **Name Pass.** With a Name Pass owner, name your candidate "Captain Zed". **Expect:** the opponent sees "Captain Zed", not the new candidate name; clearing it shows the new name.
+7. **Stats.** If you had saved stats before, **expect** them unchanged (per-candidate records still under the same candidates).
+

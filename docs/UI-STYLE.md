@@ -36,7 +36,7 @@ How faithful it is (`tests/lib/Snapshot.luau`): it lays the tree out again with 
 5. **Header subtitles clip or wrap on phones.** MapReveal ("toward one candidate. Your strongest leans" cut mid-line), Draft, Decision ("Take a / stance"), Campaign ("Plan your / week"), Election ("4 of 51 / states called"), Help.
 6. **The map is noisy.** The Northeast column and the EV badges overlap their neighbours at every size; the debate reveal covers the map with 30+ "+1.0" and "+1.0 FLIP" labels (`19-debate`); every lens adds a legend line in jargon.
 7. **Decision: the options are below the fold.** On a phone the stance screen shows A, half of B, and C 491 px down, behind a 50-word "States you need (within 5 points in the public poll; a 5-point lead holds about 92%...)" paragraph. Focus topics are long two-line labels ("Farms & Rural (your platform) · 15 states, 133 EV", 10 words).
-8. **Select clips and confuses.** Candidate cards cut off their drawback line (Calloway, Reyes, Strand at every size). The color swatch is a filled 44 px rounded square that looks like a button (amber, next to a yellow primary). Issue chips say "154 EV · ×1.41", numbers a new player cannot use.
+8. **Select clips and confuses.** Candidate cards cut off their drawback line (Cannonball, Kickflip, Moonbeam at every size). The color swatch is a filled 44 px rounded square that looks like a button (amber, next to a yellow primary). Issue chips say "154 EV · ×1.41", numbers a new player cannot use.
 9. **Reveals read like logs.** The resolve feed repeats identical lines ("You rallied in Texas on Farms & Rural" twice), with no grouping and no before/after on the map. The debate panel shows dice math ("you 1 stat + roll 1 = 2").
 10. **Color and type drift.** The Amber player color is close to the accent yellow, so "280 EV" in Amber looks like a button. Green marks neutral status ("Step 1 of 2"). Warning text used the accent. Results shows five text sizes. The expander glyph "–" after a title reads as punctuation ("What decided it –").
 
@@ -56,7 +56,7 @@ How faithful it is (`tests/lib/Snapshot.luau`): it lays the tree out again with 
 
 **Decision: focus** (`08`). Intro 30 words ("Pick one topic: +2 on it. Win a topic: +1.0 in every state where it is a top issue..."), then per topic: a 10-word label, a 35-word "You need 10 of them (67 EV): trail DE by 3 · lead WA by 3, MN by 2..." line and an odds line. Primary disabled "Pick a topic" with a warning status: good.
 
-**Campaign: plan** (`09`, `10`, `15`). Top bar: "Week 3 of 12" + "Plan your week", score line "Dana 310 189 Rex" (projected EV, unlabeled), "$4.0", "3 AP", "?", timer. On a phone it wraps to three rows. Map caption (lens legend) + four lens chips. The state card opens on your home with "You are here", four stat cells ("Public poll / you 43 – 42 them · 15 undecided", "Lean / leans you +2", "Momentum / ▲ you 3.0 · them 5.0", "Ground game / 0 / 4 · pool size $11.0"), the momentum note, top issues, then message chips with multipliers ("Technology ×1.7"), "More +", and only then the action buttons. Lock in is enabled with an empty plan. "Bank +15s" is the secondary.
+**Campaign: plan** (`09`, `10`, `15`). Top bar: "Week 3 of 12" + "Plan your week", score line "Goldie 310 189 Buster" (projected EV, unlabeled), "$4.0", "3 AP", "?", timer. On a phone it wraps to three rows. Map caption (lens legend) + four lens chips. The state card opens on your home with "You are here", four stat cells ("Public poll / you 43 – 42 them · 15 undecided", "Lean / leans you +2", "Momentum / ▲ you 3.0 · them 5.0", "Ground game / 0 / 4 · pool size $11.0"), the momentum note, top issues, then message chips with multipliers ("Technology ×1.7"), "More +", and only then the action buttons. Lock in is enabled with an empty plan. "Bank +15s" is the secondary.
 
 **Map lenses** (`11`–`14`). The lens idea is right (one layer at a time). Problems: the legend line above the map is jargon ("Poll lead · i = your poll · ▲ momentum · G / opp G = ground game"); the Polls lens stacks 2–3 pills under each node and overlaps neighbours; "$" is a symbol, not a word.
 
@@ -64,7 +64,7 @@ How faithful it is (`tests/lib/Snapshot.luau`): it lays the tree out again with 
 
 **Debate** (`19`, `20`). The map is buried under badges. The panel: per topic, score bars and a heading-size bold paragraph ("Your Schools win swung NY, NJ, WA, MN, WI +9 more (+1.0 each) - DE flipped to you (+3 EV), KY slipped from them to a tie..."), then dice math. No button (cannot skip; fine), "Opponent: watching".
 
-**Election night** (`21`, `22`). The best screen: a clear EV race bar with "270 to win", the map filling in, a feed of calls in player-tinted rows, "Skip to results". Problems: subtitle wraps on a phone; names truncate ("Dana Okaf…"); margins have no unit ("by 16.6"); feed rows' tints are off-palette (fine as data, but must be marked).
+**Election night** (`21`, `22`). The best screen: a clear EV race bar with "270 to win", the map filling in, a feed of calls in player-tinted rows, "Skip to results". Problems: subtitle wraps on a phone; names truncate ("Goldie Okaf…"); margins have no unit ("by 16.6"); feed rows' tints are off-palette (fine as data, but must be marked).
 
 **Results** (`23`). "You won" hero, split bar, two player cards: good. "What decided it –" opens by default with 50 words of state lists. Five text sizes. Amber "280 EV" next to the yellow primary.
 
@@ -276,7 +276,7 @@ Decorative frames Motion creates (`Ring`, `Confetti`) carry `Decor = true`, whic
 - Labels ≤ 8 words. A sentence on screen ≤ 30 words (`wallOfText`); anything longer goes in a sheet or an expander (details areas are exempt).
 - Say what to do, then why: "Pick 1 more issue", not "You have 2 of 3 issues".
 - One name for one thing: "Lock in" (never "Submit", "Confirm", "Done" for the same act), "Skip", "+15 s".
-- The opponent is "{their name}" or "your opponent", never "them" in a full sentence ("Rex leads by 2", not "them +2").
+- The opponent is "{their name}" or "your opponent", never "them" in a full sentence ("Buster leads by 2", not "them +2").
 - Fictional only: no real politicians, parties or slogans; free text goes through `TextService:FilterStringAsync`.
 
 ### 2.9 How the rules are enforced
@@ -425,7 +425,7 @@ phone                                   wide
 │ [ LOCK IN                  ] │        │ Rex has priority       Rex: picked   [ LOCK IN       ]│
 └──────────────────────────────┘        └──────────────────────────────────────────────────────┘
 ```
-MapReveal: no rules panel. The map fills the screen with the strongholds ringed; one card under/beside it: "You: home CA · strongholds VA CO AL VT MS" and the same for the opponent, a legend of two dots ("leans to you", "leans to Rex"), and a ghost "How the draft works" → sheet with today's four lines. Header subtitle ≤ 4 words or none.
+MapReveal: no rules panel. The map fills the screen with the strongholds ringed; one card under/beside it: "You: home CA · strongholds VA CO AL VT MS" and the same for the opponent, a legend of two dots ("leans to you", "leans to Buster"), and a ghost "How the draft works" → sheet with today's four lines. Header subtitle ≤ 4 words or none.
 Draft: the list shows the 8 best picks by default (sorted as today) with "Show all states" (ghost) to expand; rows are 44 px with code, name (wide only), votes and a lean pill. The battleground rule ("every effect ×1.5") is a `<Battleground>` pill plus one line in the "?" sheet, not the header. Legend swatches are `Kit.dataColor`. Coach tip `draft.pick`.
 
 ### 4.4 Decision: stance and focus (WP-B)
@@ -512,12 +512,12 @@ phone                                   wide (panel in the side column)
 └──────────────────────────────┘
 ```
 Resolve: group the feed by player and action ("Rally TX ×2"), one line each; then "Biggest moves" as up to 5 pills; then a ghost "Full results" (sheet with today's feed and the sortable state list). "New polls are in" becomes the now line; the map glows the states whose leader changed.
-Debate: per topic one row: topic name, two score bars, a verdict pill ("You win", "Tie", "Rex wins") and one short line ("+1 in 12 states · DE flips to you"). The dice math and full state lists go behind "Why?". Map marks follow §4.6 (flips and top moves only).
+Debate: per topic one row: topic name, two score bars, a verdict pill ("You win", "Tie", "Buster wins") and one short line ("+1 in 12 states · DE flips to you"). The dice math and full state lists go behind "Why?". Map marks follow §4.6 (flips and top moves only).
 Coach tip `reveal.week` on the first resolve.
 
 ### 4.8 Election night (WP-C)
 
-Keep the layout (race bar, map, call feed, "Skip to results"). Changes: header subtitle off on a phone (the race bar already says "27 of 51 called" under it); names never truncate (first name only when narrow: "Dana 104 · 171 Rex"); feed rows "Ohio · 17 votes · Dana by 2.9 points"; rows and race bar marked `Kit.dataColor`; coach tip `election.night` once.
+Keep the layout (race bar, map, call feed, "Skip to results"). Changes: header subtitle off on a phone (the race bar already says "27 of 51 called" under it); names never truncate (first name only when narrow: "Goldie 104 · 171 Buster"); feed rows "Ohio · 17 votes · Goldie by 2.9 points"; rows and race bar marked `Kit.dataColor`; coach tip `election.night` once.
 
 ### 4.9 Results (WP-C)
 
