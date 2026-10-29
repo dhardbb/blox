@@ -63,6 +63,10 @@ Colors.warn = Colors.loss -- one orange: "be careful" and "you lost" read the sa
 Colors.danger = Colors.loss -- the old name for a loss or an error; kept for every caller
 Colors.disabledText = Colors.muted -- labels of disabled buttons
 Colors.glow = rgb(40, 60, 136) -- the tint of the map's backdrop glow
+-- A key state's edge (D-101): a pale, lemony gold, 12 CIEDE2000 from Amber (8 for
+-- deuteranopes), 36 from the loss orange, 30 from the white selection; 4.2:1 or
+-- more on a full Crimson or Cobalt fill, 6.7:1 on a toss-up's neutral.
+Colors.keyGold = rgb(255, 232, 110)
 
 -- Linear blend from `base` toward `color`, t in [0, 1]. Used for map fills, the
 -- Election feed rows (0.35) and the draft board legend (0.6).

@@ -55,7 +55,7 @@ CoachTip.TIPS = table.freeze({
 	["campaign.map"] = "Tap any state to see who's ahead there.",
 	["campaign.actions"] = "Pick your actions, then Lock in. Your plan stays secret.",
 	["campaign.lens"] = "These buttons switch the map: votes, issues, polls, money.",
-	-- The key states line and the glowing states on the map (D-088).
+	-- The key states line and the gold-edged states on the map (D-088, D-101).
 	["campaign.keys"] = "Key states decide 270. Aim your plan there.",
 	-- From IDLE_CASH_TIP_WEEK, when cash ≥ IDLE_CASH_TIP and the plan spends none
 	-- (D-086, PlanDraft.idleCash); "$X" becomes the cash (CoachTip.fill).
@@ -75,7 +75,7 @@ CoachTip.TUTORIAL = table.freeze({
 	["decision.stance"] = `Week {T.TUTORIAL_CHOICE_WEEK}: take a side, or stay out. States that care react.`,
 	["debate.moves"] = `Debate night: {T.DEBATE_TOPICS} rounds. Each move shows how it does against theirs.`,
 	["campaign.ground"] = "Last week! Ground game in close states adds votes on election night.",
-	["campaign.keys"] = "Glowing states decide 270. Put your rallies and ads there.",
+	["campaign.keys"] = "Gold-edged states decide 270. Put your rallies and ads there.",
 } :: { [string]: string })
 
 export type Store = {

@@ -38,7 +38,8 @@
 -- border for a callout state); a Mark can dash it (a poll that missed) or draw
 -- the state hollow (not called yet). Outlines run just inside their own
 -- state (D-092), so neighbors' never cover each other; the selection is on
--- top. Candidate pins (Map/Pins) stand beside the label: a face at rest, the name tab while their state is selected or when
+-- top. A key state wears a solid gold edge inside all of them, over every
+-- outline (D-101); a key chip a gold plate. Candidate pins (Map/Pins) stand beside the label: a face at rest, the name tab while their state is selected or when
 -- the pin asks for it. The legend row (setLegend) uses the strip under the map.
 --
 -- Everything else matches NodeMap's API and names (Nodes/<id> with Label, Lens,
@@ -58,6 +59,8 @@ local MapInterface = require(script.Parent.MapInterface)
 local Motion = require(script.Parent.Parent.UI.Motion)
 local Legend = require(script.Parent.Legend)
 local Pins = require(script.Parent.Pins)
+
+local KEY_GOLD = Kit.colors.keyGold -- a key state's edge (D-101)
 
 local ShapeMap = {}
 
@@ -159,8 +162,14 @@ local HALO_STRONG = 0.25 -- ... for a state whose poll leader changes
 local BLOOM_SCALE = 1.6 -- a moved state's bloom, share of its rect
 local BLOOM_SOFT = 0.4
 local BLOOM_STRONG = 0.1
-local KEY_BLOOM = 0.5 -- a key state's glow (D-088): softer than a moved state's
-local KEY_PLATE = 0.6 -- ... a key chip's glowing plate (HALO_PAD around it)
+local KEY_PX = 3 -- px, a key state's solid gold edge, inside any other outline (D-101, was D-088's glow and dashes)
+local KEY_LINE_PX = 1 -- px, the dark keyline just inside the gold, so it reads on a pale fill (Amber, Teal)
+local KEY_LINE_FADE = 0.3 -- ... its transparency
+local MITER_MAX = 2 -- px per px of inset, the most an outline's corner may reach (a sharp spike's is cut)
+local KEY_SIMPLIFY = 0.004 -- a key edge follows its state's border to within this share of the map's width (a coast's wiggles would tangle a line drawn this far inside)
+local KEY_MIN_RING = 0.008 -- ... and skips a ring thinner than this share (an island, a barrier island: its mainland carries the edge)
+local SPIKE_COS = -0.85 -- ... after dropping every point where it turns back more than ~148°
+local KEY_Z = 6 -- the gold edge's place among the outlines: over every OUTLINE_RANK, so a neighbor's never covers it
 local PIN_MIN, PIN_MAX = 14, 20 -- px, a pin's face
 local PIN_SHARE = 0.03 -- the face's size, share of the map's width
 local PIN_YOU = 2 -- px more your own pin's face is (it is drawn on top, too)
@@ -223,7 +232,13 @@ type Node = {
 	badgeStroke: UIStroke,
 	outline: Frame?,
 	outlineParts: { Frame },
-	outlineNormals: { { number } }, -- each part's inward normal (px per px of inset) and its place in box fractions (D-092)
+	outlineNormals: { { number } }, -- each part's inward normal (px per px of inset), its place in box fractions (D-092), its direction and miter (D-101)
+	keyEdge: Frame?, -- a key state's gold edge (D-101), made on first use
+	keyParts: { Frame },
+	keyNormals: { { number } },
+	keyLine: Frame?, -- ... and the dark keyline inside it
+	keyLineParts: { Frame },
+	keyLineNormals: { { number } },
 	preview: TextLabel?, -- the plan preview's tag (D-071), made on first use
 	bloom: ImageLabel?,
 	wantRow: boolean, -- the lens line has something to show here
@@ -299,6 +314,99 @@ local function segment(
 		BorderSizePixel = 0,
 		Parent = parent,
 	})
+end
+
+-- A closed ring's mean thickness, 2 x area / perimeter, in shares of the
+-- box's width (y counts 1/aspect of x).
+local function thickness(ring: { number }, aspect: number): number
+	local n = #ring
+	local area, perimeter = 0, 0
+	for i = 1, n, 2 do
+		local j = if i + 2 > n then 1 else i + 2
+		local x1, y1, x2, y2 = ring[i], ring[i + 1] / aspect, ring[j], ring[j + 1] / aspect
+		area += x1 * y2 - x2 * y1
+		perimeter += math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
+	end
+	return if perimeter > 0 then math.abs(area) / perimeter else 0
+end
+
+-- `ring` (x1, y1, x2, y2, ... in box fractions, closed) with every point
+-- nearer than `tolerance` (a share of the box's width) to the line through its
+-- neighbors kept dropped (Douglas-Peucker); y counts 1/aspect of x.
+local function simplify(full: { number }, aspect: number, tolerance: number): { number }
+	-- First the spikes: a point where the line turns back on itself (a
+	-- barrier island drawn as a sliver of the coast, a doubled point) goes,
+	-- until none is left.
+	local ring = table.clone(full)
+	local changed = true
+	while changed and #ring > 8 do
+		changed = false
+		local n = #ring // 2
+		for k = n, 1, -1 do
+			local p = if k == 1 then n else k - 1
+			local q = if k == n then 1 else k + 1
+			local ux, uy = ring[2 * k - 1] - ring[2 * p - 1], (ring[2 * k] - ring[2 * p]) / aspect
+			local vx, vy = ring[2 * q - 1] - ring[2 * k - 1], (ring[2 * q] - ring[2 * k]) / aspect
+			local lu, lv = math.sqrt(ux * ux + uy * uy), math.sqrt(vx * vx + vy * vy)
+			if lu < 1e-9 or lv < 1e-9 or (ux * vx + uy * vy) / (lu * lv) < SPIKE_COS then
+				table.remove(ring, 2 * k)
+				table.remove(ring, 2 * k - 1)
+				changed = true
+				break
+			end
+		end
+	end
+	local n = #ring // 2
+	if n <= 4 then
+		return ring
+	end
+	local keep = table.create(n, false)
+	local function far(a: number, b: number)
+		if b - a < 2 then
+			return
+		end
+		local ax, ay = ring[2 * a - 1], ring[2 * a] / aspect
+		local bi = if b > n then b - n else b -- n + 1 closes the ring at its first point
+		local bx, by = ring[2 * bi - 1], ring[2 * bi] / aspect
+		local dx, dy = bx - ax, by - ay
+		local length = math.sqrt(dx * dx + dy * dy)
+		local best, at = -1, 0
+		for k = a + 1, b - 1 do
+			local px, py = ring[2 * k - 1] - ax, ring[2 * k] / aspect - ay
+			local d = if length < 1e-9
+				then math.sqrt(px * px + py * py)
+				else math.abs(px * dy - py * dx) / length
+			if d > best then
+				best, at = d, k
+			end
+		end
+		if best > tolerance then
+			keep[at] = true
+			far(a, at)
+			far(at, b)
+		end
+	end
+	-- Split the closed ring at its first point and the point farthest from it.
+	local x1, y1 = ring[1], ring[2] / aspect
+	local split, most = 2, -1
+	for k = 2, n do
+		local dx, dy = ring[2 * k - 1] - x1, ring[2 * k] / aspect - y1
+		local d = dx * dx + dy * dy
+		if d > most then
+			split, most = k, d
+		end
+	end
+	keep[1], keep[split] = true, true
+	far(1, split)
+	far(split, n + 1)
+	local out = {}
+	for k = 1, n do
+		if keep[k] then
+			table.insert(out, ring[2 * k - 1])
+			table.insert(out, ring[2 * k])
+		end
+	end
+	return if #out >= 6 then out else ring
 end
 
 -- A value in a state's plate: a Fredoka number scaled to the plate's size (a
@@ -844,6 +952,12 @@ function ShapeMap.new(): MapInterface.Map
 			outline = nil,
 			outlineParts = {},
 			outlineNormals = {},
+			keyEdge = nil,
+			keyParts = {},
+			keyNormals = {},
+			keyLine = nil,
+			keyLineParts = {},
+			keyLineNormals = {},
 			preview = nil,
 			bloom = nil,
 			wantRow = false,
@@ -1050,14 +1164,24 @@ function ShapeMap.new(): MapInterface.Map
 		return w - 2 * CHIP_PAD_X, h - 2 * CHIP_PAD_Y
 	end
 
-	local function outlineOf(node: Node): Frame
-		local existing = node.outline
-		if existing then
-			return existing
-		end
-		local frame = Kit.box({ Name = `Outline{node.id}`, Visible = false, Parent = outlineLayer })
+	-- Thin frames along the state's edges in `parts`, each one's inward normal
+	-- and place in `normals` (D-092); hidden until shown.
+	local function buildOutline(
+		node: Node,
+		name: string,
+		parts: { Frame },
+		normals: { { number } },
+		tolerance: number?
+	): Frame
+		local frame = Kit.box({ Name = name, Visible = false, Parent = outlineLayer })
 		local aspect = geo.aspect
-		for r, ring in node.shape.edges do
+		for r, full in node.shape.edges do
+			-- Spikes always go (a thick line turns them into tangles); a key edge
+			-- also smooths the wiggles (`tolerance`).
+			local ring = simplify(full, aspect, tolerance or 0)
+			if tolerance and thickness(full, aspect) < KEY_MIN_RING then
+				continue -- an island or a sliver: a line this far inside would tangle on it
+			end
 			local n = #ring
 			-- Which side of this ring is inside: the left of its longest edge, or
 			-- the right (tested a hair off that edge's middle).
@@ -1082,6 +1206,7 @@ function ShapeMap.new(): MapInterface.Map
 					sign = -1
 				end
 			end
+			local first = #normals + 1
 			for i = 1, n, 2 do
 				local j = if i + 2 > n then 1 else i + 2
 				local part = segment(
@@ -1095,29 +1220,90 @@ function ShapeMap.new(): MapInterface.Map
 					Kit.colors.accent,
 					`E{r}_{i}`
 				)
-				table.insert(node.outlineParts, part)
+				table.insert(parts, part)
 				local dx, dy = ring[j] - ring[i], (ring[j + 1] - ring[i + 1]) / aspect
 				local length = math.max(math.sqrt(dx * dx + dy * dy), 1e-9)
-				table.insert(node.outlineNormals, {
+				table.insert(normals, {
 					sign * dy / length,
 					-sign * dx / length,
 					part.Position.X.Scale,
 					part.Position.Y.Scale,
+					dx / length,
+					dy / length,
 				})
 			end
+			-- Mitered corners (D-101): where two edges meet, the inset lines
+			-- meet at (n1 + n2) / (1 + n1·n2) px per px of inset (at most
+			-- MITER_MAX long), so a thick inset line neither gaps at a corner
+			-- nor pokes out of its state. Each part keeps its middle's shift
+			-- and how much longer it gets per px of inset.
+			local last = #normals
+			local function miter(a: { number }, b: { number }): (number, number)
+				local mx, my = a[1] + b[1], a[2] + b[2]
+				local d = 1 + a[1] * b[1] + a[2] * b[2]
+				if d < 1e-6 then
+					return 0, 0
+				end
+				mx, my = mx / d, my / d
+				local m = math.sqrt(mx * mx + my * my)
+				if m > MITER_MAX then
+					mx, my = mx * MITER_MAX / m, my * MITER_MAX / m
+				end
+				return mx, my
+			end
+			local starts = {}
+			for k = first, last do
+				local prev = normals[if k == first then last else k - 1]
+				local sx, sy = miter(prev, normals[k])
+				starts[k] = { sx, sy }
+			end
+			for k = first, last do
+				local entry = normals[k]
+				local a = starts[k]
+				local b = starts[if k == last then first else k + 1]
+				-- the middle's shift, then the extra length, per px of inset
+				entry[7] = (a[1] + b[1]) / 2
+				entry[8] = (a[2] + b[2]) / 2
+				entry[9] = (b[1] - a[1]) * entry[5] + (b[2] - a[2]) * entry[6]
+			end
 		end
+		return frame
+	end
+
+	local function outlineOf(node: Node): Frame
+		local existing = node.outline
+		if existing then
+			return existing
+		end
+		local frame = buildOutline(node, `Outline{node.id}`, node.outlineParts, node.outlineNormals)
 		node.outline = frame
 		return frame
 	end
 
+	-- Lays `parts` out `px` thick, their middle `inset` px inside the border,
+	-- mitered at the corners (buildOutline).
+	local function placeParts(parts: { Frame }, normals: { { number } }, px: number, inset: number)
+		for k, part in parts do
+			local size = part.Size
+			local normal = normals[k]
+			if normal then
+				local grow = normal[9] * inset + px
+				part.Size = UDim2.new(size.X.Scale, grow, 0, px)
+				part.Position = UDim2.new(normal[3], normal[7] * inset, normal[4], normal[8] * inset)
+			else
+				part.Size = UDim2.new(size.X.Scale, px, 0, px)
+			end
+		end
+	end
+
 	-- Which outline wins where two states' outlines meet (D-092): the
-	-- selection over a moved state's halo over a key state's dashes over an
-	-- owner's ring over a hollow state's hairline.
-	local OUTLINE_RANK = { selected = 5, halo = 4, key = 3, ring = 2, hollow = 1 }
+	-- selection over a moved state's halo over an owner's ring over a hollow
+	-- state's hairline. A key state's gold edge (KEY_Z) is over them all.
+	local OUTLINE_RANK = { selected = 5, halo = 4, ring = 2, hollow = 1 }
 
 	-- The state's outline in `color` (nil: none), `px` thick; `dashed` shows
 	-- one segment in DASH_EVERY; `fade` its transparency; `alt` fills a dashed
-	-- outline's gaps in a second color (a key state's owner ring, D-088). The
+	-- outline's gaps in a second color. The
 	-- line runs just inside the state's own border (D-092), so two neighbors'
 	-- outlines sit side by side instead of one covering the other; `rank`
 	-- (OUTLINE_RANK) puts the more important one on top where they still touch.
@@ -1147,19 +1333,53 @@ function ShapeMap.new(): MapInterface.Map
 		frame.Visible = true
 		frame.ZIndex = OUTLINE_RANK[rank or "ring"] or 1
 		frame:SetAttribute("Rank", rank or "ring")
-		local inset = px / 2
 		for k, part in node.outlineParts do
 			local gap = dashed and k % DASH_EVERY ~= 1
 			part.BackgroundColor3 = if gap and alt then alt else color
 			part.BackgroundTransparency = fade or 0
 			part.Visible = not gap or alt ~= nil
-			local size = part.Size
-			part.Size = UDim2.new(size.X.Scale, px, 0, px)
-			local normal = node.outlineNormals[k]
-			if normal then
-				part.Position = UDim2.new(normal[3], normal[1] * inset, normal[4], normal[2] * inset)
+		end
+		placeParts(node.outlineParts, node.outlineNormals, px, px / 2)
+	end
+
+	-- A key state's mark (D-101, replacing D-088's glow and dashes): a solid
+	-- gold edge just inside the state's own border, or inside the outline
+	-- already there (`inner` px: an owner's ring, the selection, a moved
+	-- state's halo), so both read; a dark keyline inside the gold keeps it
+	-- clear of a pale fill. Over every other outline (KEY_Z). `on` false hides it.
+	local function setKeyEdge(node: Node, on: boolean, inner: number)
+		if not on or node.chip ~= nil then
+			if node.keyEdge then
+				(node.keyEdge :: Frame).Visible = false
+			end
+			if node.keyLine then
+				(node.keyLine :: Frame).Visible = false
+			end
+			return
+		end
+		local edge = node.keyEdge
+		if edge == nil then
+			edge = buildOutline(node, `KeyEdge{node.id}`, node.keyParts, node.keyNormals, KEY_SIMPLIFY)
+			node.keyEdge = edge
+			for _, part in node.keyParts do
+				part.BackgroundColor3 = KEY_GOLD
 			end
 		end
+		local line = node.keyLine
+		if line == nil then
+			line =
+				buildOutline(node, `KeyLine{node.id}`, node.keyLineParts, node.keyLineNormals, KEY_SIMPLIFY)
+			node.keyLine = line
+			for _, part in node.keyLineParts do
+				part.BackgroundColor3 = Kit.colors.background
+				part.BackgroundTransparency = KEY_LINE_FADE
+			end
+		end
+		local gold, dark = edge :: Frame, line :: Frame
+		gold.Visible, dark.Visible = true, true
+		gold.ZIndex, dark.ZIndex = KEY_Z, KEY_Z
+		placeParts(node.keyParts, node.keyNormals, KEY_PX, inner + KEY_PX / 2)
+		placeParts(node.keyLineParts, node.keyLineNormals, KEY_LINE_PX, inner + KEY_PX + KEY_LINE_PX / 2)
 	end
 
 	local function bloomOf(node: Node): ImageLabel?
@@ -1626,11 +1846,6 @@ function ShapeMap.new(): MapInterface.Map
 			setOutline(node, Kit.colors.accent, SELECTED_PX, nil, nil, nil, "selected")
 		elseif halo then
 			setOutline(node, halo, if strong then SELECTED_PX else OUTLINE_PX, nil, nil, nil, "halo")
-		elseif key and node.chip == nil then
-			-- A key state (D-088): dashed, so it never reads as the selection; an
-			-- owner's ring fills the gaps in its color, so both still read.
-			local ring = if mark then mark.ring else nil
-			setOutline(node, Kit.colors.accent, SELECTED_PX, true, nil, ring, "key")
 		elseif mark and mark.ring then
 			setOutline(node, mark.ring, if dashed then OUTLINE_PX else SELECTED_PX, dashed, nil, nil, "ring")
 		elseif hollow then
@@ -1638,29 +1853,34 @@ function ShapeMap.new(): MapInterface.Map
 		else
 			setOutline(node, nil, 0)
 		end
+		-- A key state's gold edge runs inside whatever outline is there (D-101).
+		local inner = if isSelected
+				or (halo and strong)
+				or (mark and mark.ring and not dashed)
+			then SELECTED_PX
+			elseif halo or (mark and mark.ring) then OUTLINE_PX
+			elseif hollow then HAIRLINE_PX
+			else 0
+		setKeyEdge(node, key, inner)
 		if node.halo then
-			-- A callout chip's plate: a moved state's halo, else a key state's glow.
+			-- A callout chip's plate: a moved state's halo, else a key state's gold.
 			local plate = node.halo :: Frame
 			plate.Visible = halo ~= nil or key
 			if halo then
 				plate.BackgroundColor3 = halo
 				plate.BackgroundTransparency = if strong then HALO_STRONG else HALO_SOFT
 			elseif key then
-				plate.BackgroundColor3 = Kit.colors.accent
-				plate.BackgroundTransparency = KEY_PLATE
+				plate.BackgroundColor3 = KEY_GOLD
+				plate.BackgroundTransparency = 0
 			end
 		end
 		local lit = halo == nil and mark ~= nil and mark.ring == Kit.colors.accent and not isSelected
-		local keyGlow = key and halo == nil and not lit and node.chip == nil
-		if halo or lit or keyGlow or node.bloom then
+		if halo or lit or node.bloom then
 			local bloom = bloomOf(node)
 			if bloom then
-				bloom.Visible = halo ~= nil or lit or keyGlow
+				bloom.Visible = halo ~= nil or lit
 				bloom.ImageColor3 = halo or Kit.colors.accent
-				bloom.ImageTransparency = if keyGlow
-					then KEY_BLOOM
-					elseif halo and not strong then BLOOM_SOFT
-					else BLOOM_STRONG
+				bloom.ImageTransparency = if halo and not strong then BLOOM_SOFT else BLOOM_STRONG
 			end
 		end
 

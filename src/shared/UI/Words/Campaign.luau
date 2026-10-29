@@ -456,7 +456,7 @@ end
 
 Words.KEY_STATES = "Key states" -- the side column's line and the map legend's word
 Words.KEY_LEGEND = "key state" -- the map's legend row
-Words.KEY_MAP = "Glow and dashed outline: a key state, where 270 is decided this week." -- the map key
+Words.KEY_MAP = "Gold edge: a key state, where 270 is decided this week." -- the map key
 
 -- One key state's chip: its code and its votes, as on the map's plates.
 function Words.keyChip(id: string, ev: number): string
