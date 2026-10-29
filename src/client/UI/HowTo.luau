@@ -52,6 +52,7 @@ local FACE_RIVAL = "calloway"
 local COMPACT_ART = 0.62 -- a landscape phone: the picture's share of the page width, the words beside it (D-090)
 local DOT = 8 -- px, a progress dot
 local DOT_ON_W = 20 -- px, the page on show: a wider, lit dot
+local COMPACT_NAV_W = 270 -- px, Back · dots · Next in a landscape phone's title row (fix17)
 
 export type HowTo = {
 	sheet: Sheet.Sheet,
@@ -212,8 +213,10 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 	-- page's title in the sheet's title row, so Back, the dots and Next (and
 	-- on the last page Play the tutorial) are in view without a scroll.
 	local compact = false
+	local placeNav: (on: boolean) -> ()
 	local function setCompact(on: boolean)
 		compact = on
+		placeNav(on)
 		for _, part in parts do
 			part.list.FillDirection = if on
 				then Enum.FillDirection.Horizontal
@@ -233,6 +236,8 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = sheet.body,
 	})
+	local titleRow = sheet.title.Parent
+	local titleSize = sheet.title.Size
 	local show: (page: number) -> ()
 	local back = Kit.button(Words.HOWTO_BACK, function()
 		show(current - 1)
@@ -281,6 +286,19 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		Size = UDim2.fromScale(NAV_W, 1),
 		Parent = nav,
 	})
+
+	-- A landscape phone: the nav stands in the title row, beside the page's
+	-- title (fix17), so Next is in view even on the Actions page, whose
+	-- picture is taller than the sheet.
+	placeNav = function(on: boolean)
+		nav.Parent = if on then titleRow else sheet.body
+		nav.AnchorPoint = if on then Vector2.new(1, 0) else Vector2.new(0, 0)
+		nav.Position = if on then UDim2.new(1, -(Kit.MIN_TOUCH + Kit.space.sm), 0, 0) else UDim2.new()
+		nav.Size = if on then UDim2.new(0, COMPACT_NAV_W, 1, 0) else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+		sheet.title.Size = if on
+			then UDim2.new(1, -(Kit.MIN_TOUCH + COMPACT_NAV_W + 2 * Kit.space.sm), 1, 0)
+			else titleSize
+	end
 
 	-- Replay the tutorial (D-075): the tips come back for it, and the server
 	-- picks the Easy bot and drops the choice timers.

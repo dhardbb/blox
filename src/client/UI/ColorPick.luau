@@ -189,7 +189,14 @@ function ColorPick.new(screen: Instance, ctx: any, props: { [string]: any }?): C
 		if id and buyPass then
 			buyPass(id)
 		end
-	end, { variant = "secondary", Name = "BuyColorPass", LayoutOrder = 4, Parent = body })
+	end, {
+		variant = "secondary",
+		Name = "BuyColorPass",
+		-- Under the hint, over the (faded) swatches: on a landscape phone the
+		-- sheet's end is under the edge, and the button is what the hint is about (fix17).
+		LayoutOrder = 2,
+		Parent = body,
+	})
 
 	local function render()
 		local shown = if owned then saved else nil

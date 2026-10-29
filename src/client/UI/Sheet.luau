@@ -163,6 +163,7 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 	})
 	local body = Kit.stack({ Name = "Body", Parent = scroll })
 	Kit.details(body)
+	local bodyList = body:FindFirstChildOfClass("UIListLayout")
 
 	local function portrait(): boolean
 		if forced ~= nil then
@@ -195,6 +196,11 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 			panel.Position = UDim2.fromScale(0.5, 0.5)
 			panel.Size = UDim2.fromScale(1, if short then COMPACT_HEIGHT else options.height or WIDE_HEIGHT)
 			widthCap.MaxSize = Vector2.new(Kit.SHEET_MAX_W, math.huge)
+			-- A landscape phone's body rows sit closer (fix17): a code field or a
+			-- buy button that ran 20-30 px under the edge now fits.
+			if bodyList then
+				bodyList.Padding = UDim.new(0, if short then Kit.space.xs else Kit.space.sm)
+			end
 		end
 	end
 
