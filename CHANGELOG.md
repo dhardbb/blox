@@ -2,6 +2,16 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Landscape phones (D-089)
+
+Studio checklist: `docs/TESTING.md`, "Landscape phones (D-089)". Nothing needed from the humans (the setting is in the project file; a place file you publish by hand needs StarterGui → ScreenOrientation = LandscapeSensor, which the game also sets itself).
+
+- **Phones play in landscape only.** The game turns with the phone either way round (LandscapeSensor). iPad and desktop look the same as before.
+- **Every screen has a landscape phone layout:** the map on the left at the full height, a compact column on the right. The Lobby splits into the buttons and a pane with the logo and leaderboard; the plan screen puts the lens buttons in a small rail beside the map and the week's event at the top of the right column; the debate shows the map, the stage and your moves side by side; Results shows the summary on the left and the tabs and buttons on the right; every sheet (How to play, Help, Leave match…) takes the full height.
+- The phone snapshots are now 844 x 390.
+
 ## 0.16.0: Easier bots, key states, new-player fixes (Oct 25, 2026)
 
 ### Bot levels shifted down (D-087)
