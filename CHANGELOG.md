@@ -4,6 +4,18 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### Start screen, queue, How to play, rematch banner, bug reports (D-090)
+
+Studio checklist: `docs/TESTING.md`, "Start screen, queue and bug reports (D-090)". **Needed from the humans:** upload `assets/icons/flame.png` and `assets/icons/bug.png` and send back their ids (until then the flame and the bug toggle show placeholder glyphs). Bug reports are stored in the DataStore `BugReports_v1` (Studio needs API access on to save them while testing).
+
+- **A livelier start screen:** a faint red and blue map with stars behind the LANDSLIDE logo, a play badge and a light sweep on Play vs Bot, a colored dot on each bot level, and a gold Daily Race card with a stand-out Play, a flame by the streak and a "board" chip.
+- **How to play is a "?" chip** in the top-right corner; it pulses for new players until they open it. Inside, progress dots replace "1 of 6", and "Play the tutorial" is the big button on the last page. On a phone the picture and the words sit side by side.
+- **The queue:** the logo stays still, a ring pulses around the time you've waited, and "Play a bot while you wait" is the main button.
+- **Opponent found!** shows their Roblox face and name, a bar that runs down, Join match as the main button, and no ×.
+- **Private codes:** tap the code to select it and copy it; the "Waiting for your friend" dots move. **Invite a friend** is the main button of the friend sheet.
+- **End screen:** "Buster wants a rematch!" is a banner with his face above the buttons; a counted Daily Race shows your rank as a big gold number with a flame and confetti. After the tutorial it says **You're ready!** over "Practice done!" (no more orange "You lost").
+- **Tutorial tips on phones** sit at the top of the side column, so Got it is never under the buttons.
+- **Report a bug:** a small bug button in the lobby's corner and "Report a bug" at the end of the in-match ? sheet. Reports go through Roblox's text filter and are saved with the game version, the screen and the match; one a minute, five a day. Admins see the newest under **Bug reports** in the lobby.
 ### More eccentric candidates (D-097)
 
 Studio checklist: `docs/TESTING.md`, "More eccentric candidates (D-097)". **Needed from the humans:** upload the eight new portrait PNGs in `assets/portraits/` and send back their asset ids (or patch them into `src/client/UI/Assets.luau`); until then the game shows the old faces with the new names.

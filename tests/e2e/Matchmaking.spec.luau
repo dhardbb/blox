@@ -547,6 +547,14 @@ describe("e2e matchmaking: a bot game while waiting (D-083)", function()
 		expect(lobbyOf(world, b).state):toBe("Found")
 		expect(lobbyOf(world, b).found.phase):toBe("Waiting")
 		expect(lobbyOf(world, a).found.phase):toBe("Answer")
+		-- Each sees who was found (D-090): the other's user id and display name.
+		local them = lobbyOf(world, a).found.opponent
+		check(
+			them ~= nil and them.userId == tostring(b.player.UserId) and them.name == "B",
+			"no opponent for A"
+		)
+		local us = lobbyOf(world, b).found.opponent
+		check(us ~= nil and us.userId == tostring(a.player.UserId), "no opponent for B")
 		check(Rig.findIn(a, "FoundOverlay", "FoundJoin") ~= nil, "no prompt over the bot game")
 		check(FakeRoblox.find(a, "FoundOverlay").Visible == true, "the prompt is hidden")
 		Rig.tap(world, a, "FoundOverlay", "FoundJoin", 2)
