@@ -1177,6 +1177,17 @@ Agents: `lune run tests "Bot difficulty"`, `lune run tests Lobby`, `lune run tes
 7. **The Daily Race.** Play today's race. **Expect:** the bot plays as hard as before this change (it is the old Hard bot), and the timers are the normal ones. Open **Today's board**: "Ranked by your final vote margin over the bot. …" (no level named).
 8. **The bot game while you wait.** Find match, wait 30 s, tap **Play a bot while you wait**. **Expect:** the bot plays at the level picked under Play vs Bot (Easy unless you changed it), with that level's timers.
 9. *Send back:* your result and final score on each level you tried, a phone and an iPad screenshot of the Lobby, and anything that felt too easy or too hard.
+## The map labels and tabs (unreleased, D-092)
+
+Agents: `lune run tests ShapeMap`, `lune run tests Lens`, `lune run tests/ui/snap.luau -- --size phone` (and `ipad`, `desktop`; 0 audit findings). Shots: `10k-select-key-c17`, `11c-select-crowded-c17`, `14d-money-close-c17`, and `11`, `12`, `13`, `14`, `14b`, `10d`, `17`, `05`, `22`, `23e`.
+
+1. **Codes stay put.** On the plan screen, switch Votes → Issues → Polls → Money and back. **Expect:** every two-letter state code stays in exactly the same spot; only the numbers or symbols beside them change. A number sits right of its code, or under it; a few on a phone sit just off the state with a short line to the code. No number sits far away from its state (check West Virginia and Kentucky).
+2. **Money.** Tap Money. **Expect:** a dollar figure on the states (on a phone without the "$"), the 8 biggest in gold, no coins. Tap a state: its card shows the same figure for Fundraise.
+3. **Outlines.** Tap Texas (a key state, dashed), then a state next to a home or stronghold ring. **Expect:** the white selection outline is complete and on top; the neighbor's ring and the key-state dashes are still visible beside it, not hidden under it.
+4. **Tabs.** **Expect:** each lens tab has a small icon; "Close races" has a switch and turns it on and off (the far-from-close states fade); "Map key" (phone) or "Key" opens the key, which now says "Close races: …" and, in Money, "The number is what one fundraiser raises there; gold: the 8 richest."
+5. **Pins.** **Expect:** the two candidate faces never cover a code or a number.
+6. *Send back:* a screenshot of the phone map in Votes and in Money, and any number you could not match to its state.
+
 ## Landscape phones (unreleased, D-089)
 
 Agents: `lune run tests` (phone sizes are 844x390), `lune run tests/ui/snap.luau -- --size phone` (and `ipad`, `desktop`; 0 audit findings; look at every phone PNG).

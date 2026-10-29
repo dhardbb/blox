@@ -4,6 +4,16 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### The map: codes stay put, money values, clearer outlines, labeled tabs (D-092)
+
+Studio checklist: `docs/TESTING.md`, "The map labels and tabs (D-092)". Needed from the humans: upload `assets/icons/scale.png` and `assets/icons/chart-column.png` (the Issues and Polls tab icons) and put their ids in `src/client/UI/Icons.luau`; until then those two tabs show a small glyph.
+
+- **A state's letters never move.** Every state code sits on its state, in the same spot in every view and every week. The view's number joins it on the same label, to its right ("PA 19"), or under it where the right is taken (on a phone, over it as a last resort). Only the number may move off the state, on its own little label with a line back to the code. On a phone, a number with no room near its state is left off the map (tap the state: its card has it), instead of a long line across the map. Fixes West Virginia's and Kentucky's labels sitting far from their states.
+- **Money shows dollars again** on every state ("$5.8"; on a phone "5.8"), the 8 richest in gold. The coins are gone.
+- **Outlines no longer cover each other.** Each outline (your selection, the key states' dashes, home and stronghold rings) is drawn just inside its own state, so two outlined neighbors sit side by side; the selection is always on top.
+- **Map tabs.** Votes, Issues, Polls and Money have icons; "Close" is now a "Close races" switch, so it no longer looks like a fifth tab; the "?" button says "Map key" on a phone (and "Key" on bigger screens).
+- Agents: the UI snapshots now lay screens out without the 58 px Roblox top bar, as the game does (`--no-inset` for the old way). The phone map in the plan screen is about 374 x 234 (it looked like 258 x 235 before only because the snapshots squeezed it).
+
 ### More eccentric candidates (D-097)
 
 Studio checklist: `docs/TESTING.md`, "More eccentric candidates (D-097)". **Needed from the humans:** upload the eight new portrait PNGs in `assets/portraits/` and send back their asset ids (or patch them into `src/client/UI/Assets.luau`); until then the game shows the old faces with the new names.
