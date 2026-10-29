@@ -236,8 +236,8 @@ describe("Results: Rematch (D-083)", function()
 			)
 			check(Rig.enabled(peer, "Results", "Rematch"), "Rematch disabled when asked")
 			check(
-				string.find(textOf(peer, "Results", "BarStatus"), "wants a rematch", 1, true) ~= nil,
-				"no ask line"
+				string.find(textOf(peer, "Results", "RematchText"), "wants a rematch", 1, true) ~= nil,
+				"no ask line" -- a banner over the bar since D-090
 			)
 			expect(strictAudit(world, peer, "Results")):toBe(0)
 			setRematch(
