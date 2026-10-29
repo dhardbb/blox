@@ -136,15 +136,30 @@ local function idOf(player: Player): string
 	return tostring(player.UserId)
 end
 
+-- The other player of an offer, as the "Opponent found!" prompt shows them
+-- (D-090): their user id and display name, when they are on this server.
+local function opponentIn(offer: Lobby.Offer, id: string): { userId: string, name: string }?
+	for _, other in offer.players do
+		if other ~= id then
+			local userId = tonumber(other)
+			local player = if userId then Players:GetPlayerByUserId(userId) else nil
+			if player then
+				return { userId = other, name = player.DisplayName }
+			end
+		end
+	end
+	return nil
+end
+
 -- What a player whose match is on its way sees (D-083), or nil.
 local function foundOf(id: string): Remotes.Found?
 	local pending = Lobby.pending(lobby, id)
 	if pending then
-		return { phase = "Answer", untilAt = pending.untilAt }
+		return { phase = "Answer", untilAt = pending.untilAt, opponent = opponentIn(pending, id) }
 	end
 	local offer = lobby.offers[id]
 	if offer then
-		return { phase = "Waiting", untilAt = offer.untilAt }
+		return { phase = "Waiting", untilAt = offer.untilAt, opponent = opponentIn(offer, id) }
 	end
 	if lobby.held[id] then
 		return foundAs[id] or { phase = "Joining" }

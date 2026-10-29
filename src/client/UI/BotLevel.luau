@@ -7,6 +7,10 @@
 -- again" uses it too. Play vs Bot sends it as the Practice request's
 -- `difficulty`; the server decides what each level does.
 --
+-- Each chip carries a colored dot ("LevelDot", D-090) that climbs with the
+-- level, so the four read apart at a glance: green, gold, red, violet (the
+-- player colors; decorative, the word says the level).
+--
 -- It reads as one segmented control: the chips sit in a `field` track, the
 -- picked one raised with the white selection outline, the others flat with
 -- muted labels (still 44 px tall tap targets).
@@ -20,6 +24,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 
 local Kit = require(script.Parent.Kit)
@@ -29,6 +34,16 @@ local BotLevel = {}
 local INSET = 3 -- px between the track's edge and the chips
 BotLevel.HEIGHT = Kit.MIN_TOUCH + 2 * INSET -- px, the track
 BotLevel.NOTE_HEIGHT = Kit.size.caption + Kit.space.xs -- px, the note's one line
+local DOT = 8 -- px, a level's dot
+local DOT_INSET = 10 -- px from the chip's left edge to its dot
+
+-- Each level's dot (D-090): easy to hard, like trail markers.
+BotLevel.DOT_COLORS = table.freeze({
+	Easy = Colors.player.Emerald,
+	Medium = Colors.player.Amber,
+	Hard = Colors.player.Crimson,
+	Extreme = Colors.player.Violet,
+})
 
 local picked: string = Words.DEFAULT_LEVEL
 local rows: { () -> () } = {} -- repaint functions of the mounted pickers
@@ -76,6 +91,20 @@ function BotLevel.new(props: { [string]: any }?): Picker
 			Size = UDim2.new(1 / count, -gap, 1, 0),
 			Parent = root,
 		})
+		local rgb = BotLevel.DOT_COLORS[level]
+		if rgb then
+			local dot = Kit.new("Frame", {
+				Name = "LevelDot",
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.new(0, DOT_INSET - Kit.space.sm, 0.5, 0), -- inside the chip's padding
+				Size = UDim2.fromOffset(DOT, DOT),
+				BackgroundColor3 = Kit.color(rgb),
+				BorderSizePixel = 0,
+				Parent = chips[level],
+			})
+			Kit.round().Parent = dot
+			Kit.dataColor(dot)
+		end
 	end
 
 	local parented = false

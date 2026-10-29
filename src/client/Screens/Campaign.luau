@@ -92,6 +92,7 @@ local LOCKED_WORD = Model.OPPONENT_LOCKED
 
 -- LayoutOrder of each side-column panel.
 local ORDER = {
+	tipTop = -2, -- a coach tip on a landscape phone: first in the side column, above the bar (D-090)
 	strip = -1, -- the event strip, on a landscape phone only (D-089)
 	reveal = 0,
 	keys = 1, -- the key states line while planning (D-088)
@@ -517,8 +518,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 						Numbers.money(spare)
 					)
 					else nil,
-				order = if want == "campaign.actions" or want == "campaign.cash"
-					then ORDER.tipAfter
+				-- A landscape phone's side column is short: the tip goes first,
+				-- so its Got it never sits under the action bar (D-090).
+				order = if model.compact == true
+					then ORDER.tipTop
+					elseif want == "campaign.actions" or want == "campaign.cash" then ORDER.tipAfter
 					else ORDER.tip,
 			})
 			tipId = if tip then want else nil

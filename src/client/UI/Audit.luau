@@ -31,7 +31,9 @@
 --   primary       not exactly one visible button with attribute PrimaryAction (zero is
 --                 fine when the screen root has attribute PrimaryOptional = true), or the
 --                 primary sits in a ScrollingFrame or outside the screen
---   oneAccent     more than one visible button filled with the accent color
+--   oneAccent     more than one visible button filled with the accent color (while an
+--                 open sheet, attribute Modal, holds one, only the sheet's count: its
+--                 scrim covers the screen's, D-090)
 --
 -- Style rules (docs/UI-STYLE.md, style v2). Audit.run checks them; Audit.check
 -- only with { style = true }, so the layout specs that call check() directly
@@ -286,6 +288,7 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 	local primaries: { GuiButton } = {}
 	local sizes: { [number]: boolean } = {}
 	local accents: { string } = {}
+	local modalAccents: { string } = {} -- accent buttons inside an open sheet (attribute Modal)
 
 	-- The product of the MotionScale UIScales on `inst` and its ancestors.
 	local function motionScale(inst: Instance): number
@@ -346,6 +349,9 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 			local fill = button.BackgroundColor3
 			if fill and button.BackgroundTransparency < 1 and sameColor(fill, Kit.colors.accent) then
 				table.insert(accents, inst.Name)
+				if marked(inst, "Modal") then
+					table.insert(modalAccents, inst.Name)
+				end
 			end
 		end
 
@@ -509,6 +515,9 @@ function Audit.check(root: Instance, options: CheckOptions?): ({ Finding }, numb
 		elseif rootRect and outside(rectOf(button), rootRect, true) then
 			add("primary", button, `primary {button.Name} is not fully on screen`, false)
 		end
+	end
+	if #modalAccents > 0 then
+		accents = modalAccents
 	end
 	if #accents > 1 then
 		add("oneAccent", root, `{#accents} accent-filled buttons: {table.concat(accents, ", ")}`, false)

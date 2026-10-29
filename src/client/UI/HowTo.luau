@@ -8,12 +8,15 @@
 -- (UI/Help.art), so both always show the same thing; the full rules stay in
 -- the in-match "?" sheet.
 --
--- Back and Next step through the pages; the last page's Next reads "Got it"
--- and closes. The sheet never holds a primary action (Next is a secondary).
+-- Back and Next step through the pages, with a row of progress dots between
+-- them (D-090: the page on show is the lit, wider one); the last page's Next
+-- reads "Got it" and closes. The sheet never holds the screen's PrimaryAction
+-- (Next is a secondary).
 -- Under the pages, on every page, "Play the tutorial" (D-075) starts the
 -- tutorial again: the short 4-week practice match against the Easy bot (D-080)
 -- with no choice timers and every coach tip shown again (CoachTip.reset), with
--- a one-line hint.
+-- a one-line hint. On the last page it is the sheet's main button (D-090:
+-- UI/Featured, the accent look; attribute Featured).
 --
 --   local howTo = HowTo.new(screenRoot, ctx)
 --   howTo.open()          opens on page 1
@@ -21,7 +24,7 @@
 --   howTo.page() -> number
 --   howTo.sheet   the Sheet "HowToSheet"
 --   Elements: HowToPage_<id> (HowToTitle_<id>, HowToArt_<id>, HowToText_<id>),
---   HowToNav (HowToBack, HowToCount, HowToNext), HowToTutorial
+--   HowToNav (HowToBack, HowToDots (Dot_<k>, attribute On), HowToNext), HowToTutorial
 --   (PlayTutorial, TutorialHint)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,6 +34,7 @@ local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 
 local CoachTip = require(script.Parent.CoachTip)
+local Featured = require(script.Parent.Featured)
 local Help = require(script.Parent.Help)
 local Kit = require(script.Parent.Kit)
 local Sheet = require(script.Parent.Sheet)
@@ -45,6 +49,9 @@ local NAV_W = 0.32 -- share of the row each nav button takes
 local FACE = 40 -- px, the goal page's two candidate portraits (D-068)
 local FACE_YOU = "okafor" -- the goal page's sample candidates: you (blue) and a rival (red)
 local FACE_RIVAL = "calloway"
+local COMPACT_ART = 0.62 -- a landscape phone: the picture's share of the page width, the words beside it (D-090)
+local DOT = 8 -- px, a progress dot
+local DOT_ON_W = 20 -- px, the page on show: a wider, lit dot
 
 export type HowTo = {
 	sheet: Sheet.Sheet,
@@ -150,6 +157,8 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 	local current = 1
 
 	local frames: { Frame } = {}
+	type Parts = { title: TextLabel, art: Frame, text: TextLabel, list: UIListLayout }
+	local parts: { Parts } = {}
 	for k, page in pages do
 		local frame = Kit.stack({
 			Name = `HowToPage_{page.id}`,
@@ -158,7 +167,7 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 			Parent = sheet.body,
 		}, "Vertical", Kit.space.md)
 		frames[k] = frame
-		Kit.text(page.title, {
+		local titleLabel = Kit.text(page.title, {
 			Name = `HowToTitle_{page.id}`,
 			LayoutOrder = 1,
 			Font = Kit.font.display,
@@ -184,13 +193,37 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		else
 			nightArt(art)
 		end
-		Kit.text(page.text, {
+		local textLabel = Kit.text(page.text, {
 			Name = `HowToText_{page.id}`,
 			LayoutOrder = 3,
 			Size = UDim2.fromScale(1, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = frame,
 		})
+		parts[k] = {
+			title = titleLabel,
+			art = art,
+			text = textLabel,
+			list = frame:FindFirstChildOfClass("UIListLayout") :: UIListLayout,
+		}
+	end
+
+	-- A landscape phone (D-090): the picture and the words side by side, the
+	-- page's title in the sheet's title row, so Back, the dots and Next (and
+	-- on the last page Play the tutorial) are in view without a scroll.
+	local compact = false
+	local function setCompact(on: boolean)
+		compact = on
+		for _, part in parts do
+			part.list.FillDirection = if on
+				then Enum.FillDirection.Horizontal
+				else Enum.FillDirection.Vertical
+			part.title.Visible = not on
+			part.art.Size = if on then UDim2.new(COMPACT_ART, -Kit.space.sm, 0, 0) else UDim2.fromScale(1, 0)
+			part.text.Size = if on
+				then UDim2.new(1 - COMPACT_ART, -Kit.space.sm, 0, 0)
+				else UDim2.fromScale(1, 0)
+		end
 	end
 
 	-- Back · "2 of 5" · Next (or Got it).
@@ -209,16 +242,31 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		Size = UDim2.fromScale(NAV_W, 1),
 		Parent = nav,
 	})
-	local count = Kit.caption("", {
-		Name = "HowToCount",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
-		Size = UDim2.fromScale(1 - 2 * NAV_W, 1),
-		AutomaticSize = Enum.AutomaticSize.None,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		TextYAlignment = Enum.TextYAlignment.Center,
+	-- Progress dots (D-090), one per page, in the middle of the row.
+	local dots = Kit.box({
+		Name = "HowToDots",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1 - 2 * NAV_W, 0, 0, DOT),
 		Parent = nav,
 	})
+	local dotList = Kit.list("Horizontal", Kit.space.xs)
+	dotList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	dotList.VerticalAlignment = Enum.VerticalAlignment.Center
+	dotList.Parent = dots
+	local dotFrames: { Frame } = {}
+	for k = 1, #pages do
+		local dot = Kit.new("Frame", {
+			Name = `Dot_{k}`,
+			LayoutOrder = k,
+			Size = UDim2.fromOffset(DOT, DOT),
+			BackgroundColor3 = Kit.colors.line,
+			BorderSizePixel = 0,
+			Parent = dots,
+		}) :: Frame
+		Kit.corner(Kit.radius.pill).Parent = dot
+		dotFrames[k] = dot
+	end
 	local nextButton = Kit.button(Words.HOWTO_NEXT, function()
 		if current >= #pages then
 			sheet:close()
@@ -242,7 +290,7 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 		Parent = sheet.body,
 	}, "Vertical", Kit.space.xs)
 	Kit.divider({ LayoutOrder = 1, Parent = tutorial })
-	Kit.button(Words.TUTORIAL_BUTTON, function()
+	local playTutorial = Kit.button(Words.TUTORIAL_BUTTON, function()
 		CoachTip.reset()
 		sheet:close()
 		ctx.net.send("Practice", { difficulty = "Easy", tutorial = true })
@@ -265,14 +313,27 @@ function HowTo.new(screen: Instance, ctx: Types.Ctx): HowTo
 			frame.Visible = k == current
 		end
 		back.Visible = current > 1
-		count.Text = Words.pageCount(current, #pages)
-		nextButton.Text = if current >= #pages then Words.HOWTO_DONE else Words.HOWTO_NEXT
+		for k, dot in dotFrames do
+			local on = k == current
+			dot.Size = UDim2.fromOffset(if on then DOT_ON_W else DOT, DOT)
+			dot.BackgroundColor3 = if on then Kit.colors.accent else Kit.colors.line
+			dot:SetAttribute("On", on)
+		end
+		local last = current >= #pages
+		nextButton.Text = if last then Words.HOWTO_DONE else Words.HOWTO_NEXT
+		-- The last page: Play the tutorial is the main thing to press (D-090).
+		Featured.set(playTutorial, if last then Kit.colors.accent else nil)
+		sheet:setTitle(if compact then pages[current].title else Words.HOWTO_TITLE)
 	end
 	show(1)
 
 	return {
 		sheet = sheet,
 		open = function()
+			local root = sheet.root.Parent
+			setCompact(
+				root ~= nil and root:IsA("GuiObject") and Kit.compact((root :: GuiObject).AbsoluteSize)
+			)
 			show(1)
 			sheet:open()
 		end,

@@ -51,6 +51,20 @@
 -- phone), more for an admin's Review names button, else "You" and See all.
 -- iPad and desktop keep the column, the full Daily card and the card beside.
 --
+-- 0.17 (D-090): a faint red and blue map with stars behind the wordmark
+-- (UI/BrandMap), Play vs Bot with a play badge and a light that sweeps it,
+-- How to play as a "?" chip in the corner (HowToPlay; it pulses, attribute
+-- Pulse, for a player with no games until they open it) beside the bug toggle
+-- (BugToggle: "Report a bug", UI/BugSheet), and for admins "Bug reports"
+-- (BugsButton, UI/BugList) beside Review names. Color, Review names and Bug
+-- reports share the Extras row on a phone. On a wide screen the column stands
+-- at a fixed top (centered for the idle column, idleHeight), so the wordmark
+-- stays still when the queue or the code screen opens. The queue shows a
+-- pulsing ring with the time waited (QueueRing, QueueTime) and "Play a bot
+-- while you wait" as its primary; the private code is a read-only TextBox a
+-- tap selects (CodeHint "Tap to copy": Roblox games cannot write the
+-- clipboard), and the waiting line's dots move unless motion is reduced.
+--
 -- A landscape phone (D-089, Kit.compact: height is short): two panes. The
 -- column of buttons on the left (no eyebrow, the one-row Daily card), and on
 -- the right, under the corner toggles, the "Brand" pane: the wordmark, the
@@ -59,9 +73,12 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local LobbyWords = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
 local BotLevel = require(script.Parent.Parent.UI.BotLevel)
+local BrandMap = require(script.Parent.Parent.UI.BrandMap)
+local BugList = require(script.Parent.Parent.UI.BugList)
 local DailyRace = require(script.Parent.Parent.UI.DailyRace)
 local ColorPick = require(script.Parent.Parent.UI.ColorPick)
 local HowTo = require(script.Parent.Parent.UI.HowTo)
@@ -69,6 +86,7 @@ local LandslideBadge = require(script.Parent.Parent.UI.LandslideBadge)
 local LobbyMatch = require(script.Parent.Parent.UI.LobbyMatch)
 local MatchWords = require(ReplicatedStorage.Shared.UI.Words.Matchmaking)
 local Online = require(ReplicatedStorage.Shared.Net.Online)
+local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local NameReview = require(script.Parent.Parent.UI.NameReview)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Layout = require(script.Parent.Common.Layout)
@@ -97,6 +115,18 @@ local COLUMN_SHARE = 0.56 -- share of a landscape phone's width the button colum
 local COMPACT_BOARD_H = 440 -- px of screen height for the top 3 in a landscape phone's brand pane (else "You" and See all)
 local CODE_PLATE_H = Kit.size.hero + 2 * Kit.space.lg -- px, the private match code's plate
 local CODE_GLOW_FADE = 0.9 -- a faint white light inside the code plate
+local MAP_W = 1.5 -- the backdrop map's box, a share of the wordmark's width (D-090)
+local MAP_H = 3.2 -- and of its height (the map keeps its aspect inside this box)
+local COMPACT_MAP_W = 1.05 -- a landscape phone's brand pane is narrow: the map about the wordmark's width
+local COMPACT_MAP_H = 2.2
+local PLAY_BADGE = 32 -- px, the play badge on Play vs Bot
+local RING = 88 -- px, the queue's ring
+local RING_EVERY = 1.4 -- s between two pulses of the queue's ring
+local RING_BREATHE = { 0.15, 0.7, 1.2 } -- the ring's edge: transparency from, to, seconds
+local DOT_EVERY = 0.4 -- s per step of the waiting line's dots
+local PULSE = { 0, 0.75, 0.9 } -- the "?" chip's outline for a new player: transparency from, to, seconds
+local EYEBROW_H = Kit.size.caption + 4 -- px, the eyebrow's line (idleHeight)
+local CORNER_ICON = 18 -- px, the bug toggle's icon (its glyph stays at body size until the image is uploaded)
 
 -- Codes use letters A-Z and digits 2-9 (no 0 or 1).
 local function validCode(code: string): boolean
@@ -135,6 +165,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- The lockup (Kit.wordmark, D-064): "LANDSLIDE" in Fredoka at up to 72 with
 	-- its glow and lip, the "RACE TO 270" ribbon under it.
 	local title = Kit.wordmark(nil, { Name = "Title", LayoutOrder = nextOrder(), Parent = content })
+	-- The backdrop (D-090): a faint red and blue map with stars, behind the
+	-- wordmark wherever it stands (it moves with it to the brand pane).
+	local brandMap = BrandMap.new({ Size = UDim2.fromScale(MAP_W, MAP_H), Parent = title })
 	-- The record and the online count on one line (D-083). Always there (the
 	-- record empty until the profile arrives), so nothing jumps.
 	local stats = Kit.box({
@@ -207,6 +240,25 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		ctx.net.send("Practice", { difficulty = BotLevel.get() })
 	end, { variant = "primary", Name = "Practice", LayoutOrder = 1, Parent = idle })
 	practice:SetAttribute("PrimaryAction", true)
+	-- More life (D-090): a blue play badge at the left, and a light that sweeps it.
+	local badge = Kit.text("►", {
+		Name = "PlayIcon",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, Kit.space.xs, 0.5, 0),
+		Size = UDim2.fromOffset(PLAY_BADGE, PLAY_BADGE),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = Kit.color(Colors.player.Cobalt),
+		TextColor3 = Kit.colors.text,
+		Font = Kit.font.bold,
+		TextSize = Kit.size.body,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextWrapped = false,
+		Parent = practice,
+	})
+	Kit.round().Parent = badge
+	Kit.dataColor(badge)
+	practice.Active = true
+	local stopShine = Motion.shine(practice)
 	-- The level chips and, under them, one line on the picked level (D-087).
 	local levelBox =
 		Kit.stack({ Name = "LevelPick", LayoutOrder = 2, Parent = idle }, "Vertical", Kit.space.xs)
@@ -239,16 +291,28 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = pair,
 	})
 	local howTo = HowTo.new(parent, ctx)
-	local howToPlay = Kit.button("How to play", function()
+	-- How to play is a "?" chip in the corner (D-090); it pulses for a new player.
+	local seenHowTo = false
+	local paintPulse: () -> ()
+	local howToPlay = Settings.cornerButton("HowToPlay", LobbyWords.HELP_LABEL, function()
+		seenHowTo = true
+		paintPulse()
 		howTo.open()
-	end, {
-		variant = "ghost",
-		Name = "HowToPlay",
-		LayoutOrder = 4,
-		Parent = idle,
-	})
+	end, LobbyWords.HELP_CHIP)
+	-- Report a bug (D-090): small, in the corner, out of the way.
+	local bugToggle = Settings.cornerButton("BugToggle", LobbyWords.BUG_LABEL, function()
+		local open = ctx.bug
+		if open then
+			open("Lobby")
+		end
+	end)
+	local bugIcon = Kit.icon("bug", CORNER_ICON, Kit.colors.muted)
+	bugIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+	bugIcon.Position = UDim2.fromScale(0.5, 0.5)
+	bugIcon.Parent = bugToggle
+	bugToggle.Visible = ctx.bug ~= nil
 	local colorPick = ColorPick.new(parent, ctx, { LayoutOrder = 6, Parent = idle })
-	-- A phone: How to play and the Color button side by side (relayout).
+	-- A phone: the Color, Review names and Bug reports buttons side by side (relayout).
 	local extras = Kit.box({
 		Name = "Extras",
 		LayoutOrder = 4,
@@ -259,6 +323,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	Kit.list("Horizontal", Kit.space.sm).Parent = extras
 	-- Admins only (D-069): the reported names to review.
 	local review = NameReview.new(parent, ctx, { LayoutOrder = 7, Parent = idle })
+	-- Admins only (D-090): the newest bug reports.
+	local bugs = BugList.new(parent, ctx, { LayoutOrder = 8, Parent = idle })
 	-- Sound and Reduce motion: the top-right corner (D-075), on every Lobby state;
 	-- for admins also "Timers off" (D-081), saved by the server.
 	local settings = Settings.corner({
@@ -266,7 +332,30 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		onTimers = function(off: boolean)
 			ctx.net.send("SetTimersOff", { on = off })
 		end,
+		extras = { howToPlay, bugToggle },
 	})
+	-- The "?" chip's pulse: an outline that breathes until a new player opens it.
+	local stopPulse: (() -> ())? = nil
+	local newPlayer = false
+	paintPulse = function()
+		local on = newPlayer and not seenHowTo
+		if howToPlay:GetAttribute("Pulse") == on then
+			return
+		end
+		howToPlay:SetAttribute("Pulse", on)
+		Kit.setSelected(howToPlay, on)
+		local stop = stopPulse
+		if stop then
+			stop()
+			stopPulse = nil
+		end
+		local stroke = howToPlay:FindFirstChild("VariantStroke")
+		if on and stroke then
+			stopPulse = Motion.breathe(stroke, "Transparency", PULSE[1], PULSE[2], PULSE[3])
+		end
+	end
+	howToPlay:SetAttribute("Pulse", true) -- so the first paint below sets it either way
+	paintPulse()
 	local board = Leaderboard.new(parent, ctx)
 	-- A landscape phone's right pane (D-089): wordmark, record, leaderboard.
 	local brand = Kit.box({ Name = "Brand", Visible = false, Parent = parent })
@@ -348,6 +437,41 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ queued or hosting
 
+	-- The queue (D-090): a ring that pulses, with the time waited inside it.
+	local ringRow = Kit.box({
+		Name = "QueueRingRow",
+		LayoutOrder = 0,
+		Size = UDim2.new(1, 0, 0, RING),
+		Visible = false,
+		Parent = waiting,
+	})
+	local ring = Kit.new("Frame", {
+		Name = "QueueRing",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(RING, RING),
+		BackgroundColor3 = Kit.colors.field,
+		BorderSizePixel = 0,
+		Parent = ringRow,
+	}) :: Frame
+	Kit.round().Parent = ring
+	local ringEdge = Kit.new("UIStroke", {
+		Name = "RingEdge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = Kit.colors.accent,
+		Thickness = 3,
+		Transparency = RING_BREATHE[1],
+		Parent = ring,
+	}) :: UIStroke
+	local queueTime = Kit.text("", {
+		Name = "QueueTime",
+		Size = UDim2.fromScale(1, 1),
+		Font = Kit.font.display,
+		TextSize = Kit.size.heading,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextWrapped = false,
+		Parent = ring,
+	})
 	local waitingTitle = Kit.heading("", {
 		Name = "WaitingText",
 		LayoutOrder = 1,
@@ -377,18 +501,42 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	Kit.corner(Kit.radius.sheet).Parent = codeWell
 	Kit.bevel(codeWell)
 	Kit.glow(codeWell, Kit.colors.accent, { scale = 1, transparency = CODE_GLOW_FADE, stretch = true })
-	local codeLabel = Kit.text("", {
+	-- A read-only TextBox (D-090): a tap selects the code so the player can
+	-- copy it (Roblox gives games no clipboard; the OS copy does the rest).
+	local codeLabel = Kit.new("TextBox", {
 		Name = "CodeLabel",
 		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
 		Font = Kit.font.display,
 		TextSize = Kit.size.hero,
+		TextColor3 = Kit.colors.text,
 		TextXAlignment = Enum.TextXAlignment.Center,
+		TextEditable = false,
+		ClearTextOnFocus = false,
+		Text = "",
 		ZIndex = 2,
 		Parent = codeWell,
+	}) :: TextBox
+	pcall(function()
+		codeLabel.Focused:Connect(function()
+			-- Select the whole code (CursorPosition and SelectionStart, 1-based).
+			codeLabel.CursorPosition = #codeLabel.Text + 1
+			codeLabel.SelectionStart = 1
+		end)
+	end)
+	local codeHint = Kit.caption(LobbyWords.CODE_COPY, {
+		Name = "CodeHint",
+		LayoutOrder = 4,
+		AutomaticSize = Enum.AutomaticSize.None,
+		Size = UDim2.new(1, 0, 0, Kit.size.caption + Kit.space.xs),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Visible = false,
+		Parent = waiting,
 	})
 	local waitingNow = Kit.text("", {
 		Name = "WaitingNow",
-		LayoutOrder = 4,
+		LayoutOrder = 5,
 		-- Room above and below, so the line does not touch the code or Cancel.
 		Size = UDim2.new(1, 0, 0, Kit.size.body + 2 * Kit.space.md),
 		Font = Kit.font.medium,
@@ -397,7 +545,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	})
 	Kit.button("Cancel", function()
 		ctx.net.send("Leave")
-	end, { variant = "danger", Name = "Cancel", LayoutOrder = 6, Parent = waiting })
+	end, { variant = "danger", Name = "Cancel", LayoutOrder = 7, Parent = waiting })
 
 	local startingText = Kit.heading("Match found. Starting…", {
 		Name = "StartingText",
@@ -409,7 +557,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		content = content,
 		onlineOrder = onlineOrder,
 		waiting = waiting,
-		waitingOrder = 5,
+		waitingOrder = 6,
 		startingText = startingText,
 		sheetBody = friend.body,
 		closeSheet = function()
@@ -424,14 +572,44 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local cardShadow: ImageLabel? = nil -- the card's shadow while it stands beside the column
 	local padding = content:FindFirstChildOfClass("UIPadding") :: UIPadding
 	local colorHolder = Kit.outer(colorPick.button)
-	local howToHolder = Kit.outer(howToPlay)
 	local reviewHolder = Kit.outer(review.button)
+	local bugsHolder = Kit.outer(bugs.button)
+
+	-- The idle column's height, from its parts' own sizes (D-090): a wide
+	-- screen's column starts where this would sit centered, whatever state
+	-- shows, so the wordmark never moves when the queue or a code opens.
+	local function idleHeight(): number
+		local gap = Kit.space.sm
+		local h = Kit.wordmarkHeight() + gap + stats.Size.Y.Offset + gap
+		if eyebrow.Visible then
+			h += EYEBROW_H + gap
+		end
+		if spacer.Visible then
+			h += spacer.Size.Y.Offset + gap
+		end
+		h += Kit.PRIMARY_H + gap -- Play vs Bot
+		h += BotLevel.HEIGHT + Kit.space.xs + BotLevel.NOTE_HEIGHT + gap -- the levels and their line
+		h += Kit.MIN_TOUCH + gap -- Find match, Play a friend
+		h += daily.height()
+		for _, button in { colorPick.button, review.button, bugs.button } do
+			if button.Visible then
+				h += gap + Kit.MIN_TOUCH
+			end
+		end
+		return h
+	end
+
 	local function relayout()
 		local size = parent.AbsoluteSize
 		local compact = Kit.compact(size)
 		local phone = size.X < SIDE_MIN_W or compact
 		-- A landscape phone: the wordmark and the record move to the brand pane.
 		brand.Visible = compact
+		-- The backdrop map stays inside the brand pane on a landscape phone (D-090).
+		brand.ClipsDescendants = compact
+		brandMap.root.Size = if compact
+			then UDim2.fromScale(COMPACT_MAP_W, COMPACT_MAP_H)
+			else UDim2.fromScale(MAP_W, MAP_H)
 		local top = if compact then brand else content
 		if title.Parent ~= top then
 			title.Parent = top
@@ -448,28 +626,34 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		padding.PaddingTop = UDim.new(0, if phone and not compact then CORNER_CLEAR else 0)
 		spacer.Visible = not phone
 		daily.setCompact(phone)
-		-- How to play beside the Color button on a phone, when it shows; on a
-		-- landscape phone an admin's Review names button joins the row too.
-		local reviewInRow = compact and review.button.Visible
-		local paired = phone and (colorPick.button.Visible or reviewInRow)
+		-- On a phone, Color, Review names and Bug reports share one row (D-090).
+		local row: { GuiObject } = {}
+		local faces: { TextButton } = { colorPick.button, review.button, bugs.button }
+		local holders: { GuiObject } = { colorHolder, reviewHolder, bugsHolder }
+		for k, face in faces do
+			if face.Visible then
+				table.insert(row, holders[k])
+			end
+		end
+		local paired = phone and #row > 0
 		extras.Visible = paired
 		local holder = if paired then extras else idle
-		if howToHolder.Parent ~= holder then
-			howToHolder.Parent = holder
-			colorHolder.Parent = holder
-		end
-		local reviewParent = if reviewInRow then extras else idle
-		if reviewHolder.Parent ~= reviewParent then
-			reviewHolder.Parent = reviewParent
-		end
-		local cells = 1 + (if colorPick.button.Visible then 1 else 0) + (if reviewInRow then 1 else 0)
+		local cells = math.max(#row, 1)
 		local cell = UDim2.new(1 / cells, -Kit.space.sm * (cells - 1) / cells, 0, Kit.MIN_TOUCH)
-		howToHolder.Size = if paired then cell else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
-		colorHolder.Size = if paired then cell else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
-		reviewHolder.Size = if reviewInRow then cell else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
-		howToHolder.LayoutOrder = if paired then 1 else 4
-		colorHolder.LayoutOrder = if paired then 2 else 6
-		reviewHolder.LayoutOrder = if reviewInRow then 3 else 7
+		for k, item in { colorHolder, reviewHolder, bugsHolder } do
+			if item.Parent ~= holder then
+				item.Parent = holder
+			end
+			item.Size = if paired then cell else UDim2.new(1, 0, 0, Kit.MIN_TOUCH)
+			item.LayoutOrder = if paired then k else 5 + k
+		end
+		-- A wide screen: the column from a fixed top (idleHeight), so nothing jumps.
+		if not phone then
+			list.VerticalAlignment = Enum.VerticalAlignment.Top
+			padding.PaddingTop = UDim.new(0, math.max(0, math.floor((size.Y - idleHeight()) / 2)))
+		else
+			list.VerticalAlignment = Enum.VerticalAlignment.Center
+		end
 		-- The leaderboard: beside the column when there is room, else at its end.
 		local card = board.card
 		if compact then
@@ -515,6 +699,48 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 	end
 
+	-- The queue's clock and ring (D-090): from when the player joined the queue
+	-- (the server's botAt less the offer delay), else from when this screen saw it.
+	local queuedSince: number? = nil
+	local lastRing = -math.huge
+	local stopBreathe: (() -> ())? = nil
+	local function paintQueue(now: number, status: string)
+		local queued = status == "Queued"
+		ringRow.Visible = queued
+		if not queued then
+			queuedSince = nil
+			local stop = stopBreathe
+			if stop then
+				stop()
+				stopBreathe = nil
+			end
+			return
+		end
+		local since = queuedSince or now
+		queuedSince = since
+		queueTime.Text = Kit.clock(math.max(0, now - since))
+		if stopBreathe == nil then
+			local b = RING_BREATHE
+			stopBreathe = Motion.breathe(ringEdge, "Transparency", b[1], b[2], b[3])
+		end
+		if now - lastRing >= RING_EVERY then
+			lastRing = now
+			Motion.ring(ring, Kit.colors.accent) -- nothing under reduced motion
+		end
+	end
+
+	-- The private code's waiting line: its dots step unless motion is reduced.
+	local function paintWaiting(now: number)
+		local base = string.gsub(Words.HOSTING_WAIT, "…$", "")
+		if Motion.reduced() then
+			waitingNow.Text = Words.HOSTING_WAIT
+		else
+			local dots = math.floor(now / DOT_EVERY) % 4
+			-- Padded to the same width, so the line never shifts as the dots move.
+			waitingNow.Text = base .. string.rep(".", dots) .. string.rep(" ", 3 - dots)
+		end
+	end
+
 	local function update(state: Types.State)
 		relayout()
 		local lobby = state.lobby
@@ -528,6 +754,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		record.Text = if profile
 			then `Rating {profile.rating} · {profile.wins} won, {profile.losses} lost{slides}`
 			else ""
+		-- A player with no games yet: the "?" chip pulses until they open it (D-090).
+		newPlayer = profile ~= nil and (profile.games or 0) == 0 and profile.wins + profile.losses == 0
+		paintPulse()
 
 		fullBanner.Visible = isFull and status == "Idle"
 
@@ -536,6 +765,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		starting.Visible = status == "InMatch" or status == "Found"
 		colorPick.update(lobby)
 		review.update(lobby, state.review)
+		bugs.update(lobby, state.bugs)
 		Settings.setTimers(settings, if lobby and lobby.admin then lobby.admin.timersOff == true else nil)
 		board.update(state.leaderboard)
 		daily.update(state.daily)
@@ -543,6 +773,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			friend:close()
 			colorPick.sheet:close()
 			review.sheet:close()
+			bugs.sheet:close()
 			howTo.sheet:close()
 			daily.sheet:close()
 		end
@@ -559,6 +790,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			waitingHint.Text = MatchWords.queueHint(online, count)
 			waitingNow.Visible = false
 			codeWell.Visible = false
+			codeHint.Visible = false
+			-- The time waited counts from the server's botAt when it sent one.
+			if lobby and type(lobby.botAt) == "number" then
+				queuedSince = lobby.botAt - ctx.config.QUEUE_BOT_OFFER_SECONDS
+			end
 		elseif status == "Hosting" then
 			-- An eyebrow over the code: the code's hero size is this screen's fourth.
 			waitingTitle.Text = string.upper(Words.HOSTING_TITLE)
@@ -568,15 +804,17 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			waitingHint.Text = Words.HOSTING_HINT
 			codeLabel.Text = if lobby and lobby.code then lobby.code else "-----"
 			codeWell.Visible = true
-			waitingNow.Text = Words.HOSTING_WAIT
+			codeHint.Visible = true
+			paintWaiting(ctx.now())
 			waitingNow.Visible = true
 		end
+		paintQueue(ctx.now(), status)
 		matchParts.update(state)
 	end
 
 	-- Arrive top to bottom: the hero pops, then each line fades in.
 	Motion.pop(title, Motion.POP_FROM)
-	local arriving: { Instance } = { eyebrow, title, record, practice, findMatch, playFriend, howToPlay }
+	local arriving: { Instance } = { eyebrow, title, record, practice, findMatch, playFriend }
 	for _, child in botLevel.root:GetChildren() do
 		if child:IsA("TextButton") then
 			table.insert(arriving, child)
@@ -601,8 +839,25 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			relayout()
 			daily.tick(now)
 			matchParts.tick(now)
+			local lobby = ctx.store.get().lobby
+			local status = if lobby then lobby.state else "Idle"
+			paintQueue(now, status)
+			if status == "Hosting" then
+				paintWaiting(now)
+			end
 		end,
-		destroy = function() end,
+		destroy = function()
+			stopShine()
+			brandMap.stop()
+			local stop = stopPulse
+			if stop then
+				stop()
+			end
+			local breathe = stopBreathe
+			if breathe then
+				breathe()
+			end
+		end,
 	}
 end
 

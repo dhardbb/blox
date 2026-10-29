@@ -16,6 +16,12 @@
 --                 DailyRows (DailyRow_<rank>)
 --   daily.update(info?)  from the screen's update (state.daily)
 --   daily.tick(now)      the countdown (server time)
+--
+-- The look (D-090): a gold edge (DailyEdge) so it reads as an event, not a
+-- list row; Play is featured in gold (UI/Featured); the streak line leads with
+-- a flame (DailyFlame, gold while the streak runs); "Today's board" is a chip
+-- (attribute Chip).
+--
 --   daily.setCompact(on) a phone's Lobby (0.15.0): one row, the buttons beside
 --                        the head ("Play" / "Practice", "Top 50"), the title
 --                        without its date, "As Goldie Pennywhistle", "5h 11m · 3-day
@@ -27,6 +33,7 @@ local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local DailyNet = require(ReplicatedStorage.Shared.Net.Daily)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Daily)
 
+local Featured = require(script.Parent.Featured)
 local Kit = require(script.Parent.Kit)
 local Leaderboard = require(script.Parent.Leaderboard)
 local Sheet = require(script.Parent.Sheet)
@@ -42,6 +49,9 @@ local PLAY_SHARE = 0.6 -- the Play button's share of the button row
 local COMPACT_FACE = 40 -- px, the portrait on a phone's one-row card
 local COMPACT_PLAY_W = 84 -- px, "Play" / "Practice" beside the head
 local COMPACT_BOARD_W = 68 -- px, "Top 50" beside it
+local FLAME = LINE_H -- px, the streak's flame at the start of the info line
+local EDGE = 2 -- px, the card's gold edge
+local CARD_PAD = 14 -- px, Kit.card's padding (for height())
 
 export type Daily = {
 	card: Frame,
@@ -50,6 +60,7 @@ export type Daily = {
 	tick: (now: number) -> (),
 	open: () -> (),
 	setCompact: (on: boolean) -> (),
+	height: () -> number, -- px the card takes (its layout's own numbers; the Lobby centers its column with it, D-090)
 }
 
 -- The line for a board with no rows to show, or nil when it has some.
@@ -77,6 +88,18 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		cardProps[key] = value
 	end
 	local card = Kit.card(cardProps)
+	-- The gold edge (D-090) replaces the card's hairline.
+	local hairline = card:FindFirstChild("Edge")
+	if hairline then
+		hairline:Destroy()
+	end
+	Kit.new("UIStroke", {
+		Name = "DailyEdge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = Featured.GOLD,
+		Thickness = EDGE,
+		Parent = card,
+	})
 
 	-- Head: the portrait beside the title, who everyone plays, and a line with
 	-- the time left, the streak and today's run.
@@ -112,10 +135,15 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		TextScaled = true,
 		Parent = head,
 	})
+	local flame = Kit.icon("flame", FLAME, Featured.GOLD)
+	flame.Name = "DailyFlame"
+	flame.Position = UDim2.fromOffset(textX, Kit.size.body + 4 + LINE_H)
+	flame.Visible = false
+	flame.Parent = head
 	local infoLine = Kit.text("", {
 		Name = "DailyInfo",
-		Position = UDim2.fromOffset(textX, Kit.size.body + 4 + LINE_H),
-		Size = UDim2.new(1, -textX, 0, LINE_H),
+		Position = UDim2.fromOffset(textX + FLAME + Kit.space.xs, Kit.size.body + 4 + LINE_H),
+		Size = UDim2.new(1, -(textX + FLAME + Kit.space.xs), 0, LINE_H),
 		TextSize = Kit.size.caption,
 		TextWrapped = false,
 		TextScaled = true,
@@ -141,13 +169,19 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		ctx.net.send("Daily")
 		sheet:open()
 	end
+	Featured.set(play, Featured.GOLD)
 	local boardButton = Kit.button(Words.BOARD, open, {
-		variant = "ghost",
+		variant = "chip",
 		Name = "DailyBoard",
 		LayoutOrder = 2,
 		Size = UDim2.new(1 - PLAY_SHARE, -Kit.space.sm / 2, 1, 0),
 		Parent = buttons,
 	})
+	boardButton:SetAttribute("Chip", true)
+	local boardCorner = boardButton:FindFirstChildOfClass("UICorner")
+	if boardCorner then
+		boardCorner.CornerRadius = UDim.new(0, Kit.radius.pill)
+	end
 
 	-- The sheet: how it ranks, where you stand, then the day's top 50.
 	Kit.caption(Words.HOW, { Name = "DailyHow", LayoutOrder = 1, Parent = sheet.body })
@@ -192,6 +226,7 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		if info == nil then
 			who.Text = Words.WAITING
 			infoLine.Text = ""
+			flame.Visible = false
 			play.Text = Words.PLAY
 		else
 			local name = if Candidates.exists(info.candidate)
@@ -214,6 +249,13 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 				Kit.portrait(info.candidate, name, facePx).Parent = faceSlot
 			end
 			infoLine.Text = infoText(ctx.now())
+			local burning = (info.streak or 0) >= 1
+			flame.Visible = true
+			if flame:IsA("ImageLabel") then
+				flame.ImageColor3 = if burning then Featured.GOLD else Kit.colors.muted
+			elseif flame:IsA("TextLabel") then
+				flame.TextColor3 = if burning then Featured.GOLD else Kit.colors.muted
+			end
 		end
 		-- The sheet.
 		for _, child in rows:GetChildren() do
@@ -270,9 +312,11 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		local x = facePx + Kit.space.sm
 		local right = if on then COMPACT_PLAY_W + COMPACT_BOARD_W + 2 * Kit.space.sm else 0
 		for _, label in { title, who, infoLine } do
-			label.Position = UDim2.fromOffset(x, label.Position.Y.Offset)
-			label.Size = UDim2.new(1, -(x + right), 0, label.Size.Y.Offset)
+			local lead = if label == infoLine then FLAME + Kit.space.xs else 0
+			label.Position = UDim2.fromOffset(x + lead, label.Position.Y.Offset)
+			label.Size = UDim2.new(1, -(x + lead + right), 0, label.Size.Y.Offset)
 		end
+		flame.Position = UDim2.fromOffset(x, flame.Position.Y.Offset)
 		if on then
 			buttons.Parent = head
 			buttons.AnchorPoint = Vector2.new(1, 0.5)
@@ -303,6 +347,12 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		tick = tick,
 		open = open,
 		setCompact = setCompact,
+		height = function(): number
+			local inner = if compact
+				then math.max(HEAD_H, Kit.MIN_TOUCH)
+				else HEAD_H + Kit.space.sm + Kit.MIN_TOUCH + Kit.LIP_SECONDARY
+			return inner + 2 * CARD_PAD
+		end,
 	}
 end
 

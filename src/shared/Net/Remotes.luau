@@ -79,6 +79,9 @@ export type FoundPhase =
 export type Found = {
 	phase: FoundPhase,
 	untilAt: number?, -- server time: Answer and Waiting
+	-- Answer and Waiting, when the opponent is on this server (D-090): their user
+	-- id (digits, for their avatar headshot) and Roblox display name.
+	opponent: { userId: string, name: string }?,
 }
 
 -- The Color Pass as the lobby shows it (D-055). Absent from LobbyStatus while

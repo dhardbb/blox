@@ -323,7 +323,8 @@ describe("live: Lobby to Results and back", function()
 		FakeRoblox.run(world, 1)
 		expect(logged(peer, "UI audit Results: 0 problem(s)")):toBe(true)
 		local banner = textOf(peer, "Results", "Banner")
-		expect(banner == "You won" or banner == "You lost"):toBe(true)
+		-- A new player's first bot match is the tutorial: its banner says they're ready (D-090).
+		expect(banner == "You won" or banner == "You lost" or banner == "You're ready!"):toBe(true)
 
 		tap(world, peer, "Results", "BackToLobby")
 		check(FakeRoblox.find(peer, "Lobby") ~= nil, "no Lobby after Back to lobby")
@@ -479,7 +480,10 @@ describe("Lobby design system", function()
 				table.insert(accents, inst.Name)
 			end
 		end
-		expect(table.concat(accents, ",")):toBe("Practice")
+		-- Practice is the accent on the idle screen; WaitBot (the queue's primary,
+		-- hidden here) and Invite (the friend sheet's main button) wear it where
+		-- they show (D-090).
+		expect(table.concat(accents, ",")):toBe("Practice,WaitBot,Invite")
 		expect(textOf(peer, "Lobby", "Practice")):toBe("Play vs Bot")
 		expect(need(peer, "Lobby", "Practice"):GetAttribute("PrimaryAction")):toBe(true)
 		expect(need(peer, "Lobby", "FindMatch"):GetAttribute("Variant")):toBe("secondary")
@@ -576,7 +580,11 @@ describe("Lobby style v2", function()
 		world.current = nil
 		FakeRoblox.run(world, 0.3)
 		expect(textOf(peer, "Lobby", "WaitingHint")):toBe("Tell your friend this code")
-		expect(textOf(peer, "Lobby", "WaitingNow")):toBe("Waiting for your friend…")
+		-- Its dots move (D-090): "Waiting for your friend" and one to three dots.
+		check(
+			string.find(textOf(peer, "Lobby", "WaitingNow"), "^Waiting for your friend") ~= nil,
+			"no waiting line text"
+		)
 		check(Rig.shown(need(peer, "Lobby", "WaitingNow"), "Lobby"), "no waiting line")
 		noErrors(world)
 	end)

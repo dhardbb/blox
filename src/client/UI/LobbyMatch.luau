@@ -3,12 +3,14 @@
 -- Screens/Lobby so that screen only places them:
 --   Online       "1,234 online" under the record (hidden while unknown; while
 --                queued the waiting hint carries it)
---   WaitBot      "Play a bot while you wait", once the player has waited
+--   WaitBot      "Play a bot while you wait" (the queue's main button, D-090:
+--                the primary while it shows), once the player has waited
 --                Config.QUEUE_BOT_OFFER_SECONDS in the queue (the server's
 --                LobbyStatus.botAt), with WaitBotHint under it; it plays the
 --                level picked under Play vs Bot (UI/BotLevel)
 --   InviteHost   "Invite a friend" on the private-code screen
---   Invite       "Invite a friend" at the top of the Play a friend sheet, with
+--   Invite       "Invite a friend" at the top of the Play a friend sheet (its
+--                main button, D-090: UI/Featured), with
 --                InviteHint: it makes a code (Host) and then opens Roblox's
 --                invite prompt carrying it (Net.invite)
 --   FoundHint, FoundCancel   the match on its way (state "Found"): what is
@@ -23,6 +25,7 @@ local Online = require(ReplicatedStorage.Shared.Net.Online)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Matchmaking)
 
 local BotLevel = require(script.Parent.BotLevel)
+local Featured = require(script.Parent.Featured)
 local Kit = require(script.Parent.Kit)
 local Types = require(script.Parent.Parent.Screens.Types)
 
@@ -62,12 +65,13 @@ function LobbyMatch.new(ctx: Types.Ctx, slots: Slots): Parts
 	local waitBot = Kit.button(Words.WAIT_BOT, function()
 		ctx.net.send("WaitBot", { difficulty = BotLevel.get() })
 	end, {
-		variant = "secondary",
+		variant = "primary",
 		Name = "WaitBot",
 		LayoutOrder = slots.waitingOrder,
 		Visible = false,
 		Parent = slots.waiting,
 	})
+	waitBot:SetAttribute("PrimaryAction", true)
 	local waitBotHint = Kit.caption(Words.WAIT_BOT_HINT, {
 		Name = "WaitBotHint",
 		LayoutOrder = slots.waitingOrder,
@@ -99,11 +103,12 @@ function LobbyMatch.new(ctx: Types.Ctx, slots: Slots): Parts
 		Visible = false,
 		Parent = slots.waiting,
 	})
-	Kit.button(Words.INVITE, function()
+	local inviteButton = Kit.button(Words.INVITE, function()
 		slots.closeSheet()
 		inviteWanted = os.clock()
 		ctx.net.send("Host")
 	end, { variant = "secondary", Name = "Invite", LayoutOrder = -2, Parent = slots.sheetBody })
+	Featured.set(inviteButton, Kit.colors.accent)
 	Kit.text(Words.INVITE_HINT, {
 		Name = "InviteHint",
 		LayoutOrder = -1,
