@@ -39,6 +39,16 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 end)
 
+-- Phones play in landscape only (D-089). StarterGui.ScreenOrientation (set in
+-- default.project.json) applies from join; this repeats it on the player's own
+-- PlayerGui so a place file without it behaves the same. LandscapeSensor, not
+-- LandscapeRight: the game follows whichever way round the phone is held.
+-- Desktop ignores it; a tablet stays landscape too.
+pcall(function()
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui") :: PlayerGui
+	playerGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
+end)
+
 -- The board fills the whole screen behind everything; the game itself stays
 -- inside the area Roblox's own buttons and device notches leave free.
 local backdrop = Kit.new("ScreenGui", {
@@ -114,6 +124,9 @@ local ctx: Types.Ctx = {
 	portrait = function()
 		local size = background.AbsoluteSize
 		return size.Y > size.X
+	end,
+	compact = function()
+		return Kit.compact(background.AbsoluteSize)
 	end,
 }
 

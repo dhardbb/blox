@@ -208,9 +208,30 @@ Kit.STAR = "★" -- the battleground mark's glyph (D-058): on the white pill and
 Kit.MARK_STROKE = 1.5 -- px, the outline of a battleground tag (thinner than the 2 px selection)
 Kit.NOW_H = 32 -- px, the header's "what to do now" line
 Kit.SHEET_MAX_W = 560 -- px, widest a sheet gets on a wide screen
+Kit.COMPACT_H = 500 -- px of game-area height: a wider-than-tall screen shorter than this is a landscape phone (D-089)
 Kit.SCRIM_TRANSPARENCY = 0.3 -- the dimmed layer behind a sheet
 Kit.LIP_PRIMARY = 4 -- px, the primary's lip (the face travels this far when pressed)
 Kit.LIP_SECONDARY = 3 -- px, a secondary's or an icon button's lip
+
+-- The size class of a game area (D-089): "portrait" (taller than wide),
+-- "compact" (a landscape phone: wider than tall and under COMPACT_H high, so
+-- height is the constraint: map left, a compact side column right) or "wide"
+-- (an iPad, a desktop window).
+export type SizeClass = "portrait" | "compact" | "wide"
+function Kit.sizeClass(size: Vector2): SizeClass
+	if size.Y > size.X then
+		return "portrait"
+	end
+	if size.Y < Kit.COMPACT_H then
+		return "compact"
+	end
+	return "wide"
+end
+
+-- True on a landscape phone (Kit.sizeClass(size) == "compact").
+function Kit.compact(size: Vector2): boolean
+	return Kit.sizeClass(size) == "compact"
+end
 
 -- Durations in seconds; every tween is one of these (docs/UI-STYLE.md, Motion).
 Kit.motion = {

@@ -98,10 +98,19 @@ function Router.start(
 	local holder: Frame? = nil
 	local auditing = Router.auditing()
 	local auditToken = 0 -- only the newest scheduled audit runs
-	local auditedPortrait = ctx.portrait()
+	-- The size class audited last ("portrait", "compact" or "wide", D-089): a
+	-- rotation or a landscape phone's layout gets its own audit.
+	local function sizeClass(): string
+		local compact = ctx.compact
+		if ctx.portrait() then
+			return "portrait"
+		end
+		return if compact and compact() then "compact" else "wide"
+	end
+	local auditedClass = sizeClass()
 
 	local function scheduleAudit(frame: Frame, name: Name)
-		auditedPortrait = ctx.portrait()
+		auditedClass = sizeClass()
 		if not auditing then
 			return
 		end
@@ -185,7 +194,7 @@ function Router.start(
 		end
 		elapsed = 0
 		local frame: Frame?, name: Name? = holder, currentName
-		if frame and name and ctx.portrait() ~= auditedPortrait then
+		if frame and name and sizeClass() ~= auditedClass then
 			scheduleAudit(frame, name)
 		end
 		local screen = current
