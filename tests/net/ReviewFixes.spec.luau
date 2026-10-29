@@ -73,7 +73,7 @@ describe("review: a debate's grace use (D-072)", function()
 		end, t + 1)
 		Session.disconnect(session, 2, t + 1)
 		expect(session.seats[2].graceLeft):toBe(before - 2)
-		expect((session.seats[2].graceUntil :: number) - (t + 1)):toBe(C.DISCONNECT_GRACE)
+		expect((session.seats[2].graceUntil :: number) - (t + 1)):toBeCloseTo(C.DISCONNECT_GRACE, 1e-9)
 	end)
 
 	it("a drop during the debate's intro counts as that debate's", function()

@@ -7,7 +7,7 @@
 --   wide      Week 3 of 12      310 Goldie Pennywhistle     Buster Cannonball 189      ?  0:48
 --                               ━━━━━━━━━━━━━━|━━━━━━━━━━━━━━━━━━━━
 --             ▌Pick an action in Ohio        if the polls were right       2 actions left · $4.0
---   phone     Week 3   310        189     ?  0:48   (the numbers in each side's color)
+--   phone     Week 3 of 12  (o)310      189(o)  ?  0:48   (faces, the numbers in each side's color; D-093)
 --                      ━━━━━|━━━━━━━
 --             ▌Tap a state on the map         3 actions left · $4.0
 --   Decision  Week 7 · Clinic walkout                    ?  0:18   (phone: no score)
@@ -63,6 +63,7 @@ local DELTA_RISE = 12 -- px, a delta chip rises this far
 local CAPTION_W = 180 -- px, the score's caption under the race bar (wide screens)
 local DELTA_SECONDS = 0.6 -- s, ... while it fades
 local DELTA_H = Kit.size.caption + 4 -- px, a delta chip's height
+local COIN = 20 -- px, the coin before the money left (D-093)
 
 -- A "+12" chip under `anchor` that rises and fades, then removes itself
 -- (decorative: none under reduced motion; the number itself still changes).
@@ -245,7 +246,12 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		Parent = nowLine,
 	})
 	local apLabel = budgetLabel("APLabel", 1)
-	local moneyLabel = budgetLabel("MoneyLabel", 2)
+	-- Money is a coin and a plain number (D-093): green means a gain elsewhere.
+	local coin = Kit.icon("coins", COIN, Kit.colors.warn)
+	coin.Name = "MoneyIcon"
+	coin.LayoutOrder = 2
+	coin.Parent = budget
+	local moneyLabel = budgetLabel("MoneyLabel", 3)
 
 	local notice = Kit.text("", {
 		Name = "OpponentNotice",
@@ -303,11 +309,13 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		local stripH = NAMES_H + SCORE_GAP + race.root.Size.Y.Offset
 		score.Position = UDim2.new(start, 0, 0, (Kit.HEADER_H - stripH) // 2)
 		score.Size = UDim2.new(1 - start, -(rightW + Kit.space.lg), 0, stripH)
-		-- A phone's strip has room for the numbers only: the colors say who.
-		you.Visible = not portrait
-		them.Visible = not portrait
-		youFace.Visible = not portrait
-		themFace.Visible = not portrait
+		-- A phone's strip has room for the faces and numbers only (D-093: the
+		-- faces say whose score is whose; a landscape phone's names overlapped).
+		local narrow = portrait or model.compact == true
+		you.Visible = not narrow
+		them.Visible = not narrow
+		youFace.Visible = true
+		themFace.Visible = true
 		-- The caption sits under the strip's middle (the 270 tick); the now
 		-- text ends before it. A phone has no room for it.
 		local captioned = scoreShown and not portrait
@@ -337,6 +345,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			return model.caption or "The verdict: who won the crowd?"
 		elseif p.reveal == "Resolve" then
 			return model.caption or "Here's what happened this week"
+		elseif p.reveal == "Stance" then
+			return model.caption or "Both stances are in"
 		elseif p.reveal == "Debate" then
 			return model.caption or "Debate! Watch each topic"
 		elseif not Model.planning(p) then
@@ -380,6 +390,8 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			elseif p.reveal == "Resolve" then
 				week -= 1
 				stage = "Results"
+			elseif p.reveal == "Stance" then
+				stage = "Stances"
 			elseif p.reveal == "Debate" then
 				stage = "Debate"
 			elseif p.stage ~= "Input" then
@@ -451,7 +463,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 				moneyLabel.Text = moneyNow
 			end
 			shownCash = if planning then cash else nil
-			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.loss else Kit.colors.good
+			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.loss else Kit.colors.text
 
 			-- The score: on a phone the Decision title needs the whole row.
 			local wantScore = not (portrait and deciding ~= nil)

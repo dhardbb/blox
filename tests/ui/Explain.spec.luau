@@ -333,7 +333,7 @@ describe("Explain labels", function()
 		expect(text):toBe(
 			`You are underdog tier 1: rallies {Explain.times(C.UNDERDOG_RALLY_1)}, fundraisers {Explain.times(
 				C.UNDERDOG_FUND_1
-			)} (you were behind in the polls lately; it fades once you stay ahead).`
+			)} (you were behind in the polls lately; it ends once the polls show you level).`
 		)
 		expect(string.find(text, "EV behind", 1, true)):toBe(nil)
 		-- The rival's, by their first name.

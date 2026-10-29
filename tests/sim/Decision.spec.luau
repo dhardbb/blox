@@ -11,6 +11,8 @@ local Decision = require("@sim/Decision")
 local Events = require("@sim/Events")
 local Match = require("@sim/Match")
 local Plan = require("@sim/Plan")
+local Polls = require("@sim/Polls")
+local Resolve = require("@sim/Resolve")
 local Rng = require("@sim/Rng")
 local State = require("@sim/State")
 local View = require("@sim/View")
@@ -174,8 +176,9 @@ describe("Decision: defaults, application and secrecy", function()
 		match = Match.advance(C, match, {})
 		expect(match.phase):toBe("Plan")
 		expect(match.players[1].stance):toBe("C")
-		match = Match.advance(C, match, {})
+		-- The stances resolve as the step closes (D-099), before the plan.
 		expect(match.eventLog[#match.eventLog].choices):toEqual({ "C", "C" })
+		match = Match.advance(C, match, {})
 		expect(match.players[1].stance):toBe(nil) -- spent with the week
 	end)
 
@@ -185,13 +188,13 @@ describe("Decision: defaults, application and secrecy", function()
 		expect(match.players[2].stance):toBe("B")
 	end)
 
-	it("the stance taken is the one the week resolves with, for both seats at once", function()
+	it("the stance taken is the one that resolves, for both seats at once", function()
 		local match = Match.advance(C, stanceDecision(), { { choice = "A" }, { choice = "B" } })
 		local view = View.build(C, match, 1)
 		expect(view.stance):toBe("A")
 		expect(View.build(C, match, 2).stance):toBe("B")
-		match = Match.advance(C, match, {})
 		expect(match.eventLog[#match.eventLog].choices):toEqual({ "A", "B" })
+		match = Match.advance(C, match, {})
 		expect((match.players[1].card :: State.WeekCard).choice):toBe("A")
 		expect(View.build(C, match, 1).stance):toBe(nil)
 	end)
@@ -203,24 +206,19 @@ describe("Decision: defaults, application and secrecy", function()
 		expect(a.players[2].stance):toBe(b.players[1].stance)
 	end)
 
-	it("the opponent's decision never reaches your view before it resolves", function()
-		local function viewAfter(theirs: any): string
-			local match = Match.advance(C, stanceDecision(), { { choice = "C" }, theirs })
-			return serialize(View.build(C, match, 1))
+	it("no stance is stored while the step is open: they become public together as it closes", function()
+		local open = stanceDecision()
+		for _, player in open.players do
+			expect(player.stance):toBe(nil)
 		end
-		local stanceBase = viewAfter({ choice = "C" })
-		expect(viewAfter({ choice = "A" })):toBe(stanceBase)
-		-- Deep check: nothing about the opponent's stance anywhere in the view.
-		local match = Match.advance(C, stanceDecision(), { { choice = "C" }, { choice = "A" } })
-		local function scan(value: any)
-			if type(value) == "table" then
-				for key, child in value do
-					expect(key ~= "stance" or child == "C"):toBe(true)
-					scan(child)
-				end
-			end
-		end
-		scan(View.build(C, match, 1))
+		-- Your view during the step is the same whatever the opponent will pick.
+		local view = serialize(View.build(C, open, 1))
+		local match = Match.advance(C, open, { { choice = "C" }, { choice = "A" } })
+		expect(serialize(View.build(C, open, 1))):toBe(view)
+		-- Once closed, both stances are in the public log for both seats (D-099).
+		local entry = View.build(C, match, 1).eventLog[#match.eventLog]
+		expect(entry.choices):toEqual({ "C", "A" })
+		expect(View.build(C, match, 2).eventLog[#match.eventLog].choices):toEqual({ "C", "A" })
 	end)
 
 	it("the decision's view says what is asked, and shows the event and topics", function()
@@ -247,5 +245,127 @@ describe("Decision: defaults, application and secrecy", function()
 		local a, b = run(), run()
 		expect(a):toEqual(b)
 		expect(a.debates[1].rounds[1].picks):toEqual({ "Attack", "Pivot" })
+	end)
+end)
+
+describe("Decision: the stances resolve before the plan (D-099)", function()
+	local function supports(match: State.MatchState): { { number } }
+		local out = {}
+		for i, s in match.states do
+			out[i] = table.clone(s.support)
+		end
+		return out
+	end
+
+	it("moves support and republishes the polls as the step closes, and logs it once", function()
+		local open = stanceDecision()
+		local logged = #open.eventLog
+		local match, events = Match.advance(C, open, { { choice = "A" }, { choice = "B" } })
+		expect(match.phase):toBe("Plan")
+		expect(#match.eventLog):toBe(logged + 1)
+		local entry = match.eventLog[#match.eventLog]
+		expect(entry.week):toBe(5)
+		expect(entry.id):toBe("plant")
+		expect(#(entry.moves :: { any }) > 0):toBe(true)
+		-- Support moved in exactly the states the stances asked for.
+		local before, after = supports(open), supports(match)
+		local asked: { [string]: boolean } = {}
+		for _, move in entry.moves :: { State.StateMove } do
+			asked[move.state] = true
+		end
+		for i, s in match.states do
+			local moved = serialize(before[i]) ~= serialize(after[i])
+			expect(moved and not asked[s.id]):toBe(false)
+		end
+		-- The public polls show it now, with the same error terms (no new draw).
+		for _, s in match.states do
+			expect(serialize(s.poll)):toBe(serialize(Polls.shown(s)))
+		end
+		-- One Choice event per player, and each public leader change named.
+		local choices, flips = 0, 0
+		for _, event in events do
+			if event.kind == "Choice" then
+				choices += 1
+			elseif event.kind == "PollFlip" then
+				flips += 1
+				expect(event.issue):toBe("Stance")
+			end
+		end
+		expect(choices):toBe(2)
+		local changed = 0
+		for i, s in match.states do
+			if Polls.leader(s.poll) ~= Polls.leader(open.states[i].poll) then
+				changed += 1
+			end
+		end
+		expect(flips):toBe(changed)
+		-- The week's resolve does not apply the stances again.
+		local shift = {}
+		for i, s in match.states do
+			shift[i] = table.clone(s.stanceShift)
+		end
+		local week = Match.advance(C, match, {})
+		for i, s in week.states do
+			expect(serialize(s.stanceShift)):toBe(serialize(shift[i]))
+		end
+		local count = 0
+		for _, logEntry in week.eventLog do
+			if logEntry.week == 5 then
+				count += 1
+			end
+		end
+		expect(count):toBe(1)
+	end)
+
+	it("reads one snapshot: swapping seats mirrors the support exactly (D-001)", function()
+		local a = Match.advance(C, stanceDecision(), { { choice = "A" }, { choice = "B" } })
+		local b = Match.advance(C, stanceDecision(), { { choice = "B" }, { choice = "A" } })
+		local entryA = a.eventLog[#a.eventLog]
+		local entryB = b.eventLog[#b.eventLog]
+		expect(#(entryA.moves :: { any })):toBe(#(entryB.moves :: { any }))
+		-- Each seat's points depend only on its own stance (and its own platform).
+		local open = stanceDecision()
+		local alone = Match.advance(C, open, { { choice = "A" }, { choice = "C" } })
+		local both = Match.advance(C, open, { { choice = "A" }, { choice = "B" } })
+		local function pointsOf(match: State.MatchState, p: number): { [string]: number }
+			local out = {}
+			for _, move in match.eventLog[#match.eventLog].moves :: { State.StateMove } do
+				out[move.state] = move.points[p]
+			end
+			return out
+		end
+		local mine, mineToo = pointsOf(alone, 1), pointsOf(both, 1)
+		for id, points in mine do
+			if points ~= 0 then
+				expect(mineToo[id]):toBe(points)
+			end
+		end
+	end)
+
+	it("draws nothing from the seed: the rest of the match is unchanged by when it resolves", function()
+		local open = stanceDecision()
+		local rng = serialize(open.rng)
+		local match = Match.advance(C, open, { { choice = "A" }, { choice = "B" } })
+		expect(serialize(match.rng)):toBe(rng)
+	end)
+
+	it("a resolve without its Decision step (a direct call) still applies the stances once", function()
+		local match = stanceDecision()
+		Decision.apply(C, match, { { choice = "A" }, { choice = "B" } })
+		match.phase = "Plan"
+		match.decision = nil
+		local direct = State.clone(match)
+		Resolve.week(C, direct, { Plan.empty(), Plan.empty() })
+		local entry = direct.eventLog[#direct.eventLog]
+		expect(entry.week):toBe(5)
+		expect(entry.choices):toEqual({ "A", "B" })
+		expect(Resolve.stances(C, direct)):toEqual({})
+	end)
+
+	it("outside a Choice week it does nothing", function()
+		local match = before4(nil, nil)
+		local copy = State.clone(match)
+		expect(Resolve.stances(C, copy)):toEqual({})
+		expect(serialize(copy)):toBe(serialize(match))
 	end)
 end)

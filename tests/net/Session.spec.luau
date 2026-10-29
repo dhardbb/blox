@@ -584,7 +584,7 @@ describe("Session: the Decision stage (D-044)", function()
 		error(`no {kind} decision came up`)
 	end
 
-	it("a stance opens with its own absolute deadline and no reveal of its own", function()
+	it("a stance opens with its own absolute deadline; its result shows before the plan (D-099)", function()
 		local session, t = toDecision("Stance")
 		expect(session.deadline):toBe(t + C.TIMER_DECISION)
 		local messages = Session.drain(session)
@@ -595,7 +595,31 @@ describe("Session: the Decision stage (D-044)", function()
 		expect(select(2, Session.bank(session, 1, session.step, t))):toBe("NotInput")
 		lockAll(session, t + 1)
 		expect(session.match.phase):toBe("Plan")
+		-- The stances' result: a short skippable Reveal with what they moved.
+		expect(session.stage):toBe("Reveal")
+		expect(session.reveal):toBe("Stance")
+		expect(session.deadline):toBe(t + 1 + C.TIMER_STANCE_REVEAL)
+		local kinds: { [string]: boolean } = {}
+		for _, event in session.events do
+			kinds[event.kind] = true
+		end
+		expect(kinds.Choice):toBe(true)
+		Session.update(session, t + 1 + C.TIMER_STANCE_REVEAL)
 		expect(session.stage):toBe("Input")
+		expect(session.deadline):toBe(t + 1 + C.TIMER_STANCE_REVEAL + C.TIMER_PLAN)
+	end)
+
+	it("both skipping ends a stance's result at once (D-099)", function()
+		local session, t = toDecision("Stance")
+		lockAll(session, t + 1)
+		expect(session.reveal):toBe("Stance")
+		local ok = Session.skip(session, 1, session.step, t + 2)
+		expect(ok):toBe(true)
+		if session.seats[2].kind == "Human" then
+			Session.skip(session, 2, session.step, t + 2)
+		end
+		expect(session.stage):toBe("Input")
+		expect(session.match.phase):toBe("Plan")
 	end)
 
 	it("rejects a bad decision with a reason code and leaves the seat open", function()
@@ -613,10 +637,12 @@ describe("Session: the Decision stage (D-044)", function()
 		expect(session.deadline):toBe(t + C.TIMER_DECISION)
 		Session.update(session, t + C.TIMER_DECISION)
 		expect(session.match.phase):toBe("Plan")
-		expect(session.stage):toBe("Input")
+		expect(session.stage):toBe("Reveal") -- the stances' result first (D-099)
 		expect(session.match.players[1].stance):toBe("C")
 		expect(session.match.players[2].stance):toBe("C")
-		expect(session.deadline):toBe(t + C.TIMER_DECISION + C.TIMER_PLAN)
+		Session.update(session, t + C.TIMER_DECISION + C.TIMER_STANCE_REVEAL)
+		expect(session.stage):toBe("Input")
+		expect(session.deadline):toBe(t + C.TIMER_DECISION + C.TIMER_STANCE_REVEAL + C.TIMER_PLAN)
 	end)
 
 	it("a bot seat decides by itself", function()

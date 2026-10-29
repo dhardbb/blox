@@ -26,7 +26,8 @@ export type Moment =
 	| "Stance" -- the Decision screen in a Choice week: stances A / B / C (D-044)
 	| "ChoiceWeek" -- the plan that follows a stance (the stance taken in one line)
 	| "Resolve" -- the resolve animation after week 3
-	| "ChoiceResolve" -- the resolve animation right after a Choice week (both stances revealed)
+	| "ChoiceResolve" -- the resolve animation right after a Choice week
+	| "StanceResult" -- what both stances moved, as the stance step closes, before the plan (D-099)
 	| "DebateIntro" -- the week 4 debate's stage before round 1 (D-072)
 	| "DebateRound" -- round 2 of the week 9 debate: pick a move (D-072)
 	| "Clash" -- the clash after round 1 of the week 4 debate
@@ -63,6 +64,7 @@ Fixtures.MOMENTS = table.freeze({
 	"ChoiceWeek",
 	"Resolve",
 	"ChoiceResolve",
+	"StanceResult",
 	"DebateIntro",
 	"DebateRound",
 	"Clash",
@@ -132,6 +134,8 @@ local function reached(session: Session.Session, moment: Moment): boolean
 			and last ~= nil
 			and last.choices ~= nil
 			and last.week == session.match.week - 1
+	elseif moment == "StanceResult" then
+		return session.reveal == "Stance"
 	elseif moment == "DebateIntro" then
 		return session.reveal == "DebateIntro"
 	elseif moment == "DebateRound" then
@@ -153,7 +157,14 @@ end
 
 -- Plays one match with seed `s` up to `moment`. Nil if the match ends first (a
 -- seed whose deck never deals a Choice event into a plan week).
-local function play(config: Config, moment: Moment, s: number, candidate: string?): Session.StatePayload?
+-- `watch`, if given, sees seat 1's payload at every step before the moment.
+local function play(
+	config: Config,
+	moment: Moment,
+	s: number,
+	candidate: string?,
+	watch: ((Session.StatePayload) -> ())?
+): Session.StatePayload?
 	-- The tutorial and the Easy bot (D-075): a practice bot with a level, the
 	-- tutorial with no choice timers. Every other moment plays the standard bot.
 	local difficulty: Bot.Difficulty? = if TUTORIAL[moment] or moment == "PlanEasy" then "Easy" else nil
@@ -169,6 +180,9 @@ local function play(config: Config, moment: Moment, s: number, candidate: string
 		end
 		if session.stage == "Over" then
 			return nil
+		end
+		if watch then
+			watch(Session.payload(session, 1))
 		end
 		if session.stage == "Input" and not session.seats[1].locked then
 			-- The session's config: a tutorial runs on its short schedule (D-080).
@@ -314,7 +328,12 @@ function Fixtures.payload(
 		end
 		error(`no seed from {first} on gives seat 1 the win`)
 	end
-	local tries = if moment == "Stance" or moment == "ChoiceWeek" or moment == "ChoiceResolve" then 40 else 1
+	local tries = if moment == "Stance"
+			or moment == "ChoiceWeek"
+			or moment == "ChoiceResolve"
+			or moment == "StanceResult"
+		then 40
+		else 1
 	for k = 0, tries - 1 do
 		local payload = play(config, moment, first + k, candidate)
 		if payload then
@@ -322,6 +341,26 @@ function Fixtures.payload(
 		end
 	end
 	error(`fixture never reached {moment}`)
+end
+
+-- A stance's result (D-099) and the payload just before it (the Decision
+-- screen's, the polls before the stances), as a client sees them in turn.
+function Fixtures.stanceResult(
+	config: Config,
+	seed: number?,
+	candidate: string?
+): (Session.StatePayload, Session.StatePayload)
+	local first = seed or 18
+	for k = 0, 39 do
+		local before: Session.StatePayload? = nil
+		local after = play(config, "StanceResult", first + k, candidate, function(payload)
+			before = payload
+		end)
+		if after and before then
+			return before, after
+		end
+	end
+	error("fixture never reached StanceResult")
 end
 
 -- Made-up pass id for fixtures (the real one lives in Net/Products).

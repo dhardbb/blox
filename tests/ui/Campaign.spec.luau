@@ -624,7 +624,9 @@ describe("Campaign screen", function()
 		payload.view.event = nil
 		Rig.push(world, peer, payload)
 		check(shown(find(peer, "EventCard")), "the strip hides when only next week's event is known")
-		expect(text(peer, "EventTitle")):toBe(`Next week: {upcoming.name}`)
+		-- (D-093: the tag says NEXT WEEK, the title is the event's name.)
+		expect(text(peer, "EventTitle")):toBe(upcoming.name)
+		expect(text(peer, "EventWhen")):toBe("NEXT WEEK")
 		payload.view.nextEvent = nil
 		Rig.push(world, peer, payload)
 		check(not shown(find(peer, "EventCard")), "an empty event card shows")
@@ -743,30 +745,41 @@ describe("Campaign screen", function()
 			chip == nil or not shown(chip) or chip.Active == false,
 			"the stances are still open after Lock in"
 		)
+		-- The stances resolve as the step closes (D-099): their result plays
+		-- before the plan, "Your stance" and theirs in the reveal panel.
 		check(
 			Support.runUntil(rig, function()
 				return shown(find(peer, "RevealPanel"))
 			end, 120),
-			"the resolve reveal never started"
+			"the stance result never started"
 		)
 		check(
 			Support.runUntil(rig, function()
 				return text(peer, "RevealSummary") ~= ""
 			end, 120),
-			"the resolve reveal never finished"
+			"the stance result never finished"
 		)
-		-- "Your week" lists the stance as "{event}: stance A · …" (WP-C, UI-STYLE §4.7).
-		local lines = {}
-		for k = 1, 6 do
-			table.insert(lines, text(peer, `RevealLine{k}`))
-		end
-		local revealed = false
-		for _, line in lines do
-			if string.find(line, event.name .. ": stance A · ", 1, true) then
-				revealed = true
-			end
-		end
-		check(revealed, "the reveal never captioned your answer: " .. table.concat(lines, " | "))
+		check(
+			string.find(text(peer, "RevealLine1"), "You took A · ", 1, true) ~= nil,
+			"the result never captioned your answer: " .. text(peer, "RevealLine1")
+		)
+		check(string.find(text(peer, "RevealThem1"), " took ", 1, true) ~= nil, text(peer, "RevealThem1"))
+		-- Then the plan; skip it, and after the week's reveal the week card has the stances.
+		check(
+			Support.runUntil(rig, function()
+				local lock = FakeRoblox.find(peer, "LockIn")
+				return lock ~= nil and shown(lock) and lock.Active ~= false
+			end, 120),
+			"the plan never opened after the stance result"
+		)
+		Support.press(rig, peer, "LockIn")
+		check(
+			Support.runUntil(rig, function()
+				local lock = FakeRoblox.find(peer, "LockIn")
+				return lock ~= nil and shown(lock) and lock.Active ~= false
+			end, 240),
+			"the next plan never opened"
+		)
 		local feedLine = text(peer, "FeedEvent")
 		check(not shown(find(peer, "FeedEvent")), "the News card is not collapsed by default")
 		Support.press(rig, peer, "WeekToggle")

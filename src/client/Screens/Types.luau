@@ -20,6 +20,7 @@ export type Message = {
 
 export type State = {
 	payload: any?, -- Session.StatePayload
+	previous: any?, -- Session.StatePayload: the one before `payload`, same match (D-099)
 	lobby: any?, -- Remotes.LobbyStatus
 	messages: { Message }, -- newest last; old lines are dropped
 	resultSeen: boolean,

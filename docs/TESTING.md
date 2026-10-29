@@ -1320,3 +1320,16 @@ Play one bot match on the iPad and, if you can, one on a phone held sideways. Th
 7. **End screen on the iPad.** **Expect:** the result on top, then two columns: the race bar and both candidates side by side (face, name, votes, states, topics) on the left, "Why you won" on the right; nothing hidden under the bottom bar. **Send back:** a screenshot.
 8. **A landslide** (win with more than 376 votes, e.g. against Easy). **Expect:** a small green "You won" pill, then a big LANDSLIDE stamp with a gold edge and a gold light sweeping it; no "378 votes to 160" line. The loser sees the rival's LANDSLIDE without the gold.
 9. **Results map on a phone.** Tap Map. **Expect:** tags only on the states the polls got wrong (a value and ×); the Northeast is readable; the "Polls missed …" line is one line. **Send back:** anything still overlapping.
+## The week's flow and the campaign screen (D-093, D-099)
+
+Play a practice match on a phone (landscape) and on the iPad.
+
+1. **A Choice week.** Pick a stance and lock in. *Expected:* right away a "WEEK N · STANCES" panel: "Both stances are in", then your stance and the bot's with their totals, the map's colors move, flipped states ring and say FLIP, the score counts, "Projection: … → …" and What changed. Skip ends it (both must tap). Then the plan opens with its full timer, on the new polls. *Send back:* a screenshot of the result panel on each device.
+2. **Phone tray.** On the phone, tap any state. *Expected:* six action buttons (Rally, Fundraise, Ad / Attack, Poll, Ground) visible without scrolling, each with its gain; the state's name and poll bar under them. *Send back:* a screenshot.
+3. **Plan slots.** Rally twice in one state and run an ad. *Expected:* the bottom bar shows "PA ×2", an outlined empty slot and the ad's tile; the plan card shows the same as big tiles; tapping a tile removes one. *Send back:* anything that reads wrong.
+4. **Header.** *Expected:* both candidates' faces beside the scores; no overlapping names on the phone; money as a gold coin and white number.
+5. **Event strip.** *Expected:* a colored left edge and plate per event kind and a "THIS WEEK" tag; in week 1 next week's event says "NEXT WEEK", dimmed. Tap it: the sheet fits its text, has a colored head with a big icon and a "Got it" button that closes it.
+6. **Week results.** *Expected:* the "New polls are in" stamp shrinks after about a second; the "Both plans are out!" tip only in the first week; a week where the bot (or you) did nothing says "Skipped: no actions this week"; a flip your way flies "+N" to your score with confetti. With Reduce motion on (Lobby corner): no confetti or flying chip, the numbers still change.
+7. **Tutorial.** Start the tutorial. *Expected:* a state (often Ohio) pulses until you tap any state, and that tap closes the tip.
+8. **Idle money.** Keep $6+ unspent in week 3 or later. *Expected:* the "You have $X spare" tip at the top of the side column (on the phone, after you close the state you opened).
+

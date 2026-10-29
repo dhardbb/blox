@@ -11,8 +11,10 @@
 --   Message  (Jobs) (Health) (More +)                        rallies and ads talk about
 --   ( More actions + )                ( Details + )
 --
--- A phone shows Rally, Fundraise and Ad; a wide screen also Attack ad, Poll and
--- Ground game. "More actions" adds the rest (Region poll, Pivot). Pivot opens
+-- A portrait phone shows Rally, Fundraise and Ad; a wide screen also Attack ad, Poll and
+-- Ground game. A landscape phone (D-093) shows all six as a 3 x 2 tray of short
+-- buttons (name and gain, "Rally / +3.9") first in the card, above its title,
+-- so they show without scrolling (the header's now line names the state). "More actions" adds the rest (Region poll, Pivot). Pivot opens
 -- its chooser in place of the buttons. "Details" opens the numbers: the polls,
 -- momentum and its drift, ground game, top issues, and one line per action with
 -- the full math (Shared/UI/Explain), a details area.
@@ -75,9 +77,19 @@ local GAP = Kit.space.sm
 local MAX_PILLS = 3
 local COLUMNS = 3 -- action buttons, message chips and pivot choices per row
 local ACTION_H = 72 -- px, one action button: its name over what it does, three lines (64 -> 72: ground game's two lines and its "$2.5 · no action", D-086)
-local MAIN_PHONE = 3 -- action buttons a phone shows before "More actions"
+local ACTION_TRAY_H = 52 -- px, an action button in a landscape phone's tray (D-093): its name over its gain, two lines
+local MAIN_PHONE = 3 -- action buttons a portrait phone shows before "More actions"
+local MAIN_TRAY = 6 -- ... a landscape phone's tray: 3 x 2, first in the card (D-093)
+-- A greyed-out tray button's reason in two short words (the tray has one line).
+local TRAY_REASON: { [string]: string } = {
+	NotEnoughMoney = "No money",
+	NotEnoughAP = "No actions",
+	TooManyActions = "Plan full",
+	DuplicatePoll = "Polled",
+	PivotUsed = "Used",
+}
 local MAIN_WIDE = 6 -- ... a wide screen
-local LEAD_NAMES_H = 18 -- px, the names over the poll bar
+local LEAD_NAMES_H = 20 -- px, the names over the poll bar (body size, D-093)
 local LEAD_BAR_H = 6 -- px, the poll bar (a mini Kit.raceBar; its tick overhangs 4 px each way)
 local MESSAGE_LABEL_W = 76 -- px, "Message" before the chips
 local ICON_PX = 20 -- px, an action button's icon plate (Kit.iconPlate)
@@ -91,12 +103,18 @@ export type StateCard = {
 }
 
 -- A grid frame whose cells are `columns` across and `height` tall; returns the
--- frame and the matching cell size (children carry it too, for the fake engine).
-local function grid(parent: Instance, name: string, order: number, height: number): (Frame, UDim2)
+-- frame and the matching cell size (children carry it too, for the fake engine)
+-- and its layout.
+local function grid(
+	parent: Instance,
+	name: string,
+	order: number,
+	height: number
+): (Frame, UDim2, UIGridLayout)
 	local frame, layout = Layout.grid(parent, name, order)
 	Layout.setGrid(layout, COLUMNS, height, GAP)
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	return frame, layout.CellSize
+	return frame, layout.CellSize, layout
 end
 
 function StateCard.new(parent: Instance, model: Model.Model, order: number, listOrder: number?): StateCard
@@ -150,7 +168,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		return Kit.text("", {
 			Name = name,
 			Size = UDim2.new(0.5, -Kit.space.xs, 0, LEAD_NAMES_H),
-			TextSize = Kit.size.caption,
+			TextSize = Kit.size.body,
 			TextScaled = true,
 			Font = Kit.font.bold,
 			TextXAlignment = align,
@@ -181,13 +199,15 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 	-- ------------------------------------------------------------ actions
 
 	local actionsBox = Kit.stack({ Name = "Actions", LayoutOrder = 4, Parent = root }, "Vertical", GAP)
-	local actionGrid, actionSize = grid(actionsBox, "ActionGrid", 1, ACTION_H)
+	local actionGrid, actionSize, actionLayout = grid(actionsBox, "ActionGrid", 1, ACTION_H)
+	local trayShown = false -- the buttons are a landscape phone's tray (D-093)
 	local addAction: (name: string) -> ()
 	local pivotOpen: () -> ()
 	type ActionButton = {
 		button: TextButton,
 		label: TextLabel,
 		effect: TextLabel,
+		short: TextLabel, -- the tray's one-line gain ("+3.9", "+$2.4"), scaled to fit (D-093)
 		cost: TextLabel?, -- Ad, Attack ad, Ground game: "$3.0 · no action" (D-086)
 		icon: GuiObject?,
 	}
@@ -236,7 +256,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 				end
 			end
 		end
-		local label = Kit.text(entry.label, {
+		local label = Kit.text(entry.short or entry.label, {
 			Name = `{entry.name}Label`,
 			Position = UDim2.fromOffset(ICON_PX + Kit.space.xs, 0),
 			Size = UDim2.new(1, -(ICON_PX + Kit.space.xs), 1, 0),
@@ -246,11 +266,24 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = head,
 		})
-		local effect = Kit.caption("", {
+		-- What it does, at body size (D-093: the card's text was at the 14 px floor).
+		local effect = Kit.text("", {
 			Name = `{entry.name}Effect`,
 			LayoutOrder = 2,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
 			TextColor3 = Kit.colors.text,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = button,
+		})
+		local short = Kit.text("", {
+			Name = `{entry.name}Short`,
+			LayoutOrder = 4,
+			Size = UDim2.new(1, 0, 0, Kit.size.body + 2),
+			TextScaled = true,
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Visible = false,
 			Parent = button,
 		})
 		-- An ad's or ground game's price and "no action" (D-086), on one line that
@@ -289,7 +322,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		end
 		Kit.outer(button).Parent = actionGrid
 		actionButtons[entry.name] =
-			{ button = button, label = label, effect = effect, cost = costLine, icon = icon }
+			{ button = button, label = label, effect = effect, short = short, cost = costLine, icon = icon }
 	end
 
 	-- The pivot chooser takes the buttons' place: drop an issue, then add one.
@@ -320,7 +353,6 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 	Kit.text("Message", {
 		Name = "MessageLabel",
 		Size = UDim2.fromOffset(MESSAGE_LABEL_W, Kit.MIN_TOUCH),
-		TextSize = Kit.size.caption,
 		TextColor3 = Kit.colors.muted,
 		Parent = messageRow,
 	})
@@ -751,7 +783,18 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		local pivotWhy = pivotProblem(view)
 		local message: Issue = Model.messageIssue(model, view, id)
 		local opponent = Model.firstName(config, view, Model.opponentOf(view))
-		local main = if model.portrait or model.compact == true then MAIN_PHONE else MAIN_WIDE
+		local tray = model.compact == true
+		local main = if tray then MAIN_TRAY elseif model.portrait then MAIN_PHONE else MAIN_WIDE
+		if tray ~= trayShown then
+			-- A landscape phone (D-093): the actions are a 3 x 2 tray of short
+			-- buttons, first in the card, so they show without scrolling.
+			trayShown = tray
+			Layout.setGrid(actionLayout, COLUMNS, if tray then ACTION_TRAY_H else ACTION_H, GAP)
+			actionsBox.LayoutOrder = if tray then 0 else 4
+			for _, parts in actionButtons do
+				parts.button.Size = actionLayout.CellSize
+			end
+		end
 		for k, entry in Words.ACTIONS do
 			local parts = actionButtons[entry.name]
 			local problem: string?
@@ -770,8 +813,11 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 			if costLine then
 				costLine.Visible = false
 			end
+			parts.effect.Visible = not tray
+			parts.short.Visible = tray
 			if problem then
 				parts.effect.Text = Words.reason(problem)
+				parts.short.Text = TRAY_REASON[problem] or Words.reason(problem)
 				if hintText == nil and shown then
 					if entry.name == "RegionPoll" and problem == Plan.Reason.DuplicatePoll then
 						hintText =
@@ -789,10 +835,11 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 				if costLine and cost then
 					parts.effect.Text = effect
 					costLine.Text = cost
-					costLine.Visible = true
+					costLine.Visible = not tray
 				else
 					parts.effect.Text = if cost then `{effect}\n{cost}` else effect
 				end
+				parts.short.Text = Words.gain(effect) or effect
 			end
 			Kit.setEnabled(parts.button, enabled)
 			parts.label.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
@@ -804,6 +851,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 				icon.TextColor3 = tint
 			end
 			parts.effect.TextColor3 = if enabled then Kit.colors.text else Kit.colors.disabledText
+			parts.short.TextColor3 = parts.effect.TextColor3
 			if costLine then
 				costLine.TextColor3 = parts.effect.TextColor3
 			end
@@ -1005,7 +1053,7 @@ function StateCard.new(parent: Instance, model: Model.Model, order: number, list
 		render = function(_self: StateCard, p: Payload)
 			local view = p.view
 			renderList(p)
-			list.root.Visible = Model.planning(p) or p.reveal == "Resolve"
+			list.root.Visible = Model.planning(p) or p.reveal == "Resolve" or p.reveal == "Stance"
 			local id = model.selected
 			local index = if id then SimState.indexOf[id] else nil
 			if id == nil or index == nil then

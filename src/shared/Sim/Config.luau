@@ -174,6 +174,7 @@ local Config = {
 	DRAFT_REVEAL = 2, -- reveal after each draft round
 	TIMER_PLAN = 50, -- weekly plan
 	TIMER_DECISION = 20, -- the debate focus or a Choice stance, each on its own screen before the plan (D-044: one pick, so well under TIMER_PLAN)
+	TIMER_STANCE_REVEAL = 4, -- what both stances moved, shown as the stance step closes, before the plan (D-099; skippable)
 	TIME_BANK = 30, -- extra plan time per player per match
 	TIME_BANK_CHUNK = 15, -- bank is taken in chunks of this size
 	TIMER_RESOLVE = 8, -- resolve animation, the shortest (D-066: longer on weeks with more moves to show)

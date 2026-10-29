@@ -13,6 +13,19 @@ Studio checklist: `docs/TESTING.md`, "Debate, election night and the end screen 
 - **Election night:** reaching 270 shows a full-width "GOLDIE WINS 270!" banner with a burst that no longer covers the scores. A state still counting shows pulsing dots, and the state that decides the race is tagged "DECIDING STATE" in gold. On a phone the tip is one line in the bar instead of a box over the calls, and the latest call is no longer cut off.
 - **Skip is quieter** on election night and the debate verdict.
 - **End screen:** a compact top, both candidates side by side in short cards, and two columns on the iPad, so the vote counts are never under the bar. After a landslide, LANDSLIDE is the hero with a gold edge and gold shine; "You won" is a small pill; the repeated "282 votes to 256" line is gone. The results map tags only the states the polls missed.
+### The week's flow and the campaign screen (D-093, D-099)
+
+Studio checklist: `docs/TESTING.md`, "The week's flow and the campaign screen (D-093, D-099)". Nothing needed from the humans.
+
+- **Stances count before you plan.** In a Choice week, both stances now take effect the moment the stance step ends: a short result (4 s, skippable) shows both sides' stances, the map moving, flips and the new projection, and then you plan on those polls. Debates already worked this way. Both stances are public from then on.
+- **Actions without scrolling on a phone.** Tap a state on a landscape phone and its six actions sit at the top of the side column as a 3 x 2 tray (name and gain), above the state's name.
+- **The plan as slots.** Three action slots (outlined when empty, icon and state when used, "PA ×2" for repeats) in the bottom bar and the plan card; tap a slot to remove that action.
+- **Header:** faces beside both scores (names hidden on a phone, where they overlapped), money as a gold coin and a plain number.
+- **Event strip and sheet:** a color per event kind, a "THIS WEEK" tag, next week's event dimmed with "NEXT WEEK"; the sheet fits its content, has a colored head with a big icon and a "Got it" button.
+- **Week results:** the "New polls are in" stamp shrinks after it plays, the tip shows once, a side that did nothing says "Skipped"; a flip your way flies "+28" to your score with confetti (not under Reduce motion).
+- **State card:** bigger effect text (16 px), "Attack" and "Ground" on the buttons.
+- **Tutorial:** a suggested state pulses until you tap one; the first tap closes the tip. The idle-money tip moved to the top of the column.
+- **Underdog wording** matches D-096: the boost ends once the polls show you level.
 
 ### More eccentric candidates (D-097)
 

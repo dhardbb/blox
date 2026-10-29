@@ -208,20 +208,23 @@ describe("View: no leaks", function()
 		end
 		expect(string.find(before, "choice=", 1, true)):toBe(nil) -- no stance anywhere yet
 		expect(string.find(before, "stance=", 1, true)):toBe(nil)
-		-- Seat 1 locks in too: the plan opens, seat 1 sees its own stance, never seat 2's.
-		local function planFor(choice: string): (string, any)
+		-- Seat 1 locks in too: the step closes and both stances resolve together,
+		-- public to both seats at once, before the plan (D-099). Seat 1's hidden
+		-- `stance` stays its own.
+		local function planFor(choice: string): any
 			local session = sessionFor(choice)
 			local ok, reason = Session.submit(session, 1, session.step, { choice = "C" }, 0)
 			assert(ok, reason)
-			local payload = Session.payload(session, 1)
-			return serialize(payload.view) .. serialize(payload.events), payload
+			return Session.payload(session, 1)
 		end
-		local planned, payload = planFor("A")
+		local payload = planFor("A")
 		expect(payload.view.phase):toBe("Plan")
+		expect(payload.reveal):toBe("Stance")
 		expect(payload.view.stance):toBe("C")
 		expect(Session.payload(sessionFor("A"), 2).view.stance):toBe(nil)
 		for _, choice in Events.CHOICES do
-			expect((planFor(choice))):toBe(planned)
+			local log = planFor(choice).view.eventLog
+			expect(log[#log].choices):toEqual({ "C", choice })
 		end
 		-- The event's stances and issue are public before anyone answers; the
 		-- per-state preview is a pure function of them.

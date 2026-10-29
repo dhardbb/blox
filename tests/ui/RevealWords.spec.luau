@@ -8,7 +8,6 @@
 local Config = require("@sim/Config")
 local Fixtures = require("@ui/Fixtures")
 local SimState = require("@sim/State")
-local Swing = require("@ui/Swing")
 local Test = require("@testlib/Test")
 local Words = require("@ui/Words/Reveal")
 
@@ -104,10 +103,11 @@ describe("Words: the week's groups", function()
 	end)
 
 	it("writes a Choice stance with the event's name", function()
-		local payload = Fixtures.payload(C, "ChoiceResolve")
+		-- The stances' result before the plan (D-099) carries their events.
+		local _, payload = Fixtures.stanceResult(C)
 		local groups = Words.group(payload.view, payload.events)
-		local entry = Swing.lastChoice(payload.view)
-		check(entry ~= nil, "no Choice result")
+		local log = payload.view.eventLog
+		check(log[#log].week == payload.view.week and log[#log].choices ~= nil, "no Choice result")
 		local stance = false
 		for _, line in groups.mine do
 			if string.find(line, ": stance ", 1, true) then

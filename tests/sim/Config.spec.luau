@@ -171,6 +171,10 @@ describe("Config", function()
 			-- (21:22; 1,050 + 160 before the reveal's longer weeks, D-066; 940 + 200 =
 			-- 1,140 s before live debates, D-072).
 			expect(1122 + most * C.TIMER_DECISION):toBe(1282)
+			-- Each stance's result then shows before the plan (D-099): 1,282 + 8 x 4
+			-- = 1,314 s (21:54) with every reveal run out; both tapping Skip ends it.
+			expect(most * C.TIMER_STANCE_REVEAL):toBe(32)
+			expect(1282 + most * C.TIMER_STANCE_REVEAL):toBe(1314)
 			-- A typical deck deals about 3.3 Choice events: about 105 s if every
 			-- decision ran to the end, far less when both lock in early.
 			expect(C.TIMER_DECISION >= 15 and C.TIMER_DECISION <= 30):toBe(true)
