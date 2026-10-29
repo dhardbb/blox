@@ -63,6 +63,8 @@ end
 -- Under the Name Pass offer and on the name sheet: names follow Roblox's rules.
 Setup.NAME_RULES = "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
 Setup.NAME_SAVE = "Save name"
+-- The name sheet's one line of rules (D-091: the box shows the limit as "11/16").
+Setup.NAME_SHEET_RULES = "Only players 16+ see it. Follow Roblox's Community Standards."
 
 -- Reporting a custom name (D-069).
 Setup.REPORT = "Report name" -- the action wherever another player's custom name shows
