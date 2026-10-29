@@ -493,8 +493,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- The words, one line each and never wrapping, so the card's height is
 		-- known: the name, the votes, "You · 20 states", the debate topics won.
 		local lines: { { text: string, name: string, size: number, font: any, color: Color3 } } = {}
+		-- A phone's card is about 90 px of words (D-100): the first name,
+		-- "Rival" and "topics", so no line is cut ("Goldie Pennywhistl").
+		local narrow = ctx.portrait()
 		table.insert(lines, {
-			text = name,
+			text = if narrow
+					and entry ~= nil
+					and entry.customName == nil
+				then (string.split(name, " ")[1] or name)
+				else name,
 			name = "Candidate",
 			size = Kit.size.body,
 			font = Kit.font.bold,
@@ -509,7 +516,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				color = Kit.colors.text,
 			})
 		end
-		local tag = if mine then "You" else "Opponent"
+		local tag = if mine then "You" elseif narrow then "Rival" else "Opponent"
 		table.insert(lines, {
 			text = if election then `{tag} · {plural(election.statesWon[player], "state")}` else tag,
 			name = "Tag",
@@ -519,7 +526,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		})
 		if #view.debates > 0 then
 			table.insert(lines, {
-				text = `{plural(topicsWon(view, player), "debate topic")} won`,
+				text = `{plural(topicsWon(view, player), if narrow then "topic" else "debate topic")} won`,
 				name = "Topics",
 				size = Kit.size.caption,
 				font = Kit.font.body,

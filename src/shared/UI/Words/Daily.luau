@@ -72,6 +72,12 @@ function Daily.timeLeft(seconds: number): string
 end
 
 -- "3-day streak", "1-day streak", "No streak yet".
+-- The streak where a phone's card has room for one short word after the
+-- flame (D-100: "3-day strea" was cut): "3-day", "No streak".
+function Daily.streakShort(n: number): string
+	return if n <= 0 then "No streak" else `{n}-day`
+end
+
 function Daily.streak(n: number): string
 	if n <= 0 then
 		return "No streak yet"
