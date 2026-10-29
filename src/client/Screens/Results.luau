@@ -147,6 +147,7 @@ local TABS = { "Summary", "Map", "Graph" }
 local TUTORIAL_TILT = -3 -- degrees: the tutorial's "You're ready!" stamp, half the usual tilt (D-090)
 local REMATCH_H = 56 -- px, the rematch banner above the action bar (D-090)
 local REMATCH_FACE = 40 -- px, the asker's portrait on it
+local REMATCH_FLOAT_GAP = Kit.space.md + Kit.space.sm -- px between a floating banner and the bar (a landscape phone)
 local REMATCH_TIME_W = 36 -- px, the seconds left at its right
 local RANK_FLAME = Kit.size.hero -- px, the flame beside a Daily rank (D-090), as tall as the number
 local RANK_CONFETTI = 40 -- pieces when a counted Daily rank arrives
@@ -340,7 +341,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local rematchFaceFor: string? = nil -- the candidate whose portrait is on the banner
 
 	-- The banner for an "Asked" rematch, or hidden.
+	local rematchHome: Instance? = nil -- the summary's RematchSlot (set by render)
+	-- Where the banner stands: in RematchSlot, or on a landscape phone (the
+	-- summary scrolls under one column there) just above the action bar in the
+	-- side column, so the ask is seen without a scroll.
+	local function placeBanner()
+		local floating = page.sideways()
+		local want: Instance? = if floating then bar.root else rematchHome
+		if rematchBanner.Parent ~= want then
+			rematchBanner.Parent = want
+		end
+		rematchBanner.AnchorPoint = if floating then Vector2.new(0, 1) else Vector2.new(0, 0)
+		rematchBanner.Position = if floating then UDim2.fromOffset(0, -REMATCH_FLOAT_GAP) else UDim2.new()
+		rematchBanner:SetAttribute("Overhang", if floating then true else nil)
+	end
+
 	local function paintBanner(current: Session.StatePayload, asked: boolean, seconds: number?)
+		placeBanner()
 		local was = rematchBanner.Visible
 		rematchBanner.Visible = asked
 		if not asked then
@@ -631,7 +648,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function render(current: Session.StatePayload)
 		stopEffects()
 		if details then
-			rematchBanner.Parent = nil -- kept: the next slot takes it
+			rematchHome = nil
+			if rematchBanner.Parent ~= bar.root then
+				rematchBanner.Parent = nil -- kept: the next slot takes it
+			end
 			details:Destroy()
 		end
 		local view = current.view
@@ -883,7 +903,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		})
 		Kit.list("Vertical", Kit.space.sm).Parent = rematchSlot
 		-- The rematch banner (D-090) stands in it; hidden, it takes no room.
-		rematchBanner.Parent = rematchSlot
+		rematchHome = rematchSlot
+		placeBanner()
 		-- The tutorial's end (D-080): win or lose, the player is ready for a real match.
 		if current.tutorial then
 			local ready = Kit.card({ Name = "TutorialReady", LayoutOrder = rightNext(), Parent = right })
