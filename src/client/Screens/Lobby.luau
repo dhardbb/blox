@@ -112,7 +112,8 @@ local NOTE_ROOM = BotLevel.NOTE_HEIGHT + Kit.space.xs -- px the bot level's line
 local STAGE_GLOW = 1.1 -- the stage glow's size, a share of the screen (an ellipse)
 local STAGE_FADE = 0.75 -- its transparency: a lit table, not a spotlight
 local COLUMN_SHARE = 0.56 -- share of a landscape phone's width the button column takes (D-089)
-local COMPACT_BOARD_H = 440 -- px of screen height for the top 3 in a landscape phone's brand pane (else "You" and See all)
+local COMPACT_BOARD_H = 440 -- px of screen height for the top 3 in a landscape phone's brand pane (else the dense card)
+local DENSE_BOARD_H = 330 -- px of screen height for the dense card's top 3 there (else "You" and See all; fix17)
 local CODE_PLATE_H = Kit.size.hero + 2 * Kit.space.lg -- px, the private match code's plate
 local CODE_GLOW_FADE = 0.9 -- a faint white light inside the code plate
 local MAP_W = 1.5 -- the backdrop map's box, a share of the wordmark's width (D-090)
@@ -363,7 +364,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	brandList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	brandList.VerticalAlignment = Enum.VerticalAlignment.Center
 	brandList.Parent = brand
-	Kit.new("UIPadding", { PaddingTop = UDim.new(0, CORNER_CLEAR), Parent = brand })
+	local brandPad =
+		Kit.new("UIPadding", { PaddingTop = UDim.new(0, CORNER_CLEAR), Parent = brand }) :: UIPadding
 	-- The Daily Race (D-082): one card in the column.
 	local daily = DailyRace.new(parent, ctx, { LayoutOrder = 5, Parent = idle })
 
@@ -637,6 +639,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		local paired = phone and #row > 0
 		extras.Visible = paired
+		-- A landscape phone's column has no height for the Extras row as well
+		-- as the level's line (it ran under the top bar and off the bottom,
+		-- fix17): with the row, the chips' outline says the level alone and
+		-- the rows sit closer.
+		local crowded = compact and paired
+		levelNote.Visible = not crowded
+		local idleList = idle:FindFirstChildOfClass("UIListLayout")
+		if idleList then
+			idleList.Padding = UDim.new(0, if crowded then Kit.space.xs else Kit.space.sm)
+		end
 		local holder = if paired then extras else idle
 		local cells = math.max(#row, 1)
 		local cell = UDim2.new(1 / cells, -Kit.space.sm * (cells - 1) / cells, 0, Kit.MIN_TOUCH)
@@ -667,10 +679,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			card.AnchorPoint = Vector2.new(0, 0)
 			card.Position = UDim2.new()
 			card.Size = UDim2.fromScale(1, 0)
+			-- A short landscape phone (an iPhone's 332 px under the top bar) has
+			-- the top 3 on a dense card: the full card fits from COMPACT_BOARD_H.
 			local needed = COMPACT_BOARD_H + (if review.button.Visible then REVIEW_ROOM else 0)
-			board.setRows(if size.Y >= needed then Leaderboard.COMPACT else 0)
+			local tall = size.Y >= needed
+			board.setDense(not tall)
+			board.setRows(if tall or size.Y >= DENSE_BOARD_H then Leaderboard.COMPACT else 0)
+			brandList.Padding = UDim.new(0, if tall then Kit.space.sm else Kit.space.xs)
+			-- The wordmark's box has a gap over its letters: on the dense layout
+			-- that gap may sit beside the corner toggles.
+			brandPad.PaddingTop = UDim.new(0, if tall then CORNER_CLEAR else CORNER_CLEAR - Kit.space.sm)
 			return
 		end
+		board.setDense(false)
 		content.AnchorPoint = Vector2.new(0.5, 0)
 		content.Size = UDim2.fromScale(1, 1)
 		if not phone then

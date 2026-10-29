@@ -21,6 +21,9 @@
 --                 SheetRows (SheetRow_<rank>)
 --   board.update(board?)   from the screen's update (state.leaderboard)
 --   board.setRows(n)       rows on the card
+--   board.setDense(on)     a short landscape phone's brand pane (fix17): tighter
+--                          padding, 22 px rows, no rule, and the viewer's line
+--                          under the title in the head, so the top 3 fit
 --   board.open()
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -40,6 +43,10 @@ Leaderboard.SHORT = LeaderboardNet.SHORT -- rows beside the Lobby's column on a 
 Leaderboard.COMPACT = LeaderboardNet.COMPACT -- rows on a phone or a short screen
 
 local ROW_H = 34 -- px, one entry
+local DENSE_ROW_H = 22 -- px, one entry on a dense card (setDense)
+local DENSE_PAD = 8 -- px, a dense card's padding
+local CARD_PAD = 14 -- px, a card's own padding (Kit.card), restored when dense ends
+local DENSE_TITLE_H = 22 -- px, the title's line in a dense card's head; the viewer's line takes the rest
 local RANK_W = 44 -- px, "#50" (or the medal, centered in it)
 local RATING_W = 56 -- px, "1480"
 local SEE_ALL_W = 96 -- px
@@ -53,6 +60,7 @@ export type Board = {
 	sheet: Sheet.Sheet,
 	update: (board: any?) -> (),
 	setRows: (n: number) -> (),
+	setDense: (on: boolean) -> (),
 	open: () -> (),
 }
 
@@ -66,12 +74,13 @@ local MEDALS: { Color3 } = {
 }
 
 -- A rank coin: the number in Fredoka on a lit disc of `color`.
-local function medal(rank: number, color: Color3): Frame
+local function medal(rank: number, color: Color3, px: number?): Frame
+	local size = px or MEDAL
 	local coin = Kit.dataColor(Kit.new("Frame", {
 		Name = "Medal",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(MEDAL, MEDAL),
+		Size = UDim2.fromOffset(size, size),
 		BackgroundColor3 = color,
 		BorderSizePixel = 0,
 	})) :: Frame
@@ -105,11 +114,12 @@ end
 -- One entry: the rank (a coin for the top three, else "#7"), the name (shrinks
 -- to fit), the rating in Fredoka. The viewer's row is raised, bold and marked
 -- by a white bar at its left.
-local function entryRow(parent: Instance, name: string, entry: any, mine: boolean): Frame
+local function entryRow(parent: Instance, name: string, entry: any, mine: boolean, height: number?): Frame
+	local rowH = height or ROW_H
 	local line = Kit.box({
 		Name = name,
 		LayoutOrder = entry.rank,
-		Size = UDim2.new(1, 0, 0, ROW_H),
+		Size = UDim2.new(1, 0, 0, rowH),
 		BackgroundTransparency = if mine then 0 else 1,
 		BackgroundColor3 = Kit.colors.raisedHover,
 		Parent = parent,
@@ -137,7 +147,7 @@ local function entryRow(parent: Instance, name: string, entry: any, mine: boolea
 	})
 	local coin = MEDALS[entry.rank]
 	if coin then
-		medal(entry.rank, coin).Parent = rankBox
+		medal(entry.rank, coin, math.min(MEDAL, rowH - 4)).Parent = rankBox
 	else
 		Kit.text(`#{entry.rank}`, {
 			Name = "Rank",
@@ -203,13 +213,15 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 		Sheet.new(screen, { title = Words.BOARD_SHEET, name = "LeaderboardSheet", height = SHEET_HEIGHT })
 
 	local card = Kit.card({ Name = "LeaderboardCard" })
+	local cardPad = card:FindFirstChildOfClass("UIPadding")
+	local cardList = card:FindFirstChildOfClass("UIListLayout")
 	local head = Kit.box({
 		Name = "LeaderboardHead",
 		LayoutOrder = 1,
 		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		Parent = card,
 	})
-	Kit.text(Words.BOARD_TITLE, {
+	local title = Kit.text(Words.BOARD_TITLE, {
 		Name = "LeaderboardTitle",
 		Size = UDim2.new(1, -(SEE_ALL_W + Kit.space.sm), 1, 0),
 		Font = Kit.font.display,
@@ -229,7 +241,12 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = head,
 	})
-	Kit.divider({ Name = "LeaderboardRule", LayoutOrder = 2, BackgroundTransparency = 0.5, Parent = card })
+	local rule = Kit.divider({
+		Name = "LeaderboardRule",
+		LayoutOrder = 2,
+		BackgroundTransparency = 0.5,
+		Parent = card,
+	})
 	local rowsBox = Kit.stack({ Name = "LeaderboardRows", LayoutOrder = 3, Parent = card }, "Vertical", 0)
 	local status = Kit.caption("", {
 		Name = "LeaderboardStatus",
@@ -267,6 +284,8 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 	local shown: any? = nil -- the board drawn last
 	local rows = LeaderboardNet.COMPACT
 	local drawnRows = -1
+	local dense = false
+	local drawnDense = false
 
 	local function fill(box: Frame, prefix: string, board: any?, limit: number)
 		for _, child in box:GetChildren() do
@@ -282,13 +301,20 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 			if k > limit then
 				break
 			end
-			entryRow(box, `{prefix}{entry.rank}`, entry, entry.rank == mine)
+			entryRow(
+				box,
+				`{prefix}{entry.rank}`,
+				entry,
+				entry.rank == mine,
+				if box == rowsBox and dense then DENSE_ROW_H else nil
+			)
 		end
 	end
 
 	local function render(board: any?)
 		shown = board
 		drawnRows = rows
+		drawnDense = dense
 		local problem = statusText(board)
 		fill(rowsBox, "Row_", board, rows)
 		fill(sheetRows, "SheetRow_", board, LeaderboardNet.TOP)
@@ -309,7 +335,7 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 	end
 
 	local function update(board: any?)
-		if board ~= shown or rows ~= drawnRows then
+		if board ~= shown or rows ~= drawnRows or dense ~= drawnDense then
 			render(board)
 		end
 	end
@@ -322,6 +348,32 @@ function Leaderboard.new(screen: Instance, ctx: Types.Ctx): Board
 		update = update,
 		setRows = function(n: number)
 			rows = n
+			update(shown)
+		end,
+		setDense = function(on: boolean)
+			if on == dense then
+				return
+			end
+			dense = on
+			local pad = UDim.new(0, if on then DENSE_PAD else CARD_PAD)
+			if cardPad then
+				cardPad.PaddingTop, cardPad.PaddingBottom, cardPad.PaddingLeft, cardPad.PaddingRight =
+					pad, pad, pad, pad
+			end
+			if cardList then
+				cardList.Padding = UDim.new(0, if on then Kit.space.xs else Kit.space.sm)
+			end
+			rule.Visible = not on
+			-- The viewer's line moves under the title, beside See all.
+			local textW = -(SEE_ALL_W + Kit.space.sm)
+			title.Size = if on then UDim2.new(1, textW, 0, DENSE_TITLE_H) else UDim2.new(1, textW, 1, 0)
+			you.Parent = if on then head else card
+			you.Position = if on then UDim2.fromOffset(0, DENSE_TITLE_H) else UDim2.new()
+			you.Size = if on
+				then UDim2.new(1, textW, 0, Kit.MIN_TOUCH - DENSE_TITLE_H)
+				else UDim2.new(1, 0, 0, Kit.size.caption + 4)
+			you.TextWrapped = not on
+			you.TextTruncate = if on then Enum.TextTruncate.AtEnd else Enum.TextTruncate.None
 			update(shown)
 		end,
 		open = open,
