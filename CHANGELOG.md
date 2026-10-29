@@ -5,6 +5,7 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 ## Unreleased
 
 - **Key states wear a solid gold edge** (D-101, the designer's pick): the soft glow and dashed white outline are gone; each key state has a solid pale-gold line just inside its own border, inside any home, stronghold or selection outline, with a thin dark line inside it so it reads on Amber and Teal states. Northeast chips get a gold plate. The map key, legend swatch, Key states line, tutorial tip and Help say "gold edge". Every map outline now has clean corners (no spikes along coasts). Test: `docs/TESTING.md`, "Key states' gold edge".
+- **Fix: gold edges drawn off their states on phones.** When the map changed shape (the upright phone map, or an iPad column narrowing), state outlines were redrawn for the new shape but the gold key-state edges kept the old one, so they floated over the wrong states. They now move with their states.
 ### Phones play upright (D-100, supersedes the landscape lock of D-089)
 
 Studio checklist: `docs/TESTING.md`, "Phones play upright (D-100)". No rule or Config changes. iPad and desktop look exactly as before.

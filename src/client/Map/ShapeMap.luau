@@ -1020,12 +1020,24 @@ function ShapeMap.new(): MapInterface.Map
 		node.hit.Size = UDim2.fromScale(sx, sy)
 		node.badge.Position = UDim2.fromScale(lx, ly)
 		node.place = nil
-		-- Outlines and blooms follow the shape: made again on next use.
+		-- Outlines, key edges and blooms follow the shape: made again on next use.
 		if node.outline then
 			(node.outline :: Frame):Destroy()
 			node.outline = nil
 			table.clear(node.outlineParts)
 			table.clear(node.outlineNormals)
+		end
+		if node.keyEdge then
+			(node.keyEdge :: Frame):Destroy()
+			node.keyEdge = nil
+			table.clear(node.keyParts)
+			table.clear(node.keyNormals)
+		end
+		if node.keyLine then
+			(node.keyLine :: Frame):Destroy()
+			node.keyLine = nil
+			table.clear(node.keyLineParts)
+			table.clear(node.keyLineNormals)
 		end
 		if node.bloom then
 			(node.bloom :: ImageLabel):Destroy()

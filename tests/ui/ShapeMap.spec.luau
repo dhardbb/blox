@@ -195,6 +195,35 @@ describe("ShapeMap", function()
 		expect(hi.BackgroundColor3):toBe(wide.map.root.Shapes.ShapeHI.ImageColor3)
 	end)
 
+	it("moves a key state's gold edge with its state when the layout switches (D-101)", function()
+		-- Drawn first in the wide layout, then the frame narrows to the tall one:
+		-- the edge must follow the state, not stay where the wide map had it.
+		local m = mount(620, 600)
+		m.map:setMarks({ TX = { key = true }, FL = { key = true }, NY = { key = true } })
+		m.map:setLens({})
+		settle(m)
+		expect(m.map.root:GetAttribute("Layout")):toBe("wide")
+		m.stage.Size = UDim2.fromOffset(372, 400)
+		m.map:setLens({})
+		settle(m)
+		expect(m.map.root:GetAttribute("Layout")):toBe("tall")
+		local root = m.map.root
+		for _, id in { "TX", "FL", "NY" } do
+			local shape = root.Shapes:FindFirstChild(`Shape{id}`)
+			local edge = root.Outlines:FindFirstChild(`KeyEdge{id}`)
+			check(edge ~= nil and edge.Visible, `{id} has no gold edge`)
+			local cx, cy = shape.Position.X.Scale, shape.Position.Y.Scale
+			local hw, hh = shape.Size.X.Scale / 2 + 0.01, shape.Size.Y.Scale / 2 + 0.01
+			for _, part in edge:GetChildren() do
+				local x, y = part.Position.X.Scale, part.Position.Y.Scale
+				check(
+					math.abs(x - cx) <= hw and math.abs(y - cy) <= hh,
+					`{id}'s gold edge {part.Name} sits outside the state`
+				)
+			end
+		end
+	end)
+
 	-- The labels (D-092, amending D-079): every code stands at its home, its
 	-- anchor or at most 4 px off it, the same in every lens; its value joins it
 	-- on one plate, right after it on its line or under it (a phone: over it
