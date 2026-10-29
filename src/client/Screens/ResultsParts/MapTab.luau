@@ -12,13 +12,15 @@
 --   ModeSwitch   two chips, full width: "Final polls" (Mode_Polls) | "Real
 --                results" (Mode_Result), the shown one selected
 --   ModeVotes    "Final polls: you 290, Buster 248" / "Election night: you 302, Buster 236"
---   MissLine     "Polls missed 3 states: NV, WI, AZ" (or "… called every state right.")
+--   MissLine     "Polls missed 3 states: NV, WI, AZ" (or "… called every state right."),
+--                one line that shrinks a little rather than wrap (D-098)
 --   MapBox       the map: each state's fill is the final poll's leader by their
 --                lead (as players saw it the last week) or election night's
---                winner by their margin; the lead or margin in the state's pill
---                ("+3", "+0.4"); every state the polls called wrong has a
---                dashed outline in the real winner's color and "×" after its
---                value, in both modes (D-079)
+--                winner by their margin. Only the states the polls called wrong
+--                carry a tag (D-098: a tag on every state crowded the Northeast
+--                on a phone): a chip with the lead or margin ("+3", "+0.4") and
+--                "×", and a dashed outline in the real winner's color, in both
+--                modes (D-079)
 --   StateLine    "Tap a state to compare." / the tapped state's poll and result
 -- The map is made the first time the tab shows (NodeMap is heavy; most players
 -- never open the tab) and sized so the whole tab fits the screen without
@@ -82,8 +84,9 @@ function MapTab.new(parent: Instance, order: number): Tab
 		Name = "MissLine",
 		LayoutOrder = 3,
 		Size = UDim2.new(1, 0, 0, LINE_H),
-		AutomaticSize = Enum.AutomaticSize.Y,
 		Font = Kit.font.medium,
+		TextWrapped = false,
+		TextScaled = true, -- one line on a phone: it shrinks (never below 12 px) rather than wrap (D-098)
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Parent = root,
 	})
@@ -141,19 +144,22 @@ function MapTab.new(parent: Instance, order: number): Tab
 		local marks: { [string]: MapInterface.Mark } = {}
 		local lines: { [string]: MapInterface.LensLine } = {}
 		for _, row in rows do
-			local leader, lead = PollMiss.lead(row, mode)
-			-- A miss: "×" after its value, and a dashed outline in the real winner's
-			-- color, so the codes and values under it stay readable (D-079).
-			local parts: { MapInterface.LensPart } = if leader ~= 0
-				then {
-					{ text = PollMiss.leadText(lead), color = Kit.playerColor(view, leader), filled = true },
-				}
-				else { { text = "tie", color = Kit.colors.muted } }
+			-- Tags only on the misses (D-098): a chip with the value and "×", and a
+			-- dashed outline in the real winner's color, so the codes and values
+			-- under it stay readable (D-079). Every other state shows its code alone.
 			if row.miss then
+				local leader, lead = PollMiss.lead(row, mode)
+				local parts: { MapInterface.LensPart } = if leader ~= 0
+					then {
+						{
+							text = PollMiss.leadText(lead),
+							color = Kit.playerColor(view, leader),
+							filled = true,
+						},
+					}
+					else { { text = "tie", color = Kit.colors.muted } }
 				table.insert(parts, { text = MISS })
-			end
-			lines[row.id] = { parts = parts }
-			if row.miss then
+				lines[row.id] = { parts = parts }
 				marks[row.id] = { ring = Kit.playerColor(view, row.winner), dashed = true }
 			end
 		end

@@ -28,7 +28,9 @@
 --
 -- A landscape phone (D-089, Kit.compact): three columns, each the full height
 -- under the header: the map, the stage (its own scroll), and the moves (or
--- the clash) with the pinned action bar, so the moves show without scrolling.
+-- the clash) with the pinned action bar. The moves stand there as three tiles
+-- in a row and the clash leads with its stamp and both moves (D-098), so
+-- neither needs a scroll.
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:
 -- { move = "Defend"|"Attack"|"Pivot", zinger = boolean }, a time-bank chunk
@@ -71,7 +73,7 @@ local PORTRAIT_MAP_MAX = 0.24 -- most of the body height the map may take on pho
 local LOCKED_RISE = 4 -- px, the opponent's "locked in ✓" line rises this far
 local MAP_INSET = 24 -- px above the map (room for a top-row state's tag)
 local COMPACT_MAP_SHARE = 0.28 -- most of the width the map takes on a landscape phone (D-089)
-local COMPACT_STAGE_SHARE = 0.33 -- share of the width the stage column takes there (its crowd meter on a row of its own)
+local COMPACT_STAGE_SHARE = 0.3 -- share of the width the stage column takes there (its crowd meter on a row of its own; 0.33 before D-098 left the move tiles too narrow)
 
 -- The first debate of this session tags the safe moves (the coach tip says why).
 local safeWeek: string? = nil
@@ -250,6 +252,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if narrow then
 			narrow(stage, compact)
 		end
+		-- The moves as tiles in a row, the clash packed tighter (D-098).
+		local tiles = moves.setCompact
+		if tiles then
+			tiles(moves, compact)
+		end
+		local tight = clash.setCompact
+		if tight then
+			tight(clash, compact)
+		end
 		if compact then
 			-- A landscape phone (D-089): map | stage | moves and the bar.
 			local width = parent.AbsoluteSize.X
@@ -411,6 +422,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		else
 			bar:setSecondary(nil, false)
 		end
+		-- A skip is never the brightest thing on screen (D-098).
+		bar:setQuiet(reveal == "Verdict")
 		if reveal == "Verdict" then
 			local skipped = model.skipStep == p.step or (p.seats[p.you] ~= nil and p.seats[p.you].skip)
 			bar:setPrimary(if skipped then "Waiting for opponent…" else "Skip", not skipped)

@@ -4,6 +4,16 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 ## Unreleased
 
+### Debate, election night and the end screen (D-098)
+
+Studio checklist: `docs/TESTING.md`, "Debate, election night and the end screen (D-098)". Nothing needed from the humans.
+
+- **Debates on a phone:** the three moves sit side by side, all on screen without scrolling. The clash leads with the result stamp and both moves, big, and the stamp slams onto them.
+- **Debate verdict:** whoever won the crowd is shown big with their face; each round is a colored chip ("Jobs · You", "Health · Buster").
+- **Election night:** reaching 270 shows a full-width "GOLDIE WINS 270!" banner with a burst that no longer covers the scores. A state still counting shows pulsing dots, and the state that decides the race is tagged "DECIDING STATE" in gold. On a phone the tip is one line in the bar instead of a box over the calls, and the latest call is no longer cut off.
+- **Skip is quieter** on election night and the debate verdict.
+- **End screen:** a compact top, both candidates side by side in short cards, and two columns on the iPad, so the vote counts are never under the bar. After a landslide, LANDSLIDE is the hero with a gold edge and gold shine; "You won" is a small pill; the repeated "282 votes to 256" line is gone. The results map tags only the states the polls missed.
+
 ### More eccentric candidates (D-097)
 
 Studio checklist: `docs/TESTING.md`, "More eccentric candidates (D-097)". **Needed from the humans:** upload the eight new portrait PNGs in `assets/portraits/` and send back their asset ids (or patch them into `src/client/UI/Assets.luau`); until then the game shows the old faces with the new names.

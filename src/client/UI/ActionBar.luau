@@ -16,6 +16,9 @@
 --   bar:setOpponent(text?)               -- "Opponent: thinking" | ... ; nil hides it
 --   bar:setProgress(fraction?)           -- time left (0..1) as a fill inside the
 --                                        -- primary, shrinking from the right; nil hides it
+--   bar:setQuiet(on)                     -- a quiet primary (a Skip, D-098): the secondary's
+--                                        -- raised look and no shine while enabled, so a
+--                                        -- skip is never the brightest thing on screen
 --   bar:lockFlash(pitch?)                -- the lock-in moment: the primary flashes
 --                                        -- light and settles into its disabled look,
 --                                        -- with the "lockIn" cue (pitch 0.8 for time's up)
@@ -87,6 +90,7 @@ export type ActionBar = {
 	setOpponent: (self: ActionBar, text: string?) -> (),
 	setProgress: (self: ActionBar, fraction: number?) -> (),
 	lockFlash: (self: ActionBar, pitch: number?) -> (),
+	setQuiet: (self: ActionBar, on: boolean) -> (),
 }
 
 function ActionBar.new(parent: Instance, options: Options): ActionBar
@@ -170,6 +174,23 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 	Motion.shine(primary)
 	local armed = false -- set by the first setPrimary: later changes may flash
 	local wasEnabled = false
+	local quiet = false -- setQuiet: the primary wears the raised look (D-098)
+
+	-- An enabled quiet primary: the disabled look's raised fill, hairline and
+	-- lip, but readable text, still tappable, and no light sweeping it.
+	local function paintQuiet(enabled: boolean)
+		local band = primary:FindFirstChild("Shine")
+		if band and band:IsA("GuiObject") then
+			band.Visible = not quiet
+		end
+		if not (quiet and enabled) then
+			return
+		end
+		Kit.setEnabled(primary, false)
+		primary.Active = true
+		primary.AutoButtonColor = true
+		primary.TextColor3 = Kit.colors.text
+	end
 
 	local function layout()
 		-- The status line gives way to the opponent's line; the primary to the secondary.
@@ -193,6 +214,7 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 			local lockingIn = armed and wasEnabled and not enabled and string.sub(text, 1, #LOCKED) == LOCKED
 			self.primary.Text = text
 			Kit.setEnabled(self.primary, enabled)
+			paintQuiet(enabled)
 			armed = true
 			wasEnabled = enabled
 			if lockingIn then
@@ -228,6 +250,14 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 			local k = math.clamp(fraction, 0, 1)
 			timeFill.Visible = k > 0
 			timeFill.Size = UDim2.fromScale(k, 1)
+		end,
+		setQuiet = function(_self: ActionBar, on: boolean)
+			if on == quiet then
+				return
+			end
+			quiet = on
+			Kit.setEnabled(primary, wasEnabled)
+			paintQuiet(wasEnabled)
 		end,
 		lockFlash = function(self: ActionBar, pitch: number?)
 			timeFill.Visible = false
