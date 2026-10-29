@@ -129,7 +129,7 @@ export type World = {
 	clock: number,
 	seed: number,
 	root: string, -- repository root
-	screen: { x: number, y: number },
+	screen: { x: number, y: number, inset: number? }, -- inset: px the top bar takes from a ScreenGui that respects it (opt-in; default 0)
 	tasks: { { at: number, seq: number, co: thread, peer: Peer, args: { any } } },
 	seq: number,
 	current: Peer?,
@@ -1195,6 +1195,18 @@ local function absoluteSize(world: World, inst: any): (number, number)
 	local raw = rawget(inst, "_props")
 	local parent = rawget(inst, "_parent")
 	if inst.ClassName == "ScreenGui" or parent == nil then
+		-- With world.screen.inset (opt-in, the snapshots' --inset), a ScreenGui
+		-- that respects the core UI inset loses the top bar's height, as in
+		-- game (Snapshot draws the same strip).
+		local inset = world.screen.inset or 0
+		if inset > 0 and inst.ClassName == "ScreenGui" then
+			local props = rawget(inst, "_props")
+			local insets = props.ScreenInsets
+			local name = if insets ~= nil then tostring(insets.Name) else "CoreUISafeInsets"
+			if props.IgnoreGuiInset ~= true and name ~= "None" and name ~= "DeviceSafeInsets" then
+				return world.screen.x, world.screen.y - inset
+			end
+		end
 		return world.screen.x, world.screen.y
 	end
 	local px, py = absoluteSize(world, parent)
@@ -2026,7 +2038,7 @@ function FakeRoblox.world(
 	options: {
 		root: string,
 		seed: number?,
-		screen: { x: number, y: number }?,
+		screen: { x: number, y: number, inset: number? }?,
 		jobId: string?, -- the server's game.JobId (default "job-1")
 		stores: { [string]: { [string]: any } }?, -- share another world's DataStore keys (two servers)
 		placeId: number?, -- game.PlaceId (default 0: unpublished)
