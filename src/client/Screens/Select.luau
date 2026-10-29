@@ -1287,11 +1287,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if ctx.portrait() then
 			return "portrait"
 		end
-		return if Kit.compact(parent.AbsoluteSize) then "compact" else "wide"
+		return Kit.sizeClass(parent.AbsoluteSize)
 	end
 
 	local function relayout(): boolean
-		local class = sizeClass()
+		local class: Kit.SizeClass = sizeClass()
 		local current = step()
 		if class == lastClass and current == lastStep then
 			return false

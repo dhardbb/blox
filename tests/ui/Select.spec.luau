@@ -394,6 +394,23 @@ describe("Select action bar", function()
 		check(same(timer.TextColor3, Kit.colors.danger), "the timer is not danger under 5 s")
 		Rig.noErrors(world)
 	end)
+
+	it("drains the primary in the last ten seconds while it can be pressed (D-091)", function()
+		local world, peer = Rig.fixture("Select", nil)
+		local fill = Rig.need(peer, "Select", "TimeFill")
+		Rig.tap(world, peer, "Select", "Candidate_hale")
+		local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+		payload.deadline = world.clock + 30
+		Rig.push(world, peer, payload)
+		expect(fill.Visible):toBe(false)
+		payload = Rig.deepCopy(payload)
+		payload.deadline = world.clock + 6
+		Rig.push(world, peer, payload)
+		FakeRoblox.run(world, 0.2)
+		expect(fill.Visible):toBe(true)
+		check(fill.Size.X.Scale > 0 and fill.Size.X.Scale < 0.7, `the veil is {fill.Size.X.Scale} wide`)
+		Rig.noErrors(world)
+	end)
 end)
 
 -- ------------------------------------------------------------------ style v2 (WP-A, docs/UI-STYLE.md §4.2)

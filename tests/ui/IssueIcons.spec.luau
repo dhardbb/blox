@@ -247,7 +247,7 @@ describe("Issue symbols (D-076)", function()
 		for _, issue in Issues.list do
 			local card = Rig.findIn(peer, "Select", `Issue_{issue}`)
 			if card then
-				local name = card:FindFirstChild("IssueName")
+				local name = card:FindFirstChild("IssueName", true) -- in IssueHead since D-091
 				local icon = name and name:FindFirstChild("IssueIcon")
 				check(icon ~= nil and icon:GetAttribute("IssueIcon") == issue, `{issue} card has no symbol`)
 			end
