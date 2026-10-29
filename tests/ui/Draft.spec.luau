@@ -16,6 +16,7 @@ local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
 local Rig = require("./Rig")
 local Session = require("@net/Session")
+local StateData = require("@sim/StateData")
 local Support = require("../e2e/Support")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
@@ -110,6 +111,14 @@ local function deepCopy(value: any): any
 end
 
 -- The payload the "Draft" fixture shows (the client builds it with the same call).
+-- A choice slot's label (D-091): "WY · Wyoming", or what goes there.
+local function slotText(slot: number, id: string?): string
+	if id then
+		return `{id} · {StateData.byId[id].name}`
+	end
+	return if slot == 1 then "Tap a state" else "Backup"
+end
+
 local function draftPayload(): Session.StatePayload
 	return Fixtures.payload(Config.defaults, "Draft")
 end
@@ -200,7 +209,11 @@ describe("Draft screen: fixtures", function()
 			local list = tostring(need(peer, name):FindFirstChild("List").Text)
 			expect(list):toBe(table.concat(payload.view.players[p].strongholds, " "))
 		end
-		expect(tostring(need(peer, "StrongholdsYou"):FindFirstChild("Who").Text)):toBe("You")
+		expect(tostring(need(peer, "StrongholdsYou"):FindFirstChild("Who", true).Text)):toBe("You")
+		-- D-091: each stronghold is a row under its player's portrait.
+		for _, id in payload.view.players[payload.you].strongholds do
+			check(need(peer, "StrongholdsYou"):FindFirstChild(`Hold_{id}`, true) ~= nil, `no row for {id}`)
+		end
 		check(
 			contains(textOf(peer, "SheetStrongholds"), "Your strongholds: "),
 			textOf(peer, "SheetStrongholds")
@@ -282,16 +295,16 @@ describe("Draft screen: picking", function()
 		local world, peer = mount("Draft")
 		local a, b = sampleStates(draftPayload())
 		tap(world, peer, `Row_{a}`)
-		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
-		expect(textOf(peer, "Choice2")):toBe("2nd: —")
+		expect(textOf(peer, "Choice1")):toBe(slotText(1, a))
+		expect(textOf(peer, "Choice2")):toBe(slotText(2))
 		tap(world, peer, `Row_{b}`)
-		expect(textOf(peer, "Choice2")):toBe(`2nd: {b}`)
+		expect(textOf(peer, "Choice2")):toBe(slotText(2, b))
 		-- A third state replaces the backup, not the first choice.
 		local c = select(3, sampleStates(draftPayload()))
 		expect(c ~= a):toBe(true)
 		tap(world, peer, `Row_{a}`)
-		expect(textOf(peer, "Choice1")):toBe(`1st: {b}`)
-		expect(textOf(peer, "Choice2")):toBe("2nd: —")
+		expect(textOf(peer, "Choice1")):toBe(slotText(1, b))
+		expect(textOf(peer, "Choice2")):toBe(slotText(2))
 		noErrors(world)
 	end)
 
@@ -299,15 +312,15 @@ describe("Draft screen: picking", function()
 		local world, peer = mount("Draft")
 		local a, b = sampleStates(draftPayload())
 		tap(world, peer, a)
-		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
+		expect(textOf(peer, "Choice1")):toBe(slotText(1, a))
 		tap(world, peer, `Row_{b}`)
 		tap(world, peer, "Clear1")
-		expect(textOf(peer, "Choice1")):toBe(`1st: {b}`)
+		expect(textOf(peer, "Choice1")):toBe(slotText(1, b))
 		tap(world, peer, `Row_{a}`)
 		tap(world, peer, "Clear2")
-		expect(textOf(peer, "Choice2")):toBe("2nd: —")
+		expect(textOf(peer, "Choice2")):toBe(slotText(2))
 		tap(world, peer, "Clear1")
-		expect(textOf(peer, "Choice1")):toBe("1st: —")
+		expect(textOf(peer, "Choice1")):toBe(slotText(1))
 		noErrors(world)
 	end)
 
@@ -317,7 +330,7 @@ describe("Draft screen: picking", function()
 		tap(world, peer, `Row_{a}`)
 		tap(world, peer, "Choice1")
 		tap(world, peer, `Row_{b}`)
-		expect(textOf(peer, "Choice1")):toBe(`1st: {b}`)
+		expect(textOf(peer, "Choice1")):toBe(slotText(1, b))
 		noErrors(world)
 	end)
 
@@ -325,10 +338,40 @@ describe("Draft screen: picking", function()
 		local world, peer = mount("Draft")
 		local _a, _b, taken = sampleStates(draftPayload())
 		tap(world, peer, `Row_{taken}`)
-		expect(textOf(peer, "Choice1")):toBe("1st: —")
+		expect(textOf(peer, "Choice1")):toBe(slotText(1))
 		tap(world, peer, taken)
-		expect(textOf(peer, "Choice1")):toBe("1st: —")
+		expect(textOf(peer, "Choice1")):toBe(slotText(1))
 		check(contains(textOf(peer, "BarStatus"), "can't nominate"), textOf(peer, "BarStatus"))
+		-- D-091 (playtests): the notice says why, with the rule behind it.
+		local notice = need(peer, "Notice")
+		expect(notice.Visible):toBe(true)
+		local why = textOf(peer, "NoticeText")
+		check(contains(why, `{taken} is`) and contains(why, "home state"), why)
+		check(contains(why, "can't be nominated"), why)
+		local a = sampleStates(draftPayload())
+		tap(world, peer, `Row_{a}`)
+		expect(notice.Visible):toBe(false)
+		noErrors(world)
+	end)
+
+	it("warns in a battleground round that the rival can nominate your strongholds (D-091)", function()
+		local world, peer = mount("Draft")
+		local payload = draftPayload()
+		local warning = need(peer, "StrongholdWarning")
+		expect(warning.Visible):toBe(true)
+		local text = textOf(peer, "StrongholdWarning")
+		check(contains(text, "Buster can nominate your strongholds"), text)
+		for _, id in payload.view.players[payload.you].strongholds do
+			check(contains(text, id), `{id} missing from: {text}`)
+		end
+		expect(need(peer, "RoundNote").Visible):toBe(true)
+		-- Not in the home round.
+		local home = deepCopy(payload)
+		home.step += 5
+		home.view.draftRound = 0
+		home.view.draftKind = "Home"
+		push(world, peer, home)
+		expect(warning.Visible):toBe(false)
 		noErrors(world)
 	end)
 
@@ -356,7 +399,7 @@ describe("Draft screen: picking", function()
 		for _, p in { home.you, 3 - home.you } do
 			local stronghold = home.view.players[p].strongholds[1]
 			tap(world, peer, `Row_{stronghold}`)
-			expect(textOf(peer, "Choice1")):toBe("1st: —")
+			expect(textOf(peer, "Choice1")):toBe(slotText(1))
 			expect(textOf(peer, "BarStatus")):toBe(`{stronghold}: a stronghold, can't be a home`)
 		end
 		noErrors(world)
@@ -394,7 +437,7 @@ describe("Draft screen: locking in", function()
 		end
 		tap(world, peer, "Clear1")
 		tap(world, peer, "LockIn")
-		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
+		expect(textOf(peer, "Choice1")):toBe(slotText(1, a))
 		local after = 0
 		for _, line in peer.log do
 			if contains(line, "DEBUG_UI submit") then
@@ -470,11 +513,11 @@ describe("Draft screen: reveal and rounds", function()
 		end
 		push(world, peer, nextRound)
 		check(contains(titleOf(peer), "Round 3 of 3"), titleOf(peer))
-		expect(textOf(peer, "Choice1")):toBe("1st: —")
+		expect(textOf(peer, "Choice1")):toBe(slotText(1))
 		expect(textOf(peer, "LockIn") ~= "Locked in"):toBe(true)
 		-- The two states just nominated are no longer pickable.
 		tap(world, peer, `Row_{a}`)
-		expect(textOf(peer, "Choice1")):toBe("1st: —")
+		expect(textOf(peer, "Choice1")):toBe(slotText(1))
 		noErrors(world)
 	end)
 
@@ -932,8 +975,8 @@ describe("Draft screen: motion and sound", function()
 		local a, b = sampleStates(draftPayload())
 		tap(world, peer, `Row_{a}`)
 		tap(world, peer, `Row_{b}`)
-		expect(textOf(peer, "Choice1")):toBe(`1st: {a}`)
-		expect(textOf(peer, "Choice2")):toBe(`2nd: {b}`)
+		expect(textOf(peer, "Choice1")):toBe(slotText(1, a))
+		expect(textOf(peer, "Choice2")):toBe(slotText(2, b))
 		expect(count(Rig.sounds(peer), "planAdd")):toBe(2)
 		for _, inst in need(peer, "DraftRoot"):GetDescendants() do
 			if inst.Name == "MotionScale" then

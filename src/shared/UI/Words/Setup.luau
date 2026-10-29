@@ -230,6 +230,13 @@ function Setup.battlegroundCaption(config: Config): string
 	return `Battleground: every rally and ad here counts ×{config.BATTLEGROUND_MULT}, for both of you. Pick where you can win.`
 end
 
+-- A battleground round's warning (D-091, from playtests): the rival may
+-- nominate your strongholds too, which takes their bonus away. `ids` are your
+-- strongholds still standing.
+function Setup.strongholdWarning(opponent: string, ids: { string }): string
+	return `Heads up: {opponent} can nominate your strongholds too ({table.concat(ids, " ")}). A nominated stronghold loses its bonus.`
+end
+
 -- "Ties go to you" / "Ties go to Buster": who wins a state you both want.
 function Setup.priority(youHaveIt: boolean, opponent: string): string
 	return if youHaveIt then "Ties go to you" else `Ties go to {opponent}`

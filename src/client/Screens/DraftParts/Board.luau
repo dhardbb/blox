@@ -10,6 +10,7 @@ local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 local Drafted = require(ReplicatedStorage.Shared.UI.Drafted)
+local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
 
@@ -38,7 +39,10 @@ local Board = {}
 
 local LINE_H = 20 -- px, one board line (grows if the detail wraps)
 local WHO_W = 64 -- px, "You" / "Buster"
-local FACE = 24 -- px, a player's candidate portrait on the strongholds card (D-068)
+local HOLD_FACE = 36 -- px, a player's candidate portrait on the strongholds card (D-068; D-091 was 24)
+local HOLD_ROW_H = 28 -- px, one stronghold's row on that card
+local HOLD_CODE_W = 36 -- px, its code ("VA")
+local HOLD_EV_W = 28 -- px, its votes at the right
 local SWATCH = 16 -- px, a legend key's dot
 local LEGEND_TINT = 0.6 -- how far a legend dot leans toward the player's color
 
@@ -219,8 +223,11 @@ function Board.newLegend(): Legend
 	return legend :: Legend
 end
 
--- The map reveal's card: each player's portrait (ringed in their color), name
--- and strongholds, and why they are theirs.
+-- The map reveal's card (D-091): one column per player, side by side: a
+-- header with the portrait (ringed in their color), the name and the votes the
+-- strongholds hold, then each stronghold as a row ("VA  Virginia  13"),
+-- biggest first, and why they are theirs under both columns. Each column keeps
+-- "List", the codes in one line, for the sheet and the tests (hidden).
 function Board.newStrongholds(): Strongholds
 	local root = Kit.card({ Name = "StrongholdsCard" })
 	Kit.text("Strongholds", {
@@ -229,40 +236,109 @@ function Board.newStrongholds(): Strongholds
 		Font = Kit.font.bold,
 		Parent = root,
 	})
-	local rows: { [number]: { face: Frame, who: TextLabel, list: TextLabel } } = {}
+	local columns = Kit.box(auto())
+	columns.Name = "Columns"
+	columns.LayoutOrder = 2
+	columns.Parent = root
+	Kit.list("Horizontal", Kit.space.md).Parent = columns
+	type Column = { face: Frame, who: TextLabel, total: TextLabel, list: TextLabel, rows: Frame }
+	local cols: { [number]: Column } = {}
 	for k = 1, 2 do
-		local line = Kit.box({
+		local column = Kit.box({
 			Name = if k == 1 then "StrongholdsYou" else "StrongholdsThem",
-			LayoutOrder = 1 + k,
-			Size = UDim2.new(1, 0, 0, math.max(FACE, Kit.size.body + 8)),
-			Parent = root,
+			LayoutOrder = k,
+			Size = UDim2.new(0.5, -Kit.space.md // 2, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = columns,
+		})
+		Kit.list("Vertical", Kit.space.xs).Parent = column
+		local head = Kit.box({
+			Name = "Head",
+			LayoutOrder = 1,
+			Size = UDim2.new(1, 0, 0, HOLD_FACE),
+			Parent = column,
 		})
 		local face = Kit.box({
 			Name = "Face",
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.fromScale(0, 0.5),
-			Size = UDim2.fromOffset(FACE, FACE),
-			Parent = line,
+			Size = UDim2.fromOffset(HOLD_FACE, HOLD_FACE),
+			Parent = head,
 		})
 		local who = Kit.text("", {
 			Name = "Who",
-			Position = UDim2.fromOffset(FACE + Kit.space.sm, 0),
-			Size = UDim2.new(0, WHO_W, 1, 0),
-			Font = Kit.font.medium,
+			Position = UDim2.fromOffset(HOLD_FACE + Kit.space.sm, 0),
+			Size = UDim2.new(1, -(HOLD_FACE + Kit.space.sm), 0.5, 0),
+			Font = Kit.font.bold,
 			TextScaled = true,
 			TextWrapped = false,
-			Parent = line,
+			Parent = head,
 		})
-		local list = Kit.text("", {
-			Name = "List",
-			Position = UDim2.fromOffset(FACE + Kit.space.sm + WHO_W, 0),
-			Size = UDim2.new(1, -(FACE + Kit.space.sm + WHO_W), 1, 0),
-			Font = Kit.font.medium,
-			Parent = line,
+		local total = Kit.text("", {
+			Name = "Total",
+			Position = UDim2.new(0, HOLD_FACE + Kit.space.sm, 0.5, 0),
+			Size = UDim2.new(1, -(HOLD_FACE + Kit.space.sm), 0.5, 0),
+			TextSize = Kit.size.caption,
+			TextColor3 = Kit.colors.muted,
+			TextWrapped = false,
+			Parent = head,
 		})
-		rows[k] = { face = face, who = who, list = list }
+		local list = Kit.text("", { Name = "List", Visible = false, Parent = column })
+		local rows = Kit.box(auto())
+		rows.Name = "Rows"
+		rows.LayoutOrder = 2
+		rows.Parent = column
+		Kit.list("Vertical", Kit.space.xs).Parent = rows
+		cols[k] = { face = face, who = who, total = total, list = list, rows = rows }
 	end
 	local note = Kit.caption("", { Name = "StrongholdsNote", LayoutOrder = 4, Parent = root })
+
+	-- One stronghold's row: the code (bold, in the holder's readable color),
+	-- the state's name and its votes at the right.
+	local function holdRow(parent: Frame, id: string, order: number, color: Color3): Frame
+		local row = Kit.panel({
+			Name = `Hold_{id}`,
+			LayoutOrder = order,
+			Size = UDim2.new(1, 0, 0, HOLD_ROW_H),
+			BackgroundColor3 = Kit.colors.raised,
+			Parent = parent,
+		})
+		local pad = row:FindFirstChildOfClass("UIPadding")
+		if pad then
+			pad.PaddingTop = UDim.new(0, 0)
+			pad.PaddingBottom = UDim.new(0, 0)
+			pad.PaddingLeft = UDim.new(0, Kit.space.sm)
+			pad.PaddingRight = UDim.new(0, Kit.space.sm)
+		end
+		local record = StateData.byId[id]
+		Kit.text(id, {
+			Name = "Code",
+			Size = UDim2.new(0, HOLD_CODE_W, 1, 0),
+			Font = Kit.font.bold,
+			TextWrapped = false,
+			TextColor3 = Kit.textColor(color),
+			Parent = row,
+		})
+		Kit.text(if record then record.name else id, {
+			Name = "StateName",
+			Position = UDim2.fromOffset(HOLD_CODE_W, 0),
+			Size = UDim2.new(1, -(HOLD_CODE_W + HOLD_EV_W), 1, 0),
+			TextSize = Kit.size.caption,
+			TextColor3 = Kit.colors.muted,
+			TextScaled = true,
+			TextWrapped = false,
+			Parent = row,
+		})
+		Kit.text(if record then tostring(record.ev) else "", {
+			Name = "Votes",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(1, 0),
+			Size = UDim2.new(0, HOLD_EV_W, 1, 0),
+			Font = Kit.font.bold,
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = row,
+		})
+		return row
+	end
 
 	local card = {} :: any
 	card.root = root
@@ -275,22 +351,52 @@ function Board.newStrongholds(): Strongholds
 			end
 		end
 		for k, p in { view.you, them } do
-			local r = rows[k]
+			local c = cols[k]
 			local id = view.players[p].candidate
 			local name = Board.candidateName(config, view, p)
-			local portrait = r.face:FindFirstChild("Portrait") :: Frame?
-			if portrait == nil or r.face:GetAttribute("For") ~= `{id}|{name}` then
+			local color = colors[p] or Kit.colors.neutral
+			local portrait = c.face:FindFirstChild("Portrait") :: Frame?
+			if portrait == nil or c.face:GetAttribute("For") ~= `{id}|{name}` then
 				if portrait then
 					portrait:Destroy()
 				end
-				r.face:SetAttribute("For", `{id}|{name}`)
-				portrait = Kit.portrait(id, name, FACE)
+				c.face:SetAttribute("For", `{id}|{name}`)
+				portrait = Kit.portrait(id, name, HOLD_FACE)
 				local built = portrait :: Frame
-				built.Parent = r.face
+				built.Parent = c.face
 			end
-			Kit.paintPortrait(portrait :: Frame, { ring = colors[p] or Kit.colors.neutral })
-			r.who.Text = Board.who(config, view, p)
-			r.list.Text = listText(view.players[p].strongholds)
+			Kit.paintPortrait(portrait :: Frame, { ring = color })
+			c.who.Text = Board.who(config, view, p)
+			c.who.TextColor3 = if colors[p] then Kit.textColor(colors[p]) else Kit.colors.text
+			-- Biggest first.
+			local ids = table.clone(view.players[p].strongholds)
+			table.sort(ids, function(a, b)
+				local ra, rb = StateData.byId[a], StateData.byId[b]
+				local ea, eb = if ra then ra.ev else 0, if rb then rb.ev else 0
+				if ea ~= eb then
+					return ea > eb
+				end
+				return a < b
+			end)
+			c.list.Text = listText(view.players[p].strongholds)
+			local key = `{table.concat(ids, " ")}|{color.R},{color.G},{color.B}`
+			if c.rows:GetAttribute("For") ~= key then
+				c.rows:SetAttribute("For", key)
+				for _, child in c.rows:GetChildren() do
+					if child:IsA("GuiObject") then
+						child:Destroy()
+					end
+				end
+				for order, state in ids do
+					holdRow(c.rows, state, order, color)
+				end
+			end
+			local votes = 0
+			for _, state in ids do
+				local record = StateData.byId[state]
+				votes += if record then record.ev else 0
+			end
+			c.total.Text = Words.votes(votes)
 		end
 		note.Text = Words.strongholdsNote(config)
 	end

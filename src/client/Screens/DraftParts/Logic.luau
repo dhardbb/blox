@@ -49,6 +49,31 @@ function Logic.reason(kind: Draft.Kind, sv: View.StateView): string
 	return `{sv.id}: already drafted`
 end
 
+-- Why a tapped state can't be picked, in a full sentence with the rule behind
+-- it, for the notice under the slots (D-091: playtesters were refused a rival's
+-- home with only a short status line). `you` and `opponent` (a first name) say
+-- whose home or stronghold it is.
+function Logic.why(kind: Draft.Kind, sv: View.StateView, you: number, opponent: string): string
+	local owner = sv.owner
+	local whose = if owner == you then "your" else `{opponent}'s`
+	if sv.battleground then
+		return `{sv.id} is already a battleground. Pick another state.`
+	elseif kind == "Nominate" and sv.isHome then
+		return `{sv.id} is {whose} home state. Home states can't be nominated, so its home bonus is safe.`
+	elseif not sv.isHome and owner ~= nil then
+		return `{sv.id} is {whose} stronghold. A home must be a state nobody holds yet.`
+	end
+	return `{sv.id} is already drafted. Pick another state.`
+end
+
+-- A choice slot's label: the state ("WY · Wyoming"), or what goes there.
+function Logic.slotText(slot: number, id: string?): string
+	if id then
+		return `{id} · {nameOf(id)}`
+	end
+	return if slot == 1 then "Tap a state" else "Backup"
+end
+
 -- The round's kind for the header: "Home state", "Nominate".
 function Logic.title(kind: Draft.Kind): string
 	if kind == "Home" then

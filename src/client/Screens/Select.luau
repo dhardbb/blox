@@ -900,7 +900,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		BorderSizePixel = 0,
 		Parent = pencil,
 	})
-	local passPill = Kit.pill("Name Pass", "text", {
+	Kit.pill("Name Pass", "text", {
 		Name = "NamePassPill",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
