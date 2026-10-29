@@ -1126,6 +1126,36 @@ local SHOTS: { Shot } = {
 	{ name = "18-choice-resolve", moment = "ChoiceResolve", screen = "Campaign" },
 	{ name = "19-debate-clash", moment = "Clash", screen = "Debate" },
 	{ name = "20-debate-verdict", moment = "Debate", screen = "Debate" },
+	-- D-098: a clash the player wins (the stamp slams onto both moves), and a
+	-- verdict the rival won: their face beside the stamp, a chip per round.
+	{
+		name = "19a-debate-clash-won-e17",
+		moment = "Clash",
+		screen = "Debate",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			local view = payload.view
+			local rounds = if view.debate then view.debate.rounds else view.debates[#view.debates].rounds
+			local round = rounds[#rounds]
+			round.winner, round.margin = payload.you, 3
+			round.scores[payload.you] = round.scores[3 - payload.you] + 3
+			payload.step += 1
+			Rig.push(world, peer, payload)
+		end,
+	},
+	{
+		name = "20a-debate-verdict-crowd-e17",
+		moment = "Debate",
+		screen = "Debate",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			local result = payload.view.debates[#payload.view.debates]
+			local them = 3 - payload.you
+			result.crowd[them] = (result.crowd[payload.you] or 0) + 3
+			payload.step += 1
+			Rig.push(world, peer, payload)
+		end,
+	},
 	{ name = "21-election-start", moment = "Election", screen = "Election" },
 	{
 		name = "22-election-late",

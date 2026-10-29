@@ -3,6 +3,7 @@
 -- words (Shared/UI/Landslide) and the stamp on the screen, for the winner, for
 -- the loser (the rival's landslide) and never after an ordinary win.
 
+local Colors = require("@ui/Colors")
 local Config = require("@sim/Config")
 local FakeRoblox = require("@testlib/FakeRoblox")
 local Fixtures = require("@ui/Fixtures")
@@ -100,7 +101,21 @@ describe("Results: the Landslide stamp", function()
 		check(Rig.shown(Rig.need(peer, "Results", "LandslideBox"), "Results"), "no landslide box")
 		expect(Rig.textOf(peer, "Results", "Banner")):toBe("You won")
 		expect(Rig.textOf(peer, "Results", "LandslideLabel")):toBe("LANDSLIDE")
-		expect(Rig.textOf(peer, "Results", "LandslideEyebrow")):toBe("YOU WON BY A")
+		-- D-098: LANDSLIDE is the hero; "You won" is a pill over it, no stamp, no
+		-- eyebrow, no repeated vote line; the stamp wears a gold edge.
+		local banner = Rig.need(peer, "Results", "Banner")
+		expect(banner.ClassName):toBe("TextLabel")
+		expect(banner:GetAttribute("Filled")):toBe(true)
+		expect(Rig.findIn(peer, "Results", "BannerStamp")):toBe(nil)
+		expect(Rig.findIn(peer, "Results", "LandslideEyebrow")):toBe(nil)
+		check(
+			not Rig.shown(Rig.need(peer, "Results", "Reason"), "Results"),
+			"the vote line repeats the cards"
+		)
+		local KitG = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
+		local edge =
+			Rig.need(peer, "Results", "LandslideStamp"):FindFirstChild("Plate"):FindFirstChild("Edge")
+		expect(edge.Color):toEqual(KitG.color(Colors.player.Amber))
 		check(
 			string.find(Rig.textOf(peer, "Results", "LandslideLine"), "of 538 votes, over 70%", 1, true)
 				~= nil,
@@ -110,9 +125,9 @@ describe("Results: the Landslide stamp", function()
 		expect(plateColor(peer)):toEqual(Kit.playerColor(payload.view, payload.you))
 		-- It comes right under the banner, before the reason line.
 		local box = Rig.need(peer, "Results", "LandslideBox")
-		local banner = Rig.need(peer, "Results", "BannerBox")
+		local bannerBox = Rig.need(peer, "Results", "BannerBox")
 		local reason = Rig.need(peer, "Results", "Reason")
-		check(box.LayoutOrder == banner.LayoutOrder + 1, "the stamp is not right under the banner")
+		check(box.LayoutOrder == bannerBox.LayoutOrder + 1, "the stamp is not right under the banner")
 		check(reason.LayoutOrder > box.LayoutOrder, "the reason comes before the stamp")
 		Rig.noErrors(world)
 	end)
@@ -132,7 +147,11 @@ describe("Results: the Landslide stamp", function()
 		local payload = Rig.payloadOf(world, peer)
 		expect(Rig.textOf(peer, "Results", "Banner")):toBe("You lost")
 		expect(Rig.textOf(peer, "Results", "LandslideLabel")):toBe("LANDSLIDE")
-		expect(Rig.textOf(peer, "Results", "LandslideEyebrow")):toBe("BUSTER WON BY A")
+		expect(Rig.findIn(peer, "Results", "LandslideEyebrow")):toBe(nil)
+		check(
+			Rig.contains(Rig.textOf(peer, "Results", "LandslideLine"), "Buster took"),
+			Rig.textOf(peer, "Results", "LandslideLine")
+		)
 		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 		expect(plateColor(peer)):toEqual(Kit.playerColor(payload.view, 2))
 		FakeRoblox.run(world, 2)

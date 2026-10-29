@@ -78,6 +78,8 @@ end)
 
 describe("Debate screen: a round", function()
 	it("shows each move's strength and its three result cells, above the bar on a phone", function()
+		-- A landscape phone (D-098): the three moves are tiles in one row, their
+		-- cells packed ("D+4 A+3 P="), every tile whole above the action bar.
 		local world, peer = Rig.fixture("DebateRound", Rig.PHONE)
 		local view = Rig.payloadOf(world, peer).view
 		local board = Swing.debateBoard(C, view)
@@ -87,7 +89,7 @@ describe("Debate screen: a round", function()
 			local button = need(peer, `Move{row.move}`)
 			check(shown(button), `{row.move} is hidden`)
 			expect(textOf(peer, `MoveTitle{row.move}`)):toBe(Words.moveTitle(row))
-			expect(textOf(peer, `MoveCells{row.move}`)):toBe(Words.cells(row))
+			expect(textOf(peer, `MoveCells{row.move}`)):toBe(Words.cellsShort(row))
 			check(
 				button.AbsolutePosition.Y + button.AbsoluteSize.Y <= barTop + 0.5,
 				`{row.move} ends under the bar`
