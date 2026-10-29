@@ -112,6 +112,12 @@ function Legend.fill(frame: Frame, items: { MapInterface.LegendItem }?)
 			end
 		end
 	end
+	-- Still too wide with only the undroppable items (two of your issues and
+	-- the key state on a landscape phone): the last ones go, rather than run
+	-- under the small states' chips beside the strip (fix17).
+	while room > 0 and #list > 1 and width() > room do
+		table.remove(list)
+	end
 	frame.Visible = #list > 0
 	for k, item in list do
 		local row = Kit.box({

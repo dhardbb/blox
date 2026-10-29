@@ -405,11 +405,15 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 				title = `Week {week} · {view.event.name}`
 			elseif debate then
 				local live = view.debate
+				-- A landscape phone's title shares its row with the vote bar:
+				-- "Round 2 of" lost its "3" there (fix17).
+				local round = if live and model.compact == true
+					then `Round {live.round}/{#live.topics}`
+					elseif live then `Round {live.round} of {#live.topics}`
+					else ""
 				title = if portrait
 					then `Week {week}`
-					elseif
-						live and Model.debating(p)
-					then `Week {week} · Round {live.round} of {#live.topics}`
+					elseif live and Model.debating(p) then `Week {week} · {round}`
 					else `Week {week} · Debate`
 			end
 			header:setTitle(title)

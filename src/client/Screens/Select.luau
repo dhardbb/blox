@@ -109,6 +109,8 @@ local PASS_W = 100 -- px kept for the Name Pass's gold pill at the name row's ri
 local COUNT_W = 56 -- px, the name sheet's "16/16" count
 local STEP_DOT = 12 -- px, a step indicator dot
 local STEP_LABEL_W = { 92, 60 } -- px, room for "Candidate" (and a gap before the next dot) and "Issues" at body size
+local STEP_RING = 2 -- px, a step dot's ring (drawn outside the dot)
+local STEP_GAP = 6 -- px between a step dot and its name (xs looked glued at body size; fix17)
 local SIDE_GAP = Kit.space.sm -- px, between the side column's blocks on a landscape phone
 local SIDE_COLOR_H = 32 -- px, the color line there (its link takes the next row)
 local TAKEN_FADE = 0.5 -- a taken card's fill and text transparency
@@ -292,10 +294,17 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local stepsBox = Kit.box({
 		Name = "Steps",
 		LayoutOrder = 0,
-		Size = UDim2.new(0, 2 * STEP_DOT + STEP_LABEL_W[1] + STEP_LABEL_W[2] + 3 * Kit.space.xs, 1, 0),
+		Size = UDim2.new(
+			0,
+			STEP_RING + 2 * STEP_DOT + STEP_LABEL_W[1] + STEP_LABEL_W[2] + 3 * STEP_GAP,
+			1,
+			0
+		),
 		Parent = header.title.Parent,
 	})
-	local stepList = Kit.list("Horizontal", Kit.space.xs)
+	-- The first dot's ring is drawn outside its box: room for it at the left.
+	Kit.new("UIPadding", { PaddingLeft = UDim.new(0, STEP_RING), Parent = stepsBox })
+	local stepList = Kit.list("Horizontal", STEP_GAP)
 	stepList.VerticalAlignment = Enum.VerticalAlignment.Center
 	stepList.Parent = stepsBox
 	local stepDots: { Frame } = {}
@@ -314,7 +323,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = "Ring",
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			Color = Kit.colors.muted,
-			Thickness = 2,
+			Thickness = STEP_RING,
 			Parent = dot,
 		})
 		stepDots[k] = dot
