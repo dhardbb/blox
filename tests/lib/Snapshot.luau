@@ -48,6 +48,10 @@
 -- the notch is drawn as a black cutout on the side it is on (the left in
 -- landscape, the top in portrait) and the home bar as a white pill.
 --
+-- Snapshot.boxes(peer, options?) -> { [Name]: Box }: where each visible element
+-- is drawn and what of it its scrolling ancestors leave in view (specs that
+-- need list layouts, e.g. tests/ui/PortraitPhone.spec).
+--
 -- Snapshot.measure(peer, options?) -> Measure: the same layout, measured (the
 -- orientation study): the map's drawn size, the smallest visible text, visible
 -- buttons under 44 px (off the map and on it), and how far content runs past a
@@ -1616,6 +1620,66 @@ function Snapshot.measure(peer: any, options: Options?): Measure
 		layoutChildren(root)
 		for _, child in root.children do
 			walk(child, root.x, root.y, false, false, root.y + root.h)
+		end
+	end
+	return result
+end
+
+export type Box = {
+	x: number, -- screen px, as drawn
+	y: number,
+	w: number,
+	h: number,
+	clip: { x: number, y: number, w: number, h: number }, -- what its scrolling or clipping ancestors leave visible
+}
+
+-- Where each visible element of the peer's PlayerGui is drawn (the same layout
+-- as Snapshot.svg, list layouts included, which the fake engine's AbsolutePosition
+-- ignores), by Name; the first one in drawing order wins a repeated name.
+-- A scrolling frame shows its canvas from the top (CanvasPosition 0).
+function Snapshot.boxes(peer: any, options: Options?): { [string]: Box }
+	local world = rawget(peer.player, "_world")
+	local W, H = world.screen.x, world.screen.y
+	local topInset = if options and options.topInset ~= nil then options.topInset else 58
+	local result: { [string]: Box } = {}
+	local playerGui = peer.player:FindFirstChild("PlayerGui")
+	if playerGui == nil then
+		return result
+	end
+	type Clip = { x: number, y: number, w: number, h: number }
+	local function cut(a: Clip, x: number, y: number, w: number, h: number): Clip
+		local x0, y0 = math.max(a.x, x), math.max(a.y, y)
+		local x1, y1 = math.min(a.x + a.w, x + w), math.min(a.y + a.h, y + h)
+		return { x = x0, y = y0, w = math.max(x1 - x0, 0), h = math.max(y1 - y0, 0) }
+	end
+	local function walk(node: Node, ax: number, ay: number, clip: Clip)
+		local inst = node.inst
+		local p = props(inst)
+		if p.Visible == false then
+			return
+		end
+		local x, y = ax + node.x, ay + node.y
+		local name = tostring(p.Name)
+		if result[name] == nil then
+			result[name] = { x = x, y = y, w = node.w, h = node.h, clip = clip }
+		end
+		local inner = clip
+		if class(inst) == "ScrollingFrame" or p.ClipsDescendants == true then
+			inner = cut(clip, x, y, node.w, node.h)
+		end
+		for _, child in node.children do
+			walk(child, x, y, inner)
+		end
+	end
+	for _, g in kids(playerGui) do
+		if class(g) ~= "ScreenGui" or props(g).Enabled == false then
+			continue
+		end
+		local root = guiRoot(g, W, H, topInset, world.screen)
+		layoutChildren(root)
+		local screen = { x = 0, y = 0, w = W, h = H }
+		for _, child in root.children do
+			walk(child, root.x, root.y, screen)
 		end
 	end
 	return result
