@@ -15,7 +15,7 @@
 		"StarterGui": {
 			"$properties": {
 				"ClipsDescendantsSupportsRotation": "Enabled",
-				"ScreenOrientation": "LandscapeSensor"
+				"ScreenOrientation": "Portrait"
 			}
 		},
 		"StarterPlayer": {

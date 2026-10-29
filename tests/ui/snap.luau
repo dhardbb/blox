@@ -4,8 +4,14 @@
 --
 --   lune run tests/ui/snap.luau                      every shot at every size
 --   lune run tests/ui/snap.luau -- campaign          shots whose name contains "campaign"
+--                                                    (a,b: either)
 --   lune run tests/ui/snap.luau -- --size phone      one size: phone | ipad | desktop
 --   lune run tests/ui/snap.luau -- --no-png          SVG only
+--   lune run tests/ui/snap.luau -- --size phone-land  the old landscape phone (D-089,
+--                                                    dormant since D-100; see SIZES)
+--   lune run tests/ui/snap.luau -- --measure         also build/snaps/<size>/measure.tsv
+--   lune run tests/ui/snap.luau -- --key-style tint  key states drawn another way
+--                                                    (Map/KeyStyle; into <size>-key-<style>)
 --   lune run tests/ui/snap.luau -- --no-inset        lay the screens out on the whole
 --                                                    screen (before D-092; the default,
 --                                                    as in game, lays them out without
@@ -20,7 +26,8 @@
 -- App.client.luau, Shared/UI/Fixtures), then taps through the real screen the
 -- way the specs do (tests/ui/Rig.luau). The picture comes from
 -- tests/lib/Snapshot.luau: layout is approximated (see its header), and the
--- dim strip at the top is the Roblox top bar.
+-- dim strip at the top is the Roblox top bar (on the phone, under the notch's
+-- black cutout; the white pill at the bottom is the home bar).
 
 local fs = require("@lune/fs")
 local process = require("@lune/process")
@@ -39,10 +46,35 @@ local UDim2 = FakeRoblox.types.UDim2
 type World = FakeRoblox.World
 type Peer = FakeRoblox.Peer
 
-local SIZES = {
-	{ name = "phone", x = 844, y = 390 }, -- a landscape phone (D-089): an iPhone 12-16 in points; 824x312 for a screen after the top bar
+type Size = {
+	name: string,
+	x: number,
+	y: number,
+	study: boolean?, -- only with --size <name> (the orientation study)
+	top: number?, -- the core UI top inset (default 58: the top bar)
+	left: number?, -- the device safe area (FakeRoblox.Screen)
+	right: number?,
+	bottom: number?,
+	deviceTop: number?,
+}
+
+-- Phones play upright (D-100), so `phone` is a portrait iPhone 12-16 (390 x 844
+-- pt) with its safe areas as well as the top bar: 47 pt at the top (the notch)
+-- with Roblox's 58 pt top bar below it (105 in all) and 34 at the bottom (the
+-- home bar), a 390 x 705 game area. That the portrait top bar sits *below* the
+-- notch is an assumption from ScreenInsets.CoreUISafeInsets (device safe area
+-- plus the top bar) and GuiService:GetInsetArea's documented landscape example
+-- (-59, -58, 792, 334 on an 852 x 393 phone: the notch side and the bar add
+-- up); if the bar shares the notch's band, the game gets 47 px taller and
+-- nothing is lost. To check once on a device (docs/TESTING.md).
+-- `phone-land` (only with --size phone-land) is the old landscape phone (D-089)
+-- with its notch on each side and the home bar: the compact layouts are kept,
+-- dormant, as the fallback if phones ever turn both ways.
+local SIZES: { Size } = {
+	{ name = "phone", x = 390, y = 844, top = 105, deviceTop = 47, bottom = 34 }, -- a portrait phone (D-100)
 	{ name = "ipad", x = 1024, y = 768 },
 	{ name = "desktop", x = 1280, y = 720 },
+	{ name = "phone-land", x = 844, y = 390, study = true, top = 58, left = 47, right = 47, bottom = 21 },
 }
 
 type Shot = {
@@ -1804,6 +1836,8 @@ local filter: string? = nil
 local onlySize: string? = nil
 local png = true
 local inset = true -- the game area loses the top bar's 58 px, as in game (D-092)
+local measure = false -- --measure: build/snaps/<size>/measure.tsv (the orientation study)
+local keyStyle: string? = nil -- --key-style <name>: Map/KeyStyle.current (the outline study)
 do
 	local args = process.args
 	local i = 1
@@ -1816,6 +1850,11 @@ do
 			png = false
 		elseif arg == "--no-inset" then
 			inset = false
+		elseif arg == "--measure" then
+			measure = true
+		elseif arg == "--key-style" then
+			keyStyle = args[i + 1]
+			i += 1
 		elseif arg ~= "--" then
 			filter = arg
 		end
@@ -1864,18 +1903,40 @@ fs.writeDir("build/snaps")
 local auditLines: { string } = {}
 local count = 0
 for _, size in SIZES do
-	if onlySize and size.name ~= onlySize then
+	if (onlySize and size.name ~= onlySize) or (onlySize == nil and size.study) then
 		continue
 	end
-	local dir = `build/snaps/{size.name}`
+	local dir = if keyStyle then `build/snaps/{size.name}-key-{keyStyle}` else `build/snaps/{size.name}`
 	fs.writeDir(dir)
+	local top = if inset then size.top or 58 else 0
+	local screen: FakeRoblox.Screen = {
+		x = size.x,
+		y = size.y,
+		inset = if top > 0 then top else nil,
+		left = size.left,
+		right = size.right,
+		bottom = size.bottom,
+		deviceTop = size.deviceTop,
+	}
+	local measureLines =
+		{ "shot\tmapW\tmapH\tminText\tminTextName\tsmallTaps\tsmallMapTaps\tbelowFold\tbelowName\ttaps" }
 	for _, shot in SHOTS do
-		if filter and not string.find(shot.name, filter, 1, true) then
-			continue
+		if filter then
+			-- "a,b": any of the comma-separated parts
+			local hit = false
+			for _, part in string.split(filter, ",") do
+				if string.find(shot.name, part, 1, true) then
+					hit = true
+				end
+			end
+			if not hit then
+				continue
+			end
 		end
 		print(`{size.name} {shot.name}`)
-		local world, peer =
-			Rig.fixture(shot.moment, { x = size.x, y = size.y, inset = if inset then 58 else nil })
+		local world, peer = Rig.fixture(shot.moment, screen, {
+			fields = if keyStyle then { ["src/client/Map/KeyStyle.luau"] = { current = keyStyle } } else nil,
+		})
 		if shot.steps then
 			shot.steps(world, peer)
 		end
@@ -1885,9 +1946,27 @@ for _, size in SIZES do
 			print(`  script error: {e}`)
 		end
 		local path = `{dir}/{shot.name}.svg`
-		fs.writeFile(path, Snapshot.svg(peer))
+		fs.writeFile(path, Snapshot.svg(peer, { topInset = top }))
 		if convert then
-			toPng(Snapshot.svg(peer, { square = true }), dir, shot.name, size.x, size.y)
+			toPng(Snapshot.svg(peer, { square = true, topInset = top }), dir, shot.name, size.x, size.y)
+		end
+		if measure then
+			local m = Snapshot.measure(peer, { topInset = top })
+			table.insert(
+				measureLines,
+				table.concat({
+					shot.name,
+					tostring(m.mapW),
+					tostring(m.mapH),
+					tostring(m.minText),
+					m.minTextName,
+					tostring(#m.smallTaps),
+					tostring(m.smallMapTaps),
+					tostring(m.belowFold),
+					m.belowName,
+					table.concat(m.smallTaps, "; "),
+				}, "\t")
+			)
 		end
 		-- The strict audit (UI/Audit.check, style rules included) of the screen on show.
 		local audit = peer.modules[`{world.root}/src/client/UI/Audit.luau`]
@@ -1905,6 +1984,9 @@ for _, size in SIZES do
 			table.insert(auditLines, `== {size.name} {shot.name}: {shot.screen} not mounted`)
 		end
 		count += 1
+	end
+	if measure then
+		fs.writeFile(`{dir}/measure.tsv`, table.concat(measureLines, "\n") .. "\n")
 	end
 end
 fs.writeFile("build/snaps/audit.txt", table.concat(auditLines, "\n") .. "\n")

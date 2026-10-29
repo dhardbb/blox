@@ -7,11 +7,11 @@
 --   wide      Week 3 of 12      310 Goldie Pennywhistle     Buster Cannonball 189      ?  0:48
 --                               ━━━━━━━━━━━━━━|━━━━━━━━━━━━━━━━━━━━
 --             ▌Pick an action in Ohio        if the polls were right       2 actions left · $4.0
---   phone     Week 3 of 12  (o)310      189(o)  ?  0:48   (faces, the numbers in each side's color; D-093)
---                      ━━━━━|━━━━━━━
---             ▌Tap a state on the map         3 actions left · $4.0
---   Decision  Week 7 · Clinic walkout                    ?  0:18   (phone: no score)
---             ▌Pick a side: A, B or C
+--   phone     Week 3 of 12                     ♪  ?  0:48   (portrait, D-100: two rows,
+--             (o) 310 ━━━━━━━━━━|━━━━━━━━ 189 (o)            the score the full width with
+--             ▌Tap a state on the map         3 actions left · $4.0    its numbers outside the bar)
+--   Decision  Week 7 · Clinic walkout                    ?  0:18   (phone: the event's name
+--             ▌Pick a side: A, B or C                                 alone, the score row under it)
 --
 -- The score is each side's projected votes (Fredoka, in the readable player
 -- colors) over the race bar (Kit.raceBar, 10 px) with its tick at the votes
@@ -64,6 +64,8 @@ local CAPTION_W = 180 -- px, the score's caption under the race bar (wide screen
 local DELTA_SECONDS = 0.6 -- s, ... while it fades
 local DELTA_H = Kit.size.caption + 4 -- px, a delta chip's height
 local COIN = 20 -- px, the coin before the money left (D-093)
+local SCORE_ROW = 30 -- px, a phone's second header row: the score the full width (D-100)
+local SCORE_SIDE = FACE + Kit.space.sm + 44 -- px, ... each side's face and votes, outside the bar's ends
 
 -- A "+12" chip under `anchor` that rises and fades, then removes itself
 -- (decorative: none under reduced motion; the number itself still changes).
@@ -292,14 +294,48 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		end
 	end
 
+	-- A phone (portrait, D-100) has two rows: the week, the buttons and the
+	-- timer; then the score the full width (the scores overprinted each other
+	-- squeezed between the week and the buttons). The now line comes after.
+	local function headerHeight(): number
+		return header.height + (if portrait then SCORE_ROW else 0)
+	end
 	local function height(): number
-		return header.height + (if notice.Visible then NOTICE_H else 0)
+		return headerHeight() + (if notice.Visible then NOTICE_H else 0)
 	end
 
 	local function layout()
 		local start = if portrait then PORTRAIT_SCORE_START else SCORE_START
 		local rightW = header.rightWidth
 		laidOutRight = rightW
+		header.root.Size = UDim2.new(1, 0, 0, headerHeight())
+		nowLine.Position = UDim2.fromOffset(0, Kit.HEADER_H + (if portrait then SCORE_ROW else 0))
+		notice.Position = UDim2.fromOffset(0, headerHeight())
+		if portrait then
+			left.Size = UDim2.new(1, -(rightW + Kit.space.sm), 0, Kit.HEADER_H)
+			score.Visible = scoreShown
+			score.Position = UDim2.fromOffset(0, Kit.HEADER_H)
+			score.Size = UDim2.new(1, 0, 0, SCORE_ROW)
+			for _, group in { youSide, themSide } do
+				group.Size = UDim2.fromOffset(SCORE_SIDE, SCORE_ROW)
+			end
+			local barBox = race.root.Size.Y.Offset
+			race.root.Position = UDim2.new(0, SCORE_SIDE + Kit.space.xs, 0.5, -barBox // 2)
+			race.root.Size = UDim2.new(1, -2 * (SCORE_SIDE + Kit.space.xs), 0, barBox)
+			you.Visible = false
+			them.Visible = false
+			youFace.Visible = true
+			themFace.Visible = true
+			scoreCaption.Visible = false
+			nowText.Size = UDim2.new(1 - BUDGET_SHARE, -Kit.space.md, 1, 0)
+			root.Size = UDim2.new(1, 0, 0, height())
+			return
+		end
+		for _, group in { youSide, themSide } do
+			group.Size = UDim2.new(0.5, -Kit.space.xs, 0, NAMES_H)
+		end
+		race.root.Position = UDim2.fromOffset(0, NAMES_H + SCORE_GAP)
+		race.root.Size = UDim2.new(1, 0, 0, race.root.Size.Y.Offset)
 		if scoreShown then
 			left.Size = UDim2.new(start, -Kit.space.sm, 0, Kit.HEADER_H)
 		else
@@ -311,7 +347,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 		score.Size = UDim2.new(1 - start, -(rightW + Kit.space.lg), 0, stripH)
 		-- A phone's strip has room for the faces and numbers only (D-093: the
 		-- faces say whose score is whose; a landscape phone's names overlapped).
-		local narrow = portrait or model.compact == true
+		local narrow = model.compact == true
 		you.Visible = not narrow
 		them.Visible = not narrow
 		youFace.Visible = true
@@ -400,9 +436,10 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 				stage = "Locked in"
 			end
 			week = math.clamp(week, 1, config.WEEKS)
-			local title = if portrait then `Week {week}` else `Week {week} of {config.WEEKS}`
+			local title = `Week {week} of {config.WEEKS}`
 			if deciding == "Stance" and view.event then
-				title = `Week {week} · {view.event.name}`
+				-- A phone's title row is short: the event's name alone.
+				title = if portrait then view.event.name else `Week {week} · {view.event.name}`
 			elseif debate then
 				local live = view.debate
 				-- A landscape phone's title shares its row with the vote bar:
@@ -412,7 +449,9 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 					elseif live then `Round {live.round} of {#live.topics}`
 					else ""
 				title = if portrait
-					then `Week {week}`
+					then (if live and Model.debating(p)
+						then `Debate · Round {live.round}/{#live.topics}`
+						else `Week {week} · Debate`)
 					elseif live and Model.debating(p) then `Week {week} · {round}`
 					else `Week {week} · Debate`
 			end
@@ -469,8 +508,9 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			shownCash = if planning then cash else nil
 			moneyLabel.TextColor3 = if cash < 0 then Kit.colors.loss else Kit.colors.text
 
-			-- The score: on a phone the Decision title needs the whole row.
-			local wantScore = not (portrait and deciding ~= nil)
+			-- The score: on a phone it has its own row (D-100), so it shows on
+			-- the Decision screen too.
+			local wantScore = true
 			if wantScore ~= scoreShown or header.rightWidth ~= laidOutRight then
 				scoreShown = wantScore
 				layout()

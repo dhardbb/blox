@@ -234,6 +234,37 @@ describe("Sheet", function()
 		expect(Kit.compact(size(844, 332))):toBe(true)
 		expect(Kit.compact(size(1024, 710))):toBe(false)
 	end)
+
+	it("plays phones upright and tablets on their side, however they are held (D-100)", function()
+		local c = client(nil)
+		local Kit = c.Kit
+		local function size(x: number, y: number): any
+			return { X = x, Y = y }
+		end
+		-- Phones (Camera.ViewportSize: notches left out), held either way.
+		expect(Kit.isTablet(true, size(390, 763))):toBe(false)
+		expect(Kit.isTablet(true, size(750, 390))):toBe(false)
+		expect(Kit.isTablet(true, size(430, 873))):toBe(false)
+		expect(Kit.isTablet(true, size(375, 667))):toBe(false)
+		-- Tablets: an iPad mini, an iPad, a small Android tablet.
+		expect(Kit.isTablet(true, size(744, 1133))):toBe(true)
+		expect(Kit.isTablet(true, size(1024, 768))):toBe(true)
+		expect(Kit.isTablet(true, size(960, 600))):toBe(true)
+		-- No touch screen: not a tablet (desktop ignores the orientation anyway).
+		expect(Kit.isTablet(false, size(1280, 720))):toBe(false)
+		-- The place asks phones for Portrait from join; App.client turns tablets.
+		local project = require("@lune/fs").readFile("default.project.json")
+		check(
+			string.find(project, '"ScreenOrientation": "Portrait"', 1, true) ~= nil,
+			"StarterGui.ScreenOrientation is not Portrait"
+		)
+		local app = require("@lune/fs").readFile("src/client/App.client.luau")
+		check(
+			string.find(app, "Enum.ScreenOrientation.LandscapeSensor", 1, true) ~= nil,
+			"no tablet landscape"
+		)
+		check(string.find(app, "Kit.isTablet(", 1, true) ~= nil, "App does not ask Kit.isTablet")
+	end)
 end)
 
 describe("CoachTip", function()

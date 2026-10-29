@@ -5,6 +5,18 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 ## Unreleased
 
 - **Key states wear a solid gold edge** (D-101, the designer's pick): the soft glow and dashed white outline are gone; each key state has a solid pale-gold line just inside its own border, inside any home, stronghold or selection outline, with a thin dark line inside it so it reads on Amber and Teal states. Northeast chips get a gold plate. The map key, legend swatch, Key states line, tutorial tip and Help say "gold edge". Every map outline now has clean corners (no spikes along coasts). Test: `docs/TESTING.md`, "Key states' gold edge".
+### Phones play upright (D-100, supersedes the landscape lock of D-089)
+
+Studio checklist: `docs/TESTING.md`, "Phones play upright (D-100)". No rule or Config changes. iPad and desktop look exactly as before.
+
+- **Orientation:** phones play in portrait; tablets (a touch screen 600 pt or more across its shorter side) stay landscape and still turn either way. The place asks for Portrait from join; the game turns tablets on their side.
+- **Header on a phone:** two rows. The week, sound, ? and the timer; then the score across the whole width, each number outside the end of the race bar (the two scores no longer print over each other). The stance screen keeps the score; its title is the event's name.
+- **Map buttons on a phone:** the map key, Close races and the four lens tabs share one row; nothing overlaps.
+- **Plan screen on a phone, map first with a bottom sheet:** the map stays on screen. Tapping a state raises its card from the bottom: name, poll and all six actions (two rows of three) right above Lock in, with the whole map still visible above it, smaller. Coach tips sit in the sheet just above the bar. The week's results play in the sheet with the map above.
+- **Stance on a phone:** A, B and C all sit above Lock in (the story moved under them).
+- **Debate on a phone:** no map during the intro, a round or the clash, so all three moves and the whole clash fit; the verdict still shows the map.
+- **Small fixes on a phone:** the Lobby's corner buttons never poke off the screen (an admin's tooltip shows under them); the Daily card says "5h 11m · 3-day"; the end screen's cards say "Goldie", "Rival", "2 topics won" instead of cut-off words.
+- **Snapshots:** `phone` is now 390 x 844 with the notch, the top bar and the home bar (390 x 705 of game); `--size phone-land` keeps the old landscape phone.
 
 ## 0.17.0: Landscape phones, new looks, match records, stronger Medium and Hard (Oct 29, 2026)
 

@@ -15,16 +15,19 @@
 -- picked move would land on, or what the clash moved, and one column with the
 -- stage, the moves (or the clash) and the pinned action bar.
 --
---   phone 390 wide                       wide / iPad
---   Week 4 · Debate          0:12        Week 4 · Debate round 1 of 3   0:12
---   ▌Pick Defend, Attack or Pivot        ▌Pick Defend, Attack or Pivot
---   [         map (25%)         ]        [   map   ] | (GP) Goldie ◀▓▓|░░▶ Buster (BC)
---   (GP) Goldie ◀▓▓▓|░░░▶ Buster (BC)         [   map   ] | ROUND 1 OF 3 · JOBS ...
+--   phone 390 wide (portrait, D-100)     wide / iPad
+--   Debate · Round 1/3    ♪  ?  0:12     Week 4 · Debate round 1 of 3   0:12
+--   (o) 241 ━━━━━━|━━━━━━ 262 (o)        ▌Pick Defend, Attack or Pivot
+--   ▌Pick Defend, Attack or Pivot        [   map   ] | (GP) Goldie ◀▓▓|░░▶ Buster (BC)
+--   (GP) Goldie ◀▓▓▓|░░░▶ Buster (BC)     [   map   ] | ROUND 1 OF 3 · JOBS ...
 --   ROUND 1 OF 3 · JOBS "..."            [   map   ] | [Defend 6] [Attack 2] ...
 --   [Defend 6 · vs D +4 ...]             [   map   ] | (Stake Zinger) (Why? +)
---   [Attack 2 ...] [Pivot → Safety 3]    ---------------------------------------
---   (Stake Zinger: win ×2 · used either way)  Buster: thinking…   [+15 s][ Lock in ]
+--   [Attack 2 ...]                       ---------------------------------------
+--   [Pivot → Safety 3]                       Buster: thinking…   [+15 s][ Lock in ]
+--   (Stake Zinger: win ×2 · used either way)
 --   Buster: thinking…  [+15 s][ Lock in ]
+--   No map on a phone in the intro, a round or the clash (all three moves and
+--   the whole clash in view); the verdict shows it over the result.
 --
 -- A landscape phone (D-089, Kit.compact): three columns, each the full height
 -- under the header: the map, the stage (its own scroll), and the moves (or
@@ -239,6 +242,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	-- ------------------------------------------------------------ layout
 
+	-- A phone (portrait, D-100) shows no map in the intro, a round or its
+	-- clash: the stage, all three moves and the whole clash get the screen.
+	-- The verdict keeps it (it shows what the debate moved).
+	local function mapWanted(isPortrait: boolean): boolean
+		local p = model.payload
+		if not isPortrait or p == nil then
+			return true
+		end
+		local reveal = Model.debateReveal(p)
+		return reveal == "Verdict"
+	end
+	local mapPlaced: boolean? = nil -- the map's place was last laid out with it shown
+
 	local function placeBody(isPortrait: boolean, topHeight: number)
 		body.Position = UDim2.fromOffset(0, topHeight + GAP)
 		body.Size = UDim2.new(1, 0, 1, -(topHeight + GAP))
@@ -263,6 +279,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		if compact then
 			-- A landscape phone (D-089): map | stage | moves and the bar.
+			mapArea.Visible = true
+			mapPlaced = true
 			local width = parent.AbsoluteSize.X
 			local height = parent.AbsoluteSize.Y - (topHeight + GAP) - MAP_INSET
 			local maxW = math.floor(width * COMPACT_MAP_SHARE)
@@ -283,7 +301,14 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		mapArea.Position = UDim2.new()
-		if isPortrait then
+		local withMap = mapWanted(isPortrait)
+		mapPlaced = withMap
+		mapArea.Visible = withMap
+		if isPortrait and not withMap then
+			sideColumn.Position = UDim2.new()
+			sideColumn.Size = UDim2.fromScale(1, 1)
+			lastBodySize = body.AbsoluteSize
+		elseif isPortrait then
 			local width = body.AbsoluteSize.X
 			local height = body.AbsoluteSize.Y
 			local maxHeight = height * PORTRAIT_MAP_MAX
@@ -310,7 +335,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			placeBody(isPortrait, top:place(isPortrait))
 		elseif
 			(isPortrait or isCompact)
-			and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
+				and (body.AbsoluteSize.X ~= lastBodySize.X or body.AbsoluteSize.Y ~= lastBodySize.Y)
+			or mapWanted(isPortrait) ~= mapPlaced
 		then
 			placeBody(isPortrait, top:place(isPortrait))
 		end

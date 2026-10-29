@@ -235,14 +235,20 @@ function Settings.corner(props: { [string]: any }?): Frame
 		Name = p.Name or "CornerSettings",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromOffset(TIP_W + Kit.space.sm + pairWidth, Kit.MIN_TOUCH),
+		Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH),
 		ZIndex = 5,
 	})
+	-- Never wider than the screen it sits on (D-100: a portrait phone's admin
+	-- row poked 30 px past the left edge): the full row's width at most.
+	local fit = Kit.new("UISizeConstraint", {
+		MaxSize = Vector2.new(TIP_W + Kit.space.sm + pairWidth, math.huge),
+		Parent = root,
+	}) :: UISizeConstraint
 	local pair = Kit.box({
 		Name = "Toggles",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0, pairWidth, 1, 0),
+		Size = UDim2.fromOffset(pairWidth, Kit.MIN_TOUCH),
 		Parent = root,
 	})
 	local list = Kit.list("Horizontal", Kit.space.sm)
@@ -269,19 +275,37 @@ function Settings.corner(props: { [string]: any }?): Frame
 
 	local hovered: TextButton? = nil
 	local tipToken = 0
+	local rowWidth = pairWidth -- the toggles' row as laid out last
+	-- The tooltip beside the row, or (a row too wide for a tip beside it, a
+	-- phone's admin corner) under it, right-aligned; the corner grows to hold it.
+	local function placeTip()
+		local beside = root.AbsoluteSize.X >= TIP_W + Kit.space.sm + rowWidth - 0.5
+		if beside then
+			tip.AnchorPoint = Vector2.new(1, 0.5)
+			tip.Position = UDim2.new(1, -(rowWidth + Kit.space.sm), 0, Kit.MIN_TOUCH / 2)
+		else
+			tip.AnchorPoint = Vector2.new(1, 0)
+			tip.Position = UDim2.new(1, 0, 0, Kit.MIN_TOUCH + Kit.space.xs)
+		end
+		local below = tip.Visible and not beside
+		root.Size = UDim2.new(1, 0, 0, Kit.MIN_TOUCH + (if below then Kit.space.xs + TIP_H else 0))
+	end
 	local function showTip(button: TextButton?, linger: boolean)
 		tipToken += 1
 		if button == nil then
 			tip.Visible = false
+			placeTip()
 			return
 		end
 		tip.Text = tostring(button:GetAttribute("Label") or "")
 		tip.Visible = true
+		placeTip()
 		if linger then
 			local token = tipToken
 			task.delay(Settings.TIP_SECONDS, function()
 				if token == tipToken and hovered == nil then
 					tip.Visible = false
+					placeTip()
 				end
 			end)
 		end
@@ -354,9 +378,10 @@ function Settings.corner(props: { [string]: any }?): Frame
 			paintToggle(timers, off, "clock", Settings.timersLabel(off), off, true)
 		end
 		local width = pairWidth + (if off ~= nil then Kit.MIN_TOUCH + Kit.space.sm else 0)
-		pair.Size = UDim2.new(0, width, 1, 0)
-		root.Size = UDim2.fromOffset(TIP_W + Kit.space.sm + width, Kit.MIN_TOUCH)
-		tip.Position = UDim2.new(1, -(width + Kit.space.sm), 0.5, 0)
+		pair.Size = UDim2.fromOffset(width, Kit.MIN_TOUCH)
+		fit.MaxSize = Vector2.new(TIP_W + Kit.space.sm + width, math.huge)
+		rowWidth = width
+		placeTip()
 		local shown = hovered
 		if tip.Visible and shown then
 			tip.Text = tostring(shown:GetAttribute("Label") or "")

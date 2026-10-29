@@ -213,7 +213,7 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 			return ""
 		end
 		if compact then
-			return `{Words.timeShort(info.endsAt - now)} · {Words.streak(info.streak)}`
+			return `{Words.timeShort(info.endsAt - now)} · {Words.streakShort(info.streak)}`
 		end
 		return `{Words.timeLeft(info.endsAt - now)} · {Words.streak(info.streak)} · {Words.today(
 			info.played,

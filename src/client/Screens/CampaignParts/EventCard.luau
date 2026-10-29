@@ -459,10 +459,13 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			end
 			-- A landscape phone (D-091): the three stances side by side and first,
 			-- the event's lines after them; elsewhere one full-width chip each.
+			-- A portrait phone (D-100): the event's story and map note after
+			-- the three stances, so all three sit above Lock in.
 			local compact = choosing and model.compact == true
+			local storyAfter = compact or (choosing and model.portrait)
 			effect.LayoutOrder = if compact then 6 else 2
-			flavor.LayoutOrder = if compact then 7 else 1
-			mapNote.LayoutOrder = if compact then 8 else 2
+			flavor.LayoutOrder = if storyAfter then 7 else 1
+			mapNote.LayoutOrder = if storyAfter then 8 else 2
 			if compact ~= compactShown then
 				compactShown = compact
 				answerList.FillDirection = if compact

@@ -1402,3 +1402,23 @@ Agents: `lune run tests KeyStates`; `lune run tests/ui/snap.luau -- key --size p
 3. **Pale colors.** Play once as Amber (or against Amber or Teal). **Expect:** the gold still stands out on an Amber or Teal state (a thin dark line runs inside it) and does not look like the Amber player color or the orange of a loss.
 4. **The words.** Key → "Gold edge: a key state, where 270 is decided this week." Tutorial's tip: "Gold-edged states decide 270. Put your rallies and ads there."
 5. *Send back:* a phone and an iPad screenshot of a plan screen, and whether the gold is easy to see and easy to tell from the Amber color.
+
+## Phones play upright (D-100)
+
+Agents: `lune run tests "Portrait phone"`, `lune run tests upright`; snapshots `lune run tests/ui/snap.luau -- --size phone` (390 x 844 with the notch, top bar and home bar) and `ipad`, `desktop`, 0 findings in `build/snaps/audit.txt` after each. Shots to look at: `09-campaign-plan`, `10-campaign-state-card`, `16c-resolve-mid`, `07-decision-stance`, `08a-debate-round`, `20-debate-verdict`, `01i-lobby-admin-timers`, `23b-results-landslide`.
+
+Use a real phone held upright (iPhone or Android) through the published experience, and Studio's device emulator (Test → Device → an iPhone 14 or similar, **portrait**; and an iPad, landscape). Send the Output log with each.
+
+1. **Orientation, real phone.** Join holding the phone upright. **Expect:** the game stays upright; turning the phone sideways does not turn the game. *Send back:* OK, or a screenshot if it turned.
+2. **Orientation, iPad.** Join on the iPad. **Expect:** the game turns to landscape and follows the iPad either way round (cable left or right); everything looks as it did before this build. *Send back:* OK or a screenshot.
+3. **Safe area (iPhone).** On the Mac, Studio's device emulator with an iPhone 14 portrait, run `print(game:GetService("GuiService"):GetInsetArea(Enum.ScreenInsets.None))` in the command bar during Play (the bar set to the Client). **Expect:** the first two numbers about 0, -105 (notch 47 + top bar 58). *Send back:* the printed line. If it says -58, tell us: the game just gets 47 px taller, nothing breaks.
+4. **Header, phone.** In a match. **Expect:** first row "Week 3 of 12", the sound and ? buttons and the timer; second row your face and number, the race bar, their number and face, nothing printed on top of anything. On the stance screen the first row is the event's name and the score row is still there.
+5. **Map buttons, phone.** **Expect:** ?, the Close races switch and Votes / Issues / Polls / Money in one row; each taps on its own.
+6. **Tap a state, phone.** **Expect:** a sheet rises from the bottom with the state's name, its poll and six action buttons in two rows of three (Rally, Fundraise, Ad / Attack, Poll, Ground) right above Lock in or Skip, without scrolling; the whole map is still visible above it, smaller. × closes it and the map grows back. *Send back:* a screenshot.
+7. **Coach tips, phone (a first match).** **Expect:** each tip and its Got it sit just above the action bar, never under it.
+8. **Week results, phone.** **Expect:** the results card and its steps in the sheet, the map above; Skip at the bottom.
+9. **Stance week, phone.** **Expect:** A, B and C all visible above Lock in without scrolling.
+10. **Debate, phone.** **Expect:** in a round no map: the two debaters, the question, Defend, Attack and Pivot, the Zinger button, all above Lock in. The clash shows both moves and the result. The verdict shows the map again.
+11. **Lobby as an admin, phone.** Tap the clock (timers) toggle. **Expect:** all corner buttons on screen; "Timers off (admin)" shows under them.
+12. **End screen, phone.** **Expect:** each candidate card reads e.g. "Goldie / 378 votes / You · 31 states / 2 topics won", nothing cut off.
+13. *Send back:* anything still hidden under the bar or overlapping, with a screenshot, and any Output errors from `Campaign`, `TopBar`, `Decision`, `Debate`, `Settings` or `App`.
