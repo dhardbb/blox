@@ -4,6 +4,7 @@
 -- validated later against the match by Match.validate. Never throws.
 
 local Bot = require("../Sim/Bot")
+local BugReport = require("./BugReport")
 local Remotes = require("./Remotes")
 
 local Schemas = {}
@@ -41,6 +42,8 @@ local OPS: { [string]: boolean } = {
 	Answer = true,
 	Rematch = true,
 	Return = true,
+	BugReport = true, -- { text, screen? } (D-090)
+	BugList = true, -- admins, no fields (D-090)
 }
 
 -- True if `value` is plain data within the size limits: only tables, strings,
@@ -88,7 +91,23 @@ end
 
 -- Validates a raw request. Returns (true, nil, request) or (false, reason, nil).
 function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
-	if type(raw) ~= "table" or not Schemas.isPlain(raw) then
+	if type(raw) ~= "table" then
+		return false, "BadShape", nil
+	end
+	-- A bug report's text is the one string allowed past MAX_STRING (D-090): it
+	-- is checked on its own (a string, at most BugReport.MAX_BYTES) and the rest
+	-- of the request as usual.
+	local reportText: string? = nil
+	if raw.op == "BugReport" then
+		if type(raw.text) ~= "string" or #raw.text > BugReport.MAX_BYTES then
+			return false, "BadShape", nil
+		end
+		reportText = raw.text
+		local rest = table.clone(raw)
+		rest.text = nil
+		raw = rest
+	end
+	if not Schemas.isPlain(raw) then
 		return false, "BadShape", nil
 	end
 	local op = raw.op
@@ -154,6 +173,14 @@ function Schemas.request(raw: any): (boolean, string?, Remotes.Request?)
 			end
 			request.name = raw.name
 		end
+	elseif op == "BugReport" then
+		-- The length rules, the text filter and the rate limit are the server's
+		-- checks (D-090); the screen is a short tag (BugReport.screen cleans it).
+		if raw.screen ~= nil and type(raw.screen) ~= "string" then
+			return false, "BadShape", nil
+		end
+		request.text = reportText
+		request.screen = raw.screen
 	elseif op == "SetTimersOff" then
 		-- An admin's "Timers off" toggle (D-081): a boolean, required. Who is an
 		-- admin, and what it does, is the server's check.

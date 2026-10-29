@@ -266,6 +266,17 @@ local Config = {
 	SET_COLOR_COOLDOWN = 1, -- seconds between one player's SetColor requests
 	SET_TIMERS_OFF_COOLDOWN = 1, -- seconds between one admin's SetTimersOff requests (each writes saved data, D-081)
 
+	-- Bug reports (D-090). Not rules: how long a report may be, how often a
+	-- player may send one, and how they are stored for the admins.
+	BUG_REPORT_MIN_CHARS = 5, -- characters a report needs after trimming
+	BUG_REPORT_MAX_CHARS = 400, -- characters a report may have (the sheet's counter)
+	BUG_REPORT_WAIT = 60, -- seconds one player waits between reports (rate limit)
+	BUG_REPORTS_PER_DAY = 5, -- most reports one player sends in a day (rate limit, per server visit)
+	BUG_REPORT_SHARDS = 4, -- DataStore keys per day the reports are split over (by user id)
+	BUG_REPORTS_PER_KEY = 50, -- reports one key keeps (the oldest drop off)
+	BUG_REPORT_LIST_DAYS = 7, -- days of reports the admins' list reads
+	BUG_LIST_COOLDOWN = 5, -- seconds between one admin's BugList requests (each reads up to 28 keys)
+
 	-- Admins (D-069): free Color and Name Passes and the name review panel. The
 	-- experience owner (game.CreatorId, or for a group-owned game its members of
 	-- at least ADMIN_GROUP_RANK) always counts; these user ids count too.

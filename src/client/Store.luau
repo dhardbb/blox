@@ -30,6 +30,7 @@ export type State = {
 	leaderboard: Leaderboard.Board?, -- the global leaderboard as the server last sent it (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: Remotes.ReviewBoard?, -- admins: the reported names, as last sent (D-069)
+	bugs: Remotes.BugBoard?, -- admins: the newest bug reports, as last sent (D-090)
 	daily: Daily.Info?, -- today's Daily Race, the streak and the day's board, as last sent (D-082)
 	dailyRun: Daily.Run?, -- the Daily Race run that ended last (its Results summary, D-082)
 	rematch: Rematch.Status?, -- where a rematch of the last match stands (D-083)
@@ -50,6 +51,7 @@ local state: State = {
 	leaderboard = nil,
 	leaving = nil,
 	review = nil,
+	bugs = nil,
 	daily = nil,
 	dailyRun = nil,
 	rematch = nil,
@@ -135,6 +137,11 @@ end
 
 function Store.setReview(board: Remotes.ReviewBoard)
 	state.review = board
+	changed()
+end
+
+function Store.setBugs(board: Remotes.BugBoard)
+	state.bugs = board
 	changed()
 end
 

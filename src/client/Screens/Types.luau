@@ -28,6 +28,7 @@ export type State = {
 	leaderboard: any?, -- Net/Leaderboard.Board, the global leaderboard (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: any?, -- Remotes.ReviewBoard: admins' reported names (D-069)
+	bugs: any?, -- Remotes.BugBoard: admins' newest bug reports (D-090)
 	daily: any?, -- Net/Daily.Info: today's Daily Race (D-082)
 	dailyRun: any?, -- Net/Daily.Run: the Daily Race run that ended last (D-082)
 	rematch: any?, -- Rematch.Status: where a rematch of the last match stands (D-083)

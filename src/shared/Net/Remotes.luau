@@ -46,6 +46,8 @@ export type Op =
 	| "Answer" -- answer "Opponent found! Leave this bot game?" (D-083): { accept }
 	| "Rematch" -- on Results: play the same opponent again (D-083): { matchId } (the finished match)
 	| "Return" -- in a match server: go back to a lobby server (D-083)
+	| "BugReport" -- send a bug report (D-090): { text, screen? }; filtered and stored by the server
+	| "BugList" -- admins: ask for the newest bug reports (D-090); answered with a "Bugs" message
 
 export type Request = {
 	op: Op,
@@ -62,6 +64,8 @@ export type Request = {
 	userId: string?, -- ReportName, ReviewKeep, ReviewRemove: the setter's user id (digits)
 	on: boolean?, -- SetTimersOff: true turns the admin's choice timers off (D-081)
 	accept: boolean?, -- Answer: true joins the match found, false keeps playing the bot (D-083)
+	text: string?, -- BugReport: what happened, as typed (D-090)
+	screen: string?, -- BugReport: the screen the player was on (a short tag)
 }
 
 -- An opponent was found and the match is on its way (LobbyStatus.found, D-083).
@@ -117,6 +121,23 @@ export type ReviewBoard = {
 	entries: { ReviewEntry },
 }
 
+-- One bug report in the admins' list (D-090).
+export type BugEntry = {
+	at: number, -- unix time
+	userId: string, -- who sent it
+	owner: string, -- their username ("Player <id>" if unknown)
+	version: string,
+	screen: string,
+	matchId: string?,
+	text: string, -- filtered by Roblox
+}
+
+-- The admins' bug list (message kind "Bugs"); ok false if it could not be read.
+export type BugBoard = {
+	ok: boolean,
+	entries: { BugEntry },
+}
+
 -- Rating change after a rated match (message kind "Rating").
 export type RatingChange = {
 	matchId: string,
@@ -134,7 +155,8 @@ export type Message = {
 		| "Leaderboard"
 		| "Review"
 		| "Daily"
-		| "Rematch",
+		| "Rematch"
+		| "Bugs",
 	lobby: LobbyStatus?,
 	state: Session.StatePayload?,
 	notice: string?, -- e.g. "OpponentDisconnected"
@@ -143,6 +165,7 @@ export type Message = {
 	review: ReviewBoard?, -- Review: the reported names (admins only, D-069)
 	daily: Daily.Info?, -- Daily: today's race, your streak and the day's board (D-082)
 	rematch: Rematch.Status?, -- Rematch: where a rematch of the last match stands (D-083)
+	bugs: BugBoard?, -- Bugs: the newest bug reports (admins only, D-090)
 	op: string?, -- Rejected: the request's op
 	reason: string?, -- Rejected: reason code
 }

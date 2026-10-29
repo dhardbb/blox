@@ -103,6 +103,12 @@ local REASONS: { [string]: string } = {
 	NotAdmin = "Only the game's owners can review names.",
 	ReviewFailed = "The review list couldn't be saved. Try again in a minute.",
 	ReviewChanged = "That name changed since the list loaded. Check it again.",
+	-- Bug reports (D-090)
+	BugTooShort = `Tell us a little more: at least {Config.defaults.BUG_REPORT_MIN_CHARS} characters.`,
+	BugTooLong = `Bug reports can be at most {Config.defaults.BUG_REPORT_MAX_CHARS} characters.`,
+	BugTooSoon = "Thanks! Wait a minute before sending another report.",
+	BugLimit = "You've sent a lot of bug reports today. Thanks! Try again tomorrow.",
+	BugFailed = "Your report couldn't be sent right now. Try again in a minute.",
 	-- Admin "Timers off" (D-081)
 	AdminOnly = "Only the game's admins can turn timers off.",
 	TimersNotSaved = "Your saved data didn't load, so the timer setting can't be saved.",
@@ -120,6 +126,7 @@ local NOTICES: { [string]: string } = {
 	CandidateTaken = "Your opponent claimed that candidate at the same moment and won the coin flip. Pick another.",
 	OpponentForfeited = "Your opponent left the match. You win by forfeit.",
 	NameReported = "Thanks for the report. You'll see the candidate's own name instead.",
+	BugReported = "Thanks! Your bug report was sent to the game's makers.",
 	NameRemoved = "Your custom name was removed after a review. You can pick a new one.",
 	Tutorial = `Tutorial: {Config.defaults.TUTORIAL_WEEKS} short weeks and no timer on any choice, so take your time.`,
 	NameNotAllowed = "Your custom name isn't allowed anymore, so your candidate uses their own. You can pick a new one.",
@@ -218,6 +225,8 @@ function Net.start()
 			Store.setRating(message.rating)
 		elseif message.kind == "Review" and message.review then
 			Store.setReview(message.review)
+		elseif message.kind == "Bugs" and message.bugs then
+			Store.setBugs(message.bugs)
 		elseif message.kind == "Leaderboard" and message.leaderboard then
 			Store.setLeaderboard(message.leaderboard)
 		elseif message.kind == "Daily" and message.daily then

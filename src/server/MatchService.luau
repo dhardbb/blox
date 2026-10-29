@@ -23,6 +23,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Bot = require(ReplicatedStorage.Shared.Sim.Bot)
+local BugReport = require(ReplicatedStorage.Shared.Net.BugReport)
+local BugReports = require(script.Parent.BugReports)
 local Candidates = require(ReplicatedStorage.Shared.Sim.Candidates)
 local Config = require(ReplicatedStorage.Shared.Sim.Config)
 local Election = require(ReplicatedStorage.Shared.Sim.Election)
@@ -890,6 +892,51 @@ local function sendReview(id: string)
 	Replication.send(id, { kind = "Review", review = { ok = list ~= nil, entries = entries } })
 end
 
+-- BugReport (D-090): filtered, rate-limited and stored by server/BugReports,
+-- with the player's match id from the server's own records. The player hears
+-- "Thanks" (a Notice) or why not (a rejection). Yields.
+local function bugReport(player: Player, request: Remotes.Request)
+	local id = idOf(player)
+	local reason = BugReports.submit(player, request.text, {
+		screen = request.screen,
+		matchId = matchOf[id],
+	}, os.time())
+	if reason then
+		Replication.reject(player, "BugReport", reason)
+	else
+		Replication.send(id, { kind = "Notice", notice = "BugReported" })
+	end
+end
+
+-- BugList (D-090): admins only, checked here on every request. Sends the
+-- newest reports, each with its sender's username. Yields.
+local function bugList(player: Player)
+	local id = idOf(player)
+	if not Admins.isAdmin(player) then
+		Replication.reject(player, "BugList", ReportReason.NotAdmin)
+		return
+	end
+	if not cooled(id, "BugList", config.BUG_LIST_COOLDOWN) then
+		Replication.reject(player, "BugList", "RateLimited")
+		return
+	end
+	local list = BugReports.list(os.time())
+	local entries: { Remotes.BugEntry } = {}
+	local records: { BugReport.Record } = list or {}
+	for _, record in records do
+		table.insert(entries, {
+			at = record.at,
+			userId = tostring(record.userId),
+			owner = ownerName(record.userId),
+			version = record.version,
+			screen = record.screen,
+			matchId = record.matchId,
+			text = record.text,
+		})
+	end
+	Replication.send(id, { kind = "Bugs", bugs = { ok = list ~= nil, entries = entries } })
+end
+
 -- ReviewList, ReviewKeep, ReviewRemove (D-069): admins only, checked here on
 -- every request. Returns a reason code when turned down. Yields.
 local function review(player: Player, request: Remotes.Request): string?
@@ -1531,6 +1578,10 @@ function MatchService.handle(player: Player, request: Remotes.Request)
 		if reason then
 			Replication.reject(player, op, reason)
 		end
+	elseif op == "BugReport" then
+		bugReport(player, request)
+	elseif op == "BugList" then
+		bugList(player)
 	elseif op == "SetTimersOff" then
 		local reason = setTimersOff(player, request.on == true)
 		if reason then
