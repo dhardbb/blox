@@ -21,6 +21,7 @@ local Fixtures = require(Shared.UI.Fixtures)
 
 local _DebugPanel = require(script.Parent.DebugPanel) -- builds the hidden debug panel
 local Audio = require(script.Parent.UI.Audio)
+local BugSheet = require(script.Parent.UI.BugSheet)
 local FoundPrompt = require(script.Parent.UI.FoundPrompt)
 local Kit = require(script.Parent.UI.Kit)
 local Help = require(script.Parent.UI.Help)
@@ -137,6 +138,11 @@ ctx.help = help.open
 ctx.leave = LeaveMatch.mount(background, ctx).open
 -- "Report name" (D-069): the same layer as Leave.
 ctx.report = ReportName.mount(background, ctx).open
+-- "Report a bug" (D-090): the same layer.
+local bugSheet = BugSheet.mount(background, ctx)
+ctx.bug = function(screen: string?)
+	bugSheet.open(screen or Router.pick(Store.get()))
+end
 
 local fixture = workspace:GetAttribute("DebugScreen")
 if type(fixture) == "string" then
@@ -258,6 +264,9 @@ if type(fixture) == "string" then
 	end
 	fakeNet.invite = function(code: string)
 		print("[270] DEBUG_UI invite", code)
+	end
+	fakeNet.bugReport = function(text: string, screen: string)
+		print(`[270] DEBUG_UI bugReport {screen}: {text}`)
 	end
 	ctx.net = fakeNet
 	if fixture == "Lobby" then

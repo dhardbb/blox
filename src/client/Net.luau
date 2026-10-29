@@ -307,6 +307,12 @@ function Net.reportName(userId: string)
 	Net.send("ReportName", { userId = userId })
 end
 
+-- Sends a bug report (D-090): the server filters, rate-limits and stores it,
+-- then says "Thanks" (a Notice) or why not (a rejection).
+function Net.bugReport(text: string, screen: string)
+	Net.send("BugReport", { text = text, screen = screen })
+end
+
 -- Opens Roblox's purchase prompt for a pass (a LocalScript may, per the
 -- MarketplaceService docs). The server hears the outcome
 -- (PromptGamePassPurchaseFinished) and sends a new lobby status.

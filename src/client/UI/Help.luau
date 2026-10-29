@@ -27,6 +27,8 @@
 --   HelpSettingsLabel and the row Settings with SoundChip and MotionChip),
 --   HelpLeave (D-059: "Leave match" at the end, only in a live match and only
 --   when App gave ctx.leave; it closes Help and opens the confirmation).
+--   HelpBug (D-090: "Report a bug", a small ghost button at the very end when
+--   App gave ctx.bug; it closes Help and opens UI/BugSheet for this screen).
 --   HelpAdmin (D-081, admins only: the payload's adminTimers): above the tabs,
 --   the chip HelpAdminTimers ("Timers off (admin)", outlined while on; a tap
 --   sends SetTimersOff) and the line HelpAdminNote (what it does here, or
@@ -554,6 +556,22 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 			openLeave()
 		end
 	end, { variant = "danger", Name = "HelpLeave", LayoutOrder = 11, Visible = false, Parent = sheet.body })
+	-- Reporting a bug (D-090): small and last, out of the way.
+	local bug = Kit.button(LobbyWords.BUG_LABEL, function()
+		local openBug = ctx.bug
+		sheet:close()
+		if openBug then
+			openBug(nil)
+		end
+	end, {
+		variant = "ghost",
+		Name = "HelpBug",
+		LayoutOrder = 12,
+		Size = UDim2.fromOffset(160, Kit.MIN_TOUCH),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Visible = false,
+		Parent = sheet.body,
+	})
 
 	-- The numbers behind each tab, from Explain (refilled at every open).
 	local function fillNumbers()
@@ -667,7 +685,8 @@ function Help.mount(parent: Instance, ctx: Types.Ctx): Help
 			end
 		end
 		report.Visible = reportSeat ~= nil
-		leaveRule.Visible = leave.Visible or report.Visible
+		bug.Visible = ctx.bug ~= nil
+		leaveRule.Visible = leave.Visible or report.Visible or bug.Visible
 		-- Five tabs in a row on a wide screen, three per row on a phone.
 		local size = root.AbsoluteSize
 		local columns = if size.Y > size.X then 3 else #tabs

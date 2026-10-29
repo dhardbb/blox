@@ -49,6 +49,7 @@ export type Net = {
 	answer: ((accept: boolean) -> ())?, -- answer "Opponent found! Leave this bot game?" (D-083)
 	rematch: (() -> ())?, -- Results: play the same opponent again (D-083)
 	invite: ((code: string) -> ())?, -- Roblox's invite prompt carrying a private code (D-083); yields
+	bugReport: ((text: string, screen: string) -> ())?, -- send a bug report (D-090)
 	reasonText: (reason: string?) -> string,
 }
 
@@ -70,6 +71,7 @@ export type Ctx = {
 	help: (() -> ())?, -- opens the "How it works" overlay (UI/Help), when App mounted one
 	leave: (() -> ())?, -- opens the "Leave match" confirmation (UI/LeaveMatch, D-059)
 	report: ((seat: number) -> ())?, -- opens the "Report name" confirmation for a seat (UI/ReportName, D-069)
+	bug: ((screen: string?) -> ())?, -- opens "Report a bug" tagged with that screen (UI/BugSheet, D-090)
 }
 
 export type Screen = {
