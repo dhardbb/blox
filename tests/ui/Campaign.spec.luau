@@ -660,9 +660,26 @@ describe("Campaign screen", function()
 			local stanceA = event.stances[1]
 			expect(text(peer, "ChoiceA")):toBe(`A · {stanceA.name}`)
 			local view = Fixtures.payload(C, "Stance").view
-			local gain, loss = Words.stanceParts(Swing.stance(C, view, "A"))
-			expect(text(peer, "ChoiceAEffect")):toBe(gain or "")
-			expect(text(peer, "ChoiceALoss")):toBe(loss or "")
+			local preview = Swing.stance(C, view, "A")
+			local gain, loss = Words.stanceParts(preview)
+			-- A landscape phone's three side-by-side chips keep the numbers (D-091).
+			local function numbers(part: string?): string
+				if part == nil then
+					return ""
+				end
+				return if size.screen then (string.gsub(part, " states?$", "")) else part
+			end
+			expect(text(peer, "ChoiceAEffect")):toBe(numbers(gain))
+			expect(text(peer, "ChoiceALoss")):toBe(numbers(loss))
+			-- Each stance carries its net (states helped minus hurt) and the pick a check.
+			local net = #preview.gains - #preview.losses
+			check(string.find(text(peer, "ChoiceANet"), "Net", 1, true) ~= nil, text(peer, "ChoiceANet"))
+			check(
+				string.find(text(peer, "ChoiceANet"), tostring(math.abs(net)), 1, true) ~= nil,
+				text(peer, "ChoiceANet")
+			)
+			check(ignore:FindFirstChild("Check").Visible == true, "no check on the picked stance")
+			check(attack:FindFirstChild("Check").Visible == false, "a check on an unpicked stance")
 			-- The hedge (C) starts selected: it alone looks different.
 			check(attack.BackgroundColor3 == defend.BackgroundColor3, "attack and defend differ")
 			check(ignore.BackgroundColor3 ~= defend.BackgroundColor3, "Ignore is not selected by default")

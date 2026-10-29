@@ -38,6 +38,7 @@ local ViewModule = require(Shared.Sim.View)
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
 local Audio = require(script.Parent.Parent.UI.Audio)
 local AutoLock = require(script.Parent.Common.AutoLock)
+local PickClock = require(script.Parent.Common.PickClock)
 local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local EventCard = require(script.Parent.CampaignParts.EventCard)
 local Kit = require(script.Parent.Parent.UI.Kit)
@@ -58,8 +59,9 @@ type Payload = Session.StatePayload
 local Screen = {}
 
 local GAP = Kit.space.sm -- px between the big blocks
-local CAPTION_H = 20 -- px, the map key above the map
-local DOT = 12 -- px, a key dot
+local CAPTION_H = 26 -- px, the map key above the map (D-091: bigger, was 20)
+local DOT = 18 -- px, a key ring (D-091: was 12)
+local KEY_RING = 3 -- px, its outline, as thick as the map's (D-091: was 2)
 local MAP_SHARE = 0.55 -- share of the width the map takes on 16:9 (the panel gets more room than on the plan screen)
 local COMPACT_MAP_SHARE = 0.42 -- most of the width the map takes on a landscape phone (D-089: the stances get the room)
 local PORTRAIT_MAP_MAX = 0.3 -- most of the body height the map may take on phones (the options come first)
@@ -127,7 +129,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		}) :: Frame
 		Kit.round().Parent = dot
 		dot.BackgroundTransparency = 1
-		local ring = Kit.stroke(Kit.colors.good, 2)
+		local ring = Kit.stroke(Kit.colors.good, KEY_RING)
 		ring.Name = "Ring"
 		ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		ring.Parent = dot
@@ -136,9 +138,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			LayoutOrder = order + 1,
 			Size = UDim2.fromOffset(0, CAPTION_H),
 			AutomaticSize = Enum.AutomaticSize.X,
-			TextSize = Kit.size.caption,
+			TextSize = Kit.size.body,
+			Font = Kit.font.bold,
 			TextWrapped = false,
-			TextColor3 = Kit.colors.muted,
+			TextColor3 = Kit.colors.text,
 			Parent = legend,
 		})
 		Kit.new("UIPadding", { PaddingRight = UDim.new(0, Kit.space.sm), Parent = label })
@@ -217,6 +220,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		onPrimary = function() end,
 		primaryName = "LockIn",
 	})
+	local pickClock = PickClock.new(bar)
 	bar.primary.Activated:Connect(function()
 		local p = model.payload
 		if bar.primary.Active == false or p == nil or not Model.editable(model, p) then
@@ -440,6 +444,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				relayout(true)
 			end
 			renderBar(p)
+			-- The last seconds: Lock in drains while the stance can still change.
+			local deadline = p.deadline
+			pickClock:paint(
+				if deadline then deadline - now else nil,
+				Model.deciding(p) ~= nil and Model.editable(model, p)
+			)
 			-- The timer is about to end: send what is picked.
 			if Model.deciding(p) ~= nil and autoLock:due(p, now, Model.isLocked(model, p)) then
 				if selection(p) ~= nil then

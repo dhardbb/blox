@@ -58,7 +58,7 @@
 --
 -- Element names: EventCard (attributes EventKind, EventName), EventEyebrow, EventToggle,
 -- EventEffect, EventText, EventMapNote, ChoiceRow, ChoiceA, ChoiceB, ChoiceC
--- (each with PickBar and Choice<X>Line: Choice<X>Effect, Choice<X>Loss), ChoiceRival, ChoiceWhy (WhyToggle), ChoiceNeed,
+-- (each with PickBar, Check, Choice<X>Net and Choice<X>Line: Choice<X>Effect, Choice<X>Loss), ChoiceRival, ChoiceWhy (WhyToggle), ChoiceNeed,
 -- ChoiceSummary, ChoiceNote, ChoicePayHead, ChoicePay1..3, ChoiceTaken; EventClosing,
 -- ClosingDetail (the strip); WeekCard,
 -- WeekToggle, FeedOpponent, FeedMoney, FeedUnderdog, FeedTheirUnderdog,
@@ -78,6 +78,7 @@ local ViewModule = require(SharedFolder.Sim.View)
 local Words = require(SharedFolder.UI.Words.Campaign)
 
 local Colors = require(SharedFolder.UI.Colors)
+local CheckBadge = require(script.Parent.Parent.Parent.UI.CheckBadge)
 local Collapsible = require(script.Parent.Parent.Parent.UI.Collapsible)
 local Kit = require(script.Parent.Parent.Parent.UI.Kit)
 local Model = require(script.Parent.Model)
@@ -92,6 +93,9 @@ local FEED_MESSAGES = 3 -- latest messages listed in the week card
 local STANCE_H = 60 -- px, one stance chip: its name over what it does
 local STANCE_BAR = 4 -- px, the bar at a stance chip's left: white when it is the pick
 local STANCE_INSET = Kit.space.md + Kit.space.sm -- px, the chip's text inset (room for the bar)
+local STANCE_INSET_COMPACT = Kit.space.md + Kit.space.xs -- px, the same on a landscape phone's narrow chip
+local STANCE_H_COMPACT = 100 -- px, a stance chip on a landscape phone: three side by side, the name over its effect and net (D-091)
+local STANCE_NET_W = 80 -- px kept at a wide chip's right for its net pill (D-091)
 local STRIP_ICON = 32 -- px, the event strip's icon plate
 local STRIP_GLYPH = 22 -- px, the icon on the plate (two thirds of it)
 local STRIP_ARROW = 28 -- px, the arrow at the strip's right end
@@ -207,7 +211,9 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		TextColor3 = Kit.colors.text,
 		Parent = why.body,
 	})
-	-- The stances, one full-width chip each, so long names stay readable on phones.
+	-- The stances, one full-width chip each, so long names stay readable on
+	-- phones; a landscape phone (model.compact) sets them side by side, so all
+	-- three fit its short column (D-091).
 	local answerRow = Kit.box({
 		Name = "ChoiceRow",
 		LayoutOrder = 4,
@@ -215,7 +221,12 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = card.body,
 	})
-	Kit.list("Vertical", Kit.space.sm).Parent = answerRow
+	local answerList = Kit.list("Vertical", Kit.space.sm)
+	answerList.Parent = answerRow
+	local choiceNets: { [string]: TextLabel } = {}
+	local choiceChecks: { [string]: Frame } = {}
+	local choiceLines: { [string]: Frame } = {}
+	local compactShown: boolean? = nil -- the chips' last arrangement
 	local choiceButtons: { [string]: TextButton } = {}
 	local choiceEffects: { [string]: TextLabel } = {}
 	local choiceLosses: { [string]: TextLabel } = {}
@@ -250,8 +261,22 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			pad.PaddingTop = UDim.new(0, Kit.space.sm)
 			pad.PaddingBottom = UDim.new(0, Kit.space.sm)
 			pad.PaddingLeft = UDim.new(0, STANCE_INSET)
-			pad.PaddingRight = UDim.new(0, Kit.space.md)
+			-- Room for the check at the top right (D-091).
+			pad.PaddingRight = UDim.new(0, Kit.space.md + CheckBadge.SIZE)
 		end
+		-- Your pick: a check at the top right (D-091), in the chip's right padding.
+		choiceChecks[answer] = CheckBadge.new({
+			AnchorPoint = Vector2.new(0, 0),
+			Position = UDim2.new(1, Kit.space.xs, 0, 0),
+			Parent = button,
+		})
+		-- The net effect: states gained minus states lost, as a pill (D-091).
+		choiceNets[answer] = Kit.pill("", "muted", {
+			Name = `Choice{answer}Net`,
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, CheckBadge.SIZE, 1, 0),
+			Parent = button,
+		})
 		-- A tab-like bar at the left edge: quiet, white on the picked stance.
 		local bar = Kit.new("Frame", {
 			Name = "PickBar",
@@ -295,6 +320,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 			Parent = line,
 		})
 		choiceBars[answer] = bar
+		choiceLines[answer] = line
 		-- Press and hold: preview this stance on the map without picking it.
 		button.InputBegan:Connect(function(input: InputObject)
 			if held(input) and model.peekChoice ~= answer then
@@ -428,6 +454,51 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 					label.Visible = isChoice
 				end
 			end
+			-- A landscape phone (D-091): the three stances side by side and first,
+			-- the event's lines after them; elsewhere one full-width chip each.
+			local compact = choosing and model.compact == true
+			effect.LayoutOrder = if compact then 6 else 2
+			flavor.LayoutOrder = if compact then 7 else 1
+			mapNote.LayoutOrder = if compact then 8 else 2
+			if compact ~= compactShown then
+				compactShown = compact
+				answerList.FillDirection = if compact
+					then Enum.FillDirection.Horizontal
+					else Enum.FillDirection.Vertical
+				local third = -(2 * Kit.space.sm) / 3
+				for answer, button in choiceButtons do
+					button.Size = if compact
+						then UDim2.new(1 / 3, third, 0, STANCE_H_COMPACT)
+						else UDim2.new(1, 0, 0, STANCE_H)
+					-- A narrow chip: a caption-size name and a tighter inset (the bar keeps its place).
+					button.TextSize = if compact then Kit.size.caption else Kit.size.body
+					local inset = if compact then STANCE_INSET_COMPACT else STANCE_INSET
+					local pad = button:FindFirstChildOfClass("UIPadding")
+					if pad then
+						pad.PaddingLeft = UDim.new(0, inset)
+						pad.PaddingRight =
+							UDim.new(0, if compact then Kit.space.sm else Kit.space.md + CheckBadge.SIZE)
+					end
+					choiceBars[answer].Position = UDim2.fromOffset(Kit.space.sm - inset, 0)
+					local check, net, line = choiceChecks[answer], choiceNets[answer], choiceLines[answer]
+					if compact then
+						-- Name on top, the effect over the net pill, the check at the bottom right.
+						check.AnchorPoint = Vector2.new(1, 1)
+						check.Position = UDim2.fromScale(1, 1)
+						net.AnchorPoint = Vector2.new(0, 1)
+						net.Position = UDim2.fromScale(0, 1)
+						line.Position = UDim2.new(0, 0, 1, -(Kit.PILL_H + Kit.space.xs))
+						line.Size = UDim2.new(1, 0, 0, Kit.size.caption + 4)
+					else
+						check.AnchorPoint = Vector2.new(0, 0)
+						check.Position = UDim2.new(1, Kit.space.xs, 0, 0)
+						net.AnchorPoint = Vector2.new(1, 1)
+						net.Position = UDim2.new(1, CheckBadge.SIZE, 1, 0)
+						line.Position = UDim2.fromScale(0, 1)
+						line.Size = UDim2.new(1, -(STANCE_NET_W - CheckBadge.SIZE), 0, Kit.size.caption + 4)
+					end
+				end
+			end
 			if not choosing then
 				return
 			end
@@ -444,16 +515,37 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 						button.Text = if stance.id == hedge
 							then `{stance.id} · {stance.name} (safe)`
 							else `{stance.id} · {stance.name}`
-						local gain, loss = Words.stanceParts(Swing.stance(config, view, stance.id))
+						local preview = Swing.stance(config, view, stance.id)
+						local gain, loss = Words.stanceParts(preview)
+						-- A landscape phone's narrow chip keeps the numbers ("+21 −10").
+						if compact then
+							gain = if gain then string.gsub(gain, " states?$", "") else nil
+							loss = if loss then string.gsub(loss, " states?$", "") else nil
+						end
 						choiceEffects[stance.id].Text = gain or ""
 						choiceEffects[stance.id].Visible = gain ~= nil
 						choiceLosses[stance.id].Text = loss or ""
 						choiceLosses[stance.id].Visible = loss ~= nil
+						-- The net: states it helps minus states it hurts (D-091).
+						local net = #preview.gains - #preview.losses
+						local pill = choiceNets[stance.id]
+						pill.Text = if net > 0
+							then `Net +{net}`
+							elseif net < 0 then `Net −{-net}`
+							else "Net 0"
+						if net > 0 then
+							Kit.paintPill(pill, "good", true)
+						elseif net < 0 then
+							Kit.paintPill(pill, "loss", true)
+						else
+							Kit.paintPill(pill, "muted")
+						end
 					end
 				end
 			end
 			for answer, button in choiceButtons do
 				local picked = model.choice == answer
+				CheckBadge.set(choiceChecks[answer], picked)
 				Kit.setSelected(button, picked)
 				Kit.setEnabled(button, canEdit)
 				choiceBars[answer].BackgroundColor3 = if picked

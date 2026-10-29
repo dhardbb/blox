@@ -755,6 +755,64 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{ name = "07-decision-stance", moment = "Stance", screen = "Decision" },
+	{
+		-- D-091: a stance picked (its check), each with its net pill.
+		name = "07b-decision-picked-b17",
+		moment = "Stance",
+		screen = "Decision",
+		steps = function(world, peer)
+			tapIf(world, peer, "Decision", "ChoiceA")
+		end,
+	},
+	{
+		-- D-091: the last seconds of a pick: the Lock in drains.
+		name = "07c-decision-last-seconds-b17",
+		moment = "Stance",
+		screen = "Decision",
+		steps = function(world, peer)
+			local payload = Rig.deepCopy(Rig.payloadOf(world, peer))
+			payload.deadline = world.clock + 6
+			Rig.push(world, peer, payload)
+		end,
+	},
+	{
+		-- D-091 (playtests): tapping the rival's home says why it is refused.
+		name = "06c-draft-refused-b17",
+		moment = "Draft",
+		screen = "Draft",
+		steps = function(world, peer)
+			local view = Rig.payloadOf(world, peer).view
+			for _, sv in view.states do
+				if sv.isHome and sv.owner ~= view.you then
+					tapIf(world, peer, "Draft", `Row_{sv.id}`)
+					tapIf(world, peer, "Draft", sv.id)
+					return
+				end
+			end
+		end,
+	},
+	{
+		-- D-091: all three issues picked: checks, tinted tiles, Lock in ready.
+		name = "04c-select-issues-full-b17",
+		moment = "Select",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_okafor")
+			tapIf(world, peer, "Select", "LockIn", 0.5)
+			tapIf(world, peer, "Select", "Issue_Jobs")
+			tapIf(world, peer, "Select", "Issue_Health")
+			tapIf(world, peer, "Select", "Issue_Farms")
+		end,
+	},
+	{
+		-- D-091: the Name Pass card for an owner, with the rename link.
+		name = "03i-select-name-card-b17",
+		moment = "SelectName",
+		screen = "Select",
+		steps = function(world, peer)
+			tapIf(world, peer, "Select", "Candidate_venkat")
+		end,
+	},
 	{ name = "08-debate-intro", moment = "DebateIntro", screen = "Debate" },
 	{ name = "08a-debate-round", moment = "DebateRound", screen = "Debate" },
 	{

@@ -23,6 +23,18 @@
 --   ActionBar  pinned under the panel while picking: status (tone bad for an
 --              illegal tap, until the next tap), opponent, primary "Lock in".
 --
+-- The 0.17 pass (D-091): the map reveal gives the map more of the column and
+-- lists each stronghold as a row under its player's portrait (two columns);
+-- the choice slots are one row of two chips with a numbered badge each ("1 WY
+-- · Wyoming", "2 Backup"); the first-pick tip floats over the map instead of
+-- pushing the slots down; a battleground round warns that the rival can
+-- nominate your strongholds too (RoundNote, with the caption); a refused tap
+-- says why, with the rule, in a notice under the slots (Notice); a landscape
+-- phone folds "ties go to …" into the header's subtitle. A round's reveal
+-- counts each pick's votes up, pulses both states and shows the draft board
+-- in a card under the picks. In the last seconds the Lock in drains
+-- (Common/PickClock).
+--
 -- Motion and sound (docs/UI-STYLE.md §2.7.1): a legal tap pops its slot,
 -- pulses the state and plays "planAdd" ("planRemove" when a tap takes a pick
 -- back); an illegal tap shakes the status line with "error". When a round's
@@ -34,12 +46,16 @@
 -- StrongholdsCard (StrongholdsYou, StrongholdsThem), Explain (the header
 -- subtitle), NowText, Timer, StateList, ShowAll, HowButton, DraftSheet,
 -- HowItWorks, Board, Legend, LegendRow, BoardCard, RevealBox, YouPick, ThemPick,
--- ClashNote, BarStatus, BarOpponent, MapArea, Panel.
+-- ClashNote, BarStatus, BarOpponent, MapArea, Panel, Num (a slot's badge),
+-- RoundNote (RoundCaption, StrongholdWarning), Notice, RevealBoard, Gain (a
+-- pick card's votes).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Colors = require(ReplicatedStorage.Shared.UI.Colors)
 local Draft = require(ReplicatedStorage.Shared.Sim.Draft)
+local StateData = require(ReplicatedStorage.Shared.Sim.StateData)
+local Drafted = require(ReplicatedStorage.Shared.UI.Drafted)
 local Session = require(ReplicatedStorage.Shared.Net.Session)
 local View = require(ReplicatedStorage.Shared.Sim.View)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Setup)
@@ -52,6 +68,7 @@ local CoachTip = require(script.Parent.Parent.UI.CoachTip)
 local Collapsible = require(script.Parent.Parent.UI.Collapsible)
 local Header = require(script.Parent.Parent.UI.Header)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local LinkButton = require(script.Parent.Parent.UI.LinkButton)
 local Lens = require(script.Parent.Parent.Map.Lens)
 local LensToggle = require(script.Parent.Parent.Map.LensToggle)
 local Logic = require(script.Parent.DraftParts.Logic)
@@ -59,6 +76,7 @@ local MapInterface = require(script.Parent.Parent.Map.MapInterface)
 local Messages = require(script.Parent.Common.Messages)
 local Motion = require(script.Parent.Parent.UI.Motion)
 local NodeMap = require(script.Parent.Parent.Map.NodeMap)
+local PickClock = require(script.Parent.Common.PickClock)
 local Sheet = require(script.Parent.Parent.UI.Sheet)
 local StateList = require(script.Parent.DraftParts.StateList)
 local Types = require(script.Parent.Types)
@@ -67,26 +85,34 @@ local Screen = {}
 
 local GAP = Kit.space.sm -- px, between the big blocks
 local MAP_SHARE = 0.65 -- of the width, wide screens
+local MAP_SHARE_REVEAL = 0.6 -- the same during the map reveal: the strongholds' two columns get more room (D-091)
 local COMPACT_MAP_SHARE = 0.6 -- most of the width the map column takes on a landscape phone (D-089)
 local MAP_HEIGHT_SHARE = 0.66 -- of the map column, wide screens (the rest is Below)
+local REVEAL_MAP_HEIGHT_SHARE = 0.86 -- the same during the map and round reveals: only the legend's note is under it (D-091)
 local MAP_SHARE_PORTRAIT = 0.34 -- of the height at most, phones (before the lens row)
 local LENS_H = LensToggle.HEIGHT + Kit.space.xs -- px, the lens row over the map
 local PICK_FROM = 0.92 -- scale a slot pops from when a state lands in it
 local REVEAL_FROM = 0.85 -- scale the reveal cards pop from
+local SLOT_BADGE = 24 -- px, a choice slot's numbered badge
+local TIP_W = 360 -- px, widest the first-pick tip over the map gets
+local NOTE_EDGE = 1.5 -- px, a note's outline (orange for a warning, D-091)
+local GAIN_SECONDS = 0.6 -- a pick card's votes count up this long (none under reduced motion)
 
 -- Panel order (PanelScroll's list).
 local ORDER = {
-	tip = 1,
+	tip = 1, -- unused since D-091 (the tip floats over the map); kept so the order reads as before
 	strongholds = 2, -- map reveal only
-	priority = 3,
-	caption = 4, -- a battleground round only: what a battleground does (S4)
-	slots = 5,
-	reveal = 6,
-	list = 7,
-	showAll = 8,
-	legend = 9, -- map reveal on a phone
-	how = 10,
-	boardCard = 11, -- portrait only, always last
+	slots = 3, -- first while picking (D-091)
+	notice = 4, -- why the last tap was refused
+	priority = 5,
+	caption = 6, -- a battleground round only: what a battleground does (S4) and the stronghold warning
+	reveal = 7,
+	revealBoard = 8, -- the draft board in a card under a round's reveal
+	list = 9,
+	showAll = 10,
+	legend = 11, -- map reveal on a phone
+	how = 12,
+	boardCard = 13, -- portrait only, always last
 }
 
 type Mode = "Map" | "Input" | "Reveal"
@@ -116,6 +142,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local autoLock = AutoLock.new()
 	local submitted: { round: number, choices: { string } }? = nil
 	local hint: string? = nil -- why the last tap failed; stays until the next tap
+	local refused: string? = nil -- the same with the rule behind it, for the notice (D-091)
 	local laidOut = "" -- the shape applyLayout last laid out for
 	local placed = "" -- where the legend and board last went
 	local mode: Mode = "Map"
@@ -207,16 +234,66 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = priorityRow,
 	})
 
-	-- Under the header of a battleground round: what nominating does, for both.
+	-- A note in the panel: a raised strip with its lines, outlined (orange for
+	-- a warning); it grows with them.
+	local function noteBox(name: string, order: number): (Frame, UIStroke)
+		local frame = Kit.panel({
+			Name = name,
+			LayoutOrder = order,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundColor3 = Kit.colors.raised,
+			Visible = false,
+			Parent = scroll,
+		})
+		local pad = frame:FindFirstChildOfClass("UIPadding")
+		if pad then
+			pad.PaddingTop = UDim.new(0, Kit.space.sm)
+			pad.PaddingBottom = UDim.new(0, Kit.space.sm)
+		end
+		Kit.list("Vertical", Kit.space.xs).Parent = frame
+		local edge = Kit.new("UIStroke", {
+			Name = "Edge",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Color = Kit.colors.warn,
+			Thickness = NOTE_EDGE,
+			Parent = frame,
+		}) :: UIStroke
+		return frame, edge
+	end
+
+	-- Under the header of a battleground round: what nominating does, for both,
+	-- and (D-091, from playtests) that the rival may nominate your strongholds.
+	local roundNote, roundBar = noteBox("RoundNote", ORDER.caption)
 	local roundCaption = Kit.text(Words.battlegroundCaption(config), {
 		Name = "RoundCaption",
-		LayoutOrder = ORDER.caption,
+		LayoutOrder = 1,
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		TextSize = Kit.size.caption,
 		TextColor3 = Kit.colors.muted,
 		Visible = false,
-		Parent = scroll,
+		Parent = roundNote,
+	})
+	local strongholdWarning = Kit.text("", {
+		Name = "StrongholdWarning",
+		LayoutOrder = 2,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextSize = Kit.size.caption,
+		Font = Kit.font.medium,
+		Visible = false,
+		Parent = roundNote,
+	})
+	-- Why the last tap was refused, with the rule behind it (D-091).
+	local noticeBox = noteBox("Notice", ORDER.notice)
+	local notice = Kit.text("", {
+		Name = "NoticeText",
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextSize = Kit.size.caption,
+		Font = Kit.font.medium,
+		Parent = noticeBox,
 	})
 
 	-- The ranked top 2: one row of two chips, each with a × once it is filled.
@@ -232,6 +309,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 
 	local choiceButtons: { TextButton } = {}
 	local clearButtons: { TextButton } = {}
+	local slotBadges: { TextLabel } = {}
 	for slot = 1, 2 do
 		local half = Kit.box({
 			Name = `Slot{slot}`,
@@ -239,10 +317,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Size = UDim2.new(0.5, -GAP // 2, 1, 0),
 			Parent = slots,
 		})
-		choiceButtons[slot] = Kit.button("", function()
+		local button = Kit.button("", function()
 			if mode == "Input" and not localLocked then
 				target = if target == slot then nil else slot
 				hint = nil
+				refused = nil
 				refresh()
 			end
 		end, {
@@ -252,11 +331,42 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = half,
 		})
+		-- The slot's number on a round badge in the chip's left padding (D-091):
+		-- filled once a state is in it, an outline while it waits.
+		local pad = button:FindFirstChildOfClass("UIPadding")
+		if pad then
+			pad.PaddingLeft = UDim.new(0, SLOT_BADGE + 2 * Kit.space.sm)
+		end
+		local badge = Kit.text(tostring(slot), {
+			Name = "Num",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, -(SLOT_BADGE + Kit.space.sm), 0.5, 0),
+			Size = UDim2.fromOffset(SLOT_BADGE, SLOT_BADGE),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = Kit.colors.accent,
+			Font = Kit.font.bold,
+			TextSize = Kit.size.caption,
+			TextWrapped = false,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextColor3 = Kit.colors.onAccent,
+			Parent = button,
+		})
+		Kit.round().Parent = badge
+		Kit.new("UIStroke", {
+			Name = "Ring",
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Color = Kit.colors.muted,
+			Thickness = 2,
+			Parent = badge,
+		})
+		slotBadges[slot] = badge
+		choiceButtons[slot] = button
 		clearButtons[slot] = Kit.iconButton(Kit.glyph.close, function()
 			if mode == "Input" and not localLocked then
 				choices = Logic.clear(choices, slot)
 				target = nil
 				hint = nil
+				refused = nil
 				refresh()
 			end
 		end, {
@@ -278,7 +388,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- A pick card: "You got WY" in the taker's readable color, the pick's kind
 	-- as a tag (★ Battleground outlined, Home filled in the taker's color), the
 	-- state's name; edged 2 px in the taker's color (fillCard).
-	type PickCard = { frame: Frame, big: TextLabel, small: TextLabel, kind: TextLabel }
+	type PickCard = { frame: Frame, big: TextLabel, gain: TextLabel, small: TextLabel, kind: TextLabel }
 	local function pickCard(name: string, order: number): PickCard
 		local frame = Kit.panel({
 			Name = name,
@@ -291,14 +401,38 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Kit.depth(frame, Kit.colors.raisedTop, Kit.colors.raised)
 		Kit.list("Vertical", Kit.space.xs).Parent = frame
 		Kit.stroke(Kit.colors.line, 2).Parent = frame
-		local big = Kit.heading("", { Name = "Title", LayoutOrder = 1, Parent = frame })
-		local kind = Kit.pill("", "text", { Name = "Kind", LayoutOrder = 2, Parent = frame })
-		local small = Kit.caption("", { Name = "Sub", LayoutOrder = 3, Parent = frame })
-		return { frame = frame, big = big, small = small, kind = kind }
+		-- One line that shrinks to fit a narrow card ("Buster got OH" never wraps).
+		local big = Kit.heading("", {
+			Name = "Title",
+			LayoutOrder = 1,
+			TextScaled = true,
+			TextWrapped = false,
+			Parent = frame,
+		})
+		-- The state's votes, counting up as the card lands (D-091).
+		local gain = Kit.text("", {
+			Name = "Gain",
+			LayoutOrder = 2,
+			Size = UDim2.new(1, 0, 0, Kit.size.heading + 8),
+			Font = Kit.font.display,
+			TextSize = Kit.size.heading,
+			TextWrapped = false,
+			Parent = frame,
+		})
+		local kind = Kit.pill("", "text", { Name = "Kind", LayoutOrder = 3, Parent = frame })
+		local small = Kit.caption("", { Name = "Sub", LayoutOrder = 4, Parent = frame })
+		return { frame = frame, big = big, gain = gain, small = small, kind = kind }
 	end
 	local youCard = pickCard("YouPick", 1)
 	local themCard = pickCard("ThemPick", 2)
 	local clashNote = Kit.text("", merge(auto(), { Name = "ClashNote", LayoutOrder = 2, Parent = revealBox }))
+	-- Under a round's picks: the draft board so far, in a card (D-091).
+	local revealBoard = Kit.card({ Name = "RevealBoard", LayoutOrder = ORDER.revealBoard, Visible = false })
+	Kit.text(
+		"Draft board",
+		{ Name = "BoardTitle", LayoutOrder = 0, Font = Kit.font.bold, Parent = revealBoard }
+	)
+	revealBoard.Parent = scroll
 
 	local stateList = StateList.new(function(id: string)
 		tapState(id)
@@ -334,9 +468,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		TextColor3 = Kit.colors.muted,
 		Parent = sheet.body,
 	})
-	local howButton = Kit.button("How the draft works", function()
+	local howButton = LinkButton.new("How the draft works", function()
 		sheet:open()
-	end, { variant = "ghost", Name = "HowButton", LayoutOrder = ORDER.how, Parent = scroll })
+	end, { Name = "HowButton", LayoutOrder = ORDER.how, Parent = scroll })
 
 	-- Portrait: the legend and board in a card at the very end, collapsed.
 	local boardCard = Collapsible.new(scroll, {
@@ -357,6 +491,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end,
 		primaryName = "LockIn",
 	})
+	local pickClock = PickClock.new(bar)
 
 	-- ------------------------------------------------------------ orientation
 
@@ -366,7 +501,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local portrait = ctx.portrait()
 		local size = root.AbsoluteSize
 		local compact = Kit.compact(size)
-		local shape = `{portrait}:{compact}:{size.X}x{size.Y}`
+		local shape = `{portrait}:{compact}:{size.X}x{size.Y}:{mode}`
 		if shape == laidOut then
 			return
 		end
@@ -399,14 +534,19 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			panel.Position = UDim2.fromOffset(areaW + GAP, top)
 			panel.Size = UDim2.new(1, -(areaW + GAP), 1, -top)
 		else
+			-- The map reveal and a round's reveal have only the legend's note under
+			-- the map (the board is in the panel): a bigger map.
+			local share = if mode == "Input" then MAP_HEIGHT_SHARE else REVEAL_MAP_HEIGHT_SHARE
 			mapArea.Position = UDim2.fromOffset(0, top)
-			mapArea.Size = UDim2.new(MAP_SHARE, -GAP // 2, 1, -top)
-			mapHolder.Size = UDim2.fromScale(1, MAP_HEIGHT_SHARE)
-			below.Position = UDim2.new(0, 0, MAP_HEIGHT_SHARE, GAP)
-			below.Size = UDim2.new(1, 0, 1 - MAP_HEIGHT_SHARE, -GAP)
+			-- The map reveal's panel lists the strongholds in two columns: a bit wider.
+			local across = if mode == "Map" then MAP_SHARE_REVEAL else MAP_SHARE
+			mapArea.Size = UDim2.new(across, -GAP // 2, 1, -top)
+			mapHolder.Size = UDim2.fromScale(1, share)
+			below.Position = UDim2.new(0, 0, share, GAP)
+			below.Size = UDim2.new(1, 0, 1 - share, -GAP)
 			below.Visible = true
-			panel.Position = UDim2.new(MAP_SHARE, GAP // 2, 0, top)
-			panel.Size = UDim2.new(1 - MAP_SHARE, -GAP // 2, 1, -top)
+			panel.Position = UDim2.new(across, GAP // 2, 0, top)
+			panel.Size = UDim2.new(1 - across, -GAP // 2, 1, -top)
 		end
 	end
 
@@ -438,8 +578,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			-- (still all dashes) would only repeat it.
 			summary.root.Visible = mode ~= "Map"
 		end
+		-- A round's reveal: the board in its own card under the picks (D-091).
+		if mode == "Reveal" then
+			summary.root.LayoutOrder = 1
+			summary.root.Parent = revealBoard
+			summary.root.Visible = true
+		end
+		revealBoard.Visible = mode == "Reveal"
 		legendSlot.Visible = not portrait
-		boardCard.root.Visible = portrait and mode ~= "Map"
+		boardCard.root.Visible = portrait and mode == "Input"
 	end
 
 	-- ------------------------------------------------------------ actions
@@ -486,6 +633,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 		if not Logic.legal(kind, sv) then
 			hint = Logic.reason(kind, sv)
+			local view = lastView
+			if view then
+				refused = Logic.why(kind, sv, view.you, Board.who(config, view, Logic.opponent(view)))
+			end
 			refresh()
 			Motion.shake(bar.status)
 			Audio.play("error")
@@ -495,6 +646,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		choices = Logic.tap(choices, id, target)
 		target = nil
 		hint = nil
+		refused = nil
 		refresh()
 		local slot = if choices.first == id then 1 elseif choices.second == id then 2 else nil
 		if slot then
@@ -537,11 +689,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		card.big.TextColor3 = Kit.textColor(color)
 		if pick == nil then
 			card.big.Text = `{who} got nothing`
+			card.gain.Text = ""
+			card.gain.Visible = false
 			card.small.Text = ""
 			card.kind.Visible = false
 			return
 		end
 		card.big.Text = `{who} got {pick.state}`
+		card.gain.Visible = true
+		if card.gain:GetAttribute("For") ~= pick.state then
+			-- What is at stake there: its votes, counted up as the card lands.
+			card.gain:SetAttribute("For", pick.state)
+			local record = StateData.byId[pick.state]
+			local ev = if record then record.ev else 0
+			Motion.countTo(card.gain, 0, ev, function(n: number): string
+				return Words.votes(math.floor(n + 0.5))
+			end, GAIN_SECONDS)
+		end
 		card.small.Text = Logic.nameOf(pick.state)
 		card.kind.Visible = true
 		card.kind.Text = Words.roundKind(pick.kind)
@@ -586,6 +750,13 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if payload == nil then
 			return
 		end
+		local newMode: Mode = "Map"
+		if payload.reveal == "Draft" then
+			newMode = "Reveal"
+		elseif payload.stage == "Input" and payload.view.phase == "Draft" then
+			newMode = "Input"
+		end
+		mode = newMode
 		applyLayout()
 
 		local view = payload.view
@@ -603,16 +774,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			target = nil
 			localLocked = false
 			hint = nil
+			refused = nil
 			showAll = false
 		end
 
-		local newMode: Mode = "Map"
-		if payload.reveal == "Draft" then
-			newMode = "Reveal"
-		elseif payload.stage == "Input" and view.phase == "Draft" then
-			newMode = "Input"
-		end
-		mode = newMode
 		place()
 		-- Nothing to press during the map reveal and a round's reveal (UI/Audit rule "primary").
 		parent:SetAttribute("PrimaryOptional", mode ~= "Input")
@@ -630,14 +795,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		lastKind = kind
 
 		-- The coach tip, once, the first time there is something to pick.
+		-- It floats over the map's upper left, under the lens chips (D-091), so
+		-- the slots and the best picks keep the panel's first screen; the first
+		-- tap dismisses it.
 		if mode == "Input" and not locked and tip == nil then
-			local shown = CoachTip.show(scroll, { id = "draft.pick", order = ORDER.tip })
-			if shown then
-				-- The headless engine reads UDim2.new() and Vector2.new() as empty.
-				shown.root.Position = UDim2.fromOffset(0, 0)
-				shown.root.AnchorPoint = Vector2.new(0, 0)
-			end
-			tip = shown
+			tip = CoachTip.show(mapArea, {
+				id = "draft.pick",
+				position = UDim2.fromOffset(0, LENS_H + Kit.space.xs),
+				anchorPoint = Vector2.new(0, 0),
+				width = math.max(0, math.min(TIP_W, mapArea.AbsoluteSize.X)),
+			})
 		elseif mode ~= "Input" then
 			dismissTip()
 		end
@@ -666,6 +833,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- Header, the now line and who wins ties.
 		header:setTitle(titleText(view, revealRound))
 		local portrait = ctx.portrait()
+		local compactNow = not portrait and Kit.compact(root.AbsoluteSize)
 		local priorityLine = ""
 		if mode == "Map" then
 			header:setSubtitle(nil)
@@ -673,7 +841,17 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			local first = Logic.priorityPlayer(config, view, 0)
 			priorityLine = `Round 1: {string.lower(Words.priority(first == you, opponent))}`
 		elseif mode == "Input" and kind ~= nil then
-			header:setSubtitle(if portrait then nil else Words.roundKind(kind))
+			-- A landscape phone folds "ties go to …" into the subtitle and drops
+			-- the pill row, so the slots and the list start higher (D-091).
+			local ties = Words.priority((view.draftPriority or you) == you, opponent)
+			header:setSubtitle(
+				if portrait
+					then nil
+					elseif compactNow then `{Words.roundKind(kind)} · {string.lower(
+						string.sub(ties, 1, 1)
+					)}{string.sub(ties, 2)}`
+					else Words.roundKind(kind)
+			)
 			header:setNow(
 				if locked then Words.nowWaiting(opponentLabel) else Words.nowDraft(kind, choices.first ~= nil)
 			)
@@ -694,8 +872,22 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- D-058); the home round is a plain tag.
 		Kit.paintPill(roundPill, if kind ~= nil and kind ~= "Home" then "white" else "text")
 		roundPill.Visible = kind ~= nil
-		priorityRow.Visible = priorityLine ~= "" and mode ~= "Reveal"
-		roundCaption.Visible = mode == "Input" and kind ~= nil and kind ~= "Home"
+		priorityRow.Visible = priorityLine ~= "" and mode ~= "Reveal" and not (compactNow and mode == "Input")
+		local battleground = mode == "Input" and kind ~= nil and kind ~= "Home"
+		-- A landscape phone keeps only the warning: the subtitle says
+		-- "Battleground" and the rule is in How the draft works.
+		roundCaption.Visible = battleground and not compactNow
+		-- Your strongholds still standing, which the rival may nominate (D-091).
+		local standing = Drafted.strongholds(view, you)
+		local warn = battleground and #standing > 0
+		strongholdWarning.Visible = warn
+		if warn then
+			strongholdWarning.Text = Words.strongholdWarning(opponent, standing)
+		end
+		roundNote.Visible = roundCaption.Visible or warn
+		roundBar.Color = if warn then Kit.colors.warn else Kit.colors.line
+		noticeBox.Visible = mode == "Input" and refused ~= nil
+		notice.Text = refused or ""
 
 		strongholds.root.Visible = mode == "Map"
 		strongholds:update(config, view, colors)
@@ -706,8 +898,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		for slot = 1, 2 do
 			local id = if slot == 1 then choices.first else choices.second
 			local button = choiceButtons[slot]
-			local label = if slot == 1 then "1st" else "2nd"
-			button.Text = `{label}: {id or "—"}`
+			button.Text = Logic.slotText(slot, id)
+			-- The number's badge: filled once a state is in the slot.
+			local badge = slotBadges[slot]
+			badge.BackgroundTransparency = if id ~= nil then 0 else 1
+			badge.TextColor3 = if id ~= nil then Kit.colors.onAccent else Kit.colors.muted
+			local ring = badge:FindFirstChild("Ring") :: UIStroke?
+			if ring then
+				ring.Color = if id ~= nil then Kit.colors.accent else Kit.colors.muted
+			end
 			local filled = id ~= nil and not locked
 			clearButtons[slot].Visible = filled
 			button.Size = if filled
@@ -852,6 +1051,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				if color then
 					map:ring(pick.state, color)
 				end
+				map:pulse(pick.state)
 			end
 			Audio.play("whoosh")
 		end
@@ -909,6 +1109,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				render()
 			end
 			showTimer(payload, now)
+			-- The last seconds: Lock in drains while there is a pick to lock.
+			local deadline = payload.deadline
+			pickClock:paint(
+				if deadline then deadline - now else nil,
+				mode == "Input" and not isLocked() and choices.first ~= nil
+			)
 			-- The timer is about to end with a pick that was never locked: lock it.
 			if mode == "Input" and choices.first ~= nil and autoLock:due(payload, now, isLocked()) then
 				lockInPressed()

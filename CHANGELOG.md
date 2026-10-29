@@ -39,6 +39,18 @@ Studio checklist: `docs/TESTING.md`, "Start screen, queue and bug reports (D-090
 - **End screen:** "Buster wants a rematch!" is a banner with his face above the buttons; a counted Daily Race shows your rank as a big gold number with a flame and confetti. After the tutorial it says **You're ready!** over "Practice done!" (no more orange "You lost").
 - **Tutorial tips on phones** sit at the top of the side column, so Got it is never under the buttons.
 - **Report a bug:** a small bug button in the lobby's corner and "Report a bug" at the end of the in-match ? sheet. Reports go through Roblox's text filter and are saved with the game version, the screen and the match; one a minute, five a day. Admins see the newest under **Bug reports** in the lobby.
+### Clearer picks: Select, the draft and the stance (D-091)
+
+Studio checklist: `docs/TESTING.md`, "Clearer picks: Select, the draft and the stance (D-091)". Nothing needed from the humans.
+
+- **Picks you can see.** A picked candidate, issue or stance gets a check that pops in. Picked issue tiles are tinted in your color, with the votes in bold and the boost as a green pill. Portraits are bigger on the iPad.
+- **Select says where you are** with two step dots (Candidate, Issues) instead of repeating the title. "About Goldie", "Rename" and "How issues work" are right-aligned links with an arrow and a bigger tap area. The Color Pass swatches are plain colored dots with their names. The name line and the Name Pass offer are one card with a pencil and a gold "Name Pass" pill; the rename sheet has an outlined box with an "11/16" count, one short rules line and a big "Save name" button.
+- **Draft warnings from the playtests.** Rounds 2-3 warn that your rival can nominate your strongholds too, and that a nominated stronghold loses its bonus. Tapping your rival's home now says why it can't be nominated ("Home states can't be nominated, so its home bonus is safe").
+- **Draft layout.** The two choice slots come first, as one row with numbered badges. The first tip floats over the map. The map reveal has a bigger map and lists each stronghold as a row under each player's portrait. A round's reveal counts each pick's votes up, pulses both states and shows the draft board in a card.
+- **Stance.** Each option shows its net effect ("Net +11"), your pick gets a check, and the Helps/Hurts key is bigger.
+- **Landscape phones.** All eight candidates and all eight issues fit Select without scrolling (the header and Lock in move to a right column), and all three stances fit the stance screen.
+- **Last seconds.** On these pick screens, the Lock in button drains for the last 10 seconds and pulses once as it starts (no pulse with Reduce motion).
+
 ### More eccentric candidates (D-097)
 
 Studio checklist: `docs/TESTING.md`, "More eccentric candidates (D-097)". **Needed from the humans:** upload the eight new portrait PNGs in `assets/portraits/` and send back their asset ids (or patch them into `src/client/UI/Assets.luau`); until then the game shows the old faces with the new names.

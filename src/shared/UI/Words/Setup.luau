@@ -63,6 +63,8 @@ end
 -- Under the Name Pass offer and on the name sheet: names follow Roblox's rules.
 Setup.NAME_RULES = "Names must follow Roblox's Community Standards. Names that break them won't be allowed."
 Setup.NAME_SAVE = "Save name"
+-- The name sheet's one line of rules (D-091: the box shows the limit as "11/16").
+Setup.NAME_SHEET_RULES = "Only players 16+ see it. Follow Roblox's Community Standards."
 
 -- Reporting a custom name (D-069).
 Setup.REPORT = "Report name" -- the action wherever another player's custom name shows
@@ -226,6 +228,13 @@ end
 -- attack ads there by BATTLEGROUND_MULT (fundraisers and ground game are not).
 function Setup.battlegroundCaption(config: Config): string
 	return `Battleground: every rally and ad here counts ×{config.BATTLEGROUND_MULT}, for both of you. Pick where you can win.`
+end
+
+-- A battleground round's warning (D-091, from playtests): the rival may
+-- nominate your strongholds too, which takes their bonus away. `ids` are your
+-- strongholds still standing.
+function Setup.strongholdWarning(opponent: string, ids: { string }): string
+	return `Heads up: {opponent} can nominate your strongholds too ({table.concat(ids, " ")}). A nominated stronghold loses its bonus.`
 end
 
 -- "Ties go to you" / "Ties go to Buster": who wins a state you both want.
