@@ -23,7 +23,7 @@
 -- SVG filters) under the object named by its Follow attribute, "glow" a radial
 -- gradient in ImageColor3, "dots" a dot pattern, "mapShape" the state's
 -- outline (attribute MapShape, from Shared/UI/MapShape) filled in ImageColor3,
--- "mapBorders" every state's outline stroked in ImageColor3; a Kit.portrait
+-- "mapBorders" (and "mapInk") every state's outline stroked in ImageColor3; a Kit.portrait
 -- face (attribute Portrait = candidate id) as assets/portraits/<id>.png,
 -- clipped to its UICorner, whether or not the game has its asset id yet (the
 -- portrait's stand-in initials, attribute PortraitFallback, are not drawn);
@@ -942,16 +942,18 @@ local function drawAsset(
 			end
 			emit(out, string.format('<path d="%s" fill-rule="evenodd" %s/>', table.concat(d, " "), paint))
 		end
-	elseif a.Asset == "mapBorders" then
+	elseif a.Asset == "mapBorders" or a.Asset == "mapInk" then
 		-- The border overlay: every state's outline over the land rect, as thick
-		-- as the image's lines come out at this size.
-		local b = MapShape.data.borders
+		-- as the image's lines come out at this size (the ink overlay: its own
+		-- rect, Alaska and Hawaii left out).
+		local ink = a.Asset == "mapInk"
+		local b = if ink then MapShape.data.ink else MapShape.data.borders
 		local boxW, boxH = w / b.w, h / b.h
 		local ox0, oy0 = ax - b.x * boxW, ay - b.y * boxH
-		local width = math.max(0.6, 2.2 * w / b.pw)
+		local width = math.max(0.6, (if ink then 2.6 else 2.2) * w / b.pw)
 		local d = {}
 		for _, shape in MapShape.list() do
-			for _, ring in shape.rings do
+			for _, ring in if ink and (shape.id == "AK" or shape.id == "HI") then {} else shape.rings do
 				for i = 1, #ring, 2 do
 					local x = ox0 + ring[i] * boxW
 					local y = oy0 + ring[i + 1] * boxH

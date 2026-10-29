@@ -6,6 +6,13 @@
 -- Alaska and Hawaii in hairline insets under the West, and the nine small
 -- Northeast states (MapLayout.LADDER) as callout chips.
 --
+-- The whiteboard look (docs/proposals/whiteboard.md): once its images are
+-- uploaded (UI/Assets mapStates<k>a/b, mapInk), a state is colored in with
+-- marker scribble in its leader's ink, the strokes slanted by the leader's
+-- seat (seat 1 "/", seat 2 "\"), so the map reads without color; a toss-up
+-- is blank board; the map is drawn in wobbly ink. Until then the flat fills
+-- and the old borders stay (ShapeMap.hatched, ShapeMap.fillAsset).
+--
 -- Two layouts (MapShape.layout): "wide" (the box at 1.6, the chips in a column
 -- at the right edge) and "tall" (the box at 1.25, the chips in a row under the
 -- land), picked from the size of the frame the map sits in (MapShape.fit), so
@@ -38,8 +45,11 @@
 -- border for a callout state); a Mark can dash it (a poll that missed) or draw
 -- the state hollow (not called yet). Outlines run just inside their own
 -- state (D-092), so neighbors' never cover each other; the selection is on
--- top. A key state wears a solid gold edge inside all of them, over every
--- outline (D-101); a key chip a gold plate. Candidate pins (Map/Pins) stand beside the label: a face at rest, the name tab while their state is selected or when
+-- top. A key state wears a highlighter band inside all of them (D-101, the
+-- whiteboard's yellow) and an asterisk after its code; only the selection is
+-- drawn over the band; a key chip a highlighter plate. The latest election
+-- call (a Mark ring in the accent) is highlighted: a yellow fill over its
+-- state and a thick ink outline, no glow. Candidate pins (Map/Pins) stand beside the label: a face at rest, the name tab while their state is selected or when
 -- the pin asks for it. The legend row (setLegend) uses the strip under the map.
 --
 -- Everything else matches NodeMap's API and names (Nodes/<id> with Label, Lens,
@@ -60,16 +70,44 @@ local Motion = require(script.Parent.Parent.UI.Motion)
 local Legend = require(script.Parent.Legend)
 local Pins = require(script.Parent.Pins)
 
-local KEY_GOLD = Kit.colors.keyGold -- a key state's edge (D-101)
+local KEY_GOLD = Kit.colors.keyGold -- a key state's highlighter band (D-101), the spotlight's fill
+
+-- Patrick Hand for the codes and numbers written on the board (Kit.font.hand
+-- on the whiteboard branch), Kit.font.bold where the engine lacks it.
+local function handFont(): Enum.Font
+	local hand = (Kit.font :: any).hand
+	if hand ~= nil then
+		return hand
+	end
+	local ok, font = pcall(function()
+		return (Enum.Font :: any).PatrickHand
+	end)
+	return if ok and font ~= nil then font else Kit.font.bold
+end
+local HAND = handFont()
+local HAND_MIN = 14 -- px, the smallest text written in Patrick Hand; a plate under it (a crowded phone map) uses Kit.font.bold
+
+-- The font of a code or a number written at `s` px (HAND_MIN).
+local function handAt(s: number): Enum.Font
+	return if s >= HAND_MIN then HAND else Kit.font.bold
+end
 
 local ShapeMap = {}
+
+-- The image ids the map uses: nil for UI/Assets (the specs set a stand-in
+-- list to see the whiteboard images before they are uploaded).
+ShapeMap.assets = nil :: { [string]: Assets.Asset }?
+
+local function assetList(): any
+	return ShapeMap.assets or Assets
+end
 
 local MIN_TAP = Kit.MAP_NODE_MIN -- px, smallest tap target per state
 ShapeMap.COMPACT_W = MapShape.TALL_BELOW -- px: a map narrower than this labels each state on one line
 local COMPACT_W = ShapeMap.COMPACT_W
 ShapeMap.LENS_ROOM = 24 -- px, the smallest inner circle that shows a value under (big map) or beside (compact) its code
 local LABEL_MIN, LABEL_MAX = 14, 22 -- px, the code label's height range on a big map
-local COMPACT_MIN, COMPACT_MAX = 12, 16 -- px, ... on a compact map
+local COMPACT_MIN, COMPACT_MAX = 14, 16 -- px, ... on a compact map (14: Patrick Hand's floor, was 12)
 local LABEL_SHARE = 0.4 -- the label's height, share of the state's inner circle
 local PART_H = Kit.size.caption + 2 -- px, a lens plate's height
 local DISC_ICON = 20 -- px, the icon on it
@@ -108,7 +146,8 @@ local PIP_GAP = 2 -- px, between pips
 local PIP_RUN_GAP = 4 -- px, between your pips and theirs
 local PIP_MAX = 6 -- pips drawn per run (GOTV max units is 4, 6 for one candidate)
 local OUTLINE_PX = 2 -- an owner's or a halo's outline, a missed poll's dashes
-local SELECTED_PX = 3 -- the selected state's accent outline (and a flip's)
+local SELECTED_PX = 3 -- a strong halo's or a solid ring's outline (a flip's)
+local SELECT_PX = 4 -- the selected state's black marker outline, over everything (and the spotlight's)
 local HAIRLINE_PX = 1 -- an uncalled state's outline, the insets' boxes
 local DASH_EVERY = 2 -- a dashed outline shows one segment in this many
 local CHIP_RING_PX = 1 -- a chip's resting edge
@@ -117,7 +156,7 @@ local CHIP_RADIUS = 6 -- px, a chip's corners
 local LEADER_PX = 1 -- the callout bracket
 local SELECT_LEADER_PX = 2 -- a selected or hovered chip's leader to its state
 local BRACKET_FADE = 0.4 -- the bracket's transparency
-local INSET_FADE = 0.55 -- the Alaska and Hawaii boxes' transparency
+local INSET_FADE = 0.4 -- the Alaska and Hawaii boxes' pencil hairlines: transparency
 local INSET_FILL = 0.55 -- Hawaii's box filled in its state's color at this transparency (its islands are specks)
 local ROUTE_PX = 2 -- the planned route: thin and dim, under every mark
 local ROUTE_FADE = 0.5 -- its transparency (a flight's: ROUTE_FLIGHT)
@@ -138,7 +177,6 @@ local DIM_FILL = 0.4 -- shape transparency of a dimmed state: 60 % of its band f
 local QUIET_FILL = 0.6 -- ... of a state the Close filter quiets: 40 % (D-079)
 local HOLLOW_FILL = 0.35 -- ... of a state not called yet (filled with the stage's field color)
 local DIM_TEXT = 0.3 -- label transparency of a dimmed state
-local TOP_SHADE = 0.18 -- the shape's transparency at its bottom (a top light over the navy)
 local BORDER_FADE = 0 -- the border overlay's transparency
 local LABEL_STROKE = 0.4 -- the code's dark outline, so it reads on a pale fill
 local PART_EDGE = 0.5 -- a lens plate's hairline transparency
@@ -151,10 +189,10 @@ local RING_DRAW = 0.1 -- s, the selected outline drawing in
 local LENS_FADE = 0.15 -- s, the lens pills fading in on a lens switch
 local FILL_TWEEN = Motion.t.beat -- s, a fill changing color during a reveal
 local STAGE_GLOW = 1.35 -- the board's backdrop glow, share of the map
-local STAGE_GLOW_FADE = 0.3
-local SELECT_GLOW = 1.5 -- the selected state's accent glow, share of its rect
-local SELECT_GLOW_FADE = 0.15
-local SELECT_GLOW_DIM = 0.45
+local STAGE_GLOW_FADE = 0.6 -- faint: an erased smudge on the board, no glow
+local SELECT_GLOW = 1.5 -- the smudge under the selected state, share of its rect (no dark shadow on the board)
+local SELECT_GLOW_FADE = 0.5
+local SELECT_GLOW_DIM = 0.7
 local SELECT_BREATH = 0.9 -- s, one breath of the selected glow (decorative)
 local HALO_PAD = 3 -- px, a moved callout state's plate around its chip
 local HALO_SOFT = 0.55 -- the plate's transparency for a state that moves
@@ -162,14 +200,17 @@ local HALO_STRONG = 0.25 -- ... for a state whose poll leader changes
 local BLOOM_SCALE = 1.6 -- a moved state's bloom, share of its rect
 local BLOOM_SOFT = 0.4
 local BLOOM_STRONG = 0.1
-local KEY_PX = 3 -- px, a key state's solid gold edge, inside any other outline (D-101, was D-088's glow and dashes)
-local KEY_LINE_PX = 1 -- px, the dark keyline just inside the gold, so it reads on a pale fill (Amber, Teal)
-local KEY_LINE_FADE = 0.3 -- ... its transparency
+local KEY_PX = 5 -- px, a key state's highlighter band, inside any other outline (D-101, was a 3 px gold edge)
+local KEY_FADE = 0.35 -- ... its transparency: a highlighter over the scribble
+local KEY_STAR = "*" -- after a key state's code, so the mark reads in greyscale
+local KEY_STAR_EM = 0.45 -- the asterisk's width, share of the code's size
+local SPOT_FADE = 0.15 -- the latest call's highlighter fill: transparency over its state
 local MITER_MAX = 2 -- px per px of inset, the most an outline's corner may reach (a sharp spike's is cut)
 local KEY_SIMPLIFY = 0.004 -- a key edge follows its state's border to within this share of the map's width (a coast's wiggles would tangle a line drawn this far inside)
 local KEY_MIN_RING = 0.008 -- ... and skips a ring thinner than this share (an island, a barrier island: its mainland carries the edge)
 local SPIKE_COS = -0.85 -- ... after dropping every point where it turns back more than ~148°
-local KEY_Z = 6 -- the gold edge's place among the outlines: over every OUTLINE_RANK, so a neighbor's never covers it
+local KEY_Z = 5 -- the highlighter band's place among the outlines: over every OUTLINE_RANK but the selection's
+local COAST_PX = 2 -- px, Alaska's and Hawaii's coasts in ink (the ink overlay leaves the insets out)
 local PIN_MIN, PIN_MAX = 14, 20 -- px, a pin's face
 local PIN_SHARE = 0.03 -- the face's size, share of the map's width
 local PIN_YOU = 2 -- px more your own pin's face is (it is drawn on top, too)
@@ -233,12 +274,13 @@ type Node = {
 	outline: Frame?,
 	outlineParts: { Frame },
 	outlineNormals: { { number } }, -- each part's inward normal (px per px of inset), its place in box fractions (D-092), its direction and miter (D-101)
-	keyEdge: Frame?, -- a key state's gold edge (D-101), made on first use
+	keyEdge: Frame?, -- a key state's highlighter band (D-101), made on first use
 	keyParts: { Frame },
 	keyNormals: { { number } },
-	keyLine: Frame?, -- ... and the dark keyline inside it
-	keyLineParts: { Frame },
-	keyLineNormals: { { number } },
+	key: boolean, -- a key state: the band and the asterisk after its code
+	star: TextLabel, -- ... the asterisk
+	coast: Frame?, -- Alaska's or Hawaii's coast in ink (the ink overlay leaves the insets out)
+	spot: ImageLabel?, -- the latest call's highlighter fill, made on first use
 	preview: TextLabel?, -- the plan preview's tag (D-071), made on first use
 	bloom: ImageLabel?,
 	wantRow: boolean, -- the lens line has something to show here
@@ -251,22 +293,79 @@ type Node = {
 	place: Place?,
 }
 
--- Every atlas and the borders uploaded (in `assets`, default UI/Assets): the
--- real map can show. Otherwise NodeMap.new() keeps the circles.
-function ShapeMap.ready(assets: { [string]: Assets.Asset }?): boolean
-	local list: any = assets or Assets
+-- Every atlas in `suffix` ("" the flat fills, "a" / "b" the scribbles) set in `list`.
+local function atlasesSet(list: any, suffix: string): boolean
 	for k in MapShape.data.atlases do
-		local asset = list[`mapStates{k}`]
+		local asset = list[`mapStates{k}{suffix}`]
 		if asset == nil or asset.id == "" then
 			return false
 		end
+	end
+	return true
+end
+
+-- Every atlas and the borders uploaded (in `assets`, default UI/Assets): the
+-- real map can show. Otherwise NodeMap.new() keeps the circles.
+function ShapeMap.ready(assets: { [string]: Assets.Asset }?): boolean
+	local list: any = assets or assetList()
+	if not atlasesSet(list, "") then
+		return false
 	end
 	local borders = list.mapBorders
 	return borders ~= nil and borders.id ~= ""
 end
 
+-- Both seats' scribbled atlases uploaded (in `assets`, default UI/Assets): the
+-- whiteboard fills show. One seat's alone never does (the map would mix looks).
+function ShapeMap.hatched(assets: { [string]: Assets.Asset }?): boolean
+	local list: any = assets or assetList()
+	return atlasesSet(list, "a") and atlasesSet(list, "b")
+end
+
+-- The ink overlay uploaded: it replaces the old borders.
+function ShapeMap.inked(assets: { [string]: Assets.Asset }?): boolean
+	local list: any = assets or assetList()
+	local ink = list.mapInk
+	return ink ~= nil and ink.id ~= ""
+end
+
+-- The seat whose scribble a state wears from its public `support` (by player
+-- index): the poll leader, nil for a tie or a toss-up band (blank board).
+function ShapeMap.leaderOf(support: { number }?): number?
+	if support == nil or #support < 2 then
+		return nil
+	end
+	local best, second, leader = -math.huge, -math.huge, 0
+	for p, share in support do
+		if share > best then
+			second, best, leader = best, share, p
+		elseif share > second then
+			second = share
+		end
+	end
+	if leader == 0 or best == second or Colors.band(best - second).name == "tossup" then
+		return nil
+	end
+	return leader
+end
+
+-- The stroke slant of `seat`'s scribble: "/" for seat 1, "\\" for seat 2 (odd
+-- and even seats past two alternate the same way).
+function ShapeMap.slant(seat: number): string
+	return if seat % 2 == 1 then "/" else "\\"
+end
+
+-- The Assets key of the image a state in atlas `atlas` shows for `seat` (nil:
+-- no leader): the seat's scribbled atlas once both are uploaded, else the flat one.
+function ShapeMap.fillAsset(atlas: number, seat: number?, assets: { [string]: Assets.Asset }?): string
+	if seat ~= nil and ShapeMap.hatched(assets) then
+		return `mapStates{atlas}{if seat % 2 == 1 then "a" else "b"}`
+	end
+	return `mapStates{atlas}`
+end
+
 local function assetId(name: string): string
-	local asset = (Assets :: any)[name]
+	local asset = assetList()[name]
 	return if asset then asset.id else ""
 end
 
@@ -418,7 +517,7 @@ local function newPart(row: Frame, k: number): Part
 		Size = UDim2.fromOffset(0, PART_H),
 		TextScaled = true,
 		TextSize = Kit.size.caption,
-		Font = Kit.font.display,
+		Font = HAND,
 		BackgroundColor3 = Kit.colors.field,
 		BackgroundTransparency = PART_BG,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -500,33 +599,36 @@ function ShapeMap.new(): MapInterface.Map
 	local previewLayer = Kit.box({ Name = "Preview", ZIndex = 9, Parent = root })
 
 	local selectGlow =
-		Kit.glow(glowLayer, Kit.colors.accent, { transparency = SELECT_GLOW_FADE, stretch = true })
+		Kit.glow(glowLayer, Kit.colors.glow, { transparency = SELECT_GLOW_FADE, stretch = true })
 	if selectGlow then
 		selectGlow.Name = "SelectGlow"
 		selectGlow.Visible = false
 	end
 	local stopBreath: () -> () = function() end
 
-	-- The borders: one white-lines image over the land, tinted the stage navy.
+	-- The borders: the whiteboard's ink overlay (every border and the coast,
+	-- tinted ink) once uploaded, else the old white-lines image over the land,
+	-- tinted the stage color.
+	local inked = ShapeMap.inked()
+	local hatched = ShapeMap.hatched()
 	local borders = Kit.new("ImageLabel", {
 		Name = "BorderLines",
 		BackgroundTransparency = 1,
-		Image = assetId("mapBorders"),
-		ImageColor3 = Kit.colors.background,
+		Image = assetId(if inked then "mapInk" else "mapBorders"),
+		ImageColor3 = if inked then Kit.colors.text else Kit.colors.background,
 		ImageTransparency = BORDER_FADE,
 		ScaleType = Enum.ScaleType.Stretch,
 		Parent = borderLayer,
 	})
-	borders:SetAttribute("Asset", "mapBorders")
+	borders:SetAttribute("Asset", if inked then "mapInk" else "mapBorders")
 	borders:SetAttribute("Decor", true)
 
-	-- Alaska's and Hawaii's inset boxes: hairlines, so the two read as insets
-	-- (under the shapes: Hawaii's is filled in its color).
+	-- Alaska's and Hawaii's inset boxes: pencil hairlines, so the two read as
+	-- insets (under the shapes: Hawaii's is filled in its color).
 	local insetFrames: { [string]: Frame } = {}
 	for _, id in { "AK", "HI" } do
 		local frame = Kit.box({ Name = `Inset{id}`, Parent = glowLayer })
 		frame:SetAttribute("Decor", true)
-		Kit.new("UICorner", { CornerRadius = UDim.new(0, 4), Parent = frame })
 		local edge = Kit.stroke(Kit.colors.line, HAIRLINE_PX)
 		edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		edge.Transparency = INSET_FADE
@@ -542,6 +644,7 @@ function ShapeMap.new(): MapInterface.Map
 	local marks: { [string]: MapInterface.Mark } = {}
 	local lens: { [string]: MapInterface.LensLine } = {}
 	local fills: { [string]: Color3 } = {}
+	local seats: { [string]: number } = {} -- state -> the seat whose scribble it wears (none: a toss-up)
 	local tweening: { [string]: number } = {} -- state -> the fill tween running on it (a token)
 	local pins: { MapInterface.Pin } = {}
 	local previews: { [string]: MapInterface.PreviewTag } = {}
@@ -717,12 +820,7 @@ function ShapeMap.new(): MapInterface.Map
 		image:SetAttribute("Asset", "mapShape")
 		image:SetAttribute("MapShape", id)
 		image:SetAttribute("Atlas", atlas and atlas.file or "")
-		Kit.new("UIGradient", {
-			Name = "Depth",
-			Rotation = 90,
-			Transparency = NumberSequence.new(0, TOP_SHADE),
-			Parent = image,
-		})
+		image:SetAttribute("Hatch", "") -- the scribble's slant shown ("/", "\\"), "" for a flat or blank fill
 
 		local chip = shape.chip
 		local hit: TextButton = Kit.new("TextButton", {
@@ -750,12 +848,6 @@ function ShapeMap.new(): MapInterface.Map
 				Parent = hit,
 			})) :: Frame
 			Kit.new("UICorner", { CornerRadius = UDim.new(0, CHIP_RADIUS), Parent = frame })
-			Kit.new("UIGradient", {
-				Name = "Depth",
-				Rotation = 90,
-				Transparency = NumberSequence.new(0, TOP_SHADE),
-				Parent = frame,
-			})
 			local stroke = Kit.stroke(Kit.color(Colors.undecided), CHIP_RING_PX)
 			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 			stroke.Parent = frame
@@ -778,14 +870,16 @@ function ShapeMap.new(): MapInterface.Map
 			halo = plate
 		end
 
-		-- The label's plate (D-079): one dark plate behind the code and its value.
+		-- The label's plate (D-079): the box around the code and its value. On
+		-- the board it has no backing (the code and value are written on the
+		-- map); a battleground's wears an ink outline.
 		local plate = Kit.new("Frame", {
 			Name = "Plate",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			Size = UDim2.fromOffset(0, 0),
 			BackgroundColor3 = Kit.colors.field,
-			BackgroundTransparency = PART_BG,
+			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ZIndex = 4,
 			Visible = false,
@@ -796,7 +890,7 @@ function ShapeMap.new(): MapInterface.Map
 		local plateEdge = Kit.stroke(Kit.colors.line, 1)
 		plateEdge.Name = "Edge"
 		plateEdge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		plateEdge.Transparency = PART_EDGE
+		plateEdge.Transparency = 1
 		plateEdge.Parent = plate
 		-- The value's own plate, when the value has to stand off its code (D-092).
 		local infoPlate = Kit.new("Frame", {
@@ -805,7 +899,7 @@ function ShapeMap.new(): MapInterface.Map
 			Position = UDim2.fromScale(0.5, 0.5),
 			Size = UDim2.fromOffset(0, 0),
 			BackgroundColor3 = Kit.colors.field,
-			BackgroundTransparency = PART_BG,
+			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ZIndex = 4,
 			Visible = false,
@@ -816,7 +910,7 @@ function ShapeMap.new(): MapInterface.Map
 		local infoEdge = Kit.stroke(Kit.colors.line, 1)
 		infoEdge.Name = "Edge"
 		infoEdge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		infoEdge.Transparency = PART_EDGE
+		infoEdge.Transparency = 1
 		infoEdge.Parent = infoPlate
 
 		local label = Kit.text(id, {
@@ -826,7 +920,7 @@ function ShapeMap.new(): MapInterface.Map
 			Size = UDim2.new(1, 0, 0, LABEL_MIN),
 			TextScaled = true,
 			TextSize = Kit.size.heading,
-			Font = Kit.font.bold,
+			Font = HAND,
 			TextStrokeColor3 = Kit.colors.background,
 			TextStrokeTransparency = LABEL_STROKE,
 			TextXAlignment = Enum.TextXAlignment.Center,
@@ -835,6 +929,25 @@ function ShapeMap.new(): MapInterface.Map
 			Parent = hit,
 		})
 		label:SetAttribute("Overhang", true)
+		-- A key state's asterisk, just after the code's letters (the code
+		-- itself never moves: the layout keeps room for it on both sides).
+		local star = Kit.text(KEY_STAR, {
+			Name = "KeyStar",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.fromScale(1, 0.5),
+			Size = UDim2.fromScale(0, 1),
+			TextScaled = true,
+			TextSize = Kit.size.heading,
+			Font = HAND,
+			TextStrokeColor3 = Kit.colors.background,
+			TextStrokeTransparency = LABEL_STROKE,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextWrapped = false,
+			ZIndex = 5,
+			Visible = false,
+			Parent = label,
+		})
+		star:SetAttribute("Overhang", true)
 
 		-- The lens row: the value pills, then (Polls) ▲ momentum and the pips,
 		-- all on one plate when there is a suffix (one pill per state).
@@ -904,7 +1017,7 @@ function ShapeMap.new(): MapInterface.Map
 			Size = UDim2.fromOffset(0, TAG_H),
 			AnchorPoint = Vector2.new(0.5, 1),
 			TextSize = Kit.size.caption,
-			Font = Kit.font.display,
+			Font = HAND,
 			TextColor3 = Kit.colors.onAccent,
 			BackgroundColor3 = Kit.colors.accent,
 			BackgroundTransparency = 0,
@@ -955,9 +1068,10 @@ function ShapeMap.new(): MapInterface.Map
 			keyEdge = nil,
 			keyParts = {},
 			keyNormals = {},
-			keyLine = nil,
-			keyLineParts = {},
-			keyLineNormals = {},
+			key = false,
+			star = star,
+			coast = nil,
+			spot = nil,
 			preview = nil,
 			bloom = nil,
 			wantRow = false,
@@ -1033,11 +1147,13 @@ function ShapeMap.new(): MapInterface.Map
 			table.clear(node.keyParts)
 			table.clear(node.keyNormals)
 		end
-		if node.keyLine then
-			(node.keyLine :: Frame):Destroy()
-			node.keyLine = nil
-			table.clear(node.keyLineParts)
-			table.clear(node.keyLineNormals)
+		if node.coast then
+			(node.coast :: Frame):Destroy()
+			node.coast = nil
+		end
+		if node.spot then
+			(node.spot :: ImageLabel):Destroy()
+			node.spot = nil
 		end
 		if node.bloom then
 			(node.bloom :: ImageLabel):Destroy()
@@ -1052,8 +1168,17 @@ function ShapeMap.new(): MapInterface.Map
 		root:SetAttribute("Layout", geo.kind)
 		aspectBox.AspectRatio = geo.aspect
 		local land = geo.land
-		borders.Position = UDim2.fromScale(land.x, land.y)
-		borders.Size = UDim2.fromScale(land.w, land.h)
+		if inked then
+			-- The ink overlay's own rect (it pads the land for the coast's
+			-- line), moved like the land: the same map from the borders' rect.
+			local b, i = MapShape.data.borders, MapShape.data.ink
+			local sx, sy = land.w / b.w, land.h / b.h
+			borders.Position = UDim2.fromScale(land.x + (i.x - b.x) * sx, land.y + (i.y - b.y) * sy)
+			borders.Size = UDim2.fromScale(i.w * sx, i.h * sy)
+		else
+			borders.Position = UDim2.fromScale(land.x, land.y)
+			borders.Size = UDim2.fromScale(land.w, land.h)
+		end
 		local legendRect = geo.legend
 		legendLayer.Position = UDim2.fromScale(legendRect.x, legendRect.y)
 		legendLayer.Size = UDim2.fromScale(legendRect.w, legendRect.h)
@@ -1309,9 +1434,9 @@ function ShapeMap.new(): MapInterface.Map
 	end
 
 	-- Which outline wins where two states' outlines meet (D-092): the
-	-- selection over a moved state's halo over an owner's ring over a hollow
-	-- state's hairline. A key state's gold edge (KEY_Z) is over them all.
-	local OUTLINE_RANK = { selected = 5, halo = 4, ring = 2, hollow = 1 }
+	-- selection over a key state's highlighter band (KEY_Z) over a moved
+	-- state's halo over an owner's ring over a hollow state's hairline.
+	local OUTLINE_RANK = { selected = 6, halo = 4, ring = 2, hollow = 1 }
 
 	-- The state's outline in `color` (nil: none), `px` thick; `dashed` shows
 	-- one segment in DASH_EVERY; `fade` its transparency; `alt` fills a dashed
@@ -1354,18 +1479,15 @@ function ShapeMap.new(): MapInterface.Map
 		placeParts(node.outlineParts, node.outlineNormals, px, px / 2)
 	end
 
-	-- A key state's mark (D-101, replacing D-088's glow and dashes): a solid
-	-- gold edge just inside the state's own border, or inside the outline
-	-- already there (`inner` px: an owner's ring, the selection, a moved
-	-- state's halo), so both read; a dark keyline inside the gold keeps it
-	-- clear of a pale fill. Over every other outline (KEY_Z). `on` false hides it.
+	-- A key state's mark (D-101, replacing D-088's glow and dashes; the
+	-- whiteboard's highlighter): a see-through yellow band just inside the
+	-- state's own border, or inside the outline already there (`inner` px: an
+	-- owner's ring, the selection, a moved state's halo), so both read. Over
+	-- every other outline but the selection (KEY_Z). `on` false hides it.
 	local function setKeyEdge(node: Node, on: boolean, inner: number)
 		if not on or node.chip ~= nil then
 			if node.keyEdge then
 				(node.keyEdge :: Frame).Visible = false
-			end
-			if node.keyLine then
-				(node.keyLine :: Frame).Visible = false
 			end
 			return
 		end
@@ -1375,23 +1497,66 @@ function ShapeMap.new(): MapInterface.Map
 			node.keyEdge = edge
 			for _, part in node.keyParts do
 				part.BackgroundColor3 = KEY_GOLD
+				part.BackgroundTransparency = KEY_FADE
 			end
 		end
-		local line = node.keyLine
-		if line == nil then
-			line =
-				buildOutline(node, `KeyLine{node.id}`, node.keyLineParts, node.keyLineNormals, KEY_SIMPLIFY)
-			node.keyLine = line
-			for _, part in node.keyLineParts do
-				part.BackgroundColor3 = Kit.colors.background
-				part.BackgroundTransparency = KEY_LINE_FADE
-			end
-		end
-		local gold, dark = edge :: Frame, line :: Frame
-		gold.Visible, dark.Visible = true, true
-		gold.ZIndex, dark.ZIndex = KEY_Z, KEY_Z
+		local band = edge :: Frame
+		band.Visible = true
+		band.ZIndex = KEY_Z
 		placeParts(node.keyParts, node.keyNormals, KEY_PX, inner + KEY_PX / 2)
-		placeParts(node.keyLineParts, node.keyLineNormals, KEY_LINE_PX, inner + KEY_PX + KEY_LINE_PX / 2)
+	end
+
+	-- Alaska's and Hawaii's coasts in ink under the ink overlay (which leaves
+	-- the two out: they are moved into their insets here). Made per layout.
+	local function drawCoast(node: Node)
+		if not inked or (node.id ~= "AK" and node.id ~= "HI") or node.coast then
+			return
+		end
+		local parts, normals = {}, {}
+		local frame = buildOutline(node, `Coast{node.id}`, parts, normals, nil)
+		frame.Visible = true
+		frame.ZIndex = 0
+		frame:SetAttribute("Decor", true)
+		for _, part in parts do
+			part.BackgroundColor3 = Kit.colors.text
+		end
+		placeParts(parts, normals, COAST_PX, COAST_PX / 2)
+		node.coast = frame
+	end
+
+	-- The latest call's highlighter: the state's flat shape over its fill in
+	-- yellow (`on` false hides it).
+	local function setSpot(node: Node, on: boolean)
+		if not on then
+			if node.spot then
+				(node.spot :: ImageLabel).Visible = false
+			end
+			return
+		end
+		local spot = node.spot
+		if spot == nil then
+			local s = node.shape
+			local made = Kit.new("ImageLabel", {
+				Name = `Spot{node.id}`,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = node.image.Position,
+				Size = node.image.Size,
+				BackgroundTransparency = 1,
+				Image = assetId(`mapStates{s.atlas}`),
+				ImageRectOffset = Vector2.new(s.ox, s.oy),
+				ImageRectSize = Vector2.new(s.ow, s.oh),
+				ImageColor3 = KEY_GOLD,
+				ImageTransparency = SPOT_FADE,
+				ScaleType = Enum.ScaleType.Stretch,
+				ZIndex = 2,
+				Parent = shapeLayer,
+			})
+			made:SetAttribute("Asset", "mapShape")
+			made:SetAttribute("MapShape", node.id)
+			node.spot = made
+			spot = made
+		end
+		(spot :: ImageLabel).Visible = true
 	end
 
 	local function bloomOf(node: Node): ImageLabel?
@@ -1474,7 +1639,25 @@ function ShapeMap.new(): MapInterface.Map
 		for _, code in utf8.codes(node.id) do
 			em += CAPS_EM[utf8.char(code)] or CODE_CHAR
 		end
-		return em * s + 2 + (if node.arrow.Visible then ARROW_PX else 0)
+		-- A key state's asterisk: its room on both sides, so the letters stay
+		-- centered where they always stand (D-092).
+		local star = if node.key then 2 * KEY_STAR_EM * s else 0
+		return em * s + 2 + star + (if node.arrow.Visible then ARROW_PX else 0)
+	end
+
+	-- Shows a key state's asterisk right after the code's letters (the label
+	-- is `w` px wide at text size `s`, its letters centered in it), the code
+	-- and the asterisk in the hand font for that size.
+	local function placeStar(node: Node, s: number, w: number)
+		node.label.Font = handAt(s)
+		local star = node.star
+		star.Font = node.label.Font
+		star.Visible = node.key
+		if node.key then
+			local letters = w - 2 * KEY_STAR_EM * s - (if node.arrow.Visible then ARROW_PX else 0)
+			star.Position = UDim2.new(0.5, letters / 2, 0.5, 0)
+			star.Size = UDim2.fromOffset(KEY_STAR_EM * s, s)
+		end
 	end
 
 	-- The row (values, ▲, pips) at text size `s`: its width and height in px.
@@ -1531,6 +1714,7 @@ function ShapeMap.new(): MapInterface.Map
 		local rw, rh = measureRow(node, s)
 		node.lensRow.Size = UDim2.fromOffset(rw, rh)
 		for _, part in node.parts do
+			part.label.Font = handAt(s)
 			for _, glyph in part.glyphs do
 				glyph.Size = UDim2.fromOffset(s, s)
 			end
@@ -1569,8 +1753,10 @@ function ShapeMap.new(): MapInterface.Map
 		if place == nil then
 			-- Until the layout runs (next frame): the bare code on the anchor.
 			local lh = labelPx(node)
-			node.label.Size = UDim2.fromOffset(codeW(node, math.min(lh, Kit.size.heading)), lh)
+			local w = codeW(node, math.min(lh, Kit.size.heading))
+			node.label.Size = UDim2.fromOffset(w, lh)
 			node.label.Position = onAnchor(node, 0.5, 0)
+			placeStar(node, math.min(lh, Kit.size.heading), w)
 			node.plate.Visible = false
 			node.lensRow.Visible = false
 			return
@@ -1580,8 +1766,10 @@ function ShapeMap.new(): MapInterface.Map
 		if not place.plate or not node.wantRow then
 			node.plate.Visible = false
 			node.lensRow.Visible = false
-			node.label.Size = UDim2.fromOffset(codeW(node, math.min(s, Kit.size.heading)), s)
+			local w = codeW(node, math.min(s, Kit.size.heading))
+			node.label.Size = UDim2.fromOffset(w, s)
 			node.label.Position = onAnchorAt(node, place.x, place.y)
+			placeStar(node, math.min(s, Kit.size.heading), w)
 			return
 		end
 		sizeRow(node, s)
@@ -1591,11 +1779,12 @@ function ShapeMap.new(): MapInterface.Map
 		local px = pads()
 		-- The code (its text right-aligned against the value's gap: the same
 		-- spacing on every plate, whatever the estimates miss).
-		node.label.TextXAlignment = if place.side == "R" or place.side == nil
+		node.label.TextXAlignment = if (place.side == "R" or place.side == nil) and not node.key
 			then Enum.TextXAlignment.Right
 			else Enum.TextXAlignment.Center
 		node.label.Size = UDim2.fromOffset(cw, s)
 		node.label.Position = onAnchorAt(node, place.x, place.y)
+		placeStar(node, s, cw)
 		node.plate.Visible = true
 		node.lensRow.Visible = true
 		local ix, iy = place.ix or 0, place.iy or 0
@@ -1659,6 +1848,7 @@ function ShapeMap.new(): MapInterface.Map
 			node.lensRow.Visible = false
 			node.label.Size = UDim2.new(across(node, 1, CHIP_PAD_X), UDim.new(0, lh))
 			node.label.Position = onAnchor(node, 0.5, 0)
+			placeStar(node, lh, codeW(node, lh))
 			return
 		end
 		local room = chipRoom(node)
@@ -1686,9 +1876,10 @@ function ShapeMap.new(): MapInterface.Map
 		node.plate.Visible = true
 		node.plate.Size = UDim2.fromOffset(pw, ph)
 		node.plate.Position = onAnchorAt(node, shift, 0)
-		node.label.TextXAlignment = Enum.TextXAlignment.Right
+		node.label.TextXAlignment = if node.key then Enum.TextXAlignment.Center else Enum.TextXAlignment.Right
 		node.label.Size = UDim2.fromOffset(cw, s)
 		node.label.Position = onAnchorAt(node, left + cw / 2, 0)
+		placeStar(node, s, cw)
 		node.lensRow.Visible = true
 		node.lensRow.Position = onAnchorAt(node, left + cw + PLATE_GAP + rw / 2, 0)
 	end
@@ -1782,7 +1973,7 @@ function ShapeMap.new(): MapInterface.Map
 		-- The plate: a battleground (★) wears the white outline (D-058).
 		node.outlined = outlined
 		node.plateEdge.Color = if outlined then Kit.colors.text else Kit.colors.line
-		node.plateEdge.Transparency = if outlined then 0 else PART_EDGE
+		node.plateEdge.Transparency = if outlined then 0 else 1 -- no plate on the board: only a battleground's is drawn
 		node.plateEdge.Thickness = if outlined then Kit.MARK_STROKE else 1
 		node.infoEdge.Color = node.plateEdge.Color
 		node.infoEdge.Transparency = node.plateEdge.Transparency
@@ -1819,6 +2010,7 @@ function ShapeMap.new(): MapInterface.Map
 		local mark = marks[node.id]
 		local line = lens[node.id]
 		local isSelected = selected == node.id
+		drawCoast(node)
 		local dim = mark ~= nil and mark.dim == true or (line ~= nil and line.dim == true)
 		local quiet = line ~= nil and (line :: any).quiet == true
 		local hollow = mark ~= nil and (mark :: any).hollow == true
@@ -1828,7 +2020,13 @@ function ShapeMap.new(): MapInterface.Map
 		if tweening[node.id] == nil then
 			node.image.ImageColor3 = shown
 		end
-		node.image.ImageTransparency = fade
+		-- The whiteboard: the leader's scribble, slanted by their seat; a
+		-- toss-up is blank board; a hollow state keeps its flat paper fill.
+		local seat = if hollow then nil else seats[node.id]
+		node.image.Image = assetId(ShapeMap.fillAsset(node.shape.atlas, seat))
+		local scribbled = hatched and seat ~= nil
+		node.image:SetAttribute("Hatch", if scribbled and seat then ShapeMap.slant(seat) else "")
+		node.image.ImageTransparency = if hatched and seat == nil and not hollow then 1 else fade
 		if node.chip then
 			local chip = node.chip :: Frame
 			if tweening[node.id] == nil then
@@ -1853,11 +2051,20 @@ function ShapeMap.new(): MapInterface.Map
 		local dashed = mark ~= nil and (mark :: any).dashed == true
 		local key = mark ~= nil and (mark :: any).key == true
 		node.hit:SetAttribute("Key", key) -- for the specs (D-088)
+		if key ~= node.key then
+			node.key = key
+			node.place = nil -- the code's box grows for its asterisk: laid out again
+		end
+		-- The spotlight (the latest election call: a ring in the accent, no
+		-- halo): a highlighter fill and the thick ink outline, no glow.
+		local lit = halo == nil and mark ~= nil and mark.ring == Kit.colors.accent and not isSelected
 		-- What moved (a preview, a reveal) outranks an owner's ring while it shows.
 		if isSelected then
-			setOutline(node, Kit.colors.accent, SELECTED_PX, nil, nil, nil, "selected")
+			setOutline(node, Kit.colors.accent, SELECT_PX, nil, nil, nil, "selected")
 		elseif halo then
 			setOutline(node, halo, if strong then SELECTED_PX else OUTLINE_PX, nil, nil, nil, "halo")
+		elseif lit then
+			setOutline(node, Kit.colors.accent, SELECT_PX, nil, nil, nil, "ring")
 		elseif mark and mark.ring then
 			setOutline(node, mark.ring, if dashed then OUTLINE_PX else SELECTED_PX, dashed, nil, nil, "ring")
 		elseif hollow then
@@ -1865,33 +2072,35 @@ function ShapeMap.new(): MapInterface.Map
 		else
 			setOutline(node, nil, 0)
 		end
-		-- A key state's gold edge runs inside whatever outline is there (D-101).
-		local inner = if isSelected
-				or (halo and strong)
-				or (mark and mark.ring and not dashed)
-			then SELECTED_PX
+		-- A key state's highlighter band runs inside whatever outline is there (D-101).
+		local inner = if isSelected or lit
+			then SELECT_PX
+			elseif (halo and strong) or (mark and mark.ring and not dashed) then SELECTED_PX
 			elseif halo or (mark and mark.ring) then OUTLINE_PX
 			elseif hollow then HAIRLINE_PX
 			else 0
 		setKeyEdge(node, key, inner)
+		setSpot(node, lit and not node.ladder)
 		if node.halo then
-			-- A callout chip's plate: a moved state's halo, else a key state's gold.
+			-- A callout chip's plate: a moved state's halo, else the spotlight's
+			-- or a key state's highlighter.
 			local plate = node.halo :: Frame
-			plate.Visible = halo ~= nil or key
+			plate.Visible = halo ~= nil or key or lit
 			if halo then
-				plate.BackgroundColor3 = halo
+				plate.BackgroundColor3 = if halo == Kit.colors.accent then KEY_GOLD else halo
 				plate.BackgroundTransparency = if strong then HALO_STRONG else HALO_SOFT
-			elseif key then
+			else
 				plate.BackgroundColor3 = KEY_GOLD
 				plate.BackgroundTransparency = 0
 			end
 		end
-		local lit = halo == nil and mark ~= nil and mark.ring == Kit.colors.accent and not isSelected
-		if halo or lit or node.bloom then
+		-- A moved state's bloom in its color; one in the accent (black on the
+		-- board) is a highlighter glow instead, never a dark shadow.
+		if halo or node.bloom then
 			local bloom = bloomOf(node)
 			if bloom then
-				bloom.Visible = halo ~= nil or lit
-				bloom.ImageColor3 = halo or Kit.colors.accent
+				bloom.Visible = halo ~= nil
+				bloom.ImageColor3 = if halo == nil or halo == Kit.colors.accent then KEY_GOLD else halo
 				bloom.ImageTransparency = if halo and not strong then BLOOM_SOFT else BLOOM_STRONG
 			end
 		end
@@ -1986,7 +2195,7 @@ function ShapeMap.new(): MapInterface.Map
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromOffset(0, TAG_H),
 				TextSize = Kit.size.caption,
-				Font = Kit.font.display,
+				Font = HAND,
 				BackgroundColor3 = Kit.colors.field,
 				BackgroundTransparency = PREVIEW_BG,
 				TextTransparency = PREVIEW_TEXT,
@@ -2154,7 +2363,8 @@ function ShapeMap.new(): MapInterface.Map
 	local function signature(bw: number, bh: number): string
 		local parts = { `{geo.kind}:{bw}x{bh}:{legendLayer.Visible}` }
 		for _, node in nodes do
-			local bits = { node.id, if node.arrow.Visible then "a" else "", node.rowKey }
+			local bits =
+				{ node.id, if node.arrow.Visible then "a" else "", if node.key then "k" else "", node.rowKey }
 			if node.badge.Visible then
 				table.insert(bits, "t" .. node.badge.Text)
 			end
@@ -2871,14 +3081,22 @@ function ShapeMap.new(): MapInterface.Map
 		measured(function()
 			for _, s in view.states do
 				local fill: Colors.RGB
+				local seat: number? = nil
 				if s.poll then
 					fill = Colors.bandFill(s.poll.support, colors)
+					seat = ShapeMap.leaderOf(s.poll.support)
 				elseif s.leanTo then
 					local support = table.create(#colors, 0)
 					support[s.leanTo] = s.lean
 					fill = Colors.bandFill(support, colors)
+					seat = ShapeMap.leaderOf(support)
 				else
 					fill = Colors.neutral
+				end
+				if seat then
+					seats[s.id] = seat
+				else
+					seats[s.id] = nil
 				end
 				local color = Kit.color(fill)
 				local old = fills[s.id]
@@ -3015,7 +3233,7 @@ function ShapeMap.new(): MapInterface.Map
 				if node.ladder and node.chipStroke then
 					local stroke = node.chipStroke :: UIStroke
 					stroke.Thickness = 0
-					Motion.tween(stroke, { Thickness = SELECTED_PX }, RING_DRAW)
+					Motion.tween(stroke, { Thickness = SELECT_PX }, RING_DRAW)
 				end
 				stopBreath()
 				if glow then
@@ -3136,7 +3354,7 @@ function ShapeMap.new(): MapInterface.Map
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromOffset(0, TAG_H),
 				TextSize = Kit.size.caption,
-				Font = Kit.font.display,
+				Font = HAND,
 				TextColor3 = Kit.colors.text,
 				BackgroundColor3 = Kit.colors.field,
 				BackgroundTransparency = GHOST_BG,
