@@ -193,8 +193,11 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 	local sides = { row:FindFirstChild("YouSide") :: Frame, row:FindFirstChild("ThemSide") :: Frame }
 	local function setNarrow(_self: Stage, on: boolean)
 		row.Size = UDim2.new(1, 0, 0, if on then ROW_H + CROWD_H else ROW_H)
+		-- A narrow stage gives each side half the row, so the two never overlap.
 		for _, holder in sides do
-			holder.Size = UDim2.fromOffset(SIDE_W, ROW_H)
+			holder.Size = if on
+				then UDim2.new(0.5, -Kit.space.xs, 0, ROW_H)
+				else UDim2.fromOffset(SIDE_W, ROW_H)
 		end
 		if on then
 			middle.Position = UDim2.fromOffset(0, ROW_H)

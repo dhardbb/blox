@@ -7,6 +7,9 @@
 --   Words.question(topic) -> string           the moderator's question for a topic
 --   Words.cell(margin) -> string              "+3", "−2", "=" (a result cell)
 --   Words.cells(row) -> string                "D +4 · A +3 · P =" (against their Defend, Attack, Pivot)
+--   Words.cellsShort(row) -> string           "D+4 A+3 P=" (a landscape phone's move tile, D-098)
+--   Words.roundChip(view, round, name) -> (string, winner)  the verdict's chip per round:
+--                                             "Safety · Split", "Jobs · You", "Health · Buster" (D-098)
 --   Words.facts(board) -> { string }          "Your issue", "You lead its states"...
 --   Words.stamp(view, round, name) -> (string, tone)   "YOU WIN BY 3", "BUSTER WINS BY 3", "SPLIT"
 --                                             ("THEY WIN BY 3" for a name too long for a stamp)
@@ -67,6 +70,15 @@ function Words.cells(row: Swing.MoveRow): string
 	return table.concat(parts, " · ")
 end
 
+-- The same cells, packed for a landscape phone's move tile (D-098): "D+4 A+3 P=".
+function Words.cellsShort(row: Swing.MoveRow): string
+	local parts: { string } = {}
+	for k, move in { "Defend", "Attack", "Pivot" } do
+		table.insert(parts, `{INITIAL[move]}{Words.cell(row.cells[k])}`)
+	end
+	return table.concat(parts, " ")
+end
+
 -- The facts that set this round's strengths, as short pills.
 function Words.facts(board: Swing.DebateBoard): { string }
 	local out: { string } = {}
@@ -119,6 +131,19 @@ function Words.crowdStamp(lead: number, theirName: string): (string, Tone)
 		return `{(stampName(theirName))} WON THE CROWD`, "loss"
 	end
 	return "AN EVEN CROWD", "text"
+end
+
+-- The verdict's chip for one round (D-098): its topic and who took it, and
+-- that winner's seat (0 for a split) so the chip wears their color.
+-- "Safety · Split", "Jobs · You", "Health · Buster" ("Them" for a long name).
+function Words.roundChip(view: View, round: SimState.DebateRound, theirName: string): (string, number)
+	local topic = (Issues.displayName :: any)[round.topic] or round.topic
+	local who = if round.winner == 0
+		then "Split"
+		elseif round.winner == view.you then "You"
+		elseif (utf8.len(theirName) or #theirName) > Words.STAMP_NAME_MAX then "Them"
+		else theirName
+	return `{topic} · {who}`, round.winner
 end
 
 -- "Pivot beats Defend: +3" when a counter landed, else nil.
