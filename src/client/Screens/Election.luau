@@ -23,6 +23,16 @@
 -- the tipping state is outlined in white before its call and keeps the ring
 -- and an accent glow after it (its call has no CALLED stamp: one stamp per
 -- moment; when it is the last call, the banner waits BANNER_HOLD for it).
+--
+-- D-098: the "270!" is a full-width banner over the race bar in the winner's
+-- color, "GOLDIE WINS 270!" ("YOU WIN 270!"), with two rings bursting from it,
+-- so it never covers the vote counts (it is still named Stamp270). While a
+-- state is still counting the spotlight shows three pulsing dots where the
+-- portrait goes (still dots under Reduce motion), and the state that will
+-- decide the race wears a gold "DECIDING STATE" tag. "Skip to results" is a
+-- quiet button (ActionBar:setQuiet). A landscape phone packs the side panel
+-- (the spotlight over the bar; the feed comes back with the banner) and says
+-- the coach tip in the bar's status line instead of a card over the feed.
 -- On the map (D-079) states not called yet are hollow (a dark fill and a
 -- hairline), each call shakes its state, and nothing carries a tag: the race
 -- bar's "270!" is the night's one big label. Feed rows carry a
@@ -92,6 +102,14 @@ local BAR_H = 14 -- px, the EV bar (Kit.raceBar: 22 px with the tick's overhang)
 local EV_W = 60 -- px, the EV number
 local GOAL_W = 76 -- px, "270 to win" between the two sides
 local SPOT_H = 92 -- px, the spotlight card: an eyebrow, the state, the call
+local SPOT_H_COMPACT = 74 -- px, the same on a landscape phone (tighter padding, D-098)
+local COMPACT_PAD = 6 -- px, the side panel's and the spotlight's padding on a landscape phone
+local WIN_BANNER_H = 30 -- px, the full-width "GOLDIE WINS 270!" banner over the race bar (D-098)
+local WIN_BURST = { 120, 220 } -- px, the two rings that burst from it as it lands
+local WIN_BURST_GAP = 0.12 -- s between the two rings
+local DOTS = 3 -- the pulsing dots while a state is still counting (D-098)
+local DOT = 8 -- px, one dot
+local DOT_BREATHE = { 0, 0.75, 0.5 } -- a dot's transparency swings between these, s per swing
 local SPOT_PORTRAIT = 44 -- px, the winner's portrait in the spotlight
 local BANNER_EYEBROW_H = 16 -- px, "ELECTION NIGHT" over the banner's line
 local LINE_BAR_W = 4 -- px, a feed row's left bar in the winner's color
@@ -320,7 +338,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local race = Kit.raceBar(counters, { h = BAR_H, mark = mark, name = "Bar" })
 	race.root.Position = UDim2.fromOffset(0, ROW_TOP + Kit.space.xs)
 	race.tick.Name = "Marker270"
-	local stamp270: Frame? = nil -- "270!" over the tick, once someone gets there
+	local stamp270: Frame? = nil -- "GOLDIE WINS 270!" over the bar, once someone gets there
 	local youSide: Side = buildSide(counters, race.left, "EvYou", false)
 	local themSide: Side = buildSide(counters, race.right, "EvThem", true)
 
@@ -401,6 +419,65 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.fromOffset(SPOT_PORTRAIT, SPOT_PORTRAIT),
 		Parent = spotlight,
 	})
+	-- While a state is still counting: three pulsing dots in the portrait's place.
+	local dots = Kit.box({
+		Name = "CountingDots",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(SPOT_PORTRAIT, DOT),
+		Visible = false,
+		Parent = spotlight,
+	})
+	local dotList = Kit.list("Horizontal", (SPOT_PORTRAIT - DOTS * DOT) // (DOTS - 1))
+	dotList.Parent = dots
+	local dotFrames: { Frame } = {}
+	for k = 1, DOTS do
+		local dot = Kit.new("Frame", {
+			Name = `Dot{k}`,
+			LayoutOrder = k,
+			Size = UDim2.fromOffset(DOT, DOT),
+			BackgroundColor3 = Kit.colors.muted,
+			BorderSizePixel = 0,
+			Parent = dots,
+		}) :: Frame
+		Kit.round().Parent = dot
+		dotFrames[k] = dot
+	end
+	local dotStops: { () -> () } = {}
+	local function setDots(on: boolean)
+		if dots.Visible == on then
+			return
+		end
+		dots.Visible = on
+		for _, stop in dotStops do
+			stop()
+		end
+		table.clear(dotStops)
+		if not on then
+			return
+		end
+		-- Each dot breathes a third of a swing after the one before it.
+		for k, dot in dotFrames do
+			task.delay((k - 1) * DOT_BREATHE[3] / DOTS, function()
+				if dots.Visible and dot.Parent ~= nil then
+					local b = DOT_BREATHE
+					table.insert(dotStops, Motion.breathe(dot, "BackgroundTransparency", b[1], b[2], b[3]))
+				end
+			end)
+		end
+	end
+	-- Gold: the leaderboard's first medal (the Amber player color), a data color.
+	local deciding = Kit.pill("DECIDING STATE", "text", {
+		Name = "DecidingTag",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -Kit.space.xs, 0, -Kit.space.xs),
+		ZIndex = 5,
+		Visible = false,
+		fill = Kit.color(Colors.player.Amber),
+		Parent = spotlight,
+	})
+	deciding:SetAttribute("Overhang", true)
+
 	local spotWords = Kit.box({
 		Name = "SpotWords",
 		Position = UDim2.fromOffset(SPOT_PORTRAIT + Kit.space.md, 0),
@@ -435,7 +512,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local calledStamp: Frame? = nil -- "CALLED" over the spotlight's top-right corner
 	local portraitFor = "" -- whose portrait the spotlight shows
 
-	local feedTop = SPOT_H + GAP
+	local feedTop = SPOT_H + GAP -- the wide layout's; applyLayout sets the feed's place
 	local feed = Kit.new("ScrollingFrame", {
 		Name = "Feed",
 		Position = UDim2.fromOffset(0, feedTop),
@@ -456,7 +533,22 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = feed,
 	})
 	-- Once per session: what this screen is. Above every call (calls go -k).
-	CoachTip.show(feed, { id = "election.night", order = -1e6 })
+	-- On a landscape phone it would cover the calls: the bar's status line says
+	-- it in one line instead (decided at the first layout, once the size is known).
+	local tipDecided = false
+	local tipLine: string? = nil
+	local function placeTip(compact: boolean)
+		if tipDecided then
+			return
+		end
+		tipDecided = true
+		if not compact then
+			CoachTip.show(feed, { id = "election.night", order = -1e6 })
+		elseif not CoachTip.seen("election.night") and CoachTip.has("election.night") then
+			tipLine = `First to {ctx.config.EV_TO_WIN} wins · closest states last`
+			CoachTip.markSeen("election.night")
+		end
+	end
 
 	local actionBar = ActionBar.new(side, {
 		primary = "Skip to results",
@@ -466,6 +558,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		primaryName = "SkipButton",
 	})
 	actionBar:setStatus("Safe states first, closest last", "muted")
+	-- A skip is never the brightest thing on screen (D-098).
+	actionBar:setQuiet(true)
 
 	-- Sizes that depend on the screen shape and on the banner. Pixel math for the
 	-- phone split, so it is re-run whenever the screen size changes.
@@ -477,14 +571,35 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			return
 		end
 		laidOut = shape
+		local compact = not portrait and size.X > 0 and Kit.compact(size)
+		if size.X > 0 then
+			placeTip(compact)
+			if tipLine then
+				actionBar:setStatus(tipLine, "muted")
+			end
+		end
 		local stripH = if hasTiebreak then (if portrait then TIEBREAK_H_PORTRAIT else TIEBREAK_H) else STRIP_H
 		counters.Visible = not bannerShown
 		bannerPanel.Visible = bannerShown
 		-- Once everything is called the spotlight steps aside: the feed has it all.
 		spotlight.Visible = not bannerShown
-		local top = if bannerShown then 0 else feedTop
+		-- A landscape phone (D-098): tighter padding and a shorter spotlight, so
+		-- the spotlight sits whole above the bar; the feed waits for the banner.
+		local pad = if compact then COMPACT_PAD else Kit.space.md
+		for _, panel in { side, spotlight } do
+			local padding = panel:FindFirstChildOfClass("UIPadding")
+			if padding then
+				local px = UDim.new(0, pad)
+				padding.PaddingTop, padding.PaddingBottom, padding.PaddingLeft, padding.PaddingRight =
+					px, px, px, px
+			end
+		end
+		local spotH = if compact then SPOT_H_COMPACT else SPOT_H
+		spotlight.Size = UDim2.new(1, 0, 0, spotH)
+		local top = if bannerShown then 0 else spotH + GAP
 		feed.Position = UDim2.fromOffset(0, top)
 		feed.Size = UDim2.new(1, 0, 1, -(top + Kit.BAR_H + GAP))
+		feed.Visible = bannerShown or not compact
 		bannerPanel.Size = UDim2.new(1, 0, 0, stripH)
 		top = Kit.HEADER_H + GAP + stripH + GAP
 		body.Position = UDim2.fromOffset(0, top)
@@ -496,6 +611,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			mapBox.Size = UDim2.new(1, 0, 0, mapH)
 			side.Position = UDim2.fromOffset(0, mapH + GAP)
 			side.Size = UDim2.new(1, 0, 1, -(mapH + GAP))
+		elseif compact then
+			-- The map as wide as it is at the body's height, the side the rest:
+			-- a wider spotlight, so its lines never squeeze.
+			local bodyH = size.Y - top
+			local maxW = math.floor(size.X * MAP_SHARE)
+			local mapW = if bodyH > 0
+				then math.min(maxW, math.floor(bodyH * map:aspectFor(maxW, bodyH)))
+				else maxW
+			mapBox.Position = UDim2.fromScale(0, 0)
+			mapBox.Size = UDim2.new(0, mapW, 1, 0)
+			side.Position = UDim2.fromOffset(mapW + GAP, 0)
+			side.Size = UDim2.new(1, -(mapW + GAP), 1, 0)
 		else
 			mapBox.Position = UDim2.fromScale(0, 0)
 			mapBox.Size = UDim2.new(MAP_SHARE, -GAP // 2, 1, 0)
@@ -760,9 +887,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			spotCall.TextColor3 = Kit.colors.muted
 			spotStroke.Color = Kit.colors.accent
 			setPortrait(nil)
+			spotPortrait.Visible = false
+			setDots(true)
+			-- The state that takes someone to 270 is the one deciding the race.
+			deciding.Visible = tipping == count + 1
 			setCalled(nil, false)
 			return
 		end
+		spotPortrait.Visible = true
+		setDots(false)
+		deciding.Visible = false
 		local latest = results[count]
 		if latest == nil then
 			setSpotLabel("Polls have closed", Kit.colors.muted)
@@ -829,19 +963,43 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		if stamp270 ~= nil or root.Parent == nil then
 			return
 		end
-		local stamp = Kit.stamp(`{need}!`, Kit.colors.accent, {
+		-- D-098: a full-width banner over the race bar in the winner's color, so
+		-- it never covers either vote count.
+		local winner = if tipping then results[tipping].winner else 0
+		local color = if winner > 0 then Kit.color(colors[winner]) else Kit.colors.accent
+		local text = if winner == youIndex
+			then `YOU WIN {need}!`
+			elseif winner > 0 then `{string.upper(shortNames[winner] or "")} WINS {need}!`
+			else `{need}!`
+		local stamp = Kit.stamp(text, color, {
 			Name = "Stamp270",
+			size = Kit.size.heading,
+			Rotation = 0,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(mark, 0, 0, ROW_TOP + Kit.space.xs + (BAR_H + 8) // 2),
+			Position = UDim2.new(0.5, 0, 0, ROW_TOP + Kit.space.xs + (BAR_H + 8) // 2),
 			ZIndex = 6,
 			Parent = counters,
 		})
+		stamp.Size = UDim2.new(1, 0, 0, WIN_BANNER_H)
+		local plate = stamp:FindFirstChild("Plate") :: Frame
+		local platePad = plate:FindFirstChildOfClass("UIPadding")
+		if platePad then
+			platePad.PaddingTop, platePad.PaddingBottom = UDim.new(0, 2), UDim.new(0, 2)
+		end
 		stamp270 = stamp
 		settle(stamp)
-		-- The stamp says it now; "270 TO WIN" would peek out from under it.
+		-- The banner says it now; "270 TO WIN" would peek out from under it.
 		goal.Visible = false
 		if slam then
 			Motion.stamp(stamp)
+			-- The burst: two rings from its middle as it lands (none under Reduce motion).
+			for k, px in WIN_BURST do
+				task.delay(Motion.t.pop + (k - 1) * WIN_BURST_GAP, function()
+					if stamp.Parent ~= nil then
+						Motion.ring(stamp, color, px)
+					end
+				end)
+			end
 		end
 	end
 
@@ -1049,6 +1207,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			refresh(now)
 		end,
 		destroy = function()
+			setDots(false)
 			map:destroy()
 			root:Destroy()
 		end,
