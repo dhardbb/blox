@@ -261,7 +261,6 @@ describe("Draft screen: fixtures", function()
 
 	it("has a tappable row for every state, biggest first, and a map node", function()
 		local _world, peer = mount("Draft")
-		local StateData = require("@sim/StateData")
 		for _, record in StateData.list do
 			need(peer, `Row_{record.id}`)
 			need(peer, record.id)
