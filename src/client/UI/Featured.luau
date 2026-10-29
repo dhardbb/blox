@@ -19,26 +19,22 @@ local Kit = require(script.Parent.Kit)
 
 local Featured = {}
 
-Featured.LIP_SHADE = 0.45 -- the lip: the fill this far toward the stage color
-
--- The Daily Race's color: the gold player color, never a "good" or "bad" signal.
-Featured.GOLD = Kit.color(Colors.player.Amber)
+-- The Daily Race's color: highlighter gold (D-102), never a "good" or "bad"
+-- signal; INK is its line color (a card's edge, the streak flame), as a
+-- highlighter can't be read as a line on the board.
+Featured.GOLD = Kit.colors.highlight
+Featured.INK = Kit.color(Colors.player.Amber)
 
 function Featured.set(button: TextButton, fill: Color3?)
 	local lip = Kit.outer(button):FindFirstChild("Lip") :: Frame?
 	if fill then
 		button.BackgroundColor3 = fill
-		button.TextColor3 = Kit.colors.onAccent
+		button.TextColor3 = Kit.color(Colors.onColor(Kit.rgb(fill)))
 		button.Font = Kit.font.display
-		local edge = if fill == Kit.colors.accent then Kit.colors.accentEdge else fill
-		Kit.bevel(button, edge, 2, 1)
+		-- A black marker outline on any fill (D-102); the lip is the magnet's shadow.
+		Kit.bevel(button, Kit.colors.accentEdge, 2, 1)
 		if lip then
-			local k, stage = Featured.LIP_SHADE, Kit.colors.background
-			lip.BackgroundColor3 = Color3.new(
-				fill.R + (stage.R - fill.R) * k,
-				fill.G + (stage.G - fill.G) * k,
-				fill.B + (stage.B - fill.B) * k
-			)
+			lip.BackgroundColor3 = Kit.colors.raisedLip
 		end
 		button:SetAttribute("Featured", true)
 	else

@@ -170,7 +170,7 @@ function CoachTip.show(parent: Instance, options: Options): Tip?
 	local root = Kit.card({
 		Name = options.name or "CoachTip",
 		LayoutOrder = options.order or 0,
-		BackgroundColor3 = Kit.colors.raised,
+		BackgroundColor3 = Kit.colors.sticky, -- a sticky note on the board (D-102)
 		Size = if inList then UDim2.fromScale(1, 0) else UDim2.fromOffset(options.width or MAX_W, 0),
 		Position = options.position or UDim2.fromOffset(0, 0),
 		AnchorPoint = options.anchorPoint or Vector2.new(0, 0),

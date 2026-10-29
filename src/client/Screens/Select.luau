@@ -895,7 +895,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Position = UDim2.fromScale(0.55, 0.45),
 		Size = UDim2.fromOffset(6, PENCIL),
 		Rotation = 45,
-		BackgroundColor3 = Kit.color(Colors.player.Amber),
+		BackgroundColor3 = Kit.colors.highlight,
 		BorderSizePixel = 0,
 		Parent = pencil,
 	})
@@ -913,7 +913,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Name = "NamePassPill",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
-		fill = Kit.color(Colors.player.Amber),
+		fill = Kit.colors.highlight,
 		Parent = nameTop,
 	})
 	local nameLine = Kit.text("", {

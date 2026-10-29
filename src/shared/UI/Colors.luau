@@ -16,57 +16,59 @@ local function rgb(r: number, g: number, b: number): RGB
 end
 
 Colors.player = table.freeze({
-	-- Deep, saturated picks (D-067, were lighter and greyer in D-056). Every pair
-	-- is at least 19 CIEDE2000 (39 CIE76) apart and each is at least 27 (45) from
-	-- the loss orange; red and blue stay 42 (107) apart.
-	Crimson = rgb(212, 28, 66), -- hue 348: a cherry red, a little cooler than the loss orange
-	Cobalt = rgb(34, 98, 228),
-	Emerald = rgb(0, 170, 96),
-	Amber = rgb(246, 190, 8), -- hue 46: gold, kept clear of the loss orange (D-056)
-	Violet = rgb(152, 56, 228), -- hue 273: pushed toward purple, away from Cobalt
-	Teal = rgb(0, 164, 186),
+	-- Marker inks (D-102, whiteboard; were D-067's bright picks for a navy
+	-- stage): each reads at 4.5:1 or more as text on the board, paper and
+	-- raised; map fills blend them toward the board. Red and blue stay the default pair.
+	Crimson = rgb(200, 20, 70), -- red marker, a cherry: 43 (CIE76) from the loss orange
+	Cobalt = rgb(31, 91, 208), -- blue marker
+	Emerald = rgb(11, 115, 67), -- green marker
+	Amber = rgb(116, 104, 0), -- an olive gold: a bright yellow ink can't be read on white, a mustard is too near the loss orange
+	Violet = rgb(140, 40, 210),
+	Teal = rgb(8, 108, 124),
 } :: { [string]: RGB })
 
--- Neutrals (D-056): a navy stage, each step about 4 L* lighter than the last.
--- D-067 deepened the blue in every step (same lightness, about a third more
--- chroma), so the stage reads navy rather than grey.
-Colors.background = rgb(11, 16, 34) -- the stage behind everything (was 13, 17, 30)
-Colors.field = rgb(16, 23, 44) -- text boxes and read-only wells (between background and surface)
-Colors.surface = rgb(22, 30, 55) -- cards and panels (was 24, 30, 48)
-Colors.surfaceTop = rgb(29, 38, 68) -- top stop of a card's top-light gradient (bottom: surface)
-Colors.raised = rgb(36, 47, 80) -- buttons, chips, tags (was 38, 46, 70)
-Colors.raisedTop = rgb(44, 56, 93) -- top stop of a raised panel's gradient (bottom: raised)
-Colors.raisedHover = rgb(52, 65, 106) -- a selected chip
-Colors.raisedLip = rgb(8, 12, 26) -- the lip under a secondary button: darker than the stage, so it reads on any surface
-Colors.line = rgb(68, 81, 124) -- hairlines (at 0.5 transparency), map adjacency lines, dividers
-Colors.text = rgb(240, 243, 250) -- 14.8:1 on surface
-Colors.muted = rgb(156, 168, 204) -- 7.0:1 on surface, 5.6:1 on raised
-Colors.neutral = rgb(70, 78, 104) -- a state nobody leads: a dark slate, so a lead blends to a deep color, not a pastel (D-067, was 118, 124, 142)
-Colors.undecided = rgb(164, 174, 204) -- the undecided ring: a slate that frames a fill without washing it (D-067, was 190, 196, 210)
+-- Neutrals (D-102, whiteboard; were D-056/D-067's navy stage): an off-white
+-- dry-erase board, paper cards on it, black marker for lines and text.
+Colors.background = rgb(243, 241, 234) -- the board behind everything
+Colors.field = rgb(248, 246, 240) -- text boxes and read-only wells (between the board and paper)
+Colors.surface = rgb(251, 250, 245) -- paper cards and panels
+Colors.surfaceTop = rgb(255, 254, 250) -- top stop of a card's top-light gradient (bottom: surface)
+Colors.raised = rgb(236, 232, 222) -- magnetic labels, chips, tags
+Colors.raisedTop = rgb(242, 239, 231) -- top stop of a raised panel's gradient (bottom: raised)
+Colors.raisedHover = rgb(225, 220, 205) -- a selected chip
+Colors.raisedLip = rgb(196, 190, 174) -- the shadow under a secondary button: a magnet's edge on the board
+Colors.line = rgb(143, 139, 128) -- hairlines, map adjacency lines, dividers (never text)
+Colors.text = rgb(29, 29, 31) -- black marker: 16.1:1 on paper, 14.9:1 on the board
+Colors.muted = rgb(87, 84, 76) -- pencil grey: 7.2:1 on paper, 6.2:1 on raised
+Colors.neutral = rgb(243, 241, 234) -- a state nobody leads: blank board, so a lead blends toward its ink
+Colors.undecided = rgb(143, 139, 128) -- the undecided ring: pencil grey
+Colors.sticky = rgb(255, 242, 168) -- a sticky note: coach tips, the week's event (ink on it 15:1)
+Colors.ghost = rgb(228, 225, 216) -- erased-marker ghosting on the board (texture and flat fallback only)
 
--- Accent (D-058, was pink in D-051): white, "press here / selected". Color is
--- kept for meaning (players, gains, losses); the accent is a near-white, lighter
--- than every player and status color and a touch brighter than `text`.
-Colors.accent = rgb(244, 246, 252) -- the primary button's face, selection outline, timer
-Colors.accentEdge = rgb(196, 204, 224) -- the primary button's 2 px edge (cool light grey)
-Colors.accentLip = rgb(110, 122, 158) -- the slate lip under the primary (2.4:1 on its shaded face, 3.9:1 on surface)
-Colors.onAccent = Colors.background -- text on an accent fill (17.5:1)
+-- Accent (D-102, replacing D-058's white, which can't show on a white
+-- board): black marker for "press here / selected".
+Colors.accent = rgb(29, 29, 31) -- the primary button's face, selection outline, timer
+Colors.accentEdge = rgb(0, 0, 0) -- the primary button's 2 px edge
+Colors.accentLip = rgb(120, 116, 106) -- the shadow under the primary (on the board)
+Colors.onAccent = Colors.background -- text on an accent fill (14.9:1)
 
--- Status (D-056): green is a gain; orange is anything against you. Red is a
--- player color, so it never means "bad".
-Colors.good = rgb(80, 212, 96) -- a gain (8.6:1 on surface; D-067, was a minty 92, 200, 128)
-Colors.goodEdge = rgb(50, 140, 66) -- the stroke of a good fill (a filled "You win" pill)
-Colors.loss = rgb(255, 122, 40) -- a loss, a warning, an error (6.3:1 on surface); always with a sign or a word
-Colors.lossEdge = rgb(196, 84, 20) -- the stroke or lip of a loss fill
-Colors.onLoss = Colors.background -- text on a loss fill (7.3:1)
+-- Status (D-056, darkened for the board in D-102): green is a gain; orange is
+-- anything against you. Red is a player color, so it never means "bad".
+Colors.good = rgb(23, 114, 58) -- a gain (5.7:1 on paper)
+Colors.goodEdge = rgb(14, 80, 40) -- the stroke of a good fill (a filled "You win" pill)
+Colors.loss = rgb(176, 74, 0) -- a loss, a warning, an error: burnt orange (5.1:1 on paper, 4.5:1 on raised); always with a sign or a word
+Colors.lossEdge = rgb(124, 52, 0) -- the stroke or lip of a loss fill
+Colors.onLoss = Colors.background -- text on a loss fill (4.9:1)
 Colors.warn = Colors.loss -- one orange: "be careful" and "you lost" read the same
 Colors.danger = Colors.loss -- the old name for a loss or an error; kept for every caller
 Colors.disabledText = Colors.muted -- labels of disabled buttons
-Colors.glow = rgb(40, 60, 136) -- the tint of the map's backdrop glow
--- A key state's edge (D-101): a pale, lemony gold, 12 CIEDE2000 from Amber (8 for
--- deuteranopes), 36 from the loss orange, 30 from the white selection; 4.2:1 or
--- more on a full Crimson or Cobalt fill, 6.7:1 on a toss-up's neutral.
-Colors.keyGold = rgb(255, 232, 110)
+Colors.glow = rgb(228, 225, 216) -- the tint of the map's backdrop: an erased smudge
+-- A key state's mark (D-102, was D-101's pale gold): highlighter yellow, a
+-- band inside the state's border, never text.
+Colors.keyGold = rgb(255, 227, 71)
+-- Gold (the Daily Race, first medals, the 270 badge; was the Amber player
+-- color, now too dark to read as gold): the same highlighter, with ink on it.
+Colors.highlight = Colors.keyGold
 
 -- Linear blend from `base` toward `color`, t in [0, 1]. Used for map fills, the
 -- Election feed rows (0.35) and the draft board legend (0.6).
@@ -87,10 +89,10 @@ function Colors.luma(color: RGB): number
 	return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b) / 255
 end
 
--- Readable text on a fill of `color`: dark (background) on light fills such as
--- Amber, Teal and Emerald, light (text) on dark ones.
+-- Readable text on a fill of `color`: black marker (text) on light fills,
+-- the board's off-white on dark ones (D-102: the board is the light one now).
 function Colors.onColor(color: RGB): RGB
-	return if Colors.luma(color) > 0.5 then Colors.background else Colors.text
+	return if Colors.luma(color) > 0.5 then Colors.text else Colors.background
 end
 
 -- WCAG relative luminance (sRGB), 0 for black to 1 for white.
@@ -109,40 +111,47 @@ function Colors.contrast(a: RGB, b: RGB): number
 end
 
 Colors.TEXT_CONTRAST = 4.5 -- what textOn guarantees on a card's lit top (surfaceTop)
-local LIFT_STEP = 0.05 -- textOn's search step, for brightening and for the tint toward text
+local LIFT_STEP = 0.05 -- textOn's search step, for darkening (brightening) and for the tint toward text
 
--- The readable variant of a player color for text on a dark surface (D-067, was
--- a fixed quarter toward `text` in D-056): the color itself when it already reads
--- at TEXT_CONTRAST on surfaceTop; else the same color brightened (channels scaled
--- up, so the hue and saturation stay); and only if full brightness is not enough,
--- tinted toward `text` as little as it takes. Crimson -> 252, 76, 113 (5.1:1 on
--- surface); Emerald, Teal and Amber stay as they are. Fills, dots, bars and rings
--- keep the base color.
+-- The readable variant of a color for text on a card (D-067, turned around for
+-- the board in D-102): the color itself when it already reads at TEXT_CONTRAST
+-- on surfaceTop; else, on a light ground, the same color darkened (channels
+-- scaled down, so the hue stays), on a dark ground brightened; and only if that
+-- is not enough, tinted toward `text` as little as it takes. Every player ink
+-- already reads, so they stay as they are. Fills, dots, bars and rings keep the
+-- base color.
 function Colors.textOn(color: RGB): RGB
 	local ground = Colors.surfaceTop
 	if Colors.contrast(color, ground) >= Colors.TEXT_CONTRAST then
 		return { r = color.r, g = color.g, b = color.b }
 	end
+	local light = luminance(ground) > 0.5
 	local top = math.max(color.r, color.g, color.b, 1)
-	local k = 1 + LIFT_STEP
-	while top * k <= 255 do
-		local lifted = {
+	local step = 1
+	while true do
+		local k = if light then 1 - step * LIFT_STEP else 1 + step * LIFT_STEP
+		if k <= 0 or top * k > 255 then
+			break
+		end
+		local shifted = {
 			r = math.floor(color.r * k + 0.5),
 			g = math.floor(color.g * k + 0.5),
 			b = math.floor(color.b * k + 0.5),
 		}
-		if Colors.contrast(lifted, ground) >= Colors.TEXT_CONTRAST then
-			return lifted
+		if Colors.contrast(shifted, ground) >= Colors.TEXT_CONTRAST then
+			return shifted
 		end
-		k += LIFT_STEP
+		step += 1
 	end
-	local bright = {
-		r = math.min(255, math.floor(color.r * 255 / top + 0.5)),
-		g = math.min(255, math.floor(color.g * 255 / top + 0.5)),
-		b = math.min(255, math.floor(color.b * 255 / top + 0.5)),
-	}
-	for step = 0, math.round(1 / LIFT_STEP) do
-		local lifted = Colors.tint(bright, Colors.text, step * LIFT_STEP)
+	local base = if light
+		then color
+		else {
+			r = math.min(255, math.floor(color.r * 255 / top + 0.5)),
+			g = math.min(255, math.floor(color.g * 255 / top + 0.5)),
+			b = math.min(255, math.floor(color.b * 255 / top + 0.5)),
+		}
+	for k = 0, math.round(1 / LIFT_STEP) do
+		local lifted = Colors.tint(base, Colors.text, k * LIFT_STEP)
 		if Colors.contrast(lifted, ground) >= Colors.TEXT_CONTRAST then
 			return lifted
 		end

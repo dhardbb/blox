@@ -87,7 +87,7 @@ describe("Kit tokens", function()
 		check(same(Kit.colors.disabledText, Kit.colors.muted), "disabledText is not muted")
 		check(Kit.colors.field ~= nil and Kit.colors.neutral ~= nil, "field or neutral is missing")
 		local view = { players = { { color = "Teal" }, { color = nil } } }
-		check(same(Kit.playerColor(view, 1), Kit.color({ r = 0, g = 164, b = 186 })), "Teal is wrong")
+		check(same(Kit.playerColor(view, 1), Kit.color({ r = 8, g = 108, b = 124 })), "Teal is wrong")
 		check(same(Kit.playerColor(view, 2), Kit.colors.neutral), "no color is not neutral")
 	end)
 
@@ -126,7 +126,7 @@ describe("Kit buttons", function()
 		local primary = make(c, "primary")
 		check(same(primary.BackgroundColor3, Kit.colors.accent), "primary is not accent")
 		check(same(primary.TextColor3, Kit.colors.onAccent), "primary text is not onAccent")
-		expect(primary.Font.Name):toBe("FredokaOne") -- Kit.font.display
+		expect(primary.Font.Name):toBe("PermanentMarker") -- Kit.font.display
 		expect(primary.AbsoluteSize.Y):toBe(56)
 		local secondary = make(c, nil)
 		check(same(secondary.BackgroundColor3, Kit.colors.raised), "the default is not raised")
@@ -435,12 +435,13 @@ end)
 -- ------------------------------------------------------------------ polish (docs/DESIGN.md D-053)
 
 describe("Kit polish: fonts, depth and edges", function()
-	it("uses Builder Sans with Fredoka One for display", function()
+	it("uses Builder Sans, with Permanent Marker for display and Patrick Hand for hand-lettering", function()
 		local Kit = client().Kit
 		expect(Kit.font.body.Name):toBe("BuilderSans")
 		expect(Kit.font.medium.Name):toBe("BuilderSansMedium")
 		expect(Kit.font.bold.Name):toBe("BuilderSansBold")
-		expect(Kit.font.display.Name):toBe("FredokaOne")
+		expect(Kit.font.display.Name):toBe("PermanentMarker")
+		expect(Kit.font.hand.Name):toBe("PatrickHand")
 		expect(Kit.font.mono.Name):toBe("Code")
 		expect(Kit.TIMER_CRITICAL):toBe(5)
 	end)
@@ -466,16 +467,17 @@ describe("Kit polish: fonts, depth and edges", function()
 		check(same(edge:GetAttribute("Base"), Kit.colors.accentEdge), "re-enabling did not restore the edge")
 	end)
 
-	it("puts hairlines and depth on secondaries and cards only", function()
+	it("puts marker outlines and depth on secondaries, hairlines on cards only", function()
 		local c = client()
 		local Kit = c.Kit
 		local secondary = Kit.button("Back", function() end, { variant = "secondary", Parent = c.stage })
 		local edge = secondary:FindFirstChild("Edge")
 		check(
 			edge ~= nil
-				and same(edge:GetAttribute("Base"), Kit.colors.line)
-				and edge:GetAttribute("Alpha") == 0.5,
-			"no hairline"
+				and same(edge:GetAttribute("Base"), Kit.colors.text)
+				and edge:GetAttribute("Alpha") == 1
+				and edge.Thickness == 2,
+			"no black marker outline (D-102)"
 		)
 		check(secondary:FindFirstChild("Depth") ~= nil, "no gradient on a secondary")
 		local ghost = Kit.button("More", function() end, { variant = "ghost", Parent = c.stage })
@@ -562,17 +564,20 @@ describe("Kit foundation: orange losses and chunky buttons", function()
 	it("has one orange for loss, warn and bad, and readable player text", function()
 		local c = client()
 		local Kit = c.Kit
-		check(same(Kit.colors.loss, Kit.color({ r = 255, g = 122, b = 40 })), "loss is not 255,122,40")
+		check(same(Kit.colors.loss, Kit.color({ r = 176, g = 74, b = 0 })), "loss is not 176,74,0 (D-102)")
 		for _, name in { "warn", "danger", "bad" } do
 			check(same(Kit.colors[name], Kit.colors.loss), `{name} is not the loss orange`)
 		end
 		check(same(Kit.tone("loss"), Kit.colors.loss), "tone loss")
 		check(same(Kit.tone("bad"), Kit.colors.loss), "tone bad")
 		check(same(Kit.tone("white"), Kit.colors.text), "tone white")
-		check(same(Kit.colors.background, Kit.color({ r = 11, g = 16, b = 34 })), "the stage is not navy")
+		check(
+			same(Kit.colors.background, Kit.color({ r = 243, g = 241, b = 234 })),
+			"the board is not off-white (D-102)"
+		)
 		local view = { players = { { color = "Crimson" }, { color = "Cobalt" } } }
-		check(same(Kit.playerText(view, 1), Kit.color({ r = 252, g = 76, b = 113 })), "Crimson text")
-		check(same(Kit.playerColor(view, 1), Kit.color({ r = 212, g = 28, b = 66 })), "Crimson fill changed")
+		check(same(Kit.playerText(view, 1), Kit.color({ r = 200, g = 20, b = 70 })), "Crimson text")
+		check(same(Kit.playerColor(view, 1), Kit.color({ r = 200, g = 20, b = 70 })), "Crimson fill changed")
 		check(same(Kit.textColor(Kit.playerColor(view, 2)), Kit.playerText(view, 2)), "textColor")
 	end)
 
@@ -727,7 +732,7 @@ describe("Kit foundation: orange losses and chunky buttons", function()
 		local label = stamp:FindFirstChild("Label", true)
 		expect(label.Text):toBe("CALLED")
 		expect(label.TextSize):toBe(Kit.size.title)
-		expect(label.Font.Name):toBe("FredokaOne")
+		expect(label.Font.Name):toBe("PermanentMarker")
 		local hero = Kit.stamp("You lost", Kit.colors.loss, { size = Kit.size.hero, Parent = c.stage })
 		check(
 			same(hero:FindFirstChild("Label", true).TextColor3, Kit.colors.onLoss),

@@ -153,7 +153,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			LayoutOrder = order,
 			Size = UDim2.fromOffset(0, NAMES_H),
 			AutomaticSize = Enum.AutomaticSize.X,
-			Font = Kit.font.display,
+			Font = Kit.font.hand,
 			TextSize = Kit.size.heading,
 			TextWrapped = false,
 			Parent = group,
@@ -476,7 +476,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 			local polls = p.reveal == "Resolve" and model.captionPolls == true
 			if polls ~= pollsShown then
 				pollsShown = polls
-				nowText.Font = if polls then Kit.font.display else Kit.font.medium
+				nowText.Font = if polls then Kit.font.hand else Kit.font.medium
 				if polls then
 					Motion.pop(nowText)
 				end

@@ -14,10 +14,6 @@
 -- Screens place it themselves (beside a name, inside a row); it sizes to its
 -- text (AutomaticSize X) at Kit.PILL_H tall unless props say otherwise.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Colors = require(ReplicatedStorage.Shared.UI.Colors)
-
 local Kit = require(script.Parent.Kit)
 
 local LandslideBadge = {}
@@ -25,7 +21,7 @@ local LandslideBadge = {}
 LandslideBadge.WIDTH = 48 -- px: a pill with "▲999" at caption size, padding included
 -- Gold, the leaderboard's first medal (the Amber player color): a data color,
 -- kept clear of the loss orange, so the badge is marked Kit.dataColor.
-local GOLD = Kit.color(Colors.player.Amber)
+local GOLD = Kit.colors.highlight
 
 local function whole(count: any): number
 	if type(count) ~= "number" or count ~= count or count == math.huge then

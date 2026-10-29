@@ -136,7 +136,7 @@ function Header.new(parent: Instance, options: Options): Header
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromOffset(TIMER_W, Kit.HEADER_H),
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextSize = Kit.size.heading,
 		TextScaled = true,
 		TextColor3 = Kit.colors.accent,

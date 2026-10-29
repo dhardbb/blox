@@ -31,8 +31,9 @@
 -- assets/issues/ (UI/IssueIcons) tinted in its ImageColor3 (a mask), uploaded
 -- or not;
 -- any other image as a labeled
--- dashed box. Text widths are estimated (Builder Sans, Gotham and Fredoka One
--- are drawn as Helvetica), so line breaks are close to Studio, not exact.
+-- dashed box. Text widths are estimated (Builder Sans and Gotham
+-- are drawn as Helvetica; the handwriting fonts in their own faces), so line
+-- breaks are close to Studio, not exact.
 --
 -- Not drawn: UIGradient Offset, Scale and Type, TileMode; a UIGradient's effect
 -- on its parent's UIStroke; Rotation's effect on clipping; images' real pixels
@@ -173,6 +174,14 @@ end
 local function stripRich(s: string): string
 	return (string.gsub(s, "<[^>]+>", ""))
 end
+
+-- The board's handwriting fonts (Kit.font.display and hand, D-102): drawn in
+-- their real faces, embedded from tests/lib/fonts (Google Fonts, OFL/Apache),
+-- so a picture shows the look instead of Helvetica.
+local HAND_FONTS: { [string]: { family: string, file: string } } = {
+	PermanentMarker = { family = "Permanent Marker", file = "tests/lib/fonts/PermanentMarker-Regular.ttf" },
+	PatrickHand = { family = "Patrick Hand", file = "tests/lib/fonts/PatrickHand-Regular.ttf" },
+}
 
 local function fontOf(p: { [string]: any }): (boolean, boolean, string)
 	local font = enum(p.Font, "Legacy")
@@ -609,7 +618,13 @@ local function cornersOf(inst: any, w: number, h: number): { number }?
 	return { one(p.TopLeftRadius), one(p.TopRightRadius), one(p.BottomRightRadius), one(p.BottomLeftRadius) }
 end
 
-type Out = { lines: { string }, clips: number, ids: number, portraits: { [string]: boolean } }
+type Out = {
+	lines: { string },
+	clips: number,
+	ids: number,
+	portraits: { [string]: boolean },
+	fonts: { [string]: boolean }, -- the board's handwriting fonts this picture uses (embedded once at the end)
+}
 
 local function emit(out: Out, s: string)
 	table.insert(out.lines, s)
@@ -797,9 +812,15 @@ local function drawText(out: Out, node: Node, ax: number, ay: number)
 	if gradient and not isPlaceholder then
 		fill = `url(#{gradientDef(out, gradient, ax, ay, node.w, node.h, p.TextColor3, 1)})`
 	end
-	local family = if mono
-		then "Menlo, Consolas, monospace"
+	local fontName = enum(p.Font, "Legacy")
+	local hand = HAND_FONTS[fontName]
+	local family = if hand
+		then `'{hand.family}', 'Helvetica Neue', Helvetica, sans-serif`
+		elseif mono then "Menlo, Consolas, monospace"
 		else "Gotham, Montserrat, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+	if hand then
+		out.fonts[fontName] = true
+	end
 	local strokeAttr = ""
 	local stroke = childOf(node.inst, "UIStroke")
 	if
@@ -1414,7 +1435,7 @@ function Snapshot.svg(peer: any, options: Options?): string
 	local square = options ~= nil and options.square == true
 	local S = math.max(W, H)
 	local dx, dy = if square then (S - W) / 2 else 0, if square then (S - H) / 2 else 0
-	local out: Out = { lines = {}, clips = 0, ids = 0, portraits = {} }
+	local out: Out = { lines = {}, clips = 0, ids = 0, portraits = {}, fonts = {} }
 	local cw, chh = if square then S else W, if square then S else H
 	emit(
 		out,
@@ -1520,6 +1541,18 @@ function Snapshot.svg(peer: any, options: Options?): string
 				num(barY)
 			)
 		)
+	end
+	for name in out.fonts do
+		local face = HAND_FONTS[name]
+		local ok, bytes = pcall(fs.readFile, face.file)
+		if ok and type(bytes) == "string" then
+			emit(
+				out,
+				`<style>@font-face \{ font-family: '{face.family}'; src: url(data:font/ttf;base64,{base64(
+					bytes
+				)}) format('truetype'); }</style>`
+			)
+		end
 	end
 	emit(out, "</g></g></svg>")
 	return table.concat(out.lines, "\n")

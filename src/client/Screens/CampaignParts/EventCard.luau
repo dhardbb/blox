@@ -583,6 +583,7 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 		openSheet()
 	end, {
 		Name = "EventCard",
+		BackgroundColor3 = Kit.colors.sticky, -- the week's event: a sticky note on the board (D-102)
 		-- A fixed height, so the map under it never jumps: two one-line texts.
 		Size = UDim2.new(1, 0, 0, STRIP_H),
 		AutomaticSize = Enum.AutomaticSize.None,

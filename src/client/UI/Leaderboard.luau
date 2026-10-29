@@ -68,7 +68,7 @@ export type Board = {
 -- grey) and a dull bronze. Data colors: a medal, not chrome, and nowhere near
 -- the loss orange.
 local MEDALS: { Color3 } = {
-	Kit.color(Colors.player.Amber),
+	Kit.colors.highlight,
 	Kit.colors.undecided,
 	Color3.fromRGB(184, 132, 96),
 }
@@ -101,7 +101,7 @@ local function medal(rank: number, color: Color3, px: number?): Frame
 	Kit.text(tostring(rank), {
 		Name = "Number",
 		Size = UDim2.fromScale(1, 1),
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextSize = Kit.size.caption,
 		TextWrapped = false,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -181,7 +181,7 @@ local function entryRow(parent: Instance, name: string, entry: any, mine: boolea
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -Kit.space.sm, 0, 0),
 		Size = UDim2.new(0, RATING_W, 1, 0),
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextWrapped = false,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = line,

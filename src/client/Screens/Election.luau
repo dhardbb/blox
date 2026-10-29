@@ -220,7 +220,7 @@ local function buildSide(strip: Frame, fill: Frame, evName: string, right: boole
 		AnchorPoint = Vector2.new(if right then 1 else 0, 0),
 		Position = UDim2.fromScale(if right then 1 else 0, 0),
 		Size = UDim2.new(0, EV_W, 1, 0),
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextSize = Kit.size.title,
 		TextScaled = true,
 		TextXAlignment = align,
@@ -473,7 +473,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Position = UDim2.new(1, -Kit.space.xs, 0, -Kit.space.xs),
 		ZIndex = 5,
 		Visible = false,
-		fill = Kit.color(Colors.player.Amber),
+		fill = Kit.colors.highlight,
 		Parent = spotlight,
 	})
 	deciding:SetAttribute("Overhang", true)

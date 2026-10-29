@@ -96,7 +96,7 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 	Kit.new("UIStroke", {
 		Name = "DailyEdge",
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = Featured.GOLD,
+		Color = Featured.INK,
 		Thickness = EDGE,
 		Parent = card,
 	})
@@ -135,7 +135,7 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 		TextScaled = true,
 		Parent = head,
 	})
-	local flame = Kit.icon("flame", FLAME, Featured.GOLD)
+	local flame = Kit.icon("flame", FLAME, Featured.INK)
 	flame.Name = "DailyFlame"
 	flame.Position = UDim2.fromOffset(textX, Kit.size.body + 4 + LINE_H)
 	flame.Visible = false
@@ -252,9 +252,9 @@ function DailyRace.new(screen: Instance, ctx: Types.Ctx, props: { [string]: any 
 			local burning = (info.streak or 0) >= 1
 			flame.Visible = true
 			if flame:IsA("ImageLabel") then
-				flame.ImageColor3 = if burning then Featured.GOLD else Kit.colors.muted
+				flame.ImageColor3 = if burning then Featured.INK else Kit.colors.muted
 			elseif flame:IsA("TextLabel") then
-				flame.TextColor3 = if burning then Featured.GOLD else Kit.colors.muted
+				flame.TextColor3 = if burning then Featured.INK else Kit.colors.muted
 			end
 		end
 		-- The sheet.

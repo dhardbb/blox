@@ -16,7 +16,7 @@
 --                raisedHover, line, text, muted, neutral, undecided, accent,
 --                danger, good, onAccent, field, warn, disabledText, surfaceTop,
 --                raisedTop, accentEdge).
---   Kit.font     body · medium · bold (Builder Sans, Gotham fallback) · display
+--   Kit.font     body · medium · bold (Builder Sans, Gotham fallback) · display (Permanent Marker) · hand (Patrick Hand)
 --                (Fredoka One: hero, title numbers, the primary's label) · mono
 --
 -- Components
@@ -280,13 +280,15 @@ local function firstFont(names: { string }): Enum.Font
 	return Enum.Font.Gotham
 end
 
--- Builder Sans for everything, Fredoka One for display; each with a fallback.
--- To go back to one family, set display to { "BuilderSansExtraBold", "GothamBlack" }.
+-- Builder Sans for everything a player reads; the board's handwriting (D-102)
+-- only for headings, stamps, big numbers and state codes: Permanent Marker
+-- (display) and Patrick Hand (hand). Each with a fallback.
 Kit.font = {
 	body = firstFont({ "BuilderSans", "Gotham" }),
 	medium = firstFont({ "BuilderSansMedium", "GothamMedium" }),
 	bold = firstFont({ "BuilderSansBold", "GothamBold" }),
-	display = firstFont({ "FredokaOne", "BuilderSansExtraBold", "GothamBlack" }),
+	display = firstFont({ "PermanentMarker", "FredokaOne", "BuilderSansExtraBold", "GothamBlack" }),
+	hand = firstFont({ "PatrickHand", "BuilderSansBold", "GothamBold" }),
 	mono = Enum.Font.Code,
 }
 
@@ -355,7 +357,9 @@ Kit.colors = {
 	onLoss = Kit.color(Colors.onLoss),
 	goodEdge = Kit.color(Colors.goodEdge),
 	glow = Kit.color(Colors.glow),
-	keyGold = Kit.color(Colors.keyGold), -- a key state's edge on the map and its swatch (D-101)
+	keyGold = Kit.color(Colors.keyGold), -- a key state's highlighter band on the map and its swatch (D-101, D-102)
+	sticky = Kit.color(Colors.sticky), -- a sticky note on the board: coach tips, the week's event (D-102)
+	highlight = Kit.color(Colors.highlight), -- gold: the Daily Race, first medals, the 270 badge (D-102)
 }
 Kit.colors.bad = Kit.colors.loss -- the semantic name for a loss or an error (orange, never red)
 
@@ -621,6 +625,7 @@ local function strokeOf(button: Instance): UIStroke?
 	return if stroke then stroke :: UIStroke else nil
 end
 
+local SECONDARY_EDGE = 2 -- px, a secondary button's black marker outline (D-102)
 local HAIRLINE_TRANSPARENCY = 0.5 -- a card's or secondary button's 1 px line edge
 local EDGE_LIGHT_ALPHA = 0.45 -- how bright the top of an edge gets (a share of `text`)
 local EDGE_LIGHT_SPAN = 0.3 -- the top share of an edge that fades from the light into its base
@@ -629,7 +634,7 @@ local EDGE_LIGHT_SPAN = 0.3 -- the top share of an edge that fades from the ligh
 -- set, the bottom BUTTON_SHADE of it. UIGradient multiplies its parent's colors
 -- (text included, so the shade stays light), and setEnabled/setSelected keep
 -- changing BackgroundColor3 under it.
-local BUTTON_SHADE = 0.8
+local BUTTON_SHADE = 0.96 -- D-102: a magnet on the board is nearly flat (was 0.8 on the navy stage)
 
 local function shade(inst: Instance)
 	local k = BUTTON_SHADE
@@ -672,7 +677,8 @@ end
 -- `base` below the top EDGE_LIGHT_SPAN and carries the transparency. The
 -- stroke's attributes Base and Alpha keep what was asked for.
 local function paintEdge(stroke: UIStroke, base: Color3, thickness: number, alpha: number)
-	local light = Kit.colors.text
+	-- D-102: marker on a board has no lit top: the "light" is the edge itself.
+	local light = base
 	stroke.Color = light
 	stroke.Thickness = thickness
 	stroke.Transparency = 0
@@ -899,7 +905,7 @@ function Kit.button(text: string, onActivate: () -> (), props: { [string]: any }
 	if primary then
 		Kit.bevel(button, Kit.colors.accentEdge, 2, 1)
 	elseif variant == "secondary" then
-		Kit.bevel(button)
+		Kit.bevel(button, Kit.colors.text, SECONDARY_EDGE, 1)
 	end
 	if primary or variant == "secondary" or variant == "chip" then
 		shade(button)
@@ -1309,7 +1315,7 @@ function Kit.issueIcon(issue: string, size: number?, color: Color3?): GuiObject
 			Name = "IssueIcon",
 			AutomaticSize = Enum.AutomaticSize.X,
 			Size = UDim2.fromOffset(0, px),
-			Font = Kit.font.display,
+			Font = Kit.font.hand,
 			TextSize = Kit.size.caption,
 			TextWrapped = false,
 			TextColor3 = tint,
@@ -1546,15 +1552,10 @@ local RACE_SHADE = 0.82 -- the bottom of a race bar segment's gradient
 local RACE_CAPTION_W = 40 -- px, the "270" over the tick
 local RIBBON_H = Kit.size.heading + 2 * 6 -- px, the tagline ribbon under the wordmark
 local RIBBON_PAD_X = 18 -- px, the ribbon's text inset
-local RIBBON_RADIUS = 8 -- px
-local RIBBON_TILT = -3 -- degrees: a touch of motion, half a stamp's tilt
+local RIBBON_TILT = -2 -- degrees: a hand-drawn underline is never level
 local RIBBON_OVERLAP = 12 -- px the ribbon rides up over the name's (empty) foot
 local RIBBON_SLACK = 6 -- px under the ribbon: room for its tilt and shadow
-local WORDMARK_DROP = 6 -- px, the lip under the wordmark
-local WORDMARK_STROKE = 3 -- px
-local WORDMARK_GLOW = 2.4
-local WORDMARK_GLOW_TRANSPARENCY = 0.78 -- white (D-058): softer than the pink was, so it reads as light, not haze
-local WORDMARK_BOTTOM = Color3.fromRGB(232, 236, 248) -- the wordmark gradient's bottom (a multiply of text)
+local UNDERLINE_PX = 6 -- px, the blue marker stroke under the wordmark (D-102)
 local ICON_PLATE = 24 -- px, an icon plate's default size
 
 -- Whether `parent` lays its children out (a list or a grid moves every child).
@@ -1926,7 +1927,7 @@ function Kit.monogram(name: string, color: Color3, px: number): Frame
 	local label = Kit.text(initialsOf(name), {
 		Name = "Initials",
 		Size = UDim2.fromScale(1, 1),
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextSize = math.max(Kit.MIN_TEXT, math.floor(px * MONOGRAM_TEXT)),
 		TextScaled = true,
 		TextWrapped = false,
@@ -2009,7 +2010,7 @@ function Kit.portrait(id: string?, name: string, px: number, opts: PortraitOptio
 	local initials = Kit.text(if id then initialsOf(name) else "?", {
 		Name = "Initials",
 		Size = UDim2.fromScale(1, 1),
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextSize = math.max(Kit.MIN_TEXT, math.floor(px * MONOGRAM_TEXT)),
 		TextScaled = true,
 		TextWrapped = false,
@@ -2128,7 +2129,7 @@ function Kit.raceBar(parent: Instance, opts: RaceBarOptions?): RaceBar
 			AnchorPoint = Vector2.new(0.5, 0),
 			Position = UDim2.fromScale(mark, 0),
 			Size = UDim2.fromOffset(RACE_CAPTION_W, Kit.size.caption + 2),
-			Font = Kit.font.display,
+			Font = Kit.font.hand,
 			TextSize = Kit.size.caption,
 			TextWrapped = false,
 			TextColor3 = Kit.colors.muted,
@@ -2200,96 +2201,66 @@ function Kit.wordmark(px: number?, props: { [string]: any }?, opts: { tagline: b
 		Name = "Wordmark",
 		Size = UDim2.new(1, 0, 0, Kit.wordmarkHeight(size, withTagline)),
 	}, props))
-	Kit.glow(root, Kit.colors.accent, { scale = WORDMARK_GLOW, transparency = WORDMARK_GLOW_TRANSPARENCY })
-	local function line(name: string, color: Color3, dy: number, stroke: Color3, z: number): TextLabel
-		local label = Kit.text(string.upper(SetupWords.GAME_NAME), {
-			Name = name,
-			Position = UDim2.fromOffset(0, dy),
-			Size = UDim2.new(1, 0, 0, markH),
-			Font = Kit.font.display,
-			TextSize = size,
-			TextScaled = true,
-			TextWrapped = false,
-			TextColor3 = color,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			ZIndex = z,
-			Parent = root,
-		})
-		label:SetAttribute("Wordmark", true)
-		Kit.new("UITextSizeConstraint", {
-			MinTextSize = Kit.size.title,
-			MaxTextSize = size,
-			Parent = label,
-		})
-		Kit.new("UIStroke", {
-			Name = "Outline",
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-			Color = stroke,
-			Thickness = WORDMARK_STROKE,
-			Parent = label,
-		})
-		return label
-	end
-	local drop = line("Drop", Kit.colors.line, WORDMARK_DROP, Kit.colors.line, 1)
-	drop:SetAttribute("Decor", true)
-	local mark = line("Mark", Kit.colors.text, 0, Kit.colors.accentLip, 2)
-	local bottom = WORDMARK_BOTTOM
-	local light = Kit.colors.text
-	Kit.new("UIGradient", {
-		Name = "Depth",
-		Rotation = 90,
-		Color = ColorSequence.new(
-			Color3.new(1, 1, 1),
-			Color3.new(ratio(bottom.R, light.R), ratio(bottom.G, light.G), ratio(bottom.B, light.B))
-		),
+	-- The headline in red marker on the board (D-102, photo 3 of the brief): no
+	-- glow, no drop, no outline; the red is a data color (the audit skips it).
+	local mark = Kit.dataColor(Kit.text(string.upper(SetupWords.GAME_NAME), {
+		Name = "Mark",
+		Size = UDim2.new(1, 0, 0, markH),
+		Font = Kit.font.display,
+		TextSize = size,
+		TextScaled = true,
+		TextWrapped = false,
+		TextColor3 = Kit.color(Colors.player.Crimson),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 2,
+		Parent = root,
+	}))
+	mark:SetAttribute("Wordmark", true)
+	Kit.new("UITextSizeConstraint", {
+		MinTextSize = Kit.size.title,
+		MaxTextSize = size,
 		Parent = mark,
 	})
 	if not withTagline then
 		return root
 	end
-	-- The ribbon: a white face the split gradient colors (data colors, so the
-	-- audit's palette check skips the fill; the label stays a token).
+	-- The "ribbon" is now a blue marker underline with the tagline in black
+	-- hand-lettering under it.
 	local text = string.upper(SetupWords.TAGLINE)
 	local chars = utf8.len(text) or #text
 	local tagSize = Kit.size.heading
-	local ribbon = Kit.dataColor(Kit.new("Frame", {
+	local width = math.ceil(chars * tagSize * DISPLAY_EM) + 2 * RIBBON_PAD_X
+	local ribbon = Kit.new("Frame", {
 		Name = "Ribbon",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, markH - RIBBON_OVERLAP),
-		Size = UDim2.fromOffset(math.ceil(chars * tagSize * DISPLAY_EM) + 2 * RIBBON_PAD_X, RIBBON_H),
-		BackgroundColor3 = Color3.new(1, 1, 1),
+		Size = UDim2.fromOffset(width, RIBBON_H),
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Rotation = RIBBON_TILT,
 		ZIndex = 3,
 		Parent = root,
-	})) :: Frame
+	}) :: Frame
 	ribbon:SetAttribute("Overhang", true)
 	-- Part of the logo: its size is not one of the screen's text sizes (UI audit).
 	ribbon:SetAttribute("Lockup", true)
-	Kit.corner(RIBBON_RADIUS).Parent = ribbon
-	local left = Kit.color(Colors.player.Cobalt)
-	local right = Kit.color(Colors.player.Crimson)
-	Kit.new("UIGradient", {
-		Name = "Split",
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, left),
-			ColorSequenceKeypoint.new(0.5, left),
-			ColorSequenceKeypoint.new(0.502, right),
-			ColorSequenceKeypoint.new(1, right),
-		}),
+	local underline = Kit.dataColor(Kit.new("Frame", {
+		Name = "Underline",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.new(1, RIBBON_PAD_X, 0, UNDERLINE_PX),
+		BackgroundColor3 = Kit.color(Colors.player.Cobalt),
+		BorderSizePixel = 0,
+		ZIndex = 3,
 		Parent = ribbon,
-	})
-	Kit.new("UIStroke", {
-		Name = "Edge",
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = Kit.colors.background,
-		Thickness = 2,
-		Parent = ribbon,
-	})
-	local tagline = Kit.text(text, {
+	}))
+	underline:SetAttribute("Decor", true)
+	Kit.corner(UNDERLINE_PX).Parent = underline
+	Kit.text(text, {
 		Name = "Tagline",
-		Size = UDim2.fromScale(1, 1),
-		Font = Kit.font.display,
+		Position = UDim2.fromOffset(0, UNDERLINE_PX),
+		Size = UDim2.new(1, 0, 1, -UNDERLINE_PX),
+		Font = Kit.font.hand,
 		TextSize = tagSize,
 		TextWrapped = false,
 		TextColor3 = Kit.colors.text,
@@ -2297,15 +2268,6 @@ function Kit.wordmark(px: number?, props: { [string]: any }?, opts: { tagline: b
 		ZIndex = 4,
 		Parent = ribbon,
 	})
-	Kit.new("UIStroke", {
-		Name = "Outline",
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		Color = Kit.colors.background,
-		Thickness = 2,
-		Transparency = 0.15,
-		Parent = tagline,
-	})
-	Kit.shadow(ribbon)
 	return root
 end
 

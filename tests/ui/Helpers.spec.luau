@@ -51,19 +51,21 @@ describe("Colors", function()
 			local t = Colors.textOn(c)
 			local ratio = Colors.contrast(t, Colors.surfaceTop)
 			check(ratio >= Colors.TEXT_CONTRAST, `{name} text is only {ratio}:1 on a card`)
-			-- A color that already reads is left alone; a dark one is lifted, never darkened.
-			if Colors.contrast(c, Colors.surfaceTop) >= Colors.TEXT_CONTRAST then
-				expect(t):toEqual({ r = c.r, g = c.g, b = c.b })
-			else
-				check(Colors.luma(t) > Colors.luma(c), `{name} text is not lighter than the fill`)
-			end
+			-- Every marker ink already reads on paper (D-102): left alone.
+			expect(t):toEqual({ r = c.r, g = c.g, b = c.b })
 		end
-		-- Crimson keeps its hue: brightened, red stays the biggest channel by far.
-		local red = Colors.textOn(Colors.player.Crimson)
-		check(red.r == 252 and red.g < 100, `Crimson text is {red.r}, {red.g}, {red.b}`)
-		-- A slate stays a slate: brightened with its channels in the same order.
-		local grey = Colors.textOn(Colors.neutral)
-		check(grey.b > grey.g and grey.g > grey.r, `neutral text is {grey.r}, {grey.g}, {grey.b}`)
+		-- A pale color is darkened on the light board, never lightened, and keeps
+		-- its hue: the highlighter's channels stay in the same order.
+		local gold = Colors.textOn(Colors.highlight)
+		check(
+			Colors.contrast(gold, Colors.surfaceTop) >= Colors.TEXT_CONTRAST,
+			"highlighter text does not read"
+		)
+		check(
+			Colors.luma(gold) < Colors.luma(Colors.highlight),
+			"highlighter text is not darker than the fill"
+		)
+		check(gold.r >= gold.g and gold.g > gold.b, `highlighter text is {gold.r}, {gold.g}, {gold.b}`)
 		expect(Colors.contrast(Colors.text, Colors.text)):toBe(1)
 	end)
 
@@ -114,11 +116,11 @@ describe("Colors", function()
 		expect(field.r > Colors.background.r and field.r < Colors.surface.r):toBe(true)
 	end)
 
-	it("keeps the white accent apart from every player color and status color (D-058)", function()
-		-- D-051 checked a hue gap for the pink accent. White has no hue to speak
-		-- of, so the check is now: the accent is a neutral (no color of its own,
-		-- color is kept for meaning), clearly lighter than every player and status
-		-- color, its label reads at 7:1 and its slate lip shows on the stage.
+	it("keeps the black marker accent apart from every player color and status color (D-102)", function()
+		-- D-058's white accent can't show on the whiteboard; the accent is black
+		-- marker: a neutral (no color of its own, color is kept for meaning),
+		-- clearly darker than every player and status color, its label reads at
+		-- 7:1 and its shadow shows on the board.
 		local function lum(c: Colors.RGB): number
 			local function lin(v: number): number
 				local s = v / 255
@@ -139,14 +141,14 @@ describe("Colors", function()
 			others[name] = c
 		end
 		for name, c in others do
-			check(lum(a) > lum(c), `the accent is not lighter than {name}`)
+			check(lum(a) < lum(c), `the accent is not darker than {name}`)
 			local ratio = contrast(a, c)
 			check(ratio >= 1.5, `the accent is only {ratio}:1 from {name}`)
 		end
 		-- WCAG contrast of the primary's label (onAccent) on the accent fill.
 		local label = contrast(a, Colors.onAccent)
 		check(label >= 7, `primary label contrast is {label}:1`)
-		-- The lip under the white face shows on the stage and on a card.
+		-- The shadow under the black face shows on the board and on a card.
 		for _, ground in { Colors.background, Colors.surface } do
 			local lip = contrast(Colors.accentLip, ground)
 			check(lip >= 3, `the primary's lip is only {lip}:1 on the stage`)
@@ -166,15 +168,16 @@ describe("Colors", function()
 		})
 	end)
 
-	it("picks dark text on light swatches and light text on dark ones", function()
-		for _, name in { "Amber", "Teal", "Emerald" } do
-			expect(Colors.onColor(Colors.player[name])):toEqual(Colors.background)
+	it("picks ink on light swatches and the board's off-white on dark ones (D-102)", function()
+		-- Every marker ink is dark: the board's color on it.
+		for name, c in Colors.player do
+			check(Colors.onColor(c) == Colors.background, `{name} does not take the board's color`)
 		end
-		for _, name in { "Crimson", "Cobalt", "Violet" } do
-			expect(Colors.onColor(Colors.player[name])):toEqual(Colors.text)
-		end
-		expect(Colors.onColor({ r = 255, g = 255, b = 255 })):toEqual(Colors.background)
-		expect(Colors.onColor({ r = 0, g = 0, b = 0 })):toEqual(Colors.text)
+		-- The highlighter and a sticky note take black marker.
+		expect(Colors.onColor(Colors.highlight)):toEqual(Colors.text)
+		expect(Colors.onColor(Colors.sticky)):toEqual(Colors.text)
+		expect(Colors.onColor({ r = 255, g = 255, b = 255 })):toEqual(Colors.text)
+		expect(Colors.onColor({ r = 0, g = 0, b = 0 })):toEqual(Colors.background)
 		expect(Colors.onColor(Colors.accent)):toEqual(Colors.onAccent)
 	end)
 end)
