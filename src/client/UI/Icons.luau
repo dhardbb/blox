@@ -30,6 +30,8 @@ local Icons: { [string]: Icon } = {
 	["volume-x"] = { id = "rbxassetid://79580394049787", glyph = "♪" }, -- sound off (Header draws a slash over the glyph)
 	sparkles = { id = "rbxassetid://85604574793056", glyph = "☼" }, -- reduce motion
 	plane = { id = "rbxassetid://136061807700836", glyph = "✈" }, -- a flight
+	scale = { id = "", glyph = "◊" }, -- the Issues map tab (D-092; to upload)
+	["chart-column"] = { id = "", glyph = "%" }, -- the Polls map tab (D-092; to upload)
 }
 
 return Icons

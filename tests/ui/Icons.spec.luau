@@ -1,5 +1,5 @@
 --!strict
--- UI/Icons (docs/GAMEPLAN §2.3, WP-3): the twelve Lucide icons. Every name has
+-- UI/Icons (docs/GAMEPLAN §2.3, WP-3): the fourteen Lucide icons. Every name has
 -- a glyph and an id that is "" (glyph until uploaded) or "rbxassetid://<n>";
 -- every name has its PNG and source SVG under assets/icons/; every action icon
 -- Kit uses exists; Kit.icon draws the glyph while the id is "".
@@ -26,6 +26,8 @@ local NAMES = {
 	"volume-x",
 	"sparkles",
 	"plane",
+	"scale",
+	"chart-column",
 }
 local KINDS = { "Rally", "Fundraise", "Media", "Attack", "Poll", "RegionPoll", "Gotv" }
 
@@ -37,7 +39,7 @@ local function kit(): (FakeRoblox.World, FakeRoblox.Peer, any)
 end
 
 describe("Icons", function()
-	it("has the twelve names, each with a glyph and an empty or rbxassetid id", function()
+	it("has the fourteen names, each with a glyph and an empty or rbxassetid id", function()
 		local count = 0
 		for name, icon in Icons do
 			count += 1

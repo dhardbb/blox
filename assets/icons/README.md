@@ -1,12 +1,12 @@
 # Icons
 
-Twelve [Lucide](https://lucide.dev) icons (ISC License, see `docs/CREDITS.md`), from the npm package `lucide-static@0.460.0`. Each PNG is 256x256, white (#FFFFFF) on transparent, with Lucide's 2 px stroke scaled up. The game tints them with `ImageColor3`.
+Fourteen [Lucide](https://lucide.dev) icons (ISC License, see `docs/CREDITS.md`), from the npm package `lucide-static@0.460.0`. Each PNG is 256x256, white (#FFFFFF) on transparent, with Lucide's 2 px stroke scaled up. The game tints them with `ImageColor3`.
 
 `src/` holds the original SVGs, unchanged. To rebuild a PNG: set `stroke="#FFFFFF"` and `width`/`height` to 256 in the SVG, then render it at 256x256 with a transparent background.
 
 ## Uploaded ids
 
-All twelve are uploaded as Roblox images, named after their icon names, and their ids are in `src/client/UI/Icons.luau`. To replace one, upload the new PNG (Studio MCP `upload_image`, or Creator Hub: Create → Development items → Images) and set its `id` there. An icon whose id is `""` draws its glyph instead; the glyphs stay in `Icons.luau` as that fallback.
+All but `scale` and `chart-column` (D-092, the map tabs: they draw their glyph until uploaded) are uploaded as Roblox images, named after their icon names, and their ids are in `src/client/UI/Icons.luau`. To replace one, upload the new PNG (Studio MCP `upload_image`, or Creator Hub: Create → Development items → Images) and set its `id` there. An icon whose id is `""` draws its glyph instead; the glyphs stay in `Icons.luau` as that fallback.
 
 | File | Icon name (`Icons.luau` key) | Used for | Image id |
 |---|---|---|---|
@@ -22,3 +22,5 @@ All twelve are uploaded as Roblox images, named after their icon names, and thei
 | `volume-x.png` | `volume-x` | Sound off | `rbxassetid://79580394049787` |
 | `sparkles.png` | `sparkles` | Reduce motion | `rbxassetid://85604574793056` |
 | `plane.png` | `plane` | A flight | `rbxassetid://136061807700836` |
+| `scale.png` | `scale` | The Issues map tab | not uploaded yet |
+| `chart-column.png` | `chart-column` | The Polls map tab | not uploaded yet |

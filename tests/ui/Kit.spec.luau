@@ -543,7 +543,7 @@ describe("Kit polish: icons", function()
 		expect(c.Kit.actionIcon("Pivot")):toBe(nil)
 	end)
 
-	it("lists the twelve Lucide icons, each with a glyph", function()
+	it("lists the fourteen Lucide icons, each with a glyph", function()
 		local c = client()
 		local Icons = load(c, "Icons")
 		local n = 0
@@ -552,7 +552,7 @@ describe("Kit polish: icons", function()
 			check(icon.glyph ~= "", `{name} has no glyph`)
 			check(icon.id == "" or string.match(icon.id, "^rbxassetid://%d+$") ~= nil, `{name} id {icon.id}`)
 		end
-		expect(n):toBe(12)
+		expect(n):toBe(14)
 	end)
 end)
 

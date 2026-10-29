@@ -888,8 +888,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local closeChip = LensToggle.close(mapHolder, function()
 		render()
 	end)
-	closeChip.root.AnchorPoint = Vector2.new(1, 0)
-	closeChip.root.Position = UDim2.new(1, -(LensToggle.WIDTH + Kit.space.xs), 0, 0)
+	LensToggle.row(mapHolder, chips, closeChip) -- narrows the tabs where both do not fit (D-092)
 
 	return {
 		update = function(state: Types.State)
