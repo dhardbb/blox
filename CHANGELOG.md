@@ -2,7 +2,7 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.17.0: Landscape phones, new looks, match records, stronger Medium and Hard (Oct 29, 2026)
 
 ### Debate, election night and the end screen (D-098)
 
