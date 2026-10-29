@@ -374,8 +374,8 @@ describe("e2e: debug UI layout", function()
 		expect(#Support.outputLines(p1, "debug UI sizes")):toBe(1)
 	end)
 
-	it("runs at 390x844 without script errors", function()
-		local rig = newRig(20, { x = 390, y = 844 })
+	it("runs on a landscape phone (844x390) without script errors", function()
+		local rig = newRig(20, { x = 844, y = 390 })
 		local p1 = Support.join(rig, "Player1")
 		Support.run(rig, 2)
 		local warnings = 0
@@ -384,7 +384,7 @@ describe("e2e: debug UI layout", function()
 				warnings += 1
 			end
 		end
-		print(`390x844: {warnings} debug UI warning(s)`)
+		print(`844x390: {warnings} debug UI warning(s)`)
 		expect(#rig.world.errors):toBe(0)
 	end)
 end)

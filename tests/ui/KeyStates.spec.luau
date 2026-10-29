@@ -196,7 +196,7 @@ describe("KeyStates (D-088)", function()
 	end)
 end)
 
-local PHONE = { x = 390, y = 844 }
+local PHONE = { x = 844, y = 390 }
 
 -- The states the map marks as key (Nodes/<id> carries the Key attribute).
 local function keyedOnMap(peer: FakeRoblox.Peer): string

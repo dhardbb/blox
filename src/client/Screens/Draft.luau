@@ -67,6 +67,7 @@ local Screen = {}
 
 local GAP = Kit.space.sm -- px, between the big blocks
 local MAP_SHARE = 0.65 -- of the width, wide screens
+local COMPACT_MAP_SHARE = 0.6 -- most of the width the map column takes on a landscape phone (D-089)
 local MAP_HEIGHT_SHARE = 0.66 -- of the map column, wide screens (the rest is Below)
 local MAP_SHARE_PORTRAIT = 0.34 -- of the height at most, phones (before the lens row)
 local LENS_H = LensToggle.HEIGHT + Kit.space.xs -- px, the lens row over the map
@@ -364,7 +365,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function applyLayout()
 		local portrait = ctx.portrait()
 		local size = root.AbsoluteSize
-		local shape = `{portrait}:{size.X}x{size.Y}`
+		local compact = Kit.compact(size)
+		local shape = `{portrait}:{compact}:{size.X}x{size.Y}`
 		if shape == laidOut then
 			return
 		end
@@ -379,6 +381,23 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			below.Visible = false
 			panel.Position = UDim2.fromOffset(0, top + mapH + GAP)
 			panel.Size = UDim2.new(1, 0, 1, -(top + mapH + GAP))
+		elseif compact then
+			-- A landscape phone (D-089): the map the whole height on the left,
+			-- as wide as it is at that height (never narrower than its chips),
+			-- the panel on the right; the legend and board go in the panel.
+			local mapH = size.Y - top - LENS_H
+			local maxW = math.floor(size.X * COMPACT_MAP_SHARE)
+			local chipsW = LensToggle.WIDTH + LensToggle.CLOSE_W + Kit.space.xs
+			local mapW = if maxW > 0 and mapH > 0
+				then math.floor(math.min(maxW, mapH * map:aspectFor(maxW, mapH)))
+				else maxW
+			local areaW = math.clamp(mapW, math.min(chipsW, maxW), math.max(maxW, 0))
+			mapArea.Position = UDim2.fromOffset(0, top)
+			mapArea.Size = UDim2.new(0, areaW, 1, -top)
+			mapHolder.Size = UDim2.fromScale(1, 1)
+			below.Visible = false
+			panel.Position = UDim2.fromOffset(areaW + GAP, top)
+			panel.Size = UDim2.new(1, -(areaW + GAP), 1, -top)
 		else
 			mapArea.Position = UDim2.fromOffset(0, top)
 			mapArea.Size = UDim2.new(MAP_SHARE, -GAP // 2, 1, -top)
@@ -395,7 +414,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	-- chips, its note and the board under the map. Phone: the legend in the panel
 	-- during the map reveal, else both in the collapsed board card.
 	local function place()
-		local portrait = ctx.portrait()
+		-- A landscape phone places them as a phone does (D-089).
+		local portrait = ctx.portrait() or Kit.compact(root.AbsoluteSize)
 		local key = `{portrait}:{mode}`
 		if key == placed then
 			return

@@ -31,12 +31,16 @@ local Stage = {}
 local FACE = 40 -- px, a face
 local ROW_H = 48 -- px, the faces row
 local SIDE_W = 128 -- px, one side: face + name column
+local CROWD_H = 32 -- px, the crowd line and meter on their own row (a narrow stage, D-089)
 local CROWD_SPAN = 12 -- crowd points from the middle to either end of the meter
 local MAX_FACTS = 4
 
 export type Stage = {
 	root: Frame,
 	render: (self: Stage, p: Model.Payload) -> (),
+	-- A narrow stage (a landscape phone's middle column, D-089): the crowd line
+	-- and meter on a row of their own under the faces. Optional for callers.
+	setNarrow: ((self: Stage, on: boolean) -> ())?,
 }
 
 -- A candidate's face: their portrait ringed in `color` (the initials of `name`
@@ -186,8 +190,24 @@ function Stage.new(parent: Instance, model: Model.Model, order: number): Stage
 		face.Parent = slot
 	end
 
+	local sides = { row:FindFirstChild("YouSide") :: Frame, row:FindFirstChild("ThemSide") :: Frame }
+	local function setNarrow(_self: Stage, on: boolean)
+		row.Size = UDim2.new(1, 0, 0, if on then ROW_H + CROWD_H else ROW_H)
+		for _, holder in sides do
+			holder.Size = UDim2.fromOffset(SIDE_W, ROW_H)
+		end
+		if on then
+			middle.Position = UDim2.fromOffset(0, ROW_H)
+			middle.Size = UDim2.new(1, 0, 0, CROWD_H)
+		else
+			middle.Position = UDim2.fromOffset(SIDE_W + Kit.space.sm, 0)
+			middle.Size = UDim2.new(1, -2 * (SIDE_W + Kit.space.sm), 1, 0)
+		end
+	end
+
 	local stage: Stage = {
 		root = root,
+		setNarrow = setNarrow,
 		render = function(_self: Stage, p: Model.Payload)
 			local view = p.view
 			local me, them = view.you, Model.opponentOf(view)

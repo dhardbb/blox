@@ -170,8 +170,8 @@ describe("Header now line and time bar", function()
 end)
 
 describe("Sheet", function()
-	it("opens from the bottom on a phone and closes from the scrim or ×", function()
-		local c = client(Rig.PHONE)
+	it("opens from the bottom in portrait and closes from the scrim or ×", function()
+		local c = client(Rig.PORTRAIT)
 		local Sheet = load(c, "Sheet")
 		local closed = 0
 		local sheet = Sheet.new(c.stage, {
@@ -208,6 +208,31 @@ describe("Sheet", function()
 		expect(sheet.panel.AbsoluteSize.X):toBe(c.Kit.SHEET_MAX_W)
 		sheet:setTitle("Rules")
 		expect(sheet.title.Text):toBe("Rules")
+	end)
+
+	it("takes the whole height on a landscape phone, whatever share it asked for (D-089)", function()
+		local c = client(Rig.PHONE)
+		local Sheet = load(c, "Sheet")
+		local sheet = Sheet.new(c.stage, { title = "Play a friend", height = 0.5 })
+		sheet:open()
+		expect(sheet.panel.AnchorPoint.Y):toBe(0.5)
+		expect(sheet.panel.AbsoluteSize.Y):toBe(c.stage.AbsoluteSize.Y)
+		check(c.Kit.compact(c.stage.AbsoluteSize), "the stage is not compact")
+	end)
+
+	it("sorts sizes into portrait, compact and wide (D-089)", function()
+		local c = client(nil)
+		local Kit = c.Kit
+		local function size(x: number, y: number): any
+			return { X = x, Y = y }
+		end
+		expect(Kit.sizeClass(size(390, 786))):toBe("portrait")
+		expect(Kit.sizeClass(size(844, 332))):toBe("compact")
+		expect(Kit.sizeClass(size(667, 317))):toBe("compact")
+		expect(Kit.sizeClass(size(1024, 710))):toBe("wide")
+		expect(Kit.sizeClass(size(1280, 662))):toBe("wide")
+		expect(Kit.compact(size(844, 332))):toBe(true)
+		expect(Kit.compact(size(1024, 710))):toBe(false)
 	end)
 end)
 
@@ -436,7 +461,7 @@ describe("Header urgency and sound button", function()
 	end)
 
 	it("places the sound button left of help, both inside the row", function()
-		local c = client({ x = 390, y = 844 })
+		local c = client(Rig.PORTRAIT)
 		local Header = load(c, "Header")
 		local header = Header.new(c.stage, { title = "Week 3", onHelp = noop })
 		local sound, help = header.sound, header.help

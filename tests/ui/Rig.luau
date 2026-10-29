@@ -8,7 +8,8 @@ local process = require("@lune/process")
 
 local FakeRoblox = require("@testlib/FakeRoblox")
 
-local PHONE = { x = 390, y = 844 }
+local PHONE = { x = 844, y = 390 } -- a landscape phone (D-089)
+local PORTRAIT = { x = 390, y = 844 } -- a portrait screen (the old phone layout, still used when taller than wide)
 local MATCH_LIMIT = 900 -- simulated seconds
 
 local function check(condition: boolean, message: string)
@@ -347,5 +348,6 @@ return {
 	safeState = safeState,
 	audit = audit,
 	PHONE = PHONE,
+	PORTRAIT = PORTRAIT,
 	MATCH_LIMIT = MATCH_LIMIT,
 }

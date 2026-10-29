@@ -206,8 +206,8 @@ describe("Select fits above the pinned bar", function()
 		end
 	end)
 
-	it("pins Lock in on a phone; both steps fit without scrolling", function()
-		local world, peer = Rig.fixture("Select", Rig.PHONE)
+	it("pins Lock in in portrait; both steps fit without scrolling", function()
+		local world, peer = Rig.fixture("Select", Rig.PORTRAIT)
 		expect(strictAudit(world, peer)):toBe(0)
 		-- Step 1 fits even with its coach tip showing.
 		check(Rig.findIn(peer, "Select", "CoachTip") ~= nil, "no coach tip on the first visit")
@@ -215,7 +215,7 @@ describe("Select fits above the pinned bar", function()
 		Rig.claim(world, peer)
 		local lockIn = Rig.need(peer, "Select", "LockIn")
 		check(not inScroll(lockIn), "Lock in scrolls")
-		check(bottom(lockIn) <= Rig.PHONE.y, `Lock in ends at {bottom(lockIn)}`)
+		check(bottom(lockIn) <= Rig.PORTRAIT.y, `Lock in ends at {bottom(lockIn)}`)
 		check(lockIn:GetAttribute("PrimaryAction") == true, "Lock in is not the primary action")
 		expect(hiddenBelow(peer)):toBe(0)
 		expect(now(peer)):toBe("Pick 3 issues")
@@ -475,7 +475,7 @@ end)
 
 describe("Select color picker (D-061)", function()
 	local COLORS = { "Crimson", "Cobalt", "Emerald", "Amber", "Violet", "Teal" }
-	local SIZES = { { x = 390, y = 844 }, { x = 1024, y = 768 }, { x = 1280, y = 720 } }
+	local SIZES = { { x = 844, y = 390 }, { x = 1024, y = 768 }, { x = 1280, y = 720 } }
 
 	local function swatch(peer: FakeRoblox.Peer, color: string): any
 		return Rig.need(peer, "Select", `ColorSwatch_{color}`)

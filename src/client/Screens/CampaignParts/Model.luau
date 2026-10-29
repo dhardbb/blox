@@ -50,6 +50,7 @@ export type Model = {
 	skipStep: number?, -- step we pressed Skip for
 	sortMode: StateOrder.Mode,
 	portrait: boolean,
+	compact: boolean?, -- a landscape phone (D-089): the side column is short, so parts act as on a phone
 	choice: SharedTypes.Choice?, -- Decision screen: the stance selected (nil until one is tapped; the server's default is C)
 	focus: Issue?, -- unused since debates are live rounds (D-072); kept so older screens' models still type-check
 	peekChoice: SharedTypes.Choice?, -- a stance chip being held: previewed, not selected

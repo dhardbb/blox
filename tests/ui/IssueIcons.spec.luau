@@ -24,7 +24,7 @@ local C = Config.defaults
 local UDim2 = FakeRoblox.types.UDim2
 local PATH = "src/client/UI/IssueIcons.luau"
 local SIZES = {
-	{ x = 390, y = 844 }, -- phone
+	{ x = 844, y = 390 }, -- phone
 	{ x = 1024, y = 768 }, -- iPad
 	{ x = 1280, y = 720 }, -- desktop
 }

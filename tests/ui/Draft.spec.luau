@@ -20,7 +20,7 @@ local Support = require("../e2e/Support")
 
 local describe, it, expect = Test.describe, Test.it, Test.expect
 
-local PHONE = { x = 390, y = 844 }
+local PHONE = { x = 844, y = 390 }
 local DRAFT_LIMIT = 120 -- simulated seconds to reach week 1 from a fresh practice match
 
 local function check(condition: boolean, message: string)
@@ -707,8 +707,8 @@ describe("Draft screen: UI overhaul (WP4)", function()
 		end
 	)
 
-	it("splits a phone screen with pixel math, no dead band (B11)", function()
-		local _world, peer = mount("Draft", PHONE)
+	it("splits a portrait screen with pixel math, no dead band (B11)", function()
+		local _world, peer = mount("Draft", Rig.PORTRAIT)
 		local screen = FakeRoblox.find(peer, "Draft")
 		local width, height = screen.AbsoluteSize.X, screen.AbsoluteSize.Y
 		local mapArea, panel = need(peer, "MapArea"), need(peer, "Panel")
