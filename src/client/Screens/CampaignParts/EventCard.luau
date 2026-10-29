@@ -94,7 +94,10 @@ local STANCE_H = 60 -- px, one stance chip: its name over what it does
 local STANCE_BAR = 4 -- px, the bar at a stance chip's left: white when it is the pick
 local STANCE_INSET = Kit.space.md + Kit.space.sm -- px, the chip's text inset (room for the bar)
 local STANCE_INSET_COMPACT = Kit.space.md + Kit.space.xs -- px, the same on a landscape phone's narrow chip
-local STANCE_H_COMPACT = 100 -- px, a stance chip on a landscape phone: three side by side, the name over its effect and net (D-091)
+-- A stance chip on a landscape phone: three side by side, the name over its
+-- effect and net (D-091). The name may take three caption lines ("C · Leave it
+-- to the districts (safe)"): at 100 px the third ran over the numbers (fix17).
+local STANCE_H_COMPACT = 116 -- px
 local STANCE_NET_W = 80 -- px kept at a wide chip's right for its net pill (D-091)
 local STRIP_ICON = 32 -- px, the event strip's icon plate
 local STRIP_GLYPH = 22 -- px, the icon on the plate (two thirds of it)
@@ -828,7 +831,13 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 					return Kit.icon("clock", math.floor(SHEET_ICON * 2 / 3), Kit.colors.background)
 				end, "Closing")
 				headLabel.Text = string.upper(closingWords.title)
-				whenTag.Visible = not model.portrait
+				whenTag.Visible = not (model.portrait or model.compact)
+				title.Size = UDim2.new(
+					1,
+					if whenTag.Visible then textW - STRIP_TAG_W - Kit.space.xs else textW,
+					0,
+					STRIP_TITLE_H
+				)
 				title.Text = closingWords.title
 				line.Text = closingWords.alone
 				title.Position = UDim2.new(0, textX, 0.5, -STRIP_TITLE_H)
@@ -888,8 +897,9 @@ function EventCard.strip(parent: Instance, sheetParent: Instance, model: Model.M
 			headLabel.Text =
 				string.upper(`{shown.kind} · {if event == nil then "next week" else "this week"}`)
 			-- Next week's: the tag says when, the title is its name alone. A
-			-- portrait screen has no room for the tag: the title says it.
-			local tagged = not model.portrait
+			-- portrait screen, or a landscape phone's narrow side column, has no
+			-- room for the tag (it cut the name to "Windfall · Sm…"): the title says it.
+			local tagged = not (model.portrait or model.compact)
 			whenTag.Visible = tagged
 			title.Size =
 				UDim2.new(1, if tagged then textW - STRIP_TAG_W - Kit.space.xs else textW, 0, STRIP_TITLE_H)
