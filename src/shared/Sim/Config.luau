@@ -141,8 +141,8 @@ local Config = {
 	UNDERDOG_RALLY_1 = 1.10, -- tier 1 rally multiplier
 	UNDERDOG_FUND_2 = 1.25, -- tier 2 fundraiser multiplier
 	UNDERDOG_RALLY_2 = 1.20, -- tier 2 rally multiplier
-	UNDERDOG_SMOOTHING = 0.4, -- EMA weight on the newest week's projected gap (0.5 -> 0.4, D-020)
-	UNDERDOG_HYSTERESIS = 30, -- EV below a threshold before leaving its tier (20 -> 30, D-020)
+	UNDERDOG_SMOOTHING = 0.35, -- EMA weight on the newest week's projected gap (0.5 -> 0.4, D-020; 0.4 -> 0.35, D-096: the tier now ends at once on the latest polls, so it can switch on a little slower)
+	UNDERDOG_HYSTERESIS = 30, -- EV below a threshold before leaving its tier (20 -> 30, D-020); the latest polls within EV_1 minus this end the tier at once (D-096)
 
 	-- Events (Phase 5, D-027)
 	EVENTS_ENABLED = true, -- draw a weekly event deck (private lobbies may turn it off)
