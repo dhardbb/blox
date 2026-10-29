@@ -1,6 +1,6 @@
 # Icons
 
-Twelve [Lucide](https://lucide.dev) icons (ISC License, see `docs/CREDITS.md`), from the npm package `lucide-static@0.460.0`. Each PNG is 256x256, white (#FFFFFF) on transparent, with Lucide's 2 px stroke scaled up. The game tints them with `ImageColor3`.
+Fourteen [Lucide](https://lucide.dev) icons (ISC License, see `docs/CREDITS.md`), from the npm package `lucide-static@0.460.0`. Each PNG is 256x256, white (#FFFFFF) on transparent, with Lucide's 2 px stroke scaled up. The game tints them with `ImageColor3`.
 
 `src/` holds the original SVGs, unchanged. To rebuild a PNG: set `stroke="#FFFFFF"` and `width`/`height` to 256 in the SVG, then render it at 256x256 with a transparent background.
 
@@ -22,3 +22,5 @@ All twelve are uploaded as Roblox images, named after their icon names, and thei
 | `volume-x.png` | `volume-x` | Sound off | `rbxassetid://79580394049787` |
 | `sparkles.png` | `sparkles` | Reduce motion | `rbxassetid://85604574793056` |
 | `plane.png` | `plane` | A flight | `rbxassetid://136061807700836` |
+| `flame.png` | `flame` | A Daily Race streak (D-090) | not uploaded yet (`""`) |
+| `bug.png` | `bug` | Report a bug (D-090) | not uploaded yet (`""`) |

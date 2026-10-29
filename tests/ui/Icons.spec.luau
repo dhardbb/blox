@@ -26,6 +26,8 @@ local NAMES = {
 	"volume-x",
 	"sparkles",
 	"plane",
+	"flame", -- D-090
+	"bug", -- D-090
 }
 local KINDS = { "Rally", "Fundraise", "Media", "Attack", "Poll", "RegionPoll", "Gotv" }
 
@@ -37,7 +39,7 @@ local function kit(): (FakeRoblox.World, FakeRoblox.Peer, any)
 end
 
 describe("Icons", function()
-	it("has the twelve names, each with a glyph and an empty or rbxassetid id", function()
+	it("has the fourteen names, each with a glyph and an empty or rbxassetid id", function()
 		local count = 0
 		for name, icon in Icons do
 			count += 1

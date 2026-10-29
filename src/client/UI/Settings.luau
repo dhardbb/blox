@@ -29,6 +29,15 @@
 --           (SoundToggle and MotionToggle, attributes On and Label, at the
 --           right) and the TextLabel "SettingsTip" (hidden until wanted)
 --
+-- Extras (D-090): props.extras, buttons the screen made (the Lobby's "?" How to
+-- play chip and its bug toggle, Settings.cornerButton), stand left of the
+-- toggles in the same row, in the order given; their Label attribute is their
+-- tooltip like the toggles'.
+--
+--   local chip = Settings.cornerButton(name, label, onActivate, glyph?)
+--     a 44 px chip for the corner: the glyph as its text, or (no glyph) an
+--     icon added by the caller; attribute Label = label
+--
 -- Admins (D-081): a third toggle, TimersToggle (the clock, struck through and
 -- lit while on), left of the pair, shown only after Settings.setTimers(corner,
 -- off) with a boolean (nil hides it: everyone who is not an admin). A tap
@@ -204,9 +213,23 @@ local function paintToggle(
 	Kit.setSelected(button, on)
 end
 
+-- A 44 px chip for the corner's extras (D-090).
+function Settings.cornerButton(name: string, label: string, onActivate: () -> (), glyph: string?): TextButton
+	local button = toggle(name, 0, onActivate)
+	button:SetAttribute("Label", label)
+	if glyph then
+		button.Text = glyph
+		button.Font = Kit.font.bold
+		button.TextSize = Kit.size.body -- body: the corner adds no text size to a screen
+	end
+	return button
+end
+
 function Settings.corner(props: { [string]: any }?): Frame
 	local p: { [string]: any } = props or {}
-	local pairWidth = 2 * Kit.MIN_TOUCH + Kit.space.sm
+	local extras: { TextButton } = p.extras or {}
+	local extraWidth = #extras * (Kit.MIN_TOUCH + Kit.space.sm)
+	local pairWidth = 2 * Kit.MIN_TOUCH + Kit.space.sm + extraWidth
 	local timersOff: boolean? = nil -- the admin toggle (D-081); nil: not shown
 	local root = Kit.box({
 		Name = p.Name or "CornerSettings",
@@ -296,7 +319,13 @@ function Settings.corner(props: { [string]: any }?): Frame
 	end)
 	timers.Visible = false
 	timers.Parent = pair
-	for _, button in { sound, motion, timers } do
+	local buttons = { sound, motion, timers }
+	for k, extra in extras do
+		extra.LayoutOrder = k - 1 - #extras -- left of the toggles (and the admin's clock), in order
+		extra.Parent = pair
+		table.insert(buttons, extra)
+	end
+	for _, button in buttons do
 		local function enter()
 			hovered = button
 			showTip(button, false)

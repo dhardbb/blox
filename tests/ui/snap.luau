@@ -1578,6 +1578,117 @@ local SHOTS: { Shot } = {
 			tapIf(world, peer, "HelpOverlay", "HelpTab_win")
 		end,
 	},
+	-- 0.17 slice A (D-090): the start screen for a new player (the "?" chip
+	-- pulsing), the queue's ring and clock, "Opponent found!" with the
+	-- opponent, Report a bug (the corner and Help), the admins' bug list.
+	{
+		name = "01-lobby-new-a17",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Idle")
+			lobby.profile = { rating = 1000, games = 0, wins = 0, losses = 0 }
+			lobby.online = 1234
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02q-lobby-queue-a17",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Queued")
+			lobby.online = 1234
+			lobby.botAt = world.clock + 18
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "09v-found-opponent-a17",
+		moment = "Plan",
+		screen = "FoundOverlay",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Idle")
+			lobby.state = "InMatch"
+			lobby.found = {
+				phase = "Answer",
+				untilAt = world.clock + 9,
+				opponent = { userId = "4242", name = "Sir Zorkalot" },
+			}
+			world.current = peer
+			Rig.storeOf(world, peer).setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "03-bug-sheet-a17",
+		moment = "Lobby",
+		screen = "BugOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Lobby", "BugToggle")
+			local box = Rig.findIn(peer, "BugOverlay", "BugText")
+			if box then
+				box.Text = "The map froze after week 3 when I tapped Ohio twice."
+			end
+			FakeRoblox.run(world, 0.2)
+		end,
+	},
+	{
+		name = "26b-help-bug-a17",
+		moment = "Plan",
+		screen = "HelpOverlay",
+		steps = function(world, peer)
+			tapIf(world, peer, "Campaign", "HelpButton")
+		end,
+	},
+	{
+		name = "01k-lobby-bugs-a17",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			local lobby = Fixtures.lobby("Idle", { colorPass = "owned", color = "Teal" })
+			lobby.review = { count = 2 }
+			lobby.admin = { timersOff = false }
+			world.current = peer
+			local store = Rig.storeOf(world, peer)
+			store.setLobby(lobby)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			tapIf(world, peer, "Lobby", "BugsButton")
+			world.current = peer
+			store.setBugs({
+				ok = true,
+				entries = {
+					{
+						at = 1761748500,
+						userId = "77",
+						owner = "MapleFox",
+						version = "0.17.0",
+						screen = "Campaign",
+						matchId = "m-1a2b3c4d5e",
+						text = "The rematch button did nothing after the other player tapped it.",
+					},
+					{
+						at = 1761740000,
+						userId = "81",
+						owner = "QuietFox",
+						version = "0.17.0",
+						screen = "Lobby",
+						text = "Music kept playing with sound off.",
+					},
+				},
+			})
+			world.current = nil
+			FakeRoblox.run(world, 0.3)
+		end,
+	},
 }
 
 -- ------------------------------------------------------------- arguments

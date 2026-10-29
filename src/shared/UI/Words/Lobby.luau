@@ -138,6 +138,33 @@ end
 
 -- ---------------------------------------------------------------- leave match
 
+-- The start screen, the queue and bug reports (D-090).
+Lobby.HELP_CHIP = "?" -- How to play, as a chip in the corner
+Lobby.HELP_LABEL = "How to play" -- its tooltip and label
+Lobby.BUG_LABEL = "Report a bug" -- the corner's bug toggle and the Help sheet's button
+Lobby.READY_PRACTICE = "Practice done!" -- the tutorial's end: the card over "You're ready!"
+Lobby.QUEUE_WAITED = "Waiting" -- before the elapsed time ("Waiting 0:35")
+Lobby.CODE_COPY = "Tap to copy" -- under the private code (selects it; Roblox games can't write the clipboard)
+Lobby.BUG_TITLE = "Report a bug"
+Lobby.BUG_HINT = "What went wrong? We also send the screen and the game version. Don't share personal info."
+Lobby.BUG_PLACEHOLDER = "The map froze after week 3…"
+Lobby.BUG_SEND = "Send report"
+Lobby.BUG_CANCEL = "Cancel"
+Lobby.BUG_TOO_SHORT =
+	`Tell us a little more: at least {ConfigModule.defaults.BUG_REPORT_MIN_CHARS} characters.`
+Lobby.BUG_TOO_LONG = `Bug reports can be at most {ConfigModule.defaults.BUG_REPORT_MAX_CHARS} characters.`
+Lobby.BUGS_BUTTON = "Bug reports" -- admins: the newest reports
+Lobby.BUGS_TITLE = "Bug reports"
+Lobby.BUGS_EMPTY = "No bug reports in the last 7 days."
+Lobby.BUGS_FAILED = "The bug reports couldn't be read. Try again in a minute."
+Lobby.BUGS_LOADING = "Loading bug reports…"
+
+-- One bug report's line in the admins' list: who, when, where, which version.
+function Lobby.bugLine(owner: string, when: string, screen: string, version: string, matchId: string?): string
+	local match = if matchId then ` · match {string.sub(matchId, 1, 8)}` else ""
+	return `{owner} · {when} · {screen} · v{version}{match}`
+end
+
 Lobby.LEAVE = "Leave match"
 Lobby.LEAVE_STAY = "Keep playing"
 Lobby.LEAVE_HUMAN_TITLE = "Leave and forfeit?"

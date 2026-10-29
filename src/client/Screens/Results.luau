@@ -40,9 +40,18 @@
 -- them. Graph (ResultsParts/GraphTab): both players' projected votes week by
 -- week and the real result, with the 270 line and the debate and stance weeks.
 -- Without an election (a forfeit) there are no tabs: Summary alone.
--- After the tutorial (D-080) a card TutorialReady ("You're ready!", ReadyTitle,
--- ReadyText) follows the Reason, and the primary button reads "Play a real
--- match" (not Rematch): it queues for a match against a person.
+-- After the tutorial (D-080) a card TutorialReady ("Practice done!", ReadyTitle,
+-- ReadyText) stands in the right column, and the primary button reads "Play a real
+-- match" (not Rematch): it queues for a match against a person. The banner
+-- stamp is "You're ready!" in green, win or lose (D-090: no orange "You lost"
+-- over a practice).
+--
+-- D-090 (end-screen social; the layout is E's): when the opponent asks for a
+-- rematch, RematchBanner fills E's RematchSlot at the top of the right column (their portrait,
+-- RematchFace, and "Buster wants a rematch!" with the seconds left,
+-- RematchText) and pops in; the bar's status line steps aside. A counted Daily
+-- Race run shows its rank as a big number with the flame (DailyRankRow:
+-- DailyRankFlame, DailyRank) and drops gold confetti once.
 --
 -- The end screen's layout (D-098). A compact top section, then two columns on
 -- a wide screen (an iPad, a desktop) and one on a phone:
@@ -94,6 +103,7 @@ local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Reveal)
 
 local ActionBar = require(script.Parent.Parent.UI.ActionBar)
+local Featured = require(script.Parent.Parent.UI.Featured)
 local Audio = require(script.Parent.Parent.UI.Audio)
 local Data = require(script.Parent.Common.Data)
 local GraphTab = require(script.Parent.ResultsParts.GraphTab)
@@ -134,6 +144,12 @@ local TAB_H = Kit.MIN_TOUCH -- px, the pinned tab row (D-073)
 -- edge and its light (D-098).
 local GOLD = Kit.color(Colors.player.Amber)
 local TABS = { "Summary", "Map", "Graph" }
+local TUTORIAL_TILT = -3 -- degrees: the tutorial's "You're ready!" stamp, half the usual tilt (D-090)
+local REMATCH_H = 56 -- px, the rematch banner above the action bar (D-090)
+local REMATCH_FACE = 40 -- px, the asker's portrait on it
+local REMATCH_TIME_W = 36 -- px, the seconds left at its right
+local RANK_FLAME = Kit.size.hero -- px, the flame beside a Daily rank (D-090), as tall as the number
+local RANK_CONFETTI = 40 -- pieces when a counted Daily rank arrives
 
 local DECIDED_BY: { [string]: string } = {
 	States = "Votes tied, so the most states won decided it.",
@@ -233,6 +249,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local againDaily = false -- a Daily Race run: the primary plays today's race again (practice, D-082)
 	local dailyLine: TextLabel? = nil
 	local dailyMore: TextLabel? = nil
+	local dailyRank: TextLabel? = nil -- the big "#7" (D-090)
+	local rankCheered: string? = nil -- the match whose rank already dropped confetti
 	local rivalName = "your opponent" -- the opponent's first name, for the rematch line
 	local bar = ActionBar.new(page.footer :: Frame, {
 		primary = MatchWords.REMATCH,
@@ -268,6 +286,88 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		secondaryName = "BackToLobby",
 	})
 
+	-- The rematch banner (D-090): in the summary's RematchSlot (D-098), hidden
+	-- until asked; render() moves it into each new slot.
+	local rematchBanner = Kit.new("Frame", {
+		Name = "RematchBanner",
+		Size = UDim2.new(1, 0, 0, REMATCH_H),
+		BackgroundColor3 = Kit.colors.raised,
+		BorderSizePixel = 0,
+		Visible = false,
+	}) :: Frame
+	Kit.corner(Kit.radius.panel).Parent = rematchBanner
+	Kit.new("UIStroke", {
+		Name = "RematchEdge",
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = Kit.colors.good,
+		Thickness = 2,
+		Parent = rematchBanner,
+	})
+	local rematchFaceSlot = Kit.box({
+		Name = "RematchFaceSlot",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, Kit.space.sm, 0.5, 0),
+		Size = UDim2.fromOffset(REMATCH_FACE, REMATCH_FACE),
+		Parent = rematchBanner,
+	})
+	local rematchTime = Kit.text("", {
+		Name = "RematchTime",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -Kit.space.sm, 0, 0),
+		Size = UDim2.new(0, REMATCH_TIME_W, 1, 0),
+		TextSize = Kit.size.caption,
+		TextColor3 = Kit.colors.muted,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextWrapped = false,
+		Parent = rematchBanner,
+	})
+	local rematchText = Kit.text("", {
+		Name = "RematchText",
+		Position = UDim2.fromOffset(REMATCH_FACE + 2 * Kit.space.sm, 0),
+		Size = UDim2.new(1, -(REMATCH_FACE + 4 * Kit.space.sm + REMATCH_TIME_W), 1, 0),
+		Font = Kit.font.bold,
+		TextColor3 = Kit.colors.text,
+		TextScaled = true,
+		TextWrapped = true,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		Parent = rematchBanner,
+	})
+	Kit.new(
+		"UITextSizeConstraint",
+		{ MinTextSize = Kit.MIN_TEXT, MaxTextSize = Kit.size.body, Parent = rematchText }
+	)
+	local rematchFaceFor: string? = nil -- the candidate whose portrait is on the banner
+
+	-- The banner for an "Asked" rematch, or hidden.
+	local function paintBanner(current: Session.StatePayload, asked: boolean, seconds: number?)
+		local was = rematchBanner.Visible
+		rematchBanner.Visible = asked
+		if not asked then
+			return
+		end
+		local them = Data.opponent(current)
+		local player = current.view.players[them]
+		local id = if player then player.candidate else nil
+		if id and rematchFaceFor ~= id then
+			rematchFaceFor = id
+			for _, child in rematchFaceSlot:GetChildren() do
+				child:Destroy()
+			end
+			local face = Kit.portrait(id, Data.playerName(ctx.config, current.view, them), REMATCH_FACE, {
+				ring = Kit.playerColor(current.view, them),
+			})
+			face.Name = "RematchFace"
+			face.Parent = rematchFaceSlot
+		end
+		rematchText.Text = MatchWords.rematchAsked(rivalName)
+		rematchTime.Text = if seconds then `{math.max(0, math.ceil(seconds))} s` else ""
+		if not was then
+			Motion.pop(rematchBanner, Motion.POP_FROM)
+			Audio.play("select")
+		end
+	end
+
 	-- The Rematch button and the status line follow the server's word (D-083).
 	local function showRematch(state: Types.State)
 		local current = state.payload
@@ -278,6 +378,11 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local mine = status ~= nil and status.matchId == current.matchId
 		local kind = if mine then status.state else "Open"
 		local seconds = if mine and type(status.untilAt) == "number" then status.untilAt - ctx.now() else nil
+		local asked = not afterTutorial
+			and not againBot
+			and kind == "Asked"
+			and (seconds == nil or seconds > 0)
+		paintBanner(current, asked, seconds)
 		if afterTutorial then
 			-- The tutorial's end (D-080): "Play a real match", never a rematch.
 			bar:setPrimary(LobbyWords.READY_PLAY, true)
@@ -303,7 +408,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local line = if seconds == nil or seconds > 0
 			then MatchWords.rematchStatus(kind, seconds, rivalName)
 			else nil
-		bar:setStatus(line or "", if kind == "Asked" then "ok" else "muted")
+		-- An asked rematch says so on the banner (D-090); the status line steps aside.
+		bar:setStatus(if asked then "" else line or "", if kind == "Asked" then "ok" else "muted")
 	end
 
 	local function label(into: Instance, text: string, props: { [string]: any }?): TextLabel
@@ -525,6 +631,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local function render(current: Session.StatePayload)
 		stopEffects()
 		if details then
+			rematchBanner.Parent = nil -- kept: the next slot takes it
 			details:Destroy()
 		end
 		local view = current.view
@@ -548,6 +655,10 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			bannerText, bannerColor = "You won", Kit.colors.good
 		elseif result and result.winner ~= 0 then
 			bannerText, bannerColor = "You lost", Kit.colors.loss
+		end
+		if current.tutorial then
+			-- The tutorial's end (D-090): win or lose, the headline is that you're ready.
+			bannerText, bannerColor = LobbyWords.READY_TITLE, Kit.colors.good
 		end
 		local order = 0
 		local function nextOrder(): number
@@ -594,6 +705,9 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			end
 			local made = Kit.stamp(bannerText, bannerColor, {
 				size = Kit.size.hero,
+				-- "You're ready!" is long: a gentler tilt and a fit keep it on screen (D-090).
+				fit = if current.tutorial then Kit.space.xl else nil,
+				Rotation = if current.tutorial then TUTORIAL_TILT else nil,
 				Name = "BannerStamp",
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.fromScale(0.5, 0.5),
@@ -768,10 +882,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Parent = right,
 		})
 		Kit.list("Vertical", Kit.space.sm).Parent = rematchSlot
+		-- The rematch banner (D-090) stands in it; hidden, it takes no room.
+		rematchBanner.Parent = rematchSlot
 		-- The tutorial's end (D-080): win or lose, the player is ready for a real match.
 		if current.tutorial then
 			local ready = Kit.card({ Name = "TutorialReady", LayoutOrder = rightNext(), Parent = right })
-			Kit.heading(LobbyWords.READY_TITLE, { Name = "ReadyTitle", LayoutOrder = 1, Parent = ready })
+			Kit.heading(LobbyWords.READY_PRACTICE, { Name = "ReadyTitle", LayoutOrder = 1, Parent = ready })
 			Kit.text(LobbyWords.readyText(ConfigModule.defaults), {
 				Name = "ReadyText",
 				LayoutOrder = 2,
@@ -781,7 +897,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			})
 		end
 		-- A Daily Race run (D-082): its own summary, filled by update().
-		dailyLine, dailyMore = nil, nil
+		dailyLine, dailyMore, dailyRank = nil, nil, nil
 		local run = current.daily
 		if run then
 			local box = Kit.card({ Name = "DailySummary", LayoutOrder = rightNext(), Parent = right })
@@ -800,10 +916,38 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			})
 			dailyMore = label(box, "", {
 				Name = "DailyMore",
-				LayoutOrder = 3,
+				LayoutOrder = 4,
 				TextSize = Kit.size.caption,
 				TextXAlignment = Enum.TextXAlignment.Center,
 			})
+			-- A counted run's rank today, big, with the flame (D-090).
+			local rankRow = Kit.box({
+				Name = "DailyRankRow",
+				LayoutOrder = 3,
+				Size = UDim2.new(1, 0, 0, Kit.size.hero + Kit.space.sm),
+				Visible = false,
+				Parent = box,
+			})
+			local rankList = Kit.list("Horizontal", Kit.space.sm)
+			rankList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			rankList.VerticalAlignment = Enum.VerticalAlignment.Center
+			rankList.Parent = rankRow
+			local flame = Kit.icon("flame", RANK_FLAME, Featured.GOLD)
+			flame.Name = "DailyRankFlame"
+			flame.LayoutOrder = 1
+			flame.Parent = rankRow
+			dailyRank = Kit.text("", {
+				Name = "DailyRank",
+				LayoutOrder = 2,
+				Size = UDim2.fromScale(0, 1),
+				AutomaticSize = Enum.AutomaticSize.X,
+				Font = Kit.font.display,
+				TextSize = Kit.size.hero,
+				TextColor3 = Featured.GOLD,
+				TextWrapped = false,
+				Parent = rankRow,
+			})
+			Kit.dataColor(dailyRank)
 		end
 
 		-- Why: three short reasons, the winner's side.
@@ -994,6 +1138,18 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 					local rank = mine.rank or (if you then you.rank else nil)
 					local streak = if today then ` · {DailyWords.streak(info.streak)}` else ""
 					moreLine.Text = `{DailyWords.rankLine(rank, DailyNet.TOP)}{streak}`
+					-- The rank, big, with the flame; gold confetti once (D-090).
+					local big = dailyRank
+					if big and rank then
+						big.Text = `#{rank}`
+						local row = big.Parent :: Frame
+						row.Visible = true
+						if rankCheered ~= current.matchId then
+							rankCheered = current.matchId
+							Motion.pop(row, Motion.POP_FROM)
+							Motion.confetti(parent, { Featured.GOLD, Kit.colors.text }, RANK_CONFETTI)
+						end
+					end
 				else
 					moreLine.Text = DailyWords.practiceLine(if today then info.margin else nil)
 				end

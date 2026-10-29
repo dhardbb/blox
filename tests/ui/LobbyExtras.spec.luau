@@ -150,7 +150,7 @@ describe("Lobby: How to play (D-059)", function()
 		check(need(peer, "Lobby", "HowToSheet").Visible == true, "the sheet did not open")
 		check(shownIn(peer, "Lobby", "HowToPage_goal"), "page 1 is not the goal")
 		check(not shownIn(peer, "Lobby", "HowToBack"), "Back shows on page 1")
-		expect(textOf(peer, "Lobby", "HowToCount")):toBe("1 of 6")
+		expect(need(peer, "Lobby", "Dot_1"):GetAttribute("On")):toBe(true) -- progress dots (D-090)
 		expect(strictAudit(world, peer, "Lobby")):toBe(0)
 		for page, id in { "week", "actions", "issues", "events", "night" } do
 			tap(world, peer, "Lobby", "HowToNext")

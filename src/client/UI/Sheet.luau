@@ -24,8 +24,12 @@
 -- drag handle ("Handle") at the top.
 --
 -- Rules: a sheet never holds the screen's primary action (the screen's pinned
--- Lock in stays the only accent button); put at most one secondary action at the
--- end of the body. Mount it as the last child of the screen root so it draws
+-- Lock in stays the only PrimaryAction); put at most one secondary action at the
+-- end of the body. A sheet's own main button may wear the accent look (D-090:
+-- "Invite a friend", "Play the tutorial"): the scrim covers the screen's, and
+-- the UI audit's oneAccent rule counts only an open sheet's (root attribute
+-- Modal). Option `closable = false` drops the × and the scrim tap, for a
+-- question that needs an answer ("Opponent found!"). Mount it as the last child of the screen root so it draws
 -- above everything else on the screen.
 
 local Kit = require(script.Parent.Kit)
@@ -50,6 +54,7 @@ export type Options = {
 	onClose: (() -> ())?, -- after the sheet closes (× or scrim)
 	portrait: boolean?, -- force a layout; nil decides at open()
 	height: number?, -- share of the screen height (default 0.7 on a phone, 0.8 wide)
+	closable: boolean?, -- false: no × and the scrim does not close it (a question that needs an answer, D-090)
 }
 
 export type Sheet = {
@@ -74,6 +79,9 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 		ZIndex = Z,
 		Visible = false,
 	})
+	-- The UI audit counts an open sheet's accent button on its own (D-090).
+	root:SetAttribute("Modal", true)
+	local closable = options.closable ~= false
 
 	local sheet: Sheet
 	local scrim = Kit.new("TextButton", {
@@ -88,7 +96,9 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 		Parent = root,
 	}) :: TextButton
 	scrim.Activated:Connect(function()
-		sheet:close()
+		if closable then
+			sheet:close()
+		end
 	end)
 
 	local panel = Kit.new("Frame", {
@@ -135,6 +145,7 @@ function Sheet.new(parent: Instance, options: Options): Sheet
 		Name = "Close",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
+		Visible = closable,
 		Parent = titleRow,
 	})
 

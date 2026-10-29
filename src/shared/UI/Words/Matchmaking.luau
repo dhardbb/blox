@@ -55,6 +55,11 @@ Matchmaking.REMATCH_ASKED = "Rematch asked"
 Matchmaking.REMATCH_GONE = "Opponent left"
 Matchmaking.REMATCH_EXPIRED = "Rematch expired"
 
+-- The rematch banner on Results (D-090).
+function Matchmaking.rematchAsked(them: string): string
+	return `{them} wants a rematch!`
+end
+
 -- The action bar's status line on Results.
 function Matchmaking.rematchStatus(state: string, seconds: number?, them: string): string?
 	local left = if seconds then ` · {math.max(0, math.ceil(seconds))} s` else ""

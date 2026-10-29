@@ -29,6 +29,7 @@ export type State = {
 	leaderboard: any?, -- Net/Leaderboard.Board, the global leaderboard (D-059)
 	leaving: string?, -- the match this player chose to leave: its end skips Results (D-059)
 	review: any?, -- Remotes.ReviewBoard: admins' reported names (D-069)
+	bugs: any?, -- Remotes.BugBoard: admins' newest bug reports (D-090)
 	daily: any?, -- Net/Daily.Info: today's Daily Race (D-082)
 	dailyRun: any?, -- Net/Daily.Run: the Daily Race run that ended last (D-082)
 	rematch: any?, -- Rematch.Status: where a rematch of the last match stands (D-083)
@@ -49,6 +50,7 @@ export type Net = {
 	answer: ((accept: boolean) -> ())?, -- answer "Opponent found! Leave this bot game?" (D-083)
 	rematch: (() -> ())?, -- Results: play the same opponent again (D-083)
 	invite: ((code: string) -> ())?, -- Roblox's invite prompt carrying a private code (D-083); yields
+	bugReport: ((text: string, screen: string) -> ())?, -- send a bug report (D-090)
 	reasonText: (reason: string?) -> string,
 }
 
@@ -70,6 +72,7 @@ export type Ctx = {
 	help: (() -> ())?, -- opens the "How it works" overlay (UI/Help), when App mounted one
 	leave: (() -> ())?, -- opens the "Leave match" confirmation (UI/LeaveMatch, D-059)
 	report: ((seat: number) -> ())?, -- opens the "Report name" confirmation for a seat (UI/ReportName, D-069)
+	bug: ((screen: string?) -> ())?, -- opens "Report a bug" tagged with that screen (UI/BugSheet, D-090)
 }
 
 export type Screen = {

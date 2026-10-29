@@ -206,6 +206,10 @@ describe("Results: the Landslide stamp", function()
 				if name == "shine" and inst.Name ~= "Plate" then
 					return function() end
 				end
+				-- The Lobby's own loops after Back to lobby (D-090: stars, rings) are not the stamp's.
+				if inst:FindFirstAncestor("Lobby") ~= nil then
+					return function() end
+				end
 				started += 1
 				return function()
 					stopped += 1
