@@ -13,22 +13,22 @@
 --   Words.movePill(move, them) -> string                "TX +3.0 for you"
 --   Words.mark(up) -> string                            "▲" (good for you) or "▼" (against you)
 --   Words.marked(text, up) -> string                    "▲ Texas flips to you · 40 votes"
---   Words.flipHeadline(view, flips, them) -> string     "You flipped 2 · Rex flipped 1"
+--   Words.flipHeadline(view, flips, them) -> string     "You flipped 2 · Buster flipped 1"
 --   Words.topMarks(net, flips, n?) -> { [id]: number }  what the map badges: flips and the n biggest moves
 --   Words.inVotes(line) -> string                       "+6 EV" -> "+6 votes" (Swing's lines, said plainly)
 --   Words.plain(text) -> string                         inVotes, and "AP" said as actions (Explain's rules)
 --   Words.stateLine(id) -> string                       "Ohio · 17 votes"
---   Words.callLine(result, names) -> string             "Dana by 2.9 points"
+--   Words.callLine(result, names) -> string             "Goldie by 2.9 points"
 --   Words.keyReasons(config, view, winner, names) -> { string }   at most 3, the winner's side
 --   Words.nextTime(config, view, winner, names) -> string?  the loser's one "Try next time" line
 --   Words.revealFirst(view) -> (player, trails)         whose actions land first in a week's reveal
---   Words.orderLine(view, first, trails, them) -> string "Rex trails, so Rex's actions land first"
+--   Words.orderLine(view, first, trails, them) -> string "Buster trails, so Buster's actions land first"
 --   Words.SETTLE · ESTIMATE_NOTE · pollShift(flips) · leaderArrow(view, flip, them)  the running tally (D-066)
 --   Words.projectionLine(before, after) -> string      "Projection: 310 → 324 (+14 for you)" (the week's net, M4)
 --   Words.groundLine(old, new, close) -> string?        "You lost ground in 3 close states" (no leader changed)
 --   Words.help(config) -> { Tab }                       the five Help tabs
 --
--- `them` is the opponent's display name ("Rex"); `names` is display names by
+-- `them` is the opponent's display name ("Buster"); `names` is display names by
 -- player index. Tones are Kit tone names ("good", "loss", "text", "muted");
 -- "bad" is the old name of "loss" (both are the loss orange, D-056).
 
@@ -308,7 +308,7 @@ function Words.pollChanges(old: View, new: View): Changes
 	return { flips = flips, moves = moves }
 end
 
--- "Ohio flips to you · 17 votes", "Ohio flips to Rex · 17 votes",
+-- "Ohio flips to you · 17 votes", "Ohio flips to Buster · 17 votes",
 -- "Ohio slips to a tie · 17 votes".
 function Words.flipLine(view: View, flip: Swing.Flip, them: string): string
 	local votes = plural(flip.ev, "vote")
@@ -341,7 +341,7 @@ function Words.marked(text: string, up: boolean): string
 end
 
 -- The reveal's headline once the new polls are in: who flipped how many
--- states. "You flipped 2 · Rex flipped 1", "Rex flipped 1 state",
+-- states. "You flipped 2 · Buster flipped 1", "Buster flipped 1 state",
 -- "2 states slipped to a tie", "No state changed leader".
 function Words.flipHeadline(view: View, flips: { Swing.Flip }, them: string): string
 	local mine, theirs, ties = 0, 0, 0
@@ -366,7 +366,7 @@ function Words.flipHeadline(view: View, flips: { Swing.Flip }, them: string): st
 	return "No state changed leader"
 end
 
--- "TX +3.0 for you" or "OH +2.0 for Rex".
+-- "TX +3.0 for you" or "OH +2.0 for Buster".
 function Words.movePill(move: Move, them: string): string
 	local who = if move.delta > 0 then "you" else them
 	return `{move.state} {Numbers.signed(math.abs(move.delta))} for {who}`
@@ -430,7 +430,7 @@ function Words.stateLine(id: string): string
 	return `{nameOf(id)} · {plural(evOf(id), "vote")}`
 end
 
--- "Dana by 2.9 points", or "Dead heat: no votes".
+-- "Goldie by 2.9 points", or "Dead heat: no votes".
 function Words.callLine(result: SimState.StateResult, names: { string }): string
 	if result.winner <= 0 then
 		return "Dead heat: no votes"
@@ -698,7 +698,7 @@ function Words.groundLine(old: View, new: View, close: number): string?
 	return nil
 end
 
--- A leader change in a few characters: "OH → you +17", "OH → Rex +17", "OH → tie".
+-- A leader change in a few characters: "OH → you +17", "OH → Buster +17", "OH → tie".
 function Words.leaderArrow(view: View, flip: Swing.Flip, them: string): string
 	if flip.to == 0 then
 		return `{flip.state} → tie`

@@ -35,7 +35,7 @@
 -- the three stances as full-width chips, each with what it does in a few words
 -- ("A · Side with the staff" / "+4 states  −2 states", the gain green and the
 -- loss orange; "C · Offer to mediate (safe)"; the selection is the white outline
--- and a white bar at the chip's left), the rival's line ("Rex picks too, in
+-- and a white bar at the chip's left), the rival's line ("Buster picks too, in
 -- secret. Same side: it mostly cancels. …", ChoiceRival), then "Why?" with the rest:
 -- "States you need" (Shared/UI/Swing, from the public poll), the summary of
 -- the shown stance on the map, the tradeoff note, and every state, stance by
@@ -157,7 +157,7 @@ function EventCard.new(parent: Instance, model: Model.Model): EventCard
 		Font = Kit.font.medium,
 		Parent = card.root,
 	})
-	-- Next week's event, for a candidate who previews the deck (Strand, D-035). It
+	-- Next week's event, for a candidate who previews the deck (Moonbeam, D-035). It
 	-- sits below the body so it shows whether or not the card is expanded.
 	local nextLine = Kit.caption("", {
 		Name = "NextEvent",

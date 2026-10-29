@@ -57,7 +57,7 @@ describe("Plan.validate", function()
 		expect(cost.cash):toBe(2 * C.FLIGHT_COST)
 	end)
 
-	it("rejects plans over the AP budget, but Rex gets 4", function()
+	it("rejects plans over the AP budget, but Buster gets 4", function()
 		local rallies = {}
 		for k = 1, 4 do
 			rallies[k] = { kind = "Rally", state = "OH", issue = "Jobs" }
@@ -84,7 +84,7 @@ describe("Plan.validate", function()
 		expect(Plan.cost(C, match, 1, normalized :: Plan.Plan).cash):toBe(2)
 	end)
 
-	it("gives Helen two free single-state polls a week", function()
+	it("gives Esme two free single-state polls a week", function()
 		local match = week1("strand")
 		local _, _, normalized = Plan.validate(C, match, 1, {
 			actions = {

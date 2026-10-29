@@ -2,7 +2,9 @@
 -- The candidate roster as data. Each candidate is the default profile (built from
 -- Config) plus a few overrides, so a ninth candidate is a data change, not code.
 -- Values are revision 2 (docs/DESIGN.md D-011) as retuned by the first balance pass
--- (D-022, D-023) and the second (D-035, D-037). Names are fictional placeholders.
+-- (D-022, D-023) and the second (D-035, D-037). Names and bios are fictional and
+-- display-only (D-097): saved records, the Daily Race and portraits key on `id`,
+-- which never changes.
 
 local ConfigModule = require("./Config")
 
@@ -12,6 +14,7 @@ type Config = ConfigModule.Config
 export type Profile = {
 	id: string,
 	name: string,
+	bio: string, -- one line of persona for the details sheet (display only)
 	archetype: string,
 	perk: string,
 	drawback: string,
@@ -41,6 +44,7 @@ export type Profile = {
 type Entry = {
 	id: string,
 	name: string,
+	bio: string,
 	archetype: string,
 	perk: string,
 	drawback: string,
@@ -50,7 +54,8 @@ type Entry = {
 local ROSTER: { Entry } = {
 	{
 		id = "okafor",
-		name = "Dana Okafor",
+		name = "Goldie Pennywhistle",
+		bio = "A retired treasure hunter who pays for everything in gold doubloons.",
 		archetype = "The Fundraiser",
 		perk = "Fundraisers yield +25%",
 		drawback = "None",
@@ -58,7 +63,8 @@ local ROSTER: { Entry } = {
 	},
 	{
 		id = "calloway",
-		name = "Rex Calloway",
+		name = "Buster Cannonball",
+		bio = "A retired human cannonball who still can't sit still.",
 		archetype = "The Barnstormer",
 		perk = "4 AP per week",
 		drawback = "Rallies +2.3 instead of +3.0; media buys cost $4",
@@ -66,7 +72,8 @@ local ROSTER: { Entry } = {
 	},
 	{
 		id = "venkat",
-		name = "Priya Venkat",
+		name = "Mavis Glimmer",
+		bio = "A stage magician who can make an ad appear out of thin air.",
 		archetype = "The Ad Wizard",
 		perk = "Media buys cost $2; repeat buys keep 65% of their value",
 		drawback = "Income $2 a week instead of $4",
@@ -74,7 +81,8 @@ local ROSTER: { Entry } = {
 	},
 	{
 		id = "hale",
-		name = "Marcus Hale",
+		name = "Percy Quibble",
+		bio = "A penniless poet with a booming voice and a comeback for everything.",
 		archetype = "The Debater",
 		perk = "A debate win with his Zinger counts ×4, not ×2",
 		drawback = "Starts with no money",
@@ -82,7 +90,8 @@ local ROSTER: { Entry } = {
 	},
 	{
 		id = "alvarado",
-		name = "June Alvarado",
+		name = "Opal Crumpet",
+		bio = "The old palace tea taster, who knows every back door in town.",
 		archetype = "The Insider",
 		perk = "Starts with $20",
 		drawback = "Income $3.75 a week instead of $4",
@@ -90,7 +99,8 @@ local ROSTER: { Entry } = {
 	},
 	{
 		id = "reyes",
-		name = "Tomas Reyes",
+		name = "Dash Kickflip",
+		bio = "A skateboard stunt rider who's at his best coming from way behind.",
 		archetype = "The Insurgent",
 		perk = "Underdog bonuses doubled; momentum gained +65%",
 		drawback = "Momentum fades faster; weaker rallies and fundraisers while far ahead",
@@ -105,7 +115,8 @@ local ROSTER: { Entry } = {
 	},
 	{
 		id = "strand",
-		name = "Helen Strand",
+		name = "Esme Moonbeam",
+		bio = "A fortune teller who swears her crystal ball is just very good polling.",
 		archetype = "The Pollster",
 		perk = "Sees next week's event a week early; two free internal polls a week",
 		drawback = "Media buys -10%",
@@ -113,7 +124,8 @@ local ROSTER: { Entry } = {
 	},
 	{
 		id = "begay",
-		name = "Walt Begay",
+		name = "Gus Bramble",
+		bio = "A retired scoutmaster who can knock on a thousand doors before lunch.",
 		archetype = "The Organizer",
 		perk = "Ground game costs $1 per unit and caps at 6 per state",
 		drawback = "Rallies +2.9 instead of +3.0",
@@ -151,6 +163,7 @@ function Candidates.profile(config: Config, id: string): Profile
 	local profile: Profile = {
 		id = entry.id,
 		name = entry.name,
+		bio = entry.bio,
 		archetype = entry.archetype,
 		perk = entry.perk,
 		drawback = entry.drawback,

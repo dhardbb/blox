@@ -386,8 +386,8 @@ describe("ShapeMap", function()
 		local m = mount(832, 520)
 		local blue, red = rgb(m, 70, 110, 220), rgb(m, 220, 70, 80)
 		m.map:setPins({
-			{ state = "PA", name = "Rex Calloway", color = red, tag = "Rex" },
-			{ state = "OH", name = "Dana Okafor", color = blue, tag = "You", you = true },
+			{ state = "PA", name = "Buster Cannonball", color = red, tag = "Buster" },
+			{ state = "OH", name = "Goldie Pennywhistle", color = blue, tag = "You", you = true },
 		})
 		settle(m)
 		local pins = m.map.root.Pins
@@ -412,15 +412,15 @@ describe("ShapeMap", function()
 		m.map:setPins({
 			{
 				state = "PA",
-				name = "Rex Calloway",
+				name = "Buster Cannonball",
 				candidate = "calloway",
 				color = red,
-				tag = "Rex",
+				tag = "Buster",
 				label = true,
 			},
 			{
 				state = "OH",
-				name = "Dana Okafor",
+				name = "Goldie Pennywhistle",
 				candidate = "okafor",
 				color = blue,
 				tag = "You",
@@ -429,7 +429,7 @@ describe("ShapeMap", function()
 			},
 		})
 		settle(m)
-		expect(pins:FindFirstChild("PinPA").Flag.Text):toBe("Rex")
+		expect(pins:FindFirstChild("PinPA").Flag.Text):toBe("Buster")
 		local face = pins:FindFirstChild("PinOH").Face
 		local portrait = face:FindFirstChild("Portrait")
 		check(portrait ~= nil, "no portrait on your pin")
@@ -438,8 +438,8 @@ describe("ShapeMap", function()
 		expect(pins:FindFirstChild("PinPA").Face.Portrait:GetAttribute("Portrait")):toBe("calloway")
 		-- Both in one state: side by side.
 		m.map:setPins({
-			{ state = "OH", name = "Rex Calloway", color = red, tag = "Rex" },
-			{ state = "OH", name = "Dana Okafor", color = blue, tag = "You", you = true },
+			{ state = "OH", name = "Buster Cannonball", color = red, tag = "Buster" },
+			{ state = "OH", name = "Goldie Pennywhistle", color = blue, tag = "You", you = true },
 		})
 		settle(m)
 		local both = pins:GetChildren()
@@ -525,8 +525,8 @@ describe("ShapeMap", function()
 				KS = { parts = {}, quiet = true },
 			})
 			m.map:setPins({
-				{ state = "WA", name = "Rex Calloway", color = red, tag = "Rex" },
-				{ state = "FL", name = "Dana Okafor", color = blue, tag = "You", you = true },
+				{ state = "WA", name = "Buster Cannonball", color = red, tag = "Buster" },
+				{ state = "FL", name = "Goldie Pennywhistle", color = blue, tag = "You", you = true },
 			})
 			m.map:setLegend({
 				{ mark = "none", text = "Plan: 268 → 281 votes" },

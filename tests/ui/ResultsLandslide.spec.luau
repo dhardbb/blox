@@ -14,7 +14,7 @@ local describe, it, expect = Test.describe, Test.it, Test.expect
 local check = Rig.check
 
 local C = Config.defaults
-local NAMES = { "Dana", "Rex" }
+local NAMES = { "Goldie", "Buster" }
 
 local function share(payload: any): number
 	local e = payload.view.election
@@ -48,8 +48,8 @@ describe("Landslide.moment", function()
 		assert(moment ~= nil, "no landslide moment for the loser")
 		expect(moment.winner):toBe(2)
 		expect(moment.mine):toBe(false)
-		expect(moment.eyebrow):toBe("Rex won by a")
-		check(string.find(moment.line, "^Rex took %d+ of 538 votes, over 70%%%.$") ~= nil, moment.line)
+		expect(moment.eyebrow):toBe("Buster won by a")
+		check(string.find(moment.line, "^Buster took %d+ of 538 votes, over 70%%%.$") ~= nil, moment.line)
 	end)
 
 	it("is nil without an election result", function()
@@ -132,7 +132,7 @@ describe("Results: the Landslide stamp", function()
 		local payload = Rig.payloadOf(world, peer)
 		expect(Rig.textOf(peer, "Results", "Banner")):toBe("You lost")
 		expect(Rig.textOf(peer, "Results", "LandslideLabel")):toBe("LANDSLIDE")
-		expect(Rig.textOf(peer, "Results", "LandslideEyebrow")):toBe("REX WON BY A")
+		expect(Rig.textOf(peer, "Results", "LandslideEyebrow")):toBe("BUSTER WON BY A")
 		local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
 		expect(plateColor(peer)):toEqual(Kit.playerColor(payload.view, 2))
 		FakeRoblox.run(world, 2)

@@ -1,7 +1,7 @@
 --!strict
 -- The Draft screen's list picker: one tappable row per state ("Row_OH"), biggest
 -- first, with its votes and its lean as a pill filled in that player's color
--- ("+2 you" on your color, "+2 Rex" on his; "Even" a raised tag). It
+-- ("+2 you" on your color, "+2 Buster" on his; "Even" a raised tag). It
 -- is the phone-friendly twin of tapping the map, and shares its choice slots.
 -- By default it shows only the best picks (the biggest states this round
 -- allows, plus anything chosen); "Show all states" shows every row, the ones
@@ -222,7 +222,7 @@ function StateList.new(onTap: (id: string) -> ()): List
 
 			local to = sv.leanTo
 			row.lean.Text = Words.lean(sv.lean, if to == nil then nil else to == you, opponent)
-			-- A lean is filled in its player's color ("+2 Rex" on red, "+2 you"
+			-- A lean is filled in its player's color ("+2 Buster" on red, "+2 you"
 			-- on blue) with readable text; "Even" stays a quiet raised tag.
 			local leanColor = if to ~= nil and sv.lean > 0 then info.colors[to] else nil
 			if leanColor then

@@ -188,11 +188,11 @@ describe("PollMiss words", function()
 	end)
 
 	it("puts you first in the votes line", function()
-		expect(PollMiss.votesLine("Polls", { 248, 290 }, 2, { "Rex", "Dana" })):toBe(
-			"Final polls: you 290, Rex 248"
+		expect(PollMiss.votesLine("Polls", { 248, 290 }, 2, { "Buster", "Goldie" })):toBe(
+			"Final polls: you 290, Buster 248"
 		)
-		expect(PollMiss.votesLine("Result", { 302, 236 }, 1, { "Dana", "Rex" })):toBe(
-			"Election night: you 302, Rex 236"
+		expect(PollMiss.votesLine("Result", { 302, 236 }, 1, { "Goldie", "Buster" })):toBe(
+			"Election night: you 302, Buster 236"
 		)
 	end)
 
@@ -206,13 +206,13 @@ describe("PollMiss words", function()
 			margin = 2.44,
 			miss = true,
 		} :: any
-		expect(PollMiss.stateLine(row, 1, { "Dana", "Rex" })):toBe(
-			"Nevada · 6 votes. Final poll: Rex +1. Result: you by 2.4 points. The polls missed it."
+		expect(PollMiss.stateLine(row, 1, { "Goldie", "Buster" })):toBe(
+			"Nevada · 6 votes. Final poll: Buster +1. Result: you by 2.4 points. The polls missed it."
 		)
 		local called =
 			{ id = "OH", ev = 17, pollLeader = 0, pollLead = 0, winner = 2, margin = 5, miss = false } :: any
-		expect(PollMiss.stateLine(called, 1, { "Dana", "Rex" })):toBe(
-			"Ohio · 17 votes. Final poll: tied. Result: Rex by 5.0 points."
+		expect(PollMiss.stateLine(called, 1, { "Goldie", "Buster" })):toBe(
+			"Ohio · 17 votes. Final poll: tied. Result: Buster by 5.0 points."
 		)
 	end)
 end)

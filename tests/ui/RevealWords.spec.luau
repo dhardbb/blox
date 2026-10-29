@@ -157,21 +157,23 @@ describe("Words: what changed", function()
 	it("says flips in votes and names the opponent", function()
 		local view = Fixtures.payload(C, "Resolve").view
 		local them = if view.you == 1 then 2 else 1
-		expect(Words.flipLine(view, { state = "OH", from = them, to = view.you, ev = 17 }, "Rex")):toBe(
+		expect(Words.flipLine(view, { state = "OH", from = them, to = view.you, ev = 17 }, "Buster")):toBe(
 			"Ohio flips to you · 17 votes"
 		)
-		expect(Words.flipLine(view, { state = "OH", from = view.you, to = them, ev = 17 }, "Rex")):toBe(
-			"Ohio flips to Rex · 17 votes"
+		expect(Words.flipLine(view, { state = "OH", from = view.you, to = them, ev = 17 }, "Buster")):toBe(
+			"Ohio flips to Buster · 17 votes"
 		)
 		expect(Words.flipTone(view, { state = "OH", from = view.you, to = 0, ev = 17 })):toBe("loss")
 		expect(Words.flipTone(view, { state = "OH", from = them, to = 0, ev = 17 })):toBe("good")
-		expect(Words.movePill({ state = "TX", delta = -2.5, ev = 40 }, "Rex")):toBe("TX +2.5 for Rex")
+		expect(Words.movePill({ state = "TX", delta = -2.5, ev = 40 }, "Buster")):toBe("TX +2.5 for Buster")
 	end)
 
 	it("leads a change with ▲ when it went your way and ▼ when it did not (D-056)", function()
 		expect(Words.mark(true)):toBe("▲")
 		expect(Words.mark(false)):toBe("▼")
-		expect(Words.marked("Ohio flips to Rex · 17 votes", false)):toBe("▼ Ohio flips to Rex · 17 votes")
+		expect(Words.marked("Ohio flips to Buster · 17 votes", false)):toBe(
+			"▼ Ohio flips to Buster · 17 votes"
+		)
 		expect(Words.marked("TX +3.0 for you", true)):toBe("▲ TX +3.0 for you")
 	end)
 
@@ -181,13 +183,13 @@ describe("Words: what changed", function()
 		local function flip(to: number): any
 			return { state = "OH", from = 3 - math.max(to, 1), to = to, ev = 17 }
 		end
-		expect(Words.flipHeadline(view, {}, "Rex")):toBe("No state changed leader")
-		expect(Words.flipHeadline(view, { flip(view.you), flip(view.you), flip(them) }, "Rex")):toBe(
-			"You flipped 2 · Rex flipped 1"
+		expect(Words.flipHeadline(view, {}, "Buster")):toBe("No state changed leader")
+		expect(Words.flipHeadline(view, { flip(view.you), flip(view.you), flip(them) }, "Buster")):toBe(
+			"You flipped 2 · Buster flipped 1"
 		)
-		expect(Words.flipHeadline(view, { flip(view.you) }, "Rex")):toBe("You flipped 1 state")
-		expect(Words.flipHeadline(view, { flip(them), flip(them) }, "Rex")):toBe("Rex flipped 2 states")
-		expect(Words.flipHeadline(view, { flip(0) }, "Rex")):toBe("1 state slipped to a tie")
+		expect(Words.flipHeadline(view, { flip(view.you) }, "Buster")):toBe("You flipped 1 state")
+		expect(Words.flipHeadline(view, { flip(them), flip(them) }, "Buster")):toBe("Buster flipped 2 states")
+		expect(Words.flipHeadline(view, { flip(0) }, "Buster")):toBe("1 state slipped to a tie")
 	end)
 
 	it("tallies the week's projected votes for gains, losses and no change (M4)", function()
@@ -271,10 +273,10 @@ end)
 describe("Words: election night and Results", function()
 	it("calls a state in votes and points", function()
 		expect(Words.stateLine("OH")):toBe("Ohio · 17 votes")
-		expect(Words.callLine({ state = "OH", winner = 2, margin = 2.94 }, { "Dana", "Rex" })):toBe(
-			"Rex by 2.9 points"
+		expect(Words.callLine({ state = "OH", winner = 2, margin = 2.94 }, { "Goldie", "Buster" })):toBe(
+			"Buster by 2.9 points"
 		)
-		expect(Words.callLine({ state = "OH", winner = 0, margin = 0 }, { "Dana", "Rex" })):toBe(
+		expect(Words.callLine({ state = "OH", winner = 0, margin = 0 }, { "Goldie", "Buster" })):toBe(
 			"Dead heat: no votes"
 		)
 	end)
@@ -285,14 +287,14 @@ describe("Words: election night and Results", function()
 		local election = view.election
 		check(election ~= nil, "no election in the fixture")
 		for _, winner in { 1, 2 } do
-			local reasons = Words.keyReasons(C, view, winner, { "Dana", "Rex" })
+			local reasons = Words.keyReasons(C, view, winner, { "Goldie", "Buster" })
 			expect(#reasons):toBe(3)
 			for _, text in reasons do
 				check(words(text) <= Words.REASON_WORDS, `"{text}" is {words(text)} words`)
 				check(not string.find(text, "EV", 1, true), `"{text}" says EV`)
 			end
 		end
-		expect(#Words.keyReasons(C, view, 0, { "Dana", "Rex" })):toBe(0)
+		expect(#Words.keyReasons(C, view, 0, { "Goldie", "Buster" })):toBe(0)
 	end)
 
 	it("never says the winner carried fewer states 'to' more", function()
@@ -300,7 +302,7 @@ describe("Words: election night and Results", function()
 		-- From the loser's side the ground-game reason is hidden, so the state
 		-- count can make the top three.
 		view.you = 2
-		local reasons = Words.keyReasons(C, view, 1, { "Dana", "Rex" })
+		local reasons = Words.keyReasons(C, view, 1, { "Goldie", "Buster" })
 		for _, text in reasons do
 			local a, b = string.match(text, "carried (%d+) states to (%d+)")
 			check(a == nil or tonumber(a) >= tonumber(b), `"{text}" reads backwards`)
@@ -310,7 +312,7 @@ describe("Words: election night and Results", function()
 		local won, lost = election.statesWon[1], election.statesWon[2]
 		for _, text in reasons do
 			if string.find(text, "bigger states", 1, true) then
-				check(won < lost, `"{text}" but Dana carried {won} states to {lost}`)
+				check(won < lost, `"{text}" but Goldie carried {won} states to {lost}`)
 			end
 		end
 	end)
@@ -375,21 +377,25 @@ describe("Words: reveal order and next time (polish WP-2)", function()
 		local tieFirst, tieTrails = Words.revealFirst(blank)
 		expect(tieFirst):toBe(blank.you)
 		expect(tieTrails):toBe(false)
-		expect(Words.orderLine(blank, blank.you, false, "Rex")):toBe("Your actions land first")
-		expect(Words.orderLine(blank, blank.you, true, "Rex")):toBe("You trail, so your actions land first")
+		expect(Words.orderLine(blank, blank.you, false, "Buster")):toBe("Your actions land first")
+		expect(Words.orderLine(blank, blank.you, true, "Buster")):toBe(
+			"You trail, so your actions land first"
+		)
 		local rival = if blank.you == 1 then 2 else 1
-		expect(Words.orderLine(blank, rival, true, "Rex")):toBe("Rex trails, so Rex's actions land first")
+		expect(Words.orderLine(blank, rival, true, "Buster")):toBe(
+			"Buster trails, so Buster's actions land first"
+		)
 	end)
 
 	it("gives the loser one short tip and the winner none", function()
 		local view = Fixtures.payload(C, "Over").view
 		local rival = if view.you == 1 then 2 else 1
-		local tip = Words.nextTime(C, view, rival, { "Dana", "Rex" })
+		local tip = Words.nextTime(C, view, rival, { "Goldie", "Buster" })
 		check(tip ~= nil, "no tip after a loss")
 		check(string.sub(tip :: string, 1, 15) == "Try next time: ", `tip "{tip}"`)
 		check(words(tip :: string) <= Words.REASON_WORDS + 2, `"{tip}" is long`)
 		check(not string.find(tip :: string, "EV", 1, true), "the tip says EV")
-		expect(Words.nextTime(C, view, view.you, { "Dana", "Rex" })):toBe(nil)
-		expect(Words.nextTime(C, view, 0, { "Dana", "Rex" })):toBe(nil)
+		expect(Words.nextTime(C, view, view.you, { "Goldie", "Buster" })):toBe(nil)
+		expect(Words.nextTime(C, view, 0, { "Goldie", "Buster" })):toBe(nil)
 	end)
 end)

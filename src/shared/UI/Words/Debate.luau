@@ -8,16 +8,16 @@
 --   Words.cell(margin) -> string              "+3", "−2", "=" (a result cell)
 --   Words.cells(row) -> string                "D +4 · A +3 · P =" (against their Defend, Attack, Pivot)
 --   Words.facts(board) -> { string }          "Your issue", "You lead its states"...
---   Words.stamp(view, round, name) -> (string, tone)   "YOU WIN BY 3", "REX WINS BY 3", "SPLIT"
+--   Words.stamp(view, round, name) -> (string, tone)   "YOU WIN BY 3", "BUSTER WINS BY 3", "SPLIT"
 --                                             ("THEY WIN BY 3" for a name too long for a stamp)
---   Words.crowdStamp(lead, name) -> (string, tone)    "YOU WON THE CROWD", "REX WON THE CROWD",
+--   Words.crowdStamp(lead, name) -> (string, tone)    "YOU WON THE CROWD", "BUSTER WON THE CROWD",
 --                                             "THEY WON THE CROWD" (a long name), "AN EVEN CROWD"
 --   Words.counterLine(round, view) -> string? "Pivot beats Defend: +3"
---   Words.crowdLine(view, crowd, name) -> string  "You +4", "Rex +2", "Even" (who leads the crowd;
+--   Words.crowdLine(view, crowd, name) -> string  "You +4", "Buster +2", "Even" (who leads the crowd;
 --                                             "Them +2" for a long name)
 --   Words.zinger(board, staked) -> string     the Zinger toggle's label: a win ×2, used either way
 --   Words.safeZinger(board, row, staked) -> string?  the bar's warning for a Safe move that can split with the Zinger staked
---   Words.rivalZinger(board, name) -> string?  "Rex still has a Zinger: ..." while theirs is unspent
+--   Words.rivalZinger(board, name) -> string?  "Buster still has a Zinger: ..." while theirs is unspent
 
 local Issues = require("../../Sim/Issues")
 local SimState = require("../../Sim/State")
@@ -91,7 +91,7 @@ export type Tone = "good" | "loss" | "text"
 -- name runs to 16) makes the stamp too wide for a phone, so it says "THEY".
 Words.STAMP_NAME_MAX = 10
 
--- The opponent on a stamp: "REX", or "THEY" for a long name.
+-- The opponent on a stamp: "BUSTER", or "THEY" for a long name.
 local function stampName(theirName: string): (string, boolean)
 	if (utf8.len(theirName) or #theirName) > Words.STAMP_NAME_MAX then
 		return "THEY", true
@@ -140,7 +140,7 @@ function Words.counterLine(round: SimState.DebateRound, view: View): string?
 	return nil
 end
 
--- Who leads the crowd, short enough for the meter: "You +4", "Rex +2", "Even".
+-- Who leads the crowd, short enough for the meter: "You +4", "Buster +2", "Even".
 function Words.crowdLine(view: View, crowd: { number }, theirName: string): string
 	local me = view.you
 	local best, lead = 0, 0

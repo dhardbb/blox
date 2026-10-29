@@ -18,7 +18,7 @@
 --
 -- Motion and sound (docs/DESIGN.md D-053): a new decision's options pop in one
 -- after another; a choice the server turns down shakes the action bar with the
--- "error" cue; the opponent's line names them ("Rex: thinking…", "Rex: locked
+-- "error" cue; the opponent's line names them ("Buster: thinking…", "Buster: locked
 -- in ✓", which rises and pops in).
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:

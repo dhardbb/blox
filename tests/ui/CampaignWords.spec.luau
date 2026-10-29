@@ -34,7 +34,7 @@ describe("Words.Campaign", function()
 	it("says what to do now in at most eight words", function()
 		local base: Words.NowInput = {
 			locked = false,
-			opponent = "Rex",
+			opponent = "Buster",
 			problem = false,
 			actionsLeft = 3,
 			planned = 0,
@@ -54,7 +54,7 @@ describe("Words.Campaign", function()
 		expect(now({ planned = 1, actionsLeft = 2 })):toBe("Tap another state, or Lock in")
 		expect(now({ actionsLeft = 0, planned = 3, selected = "Ohio" })):toBe("All set? Press Lock in")
 		expect(now({ problem = true, selected = "Ohio" })):toBe("Change the plan, then Lock in")
-		expect(now({ locked = true })):toBe("Waiting for Rex…")
+		expect(now({ locked = true })):toBe("Waiting for Buster…")
 	end)
 
 	it("counts actions and money in words, money never rounded up", function()
@@ -68,26 +68,26 @@ describe("Words.Campaign", function()
 		local draft = PlanDraft.new()
 		local issue = PlanDraft.bestIssue(C, view, "OH")
 		local rally = Explain.action(C, view, draft, "OH", "Rally", issue)
-		expect(Words.effect(C, view, draft, "OH", "Rally", issue, "Rex")):toBe(
+		expect(Words.effect(C, view, draft, "OH", "Rally", issue, "Buster")):toBe(
 			`{Numbers.signed(rally.you or 0)} support`
 		)
 		local ad = Explain.action(C, view, draft, "OH", "Media", issue)
-		expect(Words.effect(C, view, draft, "OH", "Ad", issue, "Rex")):toBe(
+		expect(Words.effect(C, view, draft, "OH", "Ad", issue, "Buster")):toBe(
 			`{Numbers.signed(ad.you or 0)} support`
 		)
 		local fund = Explain.action(C, view, draft, "OH", "Fundraise")
-		expect(Words.effect(C, view, draft, "OH", "Fundraise", nil, "Rex")):toBe(
+		expect(Words.effect(C, view, draft, "OH", "Fundraise", nil, "Buster")):toBe(
 			`+{Numbers.money(fund.money or 0)}`
 		)
 		local attack = Explain.action(C, view, draft, "OH", "Attack")
-		expect(Words.effect(C, view, draft, "OH", "Attack", nil, "Rex")):toBe(
-			`Rex {Numbers.signed(attack.them or 0)}`
+		expect(Words.effect(C, view, draft, "OH", "Attack", nil, "Buster")):toBe(
+			`Buster {Numbers.signed(attack.them or 0)}`
 		)
-		expect(Words.effect(C, view, draft, "OH", "Gotv", nil, "Rex")):toBe(
+		expect(Words.effect(C, view, draft, "OH", "Gotv", nil, "Buster")):toBe(
 			`+{Numbers.points(C.GOTV_PER_UNIT)} on election day`
 		)
 		for _, entry in Words.ACTIONS do
-			local text = Words.effect(C, view, draft, "OH", entry.name, issue, "Rex")
+			local text = Words.effect(C, view, draft, "OH", entry.name, issue, "Buster")
 			check(string.find(text, "×", 1, true) == nil, `{entry.name}: "{text}" shows a multiplier`)
 			check(words(text) <= 4, `{entry.name}: "{text}" is long`)
 		end
@@ -158,7 +158,7 @@ describe("Words.Campaign", function()
 		check(string.find(title, `Uses {C.PIVOT_AP} action`, 1, true) ~= nil, title)
 		check(string.find(title, "Pivot", 1, true) == nil, title)
 		local view = Fixtures.payload(C, "Plan").view
-		expect(Words.effect(C, view, PlanDraft.new(), "OH", "PivotButton", nil, "Rex")):toBe(
+		expect(Words.effect(C, view, PlanDraft.new(), "OH", "PivotButton", nil, "Buster")):toBe(
 			`−{C.PIVOT_PENALTY} support everywhere`
 		)
 	end)
@@ -202,7 +202,7 @@ describe("Words.Campaign", function()
 	it("reads the number an action's effect leads with, for the map's ghost tag", function()
 		expect(Words.gain("+4.1 support\nFlight $2.0")):toBe("+4.1")
 		expect(Words.gain("+$5.2")):toBe("+$5.2")
-		expect(Words.gain("Rex -2.4")):toBe("-2.4")
+		expect(Words.gain("Buster -2.4")):toBe("-2.4")
 		expect(Words.gain("+1.5 on election day")):toBe("+1.5")
 		expect(Words.gain("See true support\n$1.0")):toBe(nil)
 		expect(Words.gain("Not enough money")):toBe(nil)

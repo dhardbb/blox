@@ -35,12 +35,12 @@ function Daily.dateLabel(day: number): string
 	return `{WEEKDAYS[SimDaily.weekday(day)]}, {MONTHS[m]} {d}`
 end
 
--- "Everyone plays as Dana Okafor today".
+-- "Everyone plays as Goldie Pennywhistle today".
 function Daily.everyone(name: string): string
 	return `Everyone plays as {name} today`
 end
 
--- "As Dana Okafor": who everyone plays, on a phone's one-row card.
+-- "As Goldie Pennywhistle": who everyone plays, on a phone's one-row card.
 function Daily.as(name: string): string
 	return `As {name}`
 end

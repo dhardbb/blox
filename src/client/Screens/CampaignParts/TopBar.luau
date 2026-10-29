@@ -4,7 +4,7 @@
 -- screen (D-044) uses it too: the title names the decision, and the actions
 -- and money are left out.
 --
---   wide      Week 3 of 12      310 Dana Okafor     Rex Calloway 189      ?  0:48
+--   wide      Week 3 of 12      310 Goldie Pennywhistle     Buster Cannonball 189      ?  0:48
 --                               ━━━━━━━━━━━━━━|━━━━━━━━━━━━━━━━━━━━
 --             ▌Pick an action in Ohio        if the polls were right       2 actions left · $4.0
 --   phone     Week 3   310        189     ?  0:48   (the numbers in each side's color)

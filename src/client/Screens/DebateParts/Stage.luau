@@ -3,7 +3,7 @@
 -- Zinger, the crowd meter between them, and the moderator's question for this
 -- round with the facts that set its strengths.
 --
---   (DO) Dana              Rex +2             Rex (RC)
+--   (GP) Goldie              Buster +2             Buster (BC)
 --        Zinger ✓       ◀▓▓▓▓|░░░░▶     No Zinger
 --   ROUND 2 OF 3 · HEALTH
 --   "Clinics out west have month-long waits. What would you do?"

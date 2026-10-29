@@ -32,7 +32,7 @@ Setup.COLOR_OWNED = "Tap a color. You get it every match."
 Setup.COLOR_TIE = "Same color as your opponent? Whoever claims it first gets it."
 Setup.COLOR_TAKEN_TAG = "Taken" -- under the opponent's claimed swatch on Select (D-061)
 
--- The ColorTaken notice (D-061): "Rex took Crimson first. Pick another color."
+-- The ColorTaken notice (D-061): "Buster took Crimson first. Pick another color."
 -- `who` is the opponent's first name (nil before they hold a candidate),
 -- `color` the color this player asked for (nil if unknown).
 function Setup.colorTaken(who: string?, color: string?): string
@@ -133,13 +133,15 @@ local function plain(text: string): string
 	return (string.gsub(text, "(%d+) AP", "%1 actions"))
 end
 
--- The lines of a candidate's details sheet: the strength and weakness in full,
--- then the three numbers every candidate has.
+-- The lines of a candidate's details sheet: the archetype and the one-line
+-- persona (D-097), the strength and weakness in full, then the three numbers
+-- every candidate has.
 function Setup.candidateDetails(config: Config, id: string): { string }
 	local profile = Candidates.profile(config, id)
 	local weakness = if profile.drawback == "None" then "None" else plain(profile.drawback)
 	return {
 		`{profile.archetype}`,
+		profile.bio,
 		`Strength: {plain(profile.perk)}.`,
 		`Weakness: {weakness}.`,
 		`Actions each week: {profile.apPerWeek}`,
@@ -148,7 +150,7 @@ function Setup.candidateDetails(config: Config, id: string): { string }
 	}
 end
 
--- "Dana" from "Dana Okafor".
+-- "Goldie" from "Goldie Pennywhistle".
 function Setup.firstName(name: string): string
 	return string.match(name, "^(%S+)") or name
 end
@@ -199,7 +201,7 @@ function Setup.nowIssues(picked: number, size: number): string
 	return if left == 1 then "Pick 1 more issue" else `Pick {left} more issues`
 end
 
--- "Waiting for Rex…" once you are locked in.
+-- "Waiting for Buster…" once you are locked in.
 function Setup.nowWaiting(opponent: string): string
 	return `Waiting for {opponent}…`
 end
@@ -226,7 +228,7 @@ function Setup.battlegroundCaption(config: Config): string
 	return `Battleground: every rally and ad here counts ×{config.BATTLEGROUND_MULT}, for both of you. Pick where you can win.`
 end
 
--- "Ties go to you" / "Ties go to Rex": who wins a state you both want.
+-- "Ties go to you" / "Ties go to Buster": who wins a state you both want.
 function Setup.priority(youHaveIt: boolean, opponent: string): string
 	return if youHaveIt then "Ties go to you" else `Ties go to {opponent}`
 end
@@ -236,7 +238,7 @@ function Setup.votes(n: number): string
 	return if n == 1 then "1 vote" else `{n} votes`
 end
 
--- A state's lean as a pill: "+2 you", "+2 Rex" or "Even".
+-- A state's lean as a pill: "+2 you", "+2 Buster" or "Even".
 function Setup.lean(points: number, toYou: boolean?, opponent: string): string
 	if toYou == nil or points <= 0 then
 		return "Even"

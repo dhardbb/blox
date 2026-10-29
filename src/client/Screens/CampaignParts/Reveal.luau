@@ -13,8 +13,8 @@
 -- with a ring in the actor's color and a pop, the map's fill and leads move to
 -- the running tally, every touched state shows its points toward you
 -- (SwingMarks.step: your color up, orange down), a leader change says FLIP,
--- flashes in the new leader's color and rides on the header line ("Rex: Rally ·
--- NY → Rex +28"), and the header's projected votes and race bar count to it.
+-- flashes in the new leader's color and rides on the header line ("Buster: Rally ·
+-- NY → Buster +28"), and the header's projected votes and race bar count to it.
 -- Those per-move numbers are estimates from the polls both players saw (the
 -- server never says what one action did; RevealSteps says why); one line behind
 -- Why? says so. Three: "New polls are in", the real new polls, with their own
@@ -24,7 +24,7 @@
 -- (the whole week's real flips and biggest moves) come in one after another.
 -- Every cue goes with one of those visuals.
 -- The week's events arrive one step at a time, merged into two groups,
--- "Your week" and "{Rex}'s week" (one line per action and state: "Rally in
+-- "Your week" and "{Buster}'s week" (one line per action and state: "Rally in
 -- Texas ×2 · Farms & Rural", never the same line twice). Once the new polls are
 -- in, "What changed": every state whose poll leader flipped, one bold line each
 -- in the new leader's readable color behind a ▲ (your way, green) or ▼
@@ -38,7 +38,7 @@
 -- when the header's score is the new polls' (D-066). A
 -- Choice week's stances are a line in each group; their numbers are behind "Why?".
 -- The panel's head is an eyebrow ("WEEK 3 RESULTS") over the title ("You vs
--- Rex"); each group head has the player's 32 px portrait (D-068).
+-- Buster"); each group head has the player's 32 px portrait (D-068).
 --
 --   local reveal = Reveal.new(parent, model, order, hooks)
 --     hooks.caption(text, polls?)   the header's now line (polls: the "New polls are in" step)

@@ -18,13 +18,13 @@
 --   phone 390 wide                       wide / iPad
 --   Week 4 · Debate          0:12        Week 4 · Debate round 1 of 3   0:12
 --   ▌Pick Defend, Attack or Pivot        ▌Pick Defend, Attack or Pivot
---   [         map (25%)         ]        [   map   ] | (DO) Dana ◀▓▓|░░▶ Rex (RC)
---   (DO) Dana ◀▓▓▓|░░░▶ Rex (RC)         [   map   ] | ROUND 1 OF 3 · JOBS ...
+--   [         map (25%)         ]        [   map   ] | (GP) Goldie ◀▓▓|░░▶ Buster (BC)
+--   (GP) Goldie ◀▓▓▓|░░░▶ Buster (BC)         [   map   ] | ROUND 1 OF 3 · JOBS ...
 --   ROUND 1 OF 3 · JOBS "..."            [   map   ] | [Defend 6] [Attack 2] ...
 --   [Defend 6 · vs D +4 ...]             [   map   ] | (Stake Zinger) (Why? +)
 --   [Attack 2 ...] [Pivot → Safety 3]    ---------------------------------------
---   (Stake Zinger: win ×2 · used either way)  Rex: thinking…   [+15 s][ Lock in ]
---   Rex: thinking…  [+15 s][ Lock in ]
+--   (Stake Zinger: win ×2 · used either way)  Buster: thinking…   [+15 s][ Lock in ]
+--   Buster: thinking…  [+15 s][ Lock in ]
 --
 -- Reads only ctx.store (the player's own View) and sends only through ctx.net:
 -- { move = "Defend"|"Attack"|"Pivot", zinger = boolean }, a time-bank chunk

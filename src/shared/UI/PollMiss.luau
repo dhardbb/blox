@@ -10,7 +10,7 @@
 --   PollMiss.votes(rows, mode, players)         votes by player: projected (polls) or won (result)
 --   PollMiss.lead(row, mode) -> (number, number) the shown leader and their lead in points
 --   PollMiss.leadText(lead) -> string            the map's pill: "+3", "+0.4"
---   PollMiss.votesLine(mode, ev, you, names)     "Final polls: you 290, Rex 248"
+--   PollMiss.votesLine(mode, ev, you, names)     "Final polls: you 290, Buster 248"
 --   PollMiss.stateLine(row, you, names)          a tapped state: its poll, its result, a miss
 --
 -- "Final polls" is each state's last public poll (the one published after the
@@ -200,7 +200,7 @@ local function nameOf(p: number, you: number, names: { string }): string
 	return if p == you then "you" else (names[p] or `Player {p}`)
 end
 
--- "Final polls: you 290, Rex 248" / "Election night: you 302, Rex 236": you first.
+-- "Final polls: you 290, Buster 248" / "Election night: you 302, Buster 236": you first.
 function PollMiss.votesLine(mode: Mode, ev: { number }, you: number, names: { string }): string
 	local parts = { `you {ev[you] or 0}` }
 	for p, votes in ev do
@@ -211,7 +211,7 @@ function PollMiss.votesLine(mode: Mode, ev: { number }, you: number, names: { st
 	return `{MODE_TITLE[mode]}: {table.concat(parts, ", ")}`
 end
 
--- A tapped state: "Nevada · 6 votes. Final poll: Rex +1. Result: you by 2.4
+-- A tapped state: "Nevada · 6 votes. Final poll: Buster +1. Result: you by 2.4
 -- points. The polls missed it."
 function PollMiss.stateLine(row: Row, you: number, names: { string }): string
 	local record = StateData.byId[row.id]

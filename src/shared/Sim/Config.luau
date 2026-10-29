@@ -121,7 +121,7 @@ local Config = {
 	DEBATE_COUNTER = { 2, 3, 3 }, -- by round: added to the move that counters the other's (Defend > Attack > Pivot > Defend); grows so later rounds are not a formality
 	DEBATE_REPEAT = 2, -- taken off the move you played last round in this debate (the crowd saw it coming)
 	DEBATE_ZINGERS = 1, -- Zingers per debate: stake one on a round
-	DEBATE_ZINGER_MULT = 2, -- a staked round you win moves the map and the crowd this many times as much (Hale's profile has 4)
+	DEBATE_ZINGER_MULT = 2, -- a staked round you win moves the map and the crowd this many times as much (Quibble's profile has 4)
 	DEBATE_CANNED = 2, -- a timed-out answer: Defend at this flat strength, never countered and never countering
 	DEBATE_CANNED_CROWD = 1, -- most crowd a round won against a canned answer gains
 	DEBATE_ROUND_WIN = 0.8, -- support points for the round's winner in each of its landing states (the topic's, or its pivot issue's); 1.0 had debates decide 26% of matches (target 15-25%)
@@ -152,7 +152,7 @@ local Config = {
 	EVENT_CAP = 2, -- most an event adds for one player in one state per week (support points; $ for Windfall); Choice payoffs are clamped to +/- this
 	EVENT_SPOTLIGHT_MULT = 1.3, -- rallies and positive media on the spotlight issue, every state
 	EVENT_REGIONAL_MULT = 1.5, -- rallies in the event's region
-	EVENT_WINDFALL_MULT = 1.2, -- fundraisers where the fundraiser trails in the public poll (PLAN 1.5 -> 1.2, D-027: cheap media turned it into a Venkat edge)
+	EVENT_WINDFALL_MULT = 1.2, -- fundraisers where the fundraiser trails in the public poll (PLAN 1.5 -> 1.2, D-027: cheap media turned it into a Glimmer edge)
 	-- Choice events are stances on an issue (D-039). Only states where the event's
 	-- issue is a top issue react, by their other top issue: liked +STANCE_POINTS,
 	-- disliked -STANCE_POINTS, otherwise +STANCE_HEDGE, all x STANCE_PLATFORM_MULT

@@ -50,8 +50,8 @@ end
 
 describe("Playtest copy: the rival's stance (M2)", function()
 	it("says the rival picks too, and what same and opposite sides do", function()
-		expect(PlanDraft.rivalChoiceNote("Rex")):toBe(
-			"Rex picks too, in secret. Same side: it mostly cancels. Opposite sides: both land."
+		expect(PlanDraft.rivalChoiceNote("Buster")):toBe(
+			"Buster picks too, in secret. Same side: it mostly cancels. Opposite sides: both land."
 		)
 	end)
 

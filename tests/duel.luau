@@ -731,7 +731,7 @@ local function debateGuide(payload: any): { string }
 		out,
 		`A win: {Numbers.signed(C.DEBATE_ROUND_WIN)} in every state of the topic (Defend, Attack) or of your pivot issue (Pivot); a split {Numbers.signed(
 			C.DEBATE_ROUND_SPLIT
-		)} each; losing to a counter {Numbers.signed(-C.DEBATE_BACKFIRE)} where your move aimed. Stake your one Zinger with "zinger": a round you win then counts x{Config.defaults.DEBATE_ZINGER_MULT} (Hale x3). The same move as last round is -{C.DEBATE_REPEAT}. No answer in time: a weak Defend ({C.DEBATE_CANNED}).`
+		)} each; losing to a counter {Numbers.signed(-C.DEBATE_BACKFIRE)} where your move aimed. Stake your one Zinger with "zinger": a round you win then counts x{Config.defaults.DEBATE_ZINGER_MULT} (Quibble x3). The same move as last round is -{C.DEBATE_REPEAT}. No answer in time: a weak Defend ({C.DEBATE_CANNED}).`
 	)
 	table.insert(
 		out,

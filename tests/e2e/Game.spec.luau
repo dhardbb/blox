@@ -155,7 +155,7 @@ describe("e2e: typed input", function()
 
 		check(Support.untilStatus(rig, p1, "MapReveal", 10), "Player1 never reached MapReveal")
 		check(Support.untilStatus(rig, p2, "MapReveal", 10), "Player2 never reached MapReveal")
-		expect(string.find(FakeRoblox.screen(p1).board, "Marcus Hale", 1, true) ~= nil):toBe(true)
+		expect(string.find(FakeRoblox.screen(p1).board, "Percy Quibble", 1, true) ~= nil):toBe(true)
 		expect(Support.said(rig, p1, "rejected")):toBe(false)
 		noErrors(rig)
 	end)

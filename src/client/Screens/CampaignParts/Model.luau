@@ -74,9 +74,9 @@ local Part = {}
 Part.OPPONENT_LOCKED = "locked in ✓" -- the opponent's state once they lock in
 Part.DOTS_PER_SECOND = 2 -- the opponent's "thinking…" dots step this often
 
--- The action bar's opponent line: "Rex: thinking.." (the dots step with `now`,
+-- The action bar's opponent line: "Buster: thinking.." (the dots step with `now`,
 -- padded to a fixed width so the name stays put; all three when `still`),
--- "Rex: locked in ✓", "Rex: disconnected".
+-- "Buster: locked in ✓", "Buster: disconnected".
 function Part.opponentLine(name: string, state: string, now: number, still: boolean): string
 	if state == "thinking" then
 		local n = if still then 3 else math.floor(now * Part.DOTS_PER_SECOND) % 3 + 1
@@ -181,7 +181,7 @@ function Part.candidateName(config: Config, view: View, p: number): string
 	return Candidates.profile(config, player.candidate).name
 end
 
--- The first word of a candidate's name ("Dana"), for the phone score line; a
+-- The first word of a candidate's name ("Goldie"), for the phone score line; a
 -- custom name whole (it is short, and its first word may not be a name).
 function Part.firstName(config: Config, view: View, p: number): string
 	local player = view.players[p]

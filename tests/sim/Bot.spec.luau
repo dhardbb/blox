@@ -101,7 +101,7 @@ describe("Bot", function()
 		expect(early > 0):toBe(true)
 	end)
 	it("scouts close states for their ground game and counts what it sees (D-049)", function()
-		-- Week 8, Okafor (no free polls) against Hale, three close states, the rest decided.
+		-- Week 8, Pennywhistle (no free polls) against Quibble, three close states, the rest decided.
 		local function board(theirCash: number): State.MatchState
 			local match = Fixtures.advanceTo(
 				Fixtures.campaign({ seed = 9, candidates = { "okafor", "hale" } }),
@@ -187,7 +187,7 @@ describe("Bot", function()
 		expect(tally("donors", trailingFund) >= tally(nil, trailingFund)):toBe(true)
 	end)
 
-	it("Helen Strand's bot ends the week where next week's Regional event is (D-035)", function()
+	it("Esme Moonbeam's bot ends the week where next week's Regional event is (D-035)", function()
 		-- With the preview of a Pacific event next week, her last stop lands in the
 		-- Pacific more often, so next week's boosted rallies start without a flight.
 		local function lastStopInPacific(nextId: string?): number

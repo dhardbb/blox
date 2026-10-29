@@ -46,7 +46,7 @@
 --                 min(width / ASPECT, 38 % of the screen) and Side the rest.
 --   Side          the Spotlight (the latest call, big, or "Too close to call…"
 --                 before a close one), the Feed of every call (newest on top:
---                 "Ohio · 17 votes" over "Dana by 2.9 points", tinted by the
+--                 "Ohio · 17 votes" over "Goldie by 2.9 points", tinted by the
 --                 winner; Kit.dataColor) and the pinned ActionBar.
 -- The coach tip "election.night" sits at the top of the feed, once.
 
@@ -628,7 +628,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		map:setMarks(marks)
 	end
 
-	-- One feed row: "Ohio · 17 votes" over "Dana by 2.9 points", tinted by the winner.
+	-- One feed row: "Ohio · 17 votes" over "Goldie by 2.9 points", tinted by the winner.
 	local function addLine(k: number, live: boolean)
 		local result = results[k]
 		local color = Kit.colors.raised

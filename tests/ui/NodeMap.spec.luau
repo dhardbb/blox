@@ -242,7 +242,9 @@ describe("NodeMap", function()
 	it("stands candidate pins on the circles and shows the legend row (D-070)", function()
 		local m = mount(390, 244)
 		local blue = m.Kit.color({ r = 70, g = 110, b = 220 })
-		m.map:setPins({ { state = "OH", name = "Dana Okafor", color = blue, tag = "You", you = true } })
+		m.map:setPins({
+			{ state = "OH", name = "Goldie Pennywhistle", color = blue, tag = "You", you = true },
+		})
 		local pin = m.map.root.Pins:FindFirstChild("PinOH")
 		check(pin ~= nil, "no pin on OH")
 		expect(pin.Flag.Text):toBe("You")

@@ -147,7 +147,7 @@ local function regionSize(id: string): number
 end
 
 -- What one action button does in state `id`, in a few words: "+3.9 support",
--- "+$2.4", "Rex -2.4", "+1.5 on election day". From Explain's numbers, so it
+-- "+$2.4", "Buster -2.4", "+1.5 on election day". From Explain's numbers, so it
 -- matches the Details lines exactly.
 function Words.effect(
 	config: Config,
