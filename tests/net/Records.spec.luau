@@ -94,7 +94,7 @@ describe("Records: summarizing exported match records (D-094)", function()
 		-- Each match counts once for each candidate.
 		local okafor = 0
 		for _, l in lines do
-			if string.find(l, "Dana Okafor", 1, true) then
+			if string.find(l, "Goldie Pennywhistle", 1, true) then
 				okafor += 1
 				expect(string.find(l, "of 1", 1, true) ~= nil):toBe(true)
 			end
