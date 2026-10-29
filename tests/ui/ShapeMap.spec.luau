@@ -195,49 +195,87 @@ describe("ShapeMap", function()
 		expect(hi.BackgroundColor3):toBe(wide.map.root.Shapes.ShapeHI.ImageColor3)
 	end)
 
-	-- One plate per state (D-079): the code, then the value right after it on
-	-- the same line, the same text size and spacing for every state, chips
-	-- and insets included; a plate that does not fit moves whole.
-	local function plateForm(m: Mounted, label: string): (number, number)
-		local size, offs = nil, 0
+	-- The labels (D-092, amending D-079): every code stands at its home, its
+	-- anchor or at most 4 px off it, the same in every lens; its value joins it
+	-- on one plate, right after it on its line or under it (a phone: over it
+	-- too), or stands off on its own plate with a leader. One text size for
+	-- every state, chips and insets included, never under 12.
+	local function center(g: any): (number, number)
+		return g.AbsolutePosition.X + g.AbsoluteSize.X / 2, g.AbsolutePosition.Y + g.AbsoluteSize.Y / 2
+	end
+	local function inside(inner: any, outer: any): boolean
+		local p, q = inner.AbsolutePosition, outer.AbsolutePosition
+		local s, t = inner.AbsoluteSize, outer.AbsoluteSize
+		return p.X >= q.X - 0.6
+			and p.Y >= q.Y - 0.6
+			and p.X + s.X <= q.X + t.X + 0.6
+			and p.Y + s.Y <= q.Y + t.Y + 0.6
+	end
+	local function plateForm(m: Mounted, label: string): (number, number, { [string]: { number } })
+		local size, offs, hidden = nil, 0, 0
+		local codes: { [string]: { number } } = {}
+		local root = m.map.root
+		local geo = MapShape.layout(root:GetAttribute("Layout"))
 		for _, record in StateData.list do
 			local node = button(m, record.id)
-			local plate, code, row = node.Plate, node.Label, node.Lens
-			check(plate.Visible and code.Visible and row.Visible, `{label} {record.id}: no plate`)
-			local p, c, r = plate.AbsolutePosition, code.AbsolutePosition, row.AbsolutePosition
-			local ps, cs, rs = plate.AbsoluteSize, code.AbsoluteSize, row.AbsoluteSize
-			-- The code first, the value right after it, on one line, inside the plate.
-			check(
-				c.X >= p.X - 0.5 and r.X + rs.X <= p.X + ps.X + 0.5,
-				`{label} {record.id}: outside its plate`
-			)
-			check(math.abs((r.X - (c.X + cs.X)) - 2) < 0.6, `{label} {record.id}: not code then value`)
-			check(
-				math.abs((r.Y + rs.Y / 2) - (c.Y + cs.Y / 2)) < 0.6,
-				`{label} {record.id}: the value is not on its code's line`
-			)
+			local plate, code, row, info = node.Plate, node.Label, node.Lens, node.InfoPlate
+			check(code.Visible, `{label} {record.id}: no code`)
+			codes[record.id] = { center(code) }
+			if not plate.Visible then
+				-- A phone's value with no clear spot near its code hides (its card has it).
+				check(root.AbsoluteSize.X < 480, `{label} {record.id}: no plate on a big map`)
+				check(not row.Visible and not info.Visible, `{label} {record.id}: a hidden value shows`)
+				hidden += 1
+				continue
+			end
+			check(row.Visible, `{label} {record.id}: no value`)
+			local c, cs = code.AbsolutePosition, code.AbsoluteSize
+			local r, rs = row.AbsolutePosition, row.AbsoluteSize
 			size = size or cs.Y
 			check(math.abs(cs.Y - (size :: number)) < 0.5, `{label} {record.id}: a different size`)
 			check(cs.Y >= 12 - 1e-6, `{label} {record.id}: under the 12 px floor`)
-			if not MapShape.get(record.id).chip then
-				local root = m.map.root
-				local s = MapShape.layout(root:GetAttribute("Layout")).get(record.id) :: MapShape.Shape
-				local ax = root.AbsolutePosition.X + s.lx * root.AbsoluteSize.X
-				local ay = root.AbsolutePosition.Y + s.ly * root.AbsoluteSize.Y
-				if ax < p.X or ax > p.X + ps.X or ay < p.Y or ay > p.Y + ps.Y then
-					offs += 1
-				end
+			check(inside(code, plate), `{label} {record.id}: the code is off its plate`)
+			local cx, cy = center(code)
+			if MapShape.get(record.id).chip then
+				check(inside(row, plate), `{label} {record.id}: a chip's value is off its plate`)
+				check(math.abs((r.X - (c.X + cs.X)) - 2) < 0.6, `{label} {record.id}: not code then value`)
+				continue
+			end
+			-- The code at its home: on its anchor, or at most 4 px off it.
+			local s = geo.get(record.id) :: MapShape.Shape
+			local ax = root.AbsolutePosition.X + s.lx * root.AbsoluteSize.X
+			local ay = root.AbsolutePosition.Y + s.ly * root.AbsoluteSize.Y
+			check(
+				math.abs(cx - ax) <= 4.6 and math.abs(cy - ay) <= 4.6,
+				`{label} {record.id}: the code is {cx - ax}, {cy - ay} px off its anchor`
+			)
+			if info.Visible then
+				-- Off its code: on its own plate, clear of the code's.
+				offs += 1
+				check(inside(row, info), `{label} {record.id}: the value is off its own plate`)
+				check(not overlaps(info, plate), `{label} {record.id}: its value's plate covers its code's`)
+			else
+				check(inside(row, plate), `{label} {record.id}: the value is off the code's plate`)
+				local rx, ry = center(row)
+				local right = math.abs((r.X - (c.X + cs.X)) - 2) < 0.6 and math.abs(ry - cy) < 0.6
+				local under = math.abs(rx - cx) < 0.6 and r.Y >= c.Y + cs.Y - 0.6
+				local over = math.abs(rx - cx) < 0.6 and r.Y + rs.Y <= c.Y + 0.6
+				check(
+					right or under or over,
+					`{label} {record.id}: the value is not right of, under or over its code`
+				)
 			end
 		end
-		return size :: number, offs
+		expect(root:GetAttribute("PlateHidden") or 0):toBe(hidden)
+		return size :: number, offs, codes
 	end
 
 	it(
-		"gives every state the same plate, code then votes, and no two overlap (phone, iPad, desktop)",
+		"keeps every code at home and its value beside it, the same size, nothing overlapping (phone, iPad, desktop)",
 		function()
-			for _, size in { { 390, 360 }, { 390, 244 }, { 620, 388 }, { 832, 520 } } do
+			for _, size in { { 374, 234 }, { 390, 360 }, { 390, 244 }, { 620, 388 }, { 832, 520 } } do
 				local m = mount(size[1], size[2])
-				local lines = {}
+				local lines, long = {}, {}
 				for _, record in StateData.list do
 					local s = record.ev
 					lines[record.id] = {
@@ -248,19 +286,40 @@ describe("ShapeMap", function()
 							},
 						},
 					}
+					long[record.id] = { parts = { { text = `+{s % 9}.5` } }, momentum = rgb(m, 220, 70, 80) }
 				end
 				m.map:setLens(lines)
 				settle(m)
 				local label = `{size[1]}x{size[2]}`
-				local px, offs = plateForm(m, label)
+				local px, offs, codes = plateForm(m, label)
 				expect(m.map.root:GetAttribute("PlateSize")):toBe(math.floor(px + 0.5))
 				expect(m.map.root:GetAttribute("PlateLeaders")):toBe(offs)
-				for i, a in StateData.list do
-					for j = i + 1, #StateData.list do
-						local b = StateData.list[j]
-						local pa, pb = button(m, a.id).Plate, button(m, b.id).Plate
-						check(not overlaps(pa, pb), `{label}: {a.id}'s plate overlaps {b.id}'s`)
+				local plates = {}
+				for _, record in StateData.list do
+					local node = button(m, record.id)
+					table.insert(plates, { id = record.id, g = node.Plate })
+					if node.InfoPlate.Visible then
+						table.insert(plates, { id = record.id .. "'s value", g = node.InfoPlate })
 					end
+				end
+				for i, a in plates do
+					for j = i + 1, #plates do
+						local b = plates[j]
+						check(not overlaps(a.g, b.g), `{label}: {a.id}'s plate overlaps {b.id}'s`)
+					end
+				end
+				-- Another lens, wider values: not one code on the land moves (a
+				-- chip's line stays centered in its chip).
+				m.map:setLens(long)
+				settle(m)
+				local _, _, again = plateForm(m, `{label} (wider values)`)
+				for id, at in codes do
+					check(
+						MapShape.get(id).chip ~= nil
+							or math.abs(again[id][1] - at[1]) < 0.6
+								and math.abs(again[id][2] - at[2]) < 0.6,
+						`{label}: {id}'s code moved when the lens changed`
+					)
 				end
 			end
 		end

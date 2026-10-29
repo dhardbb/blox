@@ -52,6 +52,7 @@ export type LensPart = {
 	glyph: string?,
 	glyphColor: Color3?,
 	glyphs: number?,
+	short: string?, -- D-092: what a small map (a phone's) shows instead of `text` ("5.2" for "$5.2")
 }
 
 -- A run of ground-game pips: `count` dots in `color`, hollow when it is the
