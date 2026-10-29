@@ -454,6 +454,45 @@ local SHOTS: { Shot } = {
 		end,
 	},
 	{
+		-- The public landslide count (D-094): the record line and gold badges on
+		-- leaderboard rows (the viewer's own row too), card and sheet.
+		name = "02x-lobby-landslides-data17",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			local store = Rig.storeOf(world, peer)
+			local lobby = Fixtures.lobby("Idle")
+			lobby.profile = { rating = 1212, games = 14, wins = 10, losses = 4, landslides = 3 }
+			store.setLobby(lobby)
+			local board = Fixtures.leaderboard()
+			for k, entry in board.entries do
+				if k % 3 ~= 0 then
+					entry.landslides = if k == 1 then 128 else 13 - k // 4
+				end
+			end
+			store.setLeaderboard(board)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+		end,
+	},
+	{
+		name = "02y-lobby-landslides-sheet-data17",
+		moment = "Lobby",
+		screen = "Lobby",
+		steps = function(world, peer)
+			world.current = peer
+			local board = Fixtures.leaderboard()
+			for k, entry in board.entries do
+				entry.landslides = if k % 2 == 1 then 40 - k else nil
+			end
+			Rig.storeOf(world, peer).setLeaderboard(board)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			tapIf(world, peer, "Lobby", "LeaderboardSeeAll")
+		end,
+	},
+	{
 		name = "02e-lobby-leaderboard-sheet",
 		moment = "Lobby",
 		screen = "Lobby",

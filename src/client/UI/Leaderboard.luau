@@ -30,6 +30,7 @@ local LeaderboardNet = require(ReplicatedStorage.Shared.Net.Leaderboard)
 local Words = require(ReplicatedStorage.Shared.UI.Words.Lobby)
 
 local Kit = require(script.Parent.Kit)
+local LandslideBadge = require(script.Parent.LandslideBadge)
 local Sheet = require(script.Parent.Sheet)
 local Types = require(script.Parent.Parent.Screens.Types)
 
@@ -149,10 +150,17 @@ local function entryRow(parent: Instance, name: string, entry: any, mine: boolea
 			Parent = rankBox,
 		})
 	end
+	-- The public landslide count (D-094), between the name and the rating.
+	local badge = LandslideBadge.new(entry.landslides, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -(Kit.space.sm + Kit.space.xs + RATING_W), 0.5, 0),
+		Parent = line,
+	})
+	local badgeRoom = if badge then LandslideBadge.WIDTH + Kit.space.xs else 0
 	Kit.text(tostring(entry.name), {
 		Name = "Name",
 		Position = UDim2.fromOffset(Kit.space.sm + RANK_W, 0),
-		Size = UDim2.new(1, -(Kit.space.sm + Kit.space.xs + RANK_W + RATING_W), 1, 0),
+		Size = UDim2.new(1, -(Kit.space.sm + Kit.space.xs + RANK_W + RATING_W + badgeRoom), 1, 0),
 		Font = font,
 		TextScaled = true,
 		TextWrapped = false,

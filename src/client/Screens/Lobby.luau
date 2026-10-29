@@ -59,6 +59,7 @@ local BotLevel = require(script.Parent.Parent.UI.BotLevel)
 local DailyRace = require(script.Parent.Parent.UI.DailyRace)
 local ColorPick = require(script.Parent.Parent.UI.ColorPick)
 local HowTo = require(script.Parent.Parent.UI.HowTo)
+local LandslideBadge = require(script.Parent.Parent.UI.LandslideBadge)
 local LobbyMatch = require(script.Parent.Parent.UI.LobbyMatch)
 local MatchWords = require(ReplicatedStorage.Shared.UI.Words.Matchmaking)
 local Online = require(ReplicatedStorage.Shared.Net.Online)
@@ -467,8 +468,12 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		local status = if lobby then lobby.state else "Idle"
 		local isFull = lobby ~= nil and lobby.full == true
 		local profile = if lobby then lobby.profile else nil
+		-- The public landslide count (D-094) joins the record line once there is one.
+		local slides = if profile and (profile.landslides or 0) >= 1
+			then ` · {LandslideBadge.line(profile.landslides)}`
+			else ""
 		record.Text = if profile
-			then `Rating {profile.rating} · {profile.wins} won, {profile.losses} lost`
+			then `Rating {profile.rating} · {profile.wins} won, {profile.losses} lost{slides}`
 			else ""
 
 		fullBanner.Visible = isFull and status == "Idle"
