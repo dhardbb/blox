@@ -1709,3 +1709,66 @@ So the aid alone takes a typical new player from one win in thirteen against Eas
 **Config.** None: every number here is a storage or request budget, not gameplay (`MatchRecord.MAX_CHARS`, `MatchLog`'s queue, budget reserve and retry waits, `Analytics`' per-minute cap, `Leaderboard.LANDSLIDE_TOP`), so each lives in its module with a comment. No rule changed: `balance.luau 400` prints the same report as before (timing lines aside).
 
 **Tests.** `tests/net/MatchRecord.spec` (a played match's record: seats, plans each week with a timeout week, stances, debates, events, projected EV, final EV and the landslide flag, no custom name, size, the key and dates, `fit`, a forfeit; Profile stats: public vs private vs practice landslides, forfeits, abandoned, migration of none/garbage/old/newer blocks, pending results keep the flags, onboarding only forward), `tests/net/Records.spec` (parsing raw and Open Cloud lines, the summary's sections and counts, filters), `tests/e2e/Records.spec` (a queued match writes one record only at its end and both profiles' stats; a private code's is Private and not public; a failing record store, a low write budget and an unpublished place never break a match or a profile save; a new player's onboarding through the tutorial and a first match, the visit funnel and custom events; forward-only onboarding and none for a veteran; a failing AnalyticsService breaks nothing). The fake engine gained `AnalyticsService`, `HttpService` (JSONEncode, GenerateGUID) and `GetRequestBudgetForRequestType`.
+## 0.17: a harder ladder, a quicker rubber band
+
+### D-095 — Medium, Hard and Extreme get stronger; every level still plays fair (tuning + two new bot profiles, Oct 29, 2026, branch `balance17`)
+
+**Ask.** The designer played 0.16.0: Medium and Hard are too easy (Easy is fine). In a scripted playtest Medium lost 2 of 2 by 140+ EV. Targets against the scripted novices (`tests/lib/Novice`): Medium, a typical new player 20-30% and an attentive one 55-65%; Hard, typical ≤ 8% and attentive 20-30%; Extreme, the strongest fair bot available, attentive ≤ 10%. Easy unchanged. Every level fair as before (D-057, D-087): no handicap, the same View, the same cash, AP and information, the rubber band the same for both seats.
+
+**Rule.**
+
+| Level | Profile | How it plays | Change |
+|---|---|---|---|
+| Easy | Rookie | unchanged (D-087) | none |
+| Medium | Casual | every state's worth × a log-normal factor drawn once a match, spread `BOT_CASUAL_NOISE`; every stance and debate move random | noise 1.5 → **0.5** |
+| Hard | **Sharp** (new) | a slight misjudgment redrawn every plan (`BOT_SHARP_NOISE` 0.3, `BOT_SHARP_ONCE` false); a quarter of its stances and debate moves random (`BOT_SHARP_SLIP` 0.25) | was Hazy (0.45, half random) |
+| Extreme | **Expert** (new) | the standard bot's plan, stances and debate, but it expects the campaign to move every state's margin much further before election night (`BOT_EXPERT_CAMPAIGN_VARIANCE` 24 per week left; the standard bot's `Bot.tuning.campaignVariance` is 2), so it fights for every state still in reach instead of only today's close ones | was Balanced |
+
+Hazy (D-057's Easy) and Balanced (the standard bot) are no level now; their numbers are unchanged, so the tutorial harness's careless stand-in, the novice study modes (`STUDY` is now the Hazy profile by name) and the balance harness mean what they did. The Daily Race still plays Foresight with its own numbers (unchanged); timers still follow the level (Easy ×2, Medium ×1.5, Hard and Extreme ×1); the Lobby's level lines still fit (UI not touched).
+
+**How Extreme was found.** The retired bots are weaker against people, not stronger: Foresight and Strategist beat the standard bot (69%) but lose more to the attentive novice (26.5% and 25.7% against Balanced's 12.6%): they predict a standard-bot opponent, which a person is not. Foresight's debate alone (planning switched off) costs 4 points against novices. The standard bot's `Bot.tuning` knobs, one at a time against the attentive novice (1,000 each, ±2): `moneyValue` 0.2 / 0.6: 16.6 / 11.6; `gotvFromWeek` 4: 11.6; `draftSigma` 4 / 12: 13.1 / 12.5; no paid polls: 13.2; `campaignVariance` 1 / 4 / 6 / 8 / 12 / 16 / 24 / 40: 16.6 / 11.7 / 9.0 / 8.2 / 7.7 / 6.4 / 5.3 / 4.5. And head to head against the standard bot the wider view wins 70 / 73 / 78 / 80 / 81% from 6 to 40, flat from 16 on. 24 sits on that plateau. *Worth knowing:* the balance harness's standard bot is far from its best on this one heuristic; it is kept as is (its reports keep their meaning), but a future balance pass could use the Expert as its yardstick.
+
+**Measured** (`lune run tests/harness/novice.luau ladder 1000`; seeds 500001 on, seats alternate, two different candidates, every player from its own View, 0 invalid inputs; ± is the 95% band; with D-096's rubber band):
+
+| Player | Easy | Medium | Hard | Extreme |
+|---|---|---|---|---|
+| Weak novice | 38.2% ± 3.0 | 4.1% ± 1.2 | 0.7% ± 0.6 | 0.4% ± 0.6 |
+| **Typical novice** | 68.0% ± 2.9 | **22.3% ± 2.6** (was 40.7) | **4.6% ± 1.3** (was 7.6) | 5.0% ± 1.4 (was 3.4) |
+| **Attentive novice** | 96.4% ± 1.2 | **59.5% ± 3.0** (was 85.1) | **25.5% ± 2.7** (was 41.4) | **5.3% ± 1.4** (was 15.5) |
+| **Typical, aiming at the key states (D-088)** | 91.0% ± 1.8 | **52.8% ± 3.1** | 25.1% ± 2.7 | 4.3% ± 1.3 |
+| *targets* | *unchanged* | *typical 20-30, attentive 55-65* | *typical ≤ 8, attentive 20-30* | *attentive ≤ 10* |
+
+So a player who uses the key-states aid wins about half the time on Medium and one in four on Hard. Median margins: typical vs Medium 70 EV (its wins 36), attentive vs Medium 50 (its wins 58, losses 42): a contest, not a rout. Medium was also tried at noise 0.6 / 0.7 (typical 22.9 / 26.9, attentive 64.4 / 67.0) and at noise 1 with half its decisions random (18.4 / 59.7); Hard at Hazy's noise with a quarter random (4.4 / 29.4) and at noise 0.2 (4.3 / 24.4).
+
+Between the bots (the easier side reported; `novice.luau ladder` / `difficulty.luau 1000`, seeds 300001 on): Easy vs Medium 3.9 / 5.2%, Medium vs Hard 20.0 / 22.6%, Hard vs Extreme 7.5 / 7.6%, Easy vs Extreme 0.1 / 0.0%. Extreme beats the standard bot 80.5%, Foresight 90.1 / 92.2% and Strategist 85.2 / 87.0%. The Daily Race's bot: Foresight vs Balanced 70.7% (D-087: 68.9% under D-020's rubber band; its code and numbers did not change). Plan time: Expert 0.26 ms mean, 1.4 ms worst; Sharp 0.27 / 1.2.
+
+**Config.** `BOT_CASUAL_NOISE` 1.5 → 0.5; new `BOT_SHARP_NOISE` 0.3, `BOT_SHARP_ONCE` false, `BOT_SHARP_SLIP` 0.25, `BOT_EXPERT_CAMPAIGN_VARIANCE` 24. `BOT_HAZY_*` unchanged (no level reads them).
+
+**Tests.** `tests/sim/BotDifficulty.spec`: the new map (Hard Sharp, Extreme Expert); Sharp's misjudgment from Config and redrawn every plan; each step up misjudges or slips less; the Expert plans exactly as the standard bot would with the wider campaign variance, and leaves the standard bot's own plan untouched; valid, deterministic, spending and fair-play checks (true support, undecided, ground game, pools, poll errors, the opponent's polls, the opponent's cash inside its bracket) now cover all eight profiles. Harnesses: `novice.luau ladder` adds the KeyStates player and Extreme against Balanced and Strategist; `keys` runs every level; `difficulty.luau` reports Foresight vs Balanced for the Daily Race and Extreme against the retired bots.
+
+### D-096 — The underdog boost ends the week the latest polls clear it (rule change approved by the user, Oct 29, 2026, branch `balance17`)
+
+**Why.** D-020's two rubber-band targets were both red: the boost went to a player truly 20+ EV ahead in 16-18% of underdog weeks (target < 10%) and the tier changed 3.1 times a match (target ≤ 3). The tier read a slow smoothed gap (weight 0.4 on the newest week) with 30 EV of hysteresis, so after a comeback it kept paying for weeks. Faster smoothing alone fixes the first and breaks the second (`UNDERDOG_SMOOTHING` 1, no smoothing: 11.0% and 7.8 changes; 0.6: 13.7% and 4.4).
+
+**Rule.** The tier keeps its own smoothed lead (`underdogLead`), the same exponential smoothing of the public projected-EV lead. But when the latest public polls put the player within the tier-1 exit line (`UNDERDOG_EV_1` - `UNDERDOG_HYSTERESIS` = 10 EV behind, or anything better), that smoothed lead restarts from the latest polls. So the boost ends the week the polls show the race level or the player ahead, and has to build up again from there before it can return: one bad week 45 EV behind after that restarts at about 16, under the line. Entry and the tier-2 to tier-1 step are smoothed and use hysteresis as before. `UNDERDOG_SMOOTHING` 0.4 → 0.35, since the quick exit takes away the flicker the slower entry used to hide. Public polls only, as before: nothing hidden reaches it (a spec checks). The frontrunner drawback (Okafor's, D-020) keeps the plain smoothed lead, at the same weight. No new Config number: the clear line is the existing tier-1 exit line.
+
+**What was tried** (2,000 balance matches each; wrong-leader share / tier changes a match / underdog weeks a match): D-020 as is 17.6% / 3.09 / 6.7; restart when the latest polls show a lead (0 instead of -10) 9.8 / 2.95; restart at -10 with smoothing 0.4: 9.0 / 3.05; **at 0.35: 8.5 / 2.70 / 4.1**; at 0.3: 8.6 / 2.28 / 3.6 (a weaker boost overall); end the tier on the latest polls without restarting the smoothing: 9.2 / 3.31 (it flickers back on); the tier from min(smoothed, latest): 9.1 / 3.72; a probability-weighted projection instead of winner-take-all (σ 3, unsmoothed): 8.8 / 5.84, a different signal from the one the screen shows.
+
+**Measured** (`lune run tests/harness/balance.luau 2000`, the standard bot both sides, before → after):
+
+| Metric | Before | After | Target |
+|---|---|---|---|
+| Underdog weeks to a true 20+ EV leader | 17.6% | **8.5%** | < 10% |
+| Underdog tier changes per match | 3.09 | **2.70** | ≤ 3 |
+| Comeback rate (trailing true EV at week 8) | 41.6% | 36.8% | 20-40% |
+| Decided by 40+ / 100+ EV | 59.8 / 15.0% | 59.6 / 17.3% | ≤ 65 / ≤ 25% |
+| GOTV changes the winner | 9.2% | 8.8% | ≥ 10% (red before) |
+| Candidates (Okafor, Calloway, Venkat, Hale, Alvarado, Reyes, Strand, Begay) | 56.7, 56.8, 50.1, 49.5, 46.0, 47.1, 42.2, 51.5 | 54.6, 57.2, 54.2, 44.4, 50.3, 47.9, 42.0, 49.4 | 45-55% (±4.4 each at ~500 games) |
+
+At 400 matches: 16.2% / 3.16 → 8.4% / 2.65. Candidate rates move within their noise; Calloway and Strand were red before and still are, Hale dips just under 45 (49.1% at 400). Every other line is within noise of before.
+
+**Okafor vs Venkat (report only).** The 400-match report flagged this pair at 14.3% on about 14 games. 4,000 matches of just that pair (seeds 700001-704000, seats alternating, standard bot both sides): Okafor wins **51.2% ± 1.5** on 0.16.0's rules and 50.7% ± 1.5 with D-096. The flag was noise; no action.
+
+**Copy to update (UI, not in this branch):** All the numbers' underdog line ("smoothed over weeks … You drop a tier only once the gap is 30 EV under its line") is still true for tier 2 but should add that the boost ends as soon as the latest polls put you within 10 EV; the News line "it fades once you stay ahead" could read "it ends once the polls show you level".
+
+**Tests.** `tests/sim/Polls.spec` (the smoothed entry and tier-2 hysteresis; the restart on a dead heat and on a lead, the plain lead still smoothing; one bad week after a restart stays off; a gap just over 10 still smooths; true support changes nothing), `tests/sim/View.spec` (`underdogLead` never reaches a View), `tests/sim/Tutorial.spec` (D-080's pinned normal match re-pinned: weeks 10-12 and the result, 290-248 → 292-246, moved with the boost).

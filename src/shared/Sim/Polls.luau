@@ -166,10 +166,22 @@ function Polls.projectedEV(match: MatchState): { number }
 	return ev
 end
 
--- Updates every player's smoothed projected lead, underdog tier (with hysteresis)
--- and frontrunner flag from the latest public polls (D-006).
+-- Updates every player's underdog tier and frontrunner flag from the latest
+-- public polls (projected EV only: nothing hidden).
+--
+-- The tier reads its own smoothed lead (`underdogLead`, UNDERDOG_SMOOTHING) with
+-- hysteresis (UNDERDOG_HYSTERESIS), so a one-week dip in the polls does not
+-- switch it on. But once the latest polls put a player within the tier-1 exit
+-- line (UNDERDOG_EV_1 - UNDERDOG_HYSTERESIS EV behind, or anything better), that
+-- smoothed lead restarts from the latest polls, so the boost stops the week
+-- the polls show the race level or the player ahead, and has to build up
+-- again from there before it returns (D-096). The frontrunner drawback keeps
+-- the plain smoothed lead (`lead`, D-020).
 function Polls.updateUnderdog(config: Config, match: MatchState)
 	local ev = Polls.projectedEV(match)
+	local weight = config.UNDERDOG_SMOOTHING
+	local h = config.UNDERDOG_HYSTERESIS
+	local clearLine = -(config.UNDERDOG_EV_1 - h)
 	for p, player in match.players do
 		local best = -math.huge
 		for q, value in ev do
@@ -179,14 +191,17 @@ function Polls.updateUnderdog(config: Config, match: MatchState)
 		end
 		local lead = ev[p] - best
 		local previous = player.lead
-		local smoothed = if previous == nil
-			then lead
-			else config.UNDERDOG_SMOOTHING * lead + (1 - config.UNDERDOG_SMOOTHING) * previous
+		local smoothed = if previous == nil then lead else weight * lead + (1 - weight) * previous
 		player.lead = smoothed
 
-		local gap = -smoothed
+		local previousGap = player.underdogLead
+		local tierLead = if previousGap == nil or lead > clearLine
+			then lead
+			else weight * lead + (1 - weight) * previousGap
+		player.underdogLead = tierLead
+
+		local gap = -tierLead
 		local tier = player.underdogTier
-		local h = config.UNDERDOG_HYSTERESIS
 		if gap >= config.UNDERDOG_EV_2 or (tier == 2 and gap >= config.UNDERDOG_EV_2 - h) then
 			tier = 2
 		elseif gap >= config.UNDERDOG_EV_1 or (tier >= 1 and gap >= config.UNDERDOG_EV_1 - h) then

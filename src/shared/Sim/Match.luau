@@ -229,6 +229,7 @@ function Match.new(
 			nominations = {},
 			pivotUsed = false,
 			lead = nil,
+			underdogLead = nil,
 			underdogTier = 0,
 			frontrunner = false,
 			debateMove = nil,

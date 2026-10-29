@@ -6,22 +6,23 @@
 -- own Config, Bot.tuning while it decides, what it is shown of its cash, its
 -- seat's underdog boost), so nothing here changes a default.
 --
--- D-087 shifted the ladder: the study's "Easy" (D-057's) is now the Hard level,
--- the Hazy profile, so the study modes (ablate, options, habits, leaks) run
--- against Hard and their flags set BOT_HAZY_*. A bot seat is named by its level
--- (Easy, Medium, Hard, Extreme) or by its profile (Rookie, Casual, Hazy,
+-- D-087 shifted the ladder: the study's "Easy" (D-057's) became the Hard level,
+-- the Hazy profile; D-095 gave Hard its own profile (Sharp), so the study modes
+-- (ablate, options, habits, leaks) run against the Hazy profile by name and
+-- their flags set BOT_HAZY_*. A bot seat is named by its level (Easy, Medium,
+-- Hard, Extreme) or by its profile (Rookie, Casual, Sharp, Expert, Hazy,
 -- Balanced, Foresight, Strategist).
 --
---   lune run tests/harness/novice.luau ladder [N]          -- D-087's table: 3 novices vs every level, every level vs every other
+--   lune run tests/harness/novice.luau ladder [N]          -- D-095's table: 3 novices and KeyStates vs every level, every level vs every other
 --   lune run tests/harness/novice.luau                     -- benchmark: 3 novices vs Easy and Medium, 1,000 each (~1 min)
 --   lune run tests/harness/novice.luau Typical Easy 2000   -- one pairing (the first named is the reported side)
 --   lune run tests/harness/novice.luau Easy Medium         -- two bots
---   lune run tests/harness/novice.luau ablate [N]          -- the study's Easy (now Hard) with one edge removed at a time, vs Typical
+--   lune run tests/harness/novice.luau ablate [N]          -- the study's Easy (the Hazy profile) with one edge removed at a time, vs Typical
 --   lune run tests/harness/novice.luau options [N]         -- the tuning options vs each novice, and vs the standard bot
 --   lune run tests/harness/novice.luau leaks [N]           -- the novice with one part of its play handed to the standard bot
 --   lune run tests/harness/novice.luau habits [N]          -- the typical novice with one habit group fixed at a time
 --   (ablate, leaks and habits take --novice=Weak|Typical|Attentive; Typical by default)
---   lune run tests/harness/novice.luau keys [N]            -- the key-states aid (D-088): Typical, and Typical aiming at the key states, vs Easy and Medium
+--   lune run tests/harness/novice.luau keys [N]            -- the key-states aid (D-088): Typical, and Typical aiming at the key states, vs every level
 --   lune run tests/harness/novice.luau Typical Easy --variant=NoGotv
 --
 -- Flags on the bot under test (the first bot named in the pairing):
@@ -70,12 +71,12 @@ type Seat = {
 	config: Config?, -- the bot's own Config (bot.KEY=value), else the match's
 }
 
--- The level the study modes measure: the study's Easy (D-057's), which D-087
--- made the Hard level (the Hazy profile).
-local STUDY = "Hard"
+-- The bot the study modes measure: the study's Easy (D-057's), the Hazy
+-- profile (D-087's Hard; no level since D-095).
+local STUDY = "Hazy"
 
 -- Every profile a seat may name directly (Bot.styleFor maps the levels).
-local PROFILES = { "Rookie", "Casual", "Hazy", "Balanced", "Foresight", "Strategist" }
+local PROFILES = { "Rookie", "Casual", "Sharp", "Expert", "Hazy", "Balanced", "Foresight", "Strategist" }
 
 -- Named flag sets: the ablations (one edge of the study's Easy removed) and the options.
 local VARIANTS: { [string]: { text: string, flags: Flags } } = {
@@ -546,7 +547,8 @@ if mode == "bench" then
 elseif mode == "ladder" then
 	-- D-087: every novice against every level, then every level against every
 	-- harder one (the easier side reported), and the Daily Race's bot.
-	for _, novice in Novice.NAMES do
+	-- D-095 adds the typical novice who uses the key-states aid (D-088).
+	for _, novice in { "Weak", "Typical", "Attentive", "KeyStates" } do
 		for _, level in Bot.DIFFICULTIES do
 			pairing(seatFor(novice), seatFor(level), N)
 		end
@@ -557,6 +559,8 @@ elseif mode == "ladder" then
 		end
 	end
 	pairing(seatFor("Extreme"), seatFor("Foresight"), N, "Extreme vs Foresight (the Daily Race's bot)")
+	pairing(seatFor("Extreme"), seatFor("Balanced"), N, "Extreme vs Balanced (the standard bot)")
+	pairing(seatFor("Extreme"), seatFor("Strategist"), N, "Extreme vs Strategist")
 elseif mode == "ablate" then
 	pairing(seatFor(noviceName), seatFor("Balanced"), N, `{noviceName} vs the standard bot (reference)`)
 	for _, name in ABLATIONS do
@@ -595,7 +599,7 @@ elseif mode == "keys" then
 	-- aiming its rallies, ads and ground game at the map's key states (KeyStates),
 	-- and half-following them (KeyHalf). Bots never read the key states.
 	print(`Key states: KEY_STATES {config.KEY_STATES}, KEY_STATE_BAND {config.KEY_STATE_BAND}`)
-	for _, level in { "Easy", "Medium" } do
+	for _, level in Bot.DIFFICULTIES do
 		for _, novice in { "Typical", "KeyStates", "KeyHalf" } do
 			pairing(seatFor(novice), seatFor(level, withVariant(variantName, flags)), N)
 		end

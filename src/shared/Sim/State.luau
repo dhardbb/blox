@@ -100,7 +100,8 @@ export type PlayerState = {
 	strongholds: { string },
 	nominations: { string },
 	pivotUsed: boolean,
-	lead: number?, -- smoothed projected-EV lead over the best opponent (negative = trailing)
+	lead: number?, -- smoothed projected-EV lead over the best opponent (negative = trailing); the frontrunner drawback reads it
+	underdogLead: number?, -- the underdog tier's smoothed lead: the same, restarted from the latest polls once they clear the tier (D-096)
 	underdogTier: number, -- 0, 1 or 2
 	frontrunner: boolean, -- the candidate's frontrunner drawback is active
 	debateMove: DebateInput?, -- this debate round's move (hidden until the round resolves, D-072)

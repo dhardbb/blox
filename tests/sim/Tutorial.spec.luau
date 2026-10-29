@@ -169,7 +169,9 @@ describe("Normal schedule unchanged (D-080)", function()
 	it("plays a seeded normal match exactly as before the tutorial existed", function()
 		-- Pinned on the commit before D-080 (Balanced Pennywhistle vs Easy Quibble, seed
 		-- 4242): the deck, every week's projected votes and the result. D-057's
-		-- Easy bot plays on as the Hazy profile (D-087).
+		-- Easy bot plays on as the Hazy profile (D-087). Weeks 10-12 re-pinned
+		-- for D-096 (the underdog tier now ends on the latest polls), which moved
+		-- the trailer's boost from week 9 on.
 		local seed = 4242
 		local match = Match.new(C, seed, { "a", "b" })
 		local rngs = { Rng.new(seed + 1), Rng.new(seed + 2) }
@@ -196,11 +198,11 @@ describe("Normal schedule unchanged (D-080)", function()
 			table.insert(history, `{entry.ev[1]}/{entry.ev[2]}`)
 		end
 		expect(table.concat(history, " ")):toBe(
-			"280/185 317/189 330/202 278/243 254/278 275/250 257/271 317/215 267/271 332/199 265/253 293/237 280/252"
+			"280/185 317/189 330/202 278/243 254/278 275/250 257/271 317/215 267/271 279/259 269/257 280/254 286/249"
 		)
 		local election = match.election :: any
-		expect(election.ev[1]):toBe(290)
-		expect(election.ev[2]):toBe(248)
+		expect(election.ev[1]):toBe(292)
+		expect(election.ev[2]):toBe(246)
 	end)
 end)
 

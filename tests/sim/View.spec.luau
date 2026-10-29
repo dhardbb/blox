@@ -163,6 +163,7 @@ describe("View: no leaks", function()
 		opponent.debateMove = { move = "Pivot", zinger = true, canned = false }
 		opponent.stance = "B"
 		opponent.lead = (opponent.lead or 0) + 0.001 -- same tier, different smoothed value
+		opponent.underdogLead = (opponent.underdogLead or 0) + 0.001 -- the tier's own smoothed lead (D-096)
 		secret.seed = 31337
 		secret.rng.s0 = 1
 		-- The rest of the deck: every week but the current one is hidden.
