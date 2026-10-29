@@ -2,6 +2,19 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Match records, stats, landslide count, analytics (D-094)
+
+Studio checklist: `docs/TESTING.md`, "Match records and analytics (D-094)". **Needed from the humans:** Studio API access on to see records saved while testing in Studio; an Open Cloud API key (scopes below) to export them; nothing else. No rule changed (balance harness unchanged).
+
+- **Every finished match is saved for balance analysis** in the DataStore `MatchRecords_v1`, one key per match starting with its UTC date (`20261029_…`): version, mode (queue, private, practice, bot while waiting, tutorial, Daily Race), seed, candidates and levels, every week's plans, stances, debate moves, events, the projected votes each week, the final votes, winner, landslide, length, forfeits and timeouts. User ids only, no names. A few KB each; written after the match, never in its way (it waits for spare DataStore budget, retries, and gives up quietly).
+- **Your landslide count**: landslide wins in rated matches from **Find match** (not private codes, the bot, the tutorial or the Daily Race). It shows in the Lobby's record line ("· ▲3 landslides"), as a gold "▲3" on leaderboard rows, and after your opponent's name on the plan screen. Nothing shows until the first one. Counting starts with this version.
+- **Fuller saved stats** per player: games from the queue and from codes, elections, forfeits won and lost, total and best votes, all landslides. Older profiles get them on their next match; nothing is lost or reset.
+- **Analytics** (Creator Hub → Analytics): an onboarding funnel for new players (joined → tutorial weeks → finished → first match → queue → rated match → rematch → Daily Race), a per-visit funnel (lobby → looked for a game → played → finished → played again), and custom events MatchStarted, MatchEnded, Landslide, QueueJoined, QueueLeft and Rematch.
+- **`lune run tests/harness/records.luau records.jsonl`** prints a balance report from exported records, in the harness's shape. How to export with Open Cloud: TESTING.md.
+- `docs/PLAN.md`'s status line now points here: this changelog is the real status.
+
 ## 0.16.0: Easier bots, key states, new-player fixes (Oct 25, 2026)
 
 ### Bot levels shifted down (D-087)

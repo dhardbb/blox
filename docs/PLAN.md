@@ -392,7 +392,7 @@ None of these are in scope until the 1v1 game is balanced and finished, but seve
 
 ## Your first session
 
-*Status (Oct 22, 2026): steps 1–4 done. Phase 1 (simulation core) is complete: match state machine, draft, plans, resolve, View with the no-leak test, election, bot, and the balance harness. First harness results and open balance questions are in `DESIGN.md` D-017. Phase 2 (server and networking, debug text UI) is built and awaiting a Studio playtest (`TESTING.md` → Phase 2). See `CHANGELOG.md`.*
+*Status: see `CHANGELOG.md`, newest first, for what is built and released (the top entry is the current state); `docs/TESTING.md` has what to check in Studio for each entry, and `docs/DESIGN.md` the decisions since this plan. This plan is the original design and is not kept up to date.*
 
 Do these in order and stop after step 1 for answers.
 
