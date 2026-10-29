@@ -65,6 +65,7 @@ export type Outcome = {
 	tutorial: boolean?, -- Practice: the tutorial, no choice timers (D-075)
 	daily: number?, -- Practice: a Daily Race run on this day (D-082); never the tutorial
 	waiting: boolean?, -- Practice: a bot game while the player waits in the queue (D-083)
+	private: boolean?, -- Match: from a private code (D-094); its rating rules are the same (D-077)
 }
 
 -- Why a practice match is the tutorial (D-075): "First", the player has not
@@ -269,7 +270,7 @@ function Lobby.join(lobby: Lobby, id: string, code: string): (Outcome?, string?)
 	local pair = { host, id }
 	local options = lobby.options[code]
 	start(lobby, pair)
-	return { kind = "Match", players = pair, events = options and options.events }, nil
+	return { kind = "Match", players = pair, events = options and options.events, private = true }, nil
 end
 
 -- Starts a practice match against the bot at `difficulty` (absent or unknown:

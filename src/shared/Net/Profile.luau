@@ -80,6 +80,30 @@ export type Profile = {
 	-- ended, and the streak of consecutive days. Never touches the rating, the
 	-- practice record or the tutorial. Optional: no version bump.
 	daily: Daily.Record?,
+	-- Fuller stats and the public landslide count (D-094). Optional, no profile
+	-- version bump (see Profile.VERSION); the block has its own schema version
+	-- `v` (Profile.STATS_VERSION), cleaned by Profile.cleanStats.
+	stats: Stats?,
+}
+
+-- Fuller per-player stats (D-094), kept from 0.17 on. Counted only for results
+-- that reach Profile.applyResult (rated and practice matches; never the Daily
+-- Race, which keeps its own record, or an abandoned match).
+export type Stats = {
+	v: number, -- this block's schema version (Profile.STATS_VERSION)
+	since: number, -- Unix time counting began for this player
+	landslides: number, -- PUBLIC: rated matches from the public queue won by a landslide (D-094)
+	landslidesAll: number, -- every recorded match won by a landslide (private, practice and tutorial too)
+	publicGames: number, -- rated matches from the public queue (and their rematches)
+	privateGames: number, -- rated matches from a private code (and their rematches)
+	elections: number, -- recorded matches that reached election night
+	forfeitWins: number, -- recorded matches won because the other side left
+	forfeitLosses: number, -- recorded matches this player left (or timed out of)
+	evFor: number, -- electoral votes won, summed over elections
+	evAgainst: number, -- electoral votes conceded, summed over elections
+	bestEV: number, -- most electoral votes in one election
+	lastAt: number?, -- Unix time of the last recorded match
+	onboard: number?, -- analytics (D-094): the last onboarding-funnel step logged; set only for players new since 0.17
 }
 
 -- What the lobby shows.
@@ -88,6 +112,7 @@ export type Summary = {
 	games: number,
 	wins: number,
 	losses: number,
+	landslides: number?, -- the public landslide count (D-094); absent = none yet
 }
 
 -- A finished match, from one player's side.
@@ -103,6 +128,9 @@ export type Result = {
 	evAgainst: number?,
 	opponent: string?, -- the opponent's player id: rated games count per pair (D-077)
 	tutorial: boolean?, -- the tutorial match (D-075): applying it marks the tutorial done
+	-- D-094 (optional; older pending results have neither):
+	landslide: boolean?, -- this player won by a landslide (Election.landslide)
+	public: boolean?, -- a rated match from the public queue: a landslide here counts publicly
 }
 
 -- A result waiting in a stored record for the server that holds the player's
@@ -129,6 +157,11 @@ Profile.VERSION = 1
 Profile.RECENT_MAX = 10 -- matches kept in `recent`
 Profile.SETTLED_MAX = 30 -- result ids kept in `settled`
 Profile.PENDING_MAX = 20 -- results kept waiting in a stored record (DataService)
+-- The `stats` block's own schema version (D-094). Bump it when a stats field is
+-- renamed or reshaped and teach cleanStats the old shape; a block from a newer
+-- version is kept as it was and never written over (Profile.applyResult).
+Profile.STATS_VERSION = 1
+Profile.ONBOARD_MAX = 100 -- analytics funnels allow steps 1-100 (AnalyticsService docs)
 local MAX_CANDIDATES = 64 -- most perCandidate entries kept (garbage defense)
 local MAX_ID = 32 -- longest candidate id kept
 local MAX_KEY = 64 -- longest result id or player id kept
@@ -195,6 +228,93 @@ local function cleanRecent(raw: any): Recent?
 		evAgainst = count(raw.evAgainst),
 		reason = reason,
 	}
+end
+
+local STAT_COUNTS = {
+	"landslides",
+	"landslidesAll",
+	"publicGames",
+	"privateGames",
+	"elections",
+	"forfeitWins",
+	"forfeitLosses",
+	"evFor",
+	"evAgainst",
+	"bestEV",
+}
+
+-- A fresh stats block, counting from `now` (D-094).
+function Profile.newStats(now: number): Stats
+	return {
+		v = Profile.STATS_VERSION,
+		since = now,
+		landslides = 0,
+		landslidesAll = 0,
+		publicGames = 0,
+		privateGames = 0,
+		elections = 0,
+		forfeitWins = 0,
+		forfeitLosses = 0,
+		evFor = 0,
+		evAgainst = 0,
+		bestEV = 0,
+		lastAt = nil,
+		onboard = nil,
+	}
+end
+
+-- A stored stats block, cleaned (D-094): nil for anything that is not a table;
+-- every count defaults to 0. A block from a newer STATS_VERSION keeps every
+-- plain field as it is (and its `v`; the known counts still read as numbers),
+-- so this server can show it, saves it unchanged, and Profile.applyResult
+-- leaves it alone.
+function Profile.cleanStats(raw: any): Stats?
+	if type(raw) ~= "table" then
+		return nil
+	end
+	local since = finite(raw.since) or 0
+	local out = Profile.newStats(since)
+	local v = count(raw.v) or 0
+	if v > Profile.STATS_VERSION then
+		-- From a newer game version: kept field for field (plain values only),
+		-- so saving this profile here does not lose what that version added.
+		local kept = out :: any
+		for key, value in raw do
+			local kind = type(value)
+			if type(key) == "string" and #key <= MAX_KEY and (kind == "string" or kind == "boolean") then
+				kept[key] = if kind == "string" then string.sub(value, 1, MAX_KEY) else value
+			elseif type(key) == "string" and #key <= MAX_KEY and kind == "number" and finite(value) then
+				kept[key] = value
+			end
+		end
+		for _, name in STAT_COUNTS do
+			kept[name] = count(kept[name]) or 0
+		end
+		kept.since = finite(kept.since) or 0
+		kept.lastAt = finite(kept.lastAt)
+		kept.onboard = count(kept.onboard)
+		out.v = v
+		return out
+	end
+	-- Version 0 or 1: the same names. Add a step here when a later version
+	-- renames or reshapes a field.
+	local fields = out :: any
+	for _, name in STAT_COUNTS do
+		fields[name] = count(raw[name]) or 0
+	end
+	out.landslidesAll = math.max(out.landslidesAll, out.landslides)
+	out.lastAt = finite(raw.lastAt)
+	local onboard = count(raw.onboard)
+	if onboard and onboard >= 1 then
+		out.onboard = math.min(onboard, Profile.ONBOARD_MAX)
+	end
+	return out
+end
+
+-- The public landslide count (D-094): 0 without stats.
+function Profile.landslides(profile: Profile?): number
+	local stats = if profile then profile.stats else nil
+	return if stats then stats.landslides else 0
 end
 
 -- Turns whatever was stored (nil, garbage, or any older version) into a valid
@@ -332,6 +452,7 @@ function Profile.migrate(raw: any, config: Config?): Profile
 		end
 	end
 	out.daily = Daily.clean(raw.daily)
+	out.stats = Profile.cleanStats(raw.stats)
 	return out
 end
 
@@ -375,6 +496,8 @@ function Profile.cleanPending(raw: any): { Pending }
 					evAgainst = count(result.evAgainst),
 					opponent = optionalString(result.opponent),
 					tutorial = if result.tutorial == true then true else nil,
+					landslide = if result.landslide == true then true else nil,
+					public = if result.public == true then true else nil,
 				},
 			})
 		end
@@ -415,6 +538,9 @@ local function copy(profile: Profile): Profile
 	end
 	if profile.daily then
 		out.daily = table.clone(profile.daily)
+	end
+	if profile.stats then
+		out.stats = table.clone(profile.stats)
 	end
 	return out
 end
@@ -482,6 +608,45 @@ local function addRatedWith(out: Profile, opponent: string, at: number, c: Confi
 	out.ratedWith = pairsOut
 end
 
+-- Counts one decided result in the stats block (D-094), creating it on the
+-- first. A block from a newer STATS_VERSION is left as it is.
+local function addStats(out: Profile, result: Result)
+	local stats: Stats = if out.stats then table.clone(out.stats :: Stats) else Profile.newStats(result.at)
+	if stats.v > Profile.STATS_VERSION then
+		return
+	end
+	local rated = result.rated and result.opponentRating ~= nil
+	local public = rated and result.public == true
+	if rated then
+		if public then
+			stats.publicGames += 1
+		else
+			stats.privateGames += 1
+		end
+	end
+	if result.reason == "Election" then
+		stats.elections += 1
+		local evFor = result.evFor or 0
+		stats.evFor += evFor
+		stats.evAgainst += result.evAgainst or 0
+		stats.bestEV = math.max(stats.bestEV, evFor)
+		if result.won and result.landslide == true then
+			stats.landslidesAll += 1
+			if public then
+				stats.landslides += 1
+			end
+		end
+	elseif result.reason == "Forfeit" then
+		if result.won then
+			stats.forfeitWins += 1
+		else
+			stats.forfeitLosses += 1
+		end
+	end
+	stats.lastAt = result.at
+	out.stats = stats
+end
+
 -- Applies one finished match. Only a rated match with a decided result (Election
 -- or Forfeit) moves the rating, the totals, the per-candidate record and `recent`.
 -- Practice only adds to `practice`. An abandoned match changes nothing.
@@ -493,6 +658,7 @@ function Profile.applyResult(profile: Profile, result: Result, config: Config?):
 		return profile, unchanged
 	end
 	local out = copy(profile)
+	addStats(out, result)
 	if not result.rated or result.opponentRating == nil then
 		out.practice.games += 1
 		if result.won then
@@ -681,7 +847,27 @@ function Profile.withDailyResult(
 end
 
 function Profile.summary(profile: Profile): Summary
-	return { rating = profile.rating, games = profile.games, wins = profile.wins, losses = profile.losses }
+	local landslides = Profile.landslides(profile)
+	return {
+		rating = profile.rating,
+		games = profile.games,
+		wins = profile.wins,
+		losses = profile.losses,
+		landslides = if landslides > 0 then landslides else nil,
+	}
+end
+
+-- The profile with the onboarding funnel (D-094) at `step`: started for a new
+-- player (step 1), or moved on. Never moves back.
+function Profile.withOnboard(profile: Profile, step: number, now: number): Profile
+	if profile.stats and profile.stats.v > Profile.STATS_VERSION then
+		return profile
+	end
+	local out = copy(profile)
+	local stats: Stats = if profile.stats then table.clone(profile.stats :: Stats) else Profile.newStats(now)
+	stats.onboard = math.clamp(math.max(stats.onboard or 0, math.floor(step)), 1, Profile.ONBOARD_MAX)
+	out.stats = stats
+	return out
 end
 
 return table.freeze(Profile)
