@@ -2,6 +2,22 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
+## Unreleased
+
+### Harder Medium, Hard and Extreme bots (D-095)
+
+Studio checklist: `docs/TESTING.md`, "Harder bot levels and a quicker underdog boost (D-095, D-096)". Nothing needed from the humans.
+
+- **Medium is a real contest now.** It still misreads the map the same way all match and picks stances and debate moves at random, but it misreads far less. A scripted typical new player wins about 1 in 5 (was 2 in 5), an attentive one about 3 in 5 (was 6 in 7), and one who plays the glowing key states about half the time.
+- **Hard is a new bot** that misjudges only slightly and slips on a quarter of its stances and debate moves: an attentive new player wins about 1 in 4 (was 2 in 5).
+- **Extreme is the strongest bot yet**: the standard bot's judgment, but it expects the campaign to move the polls much further, so it keeps fighting for every state still in reach. It beats the old Extreme 80% of the time and the Daily Race bot 90%; an attentive new player wins about 1 in 20.
+- **Every level still plays fair:** the same money, actions and information as you, and the same comeback boost. Easy, the tutorial, the Daily Race bot and the balance harness's standard bot are unchanged. New `Config` keys `BOT_SHARP_*` and `BOT_EXPERT_CAMPAIGN_VARIANCE`; `BOT_CASUAL_NOISE` 1.5 → 0.5.
+
+### The underdog boost stops once you catch up (D-096)
+
+- **The comeback boost ends the week the polls show you level or ahead** (within 10 EV), instead of fading over several weeks, and has to build up again before it returns. It went to a player who was really 20+ EV ahead in 18% of boosted weeks; now 8.5%. It also switches on and off less (2.7 times a match, was 3.1). `UNDERDOG_SMOOTHING` 0.4 → 0.35. Still public polls only.
+- **Okafor vs Venkat is even** (51% over 4,000 matches); the 14% flag in the last report was a 14-game sample.
+
 ## 0.16.0: Easier bots, key states, new-player fixes (Oct 25, 2026)
 
 ### Bot levels shifted down (D-087)
