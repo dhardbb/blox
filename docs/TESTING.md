@@ -1304,3 +1304,19 @@ Agents: `lune run tests difficulty`, `lune run tests Polls`, `lune run tests/har
 4. **Easy is unchanged.** One game on Easy. **Expect:** it feels the same as in 0.16.0. *Send back:* OK or what felt different.
 5. **The underdog boost stops when you catch up.** In any bot game, fall behind early (skip weeks 1-3), then catch up. Open **News +** each week. **Expect:** "You are underdog tier …" while you are well behind; the week the polls' projection shows you level or ahead (within 10 EV), the line is gone, and it does not come back after one bad week. *Send back:* the weeks it was on and off.
 6. *Send back:* any Output errors from `Session` or `Bot`.
+
+## Debate, election night and the end screen (D-098)
+
+Agents: `lune run tests "D-098"`, `lune run tests Debate`, `lune run tests Results`, `lune run tests Election`; snapshots `lune run tests/ui/snap.luau -- debate`, `-- election`, `-- results` (shots `19a-debate-clash-won-e17`, `20a-debate-verdict-crowd-e17`) at `--size phone|ipad|desktop`, 0 findings in `build/snaps/audit.txt`.
+
+Play one bot match on the iPad and, if you can, one on a phone held sideways. Then turn on Reduce motion (Settings) and watch one debate and election night again.
+
+1. **Debate round on a phone.** **Expect:** Defend, Attack and Pivot side by side, each with its number and a short "D+4 A−3 P=" line, all visible without scrolling; the Zinger chip under them. **Send back:** a screenshot.
+2. **The clash.** **Expect:** the result stamp ("YOU WIN BY 3", "SPLIT") on top, both moves big under it; the move cards pop in and the stamp slams onto them with a small jolt. On a phone nothing of it is under the bar. With Reduce motion: everything just appears.
+3. **The verdict.** **Expect:** if someone won the crowd, their face next to "… WON THE CROWD"; three chips, one per round, colored for who won it (grey for a split); "Crowd: …" under them. Skip is a grey button, not the bright white one.
+4. **Election night, 270.** **Expect:** when someone reaches 270, a banner across the strip in their color reads "YOU WIN 270!" or "BUSTER WINS 270!", with rings bursting out; both vote totals stay readable. With Reduce motion: no rings.
+5. **Still counting.** In the last few calls, **expect** three pulsing dots where the face goes (still dots with Reduce motion), and on the state that decides the race a gold "DECIDING STATE" tag.
+6. **Election night on a phone.** **Expect:** the latest call's card is whole above the bar; no "Got it" box over the calls; the bar's line says "First to 270 wins · closest states last" the first time. "Skip to results" is grey, not white.
+7. **End screen on the iPad.** **Expect:** the result on top, then two columns: the race bar and both candidates side by side (face, name, votes, states, topics) on the left, "Why you won" on the right; nothing hidden under the bottom bar. **Send back:** a screenshot.
+8. **A landslide** (win with more than 376 votes, e.g. against Easy). **Expect:** a small green "You won" pill, then a big LANDSLIDE stamp with a gold edge and a gold light sweeping it; no "378 votes to 160" line. The loser sees the rival's LANDSLIDE without the gold.
+9. **Results map on a phone.** Tap Map. **Expect:** tags only on the states the polls got wrong (a value and ×); the Northeast is readable; the "Polls missed …" line is one line. **Send back:** anything still overlapping.
