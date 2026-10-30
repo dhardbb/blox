@@ -1,6 +1,6 @@
 # Proposal: Landslide as whiteboard art (the campaign's planning room)
 
-Status: proposal and samples (step 1). Waiting for the designers' OK before rolling out to every screen.
+Status: approved by the designers (Oct 29, 2026) after Studio screenshots; rolled out as D-102 on branch `whiteboard`. Changes found in Studio: state codes on the map are Permanent Marker and map numbers Builder Sans Bold (Patrick Hand read too small there); callout chips are pale.
 
 This changes the look only. No rule, sim, payload, View or gameplay Config number changes; the balance report stays byte-identical. Scope: `src/client`, `src/shared/UI`, `assets`, `scripts/mapgen`, docs.
 

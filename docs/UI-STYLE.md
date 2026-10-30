@@ -78,40 +78,42 @@ Everything here exists in code (`src/client/UI/Kit.luau` and friends; see the he
 
 ### 2.1 Color tokens (`Shared/UI/Colors.luau`, `Kit.colors`)
 
-One dark theme: a navy stage (front-page foundation, D-056; deepened in D-067). Use the token, never a literal (`tests/ui/Tokens.spec.luau` and the audit's `tokenColor` rule enforce it).
+One light theme: the whiteboard in the campaign's planning room (D-102, replacing D-056's navy stage and D-067's palette). An off-white board, paper cards, black marker for lines and text, marker inks for the players. Use the token, never a literal (`tests/ui/Tokens.spec.luau` and the audit's `tokenColor` rule enforce it). The proposal with every contrast ratio is `docs/proposals/whiteboard.md`.
 
 | Token | RGB | Use |
 |---|---|---|
-| `background` | 11, 16, 34 | the stage behind everything |
-| `field` | 16, 23, 44 | text boxes, read-only wells, icon plates |
-| `surface` | 22, 30, 55 | cards and panels (elevation 1) |
-| `surfaceTop` | 29, 38, 68 | top stop of a card's gradient |
-| `raised` | 36, 47, 80 | buttons, chips, pills (elevation 2) |
-| `raisedTop` | 44, 56, 93 | top stop of an elevation-4 panel's gradient |
-| `raisedHover` | 52, 65, 106 | a selected chip or card |
-| `raisedLip` | 8, 12, 26 | the lip under a secondary or icon button |
-| `line` | 68, 81, 124 | hairlines (at 0.5), dividers, sheet outline, map edges |
-| `text` | 240, 243, 250 | everything a player must read (14.8:1 on surface) |
-| `muted` | 156, 168, 204 | secondary text only (7.0:1 on surface) |
-| `accent` | 244, 246, 252 (white, D-058; was pink, D-051) | **press here / selected**: the primary's face, the selection outline, the timer, the "now" mark |
-| `accentEdge` | 196, 204, 224 | the primary's 2 px edge (cool light grey) |
-| `accentLip` | 110, 122, 158 | the slate lip under the primary; the wordmark's outline |
-| `onAccent` | = background | text on the accent (17.5:1) |
-| `good` / `goodEdge` | 80, 212, 96 / 50, 140, 66 | a gain, "you lead", success; the edge of a filled good pill |
-| `loss` / `lossEdge` | **255, 122, 40** / 196, 84, 20 | anything against you: a loss, a negative number, an error, a destructive button, the timer under 10 s; the edge of a filled loss tag |
-| `onLoss` | = background | text on a loss fill (7.3:1) |
-| `warn`, `danger`, `bad` | = `loss` | the old names, kept so every caller still works: there is one orange |
-| `glow` | 40, 60, 136 | the map's backdrop glow |
-| `neutral`, `undecided` | 70, 78, 104 / 164, 174, 204 | map only: a toss-up's dark slate fill (leads blend from it to a deep color, D-067), the default node ring (also the silver medal) |
-| player colors | Crimson 212, 28, 66 · Cobalt 34, 98, 228 · Emerald 0, 170, 96 · Amber 246, 190, 8 · Violet 152, 56, 228 · Teal 0, 164, 186 (D-067) | that player's things: map fill, dots, bars, rings, monograms |
+| `background` | 243, 241, 234 | the board behind everything; a toss-up state is blank board |
+| `field` | 248, 246, 240 | text boxes, read-only wells, icon plates |
+| `surface` | 251, 250, 245 | paper cards and panels (elevation 1) |
+| `surfaceTop` | 255, 254, 250 | top stop of a card's gradient |
+| `raised` | 236, 232, 222 | magnetic labels: buttons, chips, pills (elevation 2) |
+| `raisedTop` | 242, 239, 231 | top stop of an elevation-4 panel's gradient |
+| `raisedHover` | 225, 220, 205 | a selected chip or card |
+| `raisedLip` | 196, 190, 174 | the shadow under a secondary or icon button |
+| `line` | 143, 139, 128 | pencil hairlines, dividers, the TRACKER rules (never text) |
+| `text` | 29, 29, 31 | black marker: everything a player must read (16.1:1 on paper) |
+| `muted` | 87, 84, 76 | pencil grey: secondary text only (7.2:1 on paper) |
+| `accent` | 29, 29, 31 (black marker, D-102; was white, D-058) | **press here / selected**: the primary's face, the selection outline, the timer |
+| `accentEdge` | 0, 0, 0 | the primary's 2 px edge; every featured button's outline |
+| `accentLip` | 120, 116, 106 | the shadow under the primary |
+| `onAccent` | = background | text on the accent (14.9:1) |
+| `good` / `goodEdge` | 23, 114, 58 / 14, 80, 40 | a gain, "you lead", success |
+| `loss` / `lossEdge` | **176, 74, 0** / 124, 52, 0 | burnt orange: anything against you (5.3:1 on paper), always with a sign or a word |
+| `onLoss` | = background | text on a loss fill (4.9:1) |
+| `warn`, `danger`, `bad` | = `loss` | the old names: there is one orange |
+| `glow` | 228, 225, 216 | the map's backdrop: an erased smudge |
+| `keyGold` / `highlight` | 255, 227, 71 | highlighter yellow: a key state's band, election night's latest call, and "gold" (the Daily Race button, first medals, the 270 badge). A fill under ink, never text |
+| `sticky` | 255, 242, 168 | a sticky note: coach tips and the week's event (ink on it 14.8:1) |
+| `neutral`, `undecided` | = background / 143, 139, 128 | map only: a toss-up is blank board; the default node ring |
+| player colors | Crimson 200, 20, 70 · Cobalt 31, 91, 208 · Emerald 11, 115, 67 · Amber 116, 104, 0 (an olive gold) · Violet 140, 40, 210 · Teal 8, 108, 124 (D-102) | marker inks: map scribbles, dots, bars, rings, monograms. Each reads at 4.5:1 or more as text on board, paper and raised, is 40+ (CIE76) from the loss orange and 35+ from the others |
 
-**Color means one thing (D-056).** Team colors mark ownership. Green marks a gain. Orange marks a loss or a warning: anything against you. White marks "press here / selected" (D-058). A battleground is marked by a ★ and a white outline, never a white fill, so it never looks like the primary or a selection; the 270 line is a plain white tick. **Red never means bad**: red and blue are the default player colors. A player's color as *text* goes through `Kit.playerText(view, p)` (`Colors.textOn`, D-067: the color itself if it reads at 4.5:1 on a card's lit top, else the same hue brightened, then lifted toward `text` only as far as needed; Crimson text is 252, 76, 113, 5.0:1 on surface); fills, dots, bars and rings keep the base color.
+**Color means one thing (D-056).** Team colors mark ownership. Green marks a gain. Orange marks a loss or a warning: anything against you. Black marker marks "press here / selected" (D-102). A battleground is marked by a ★ and a black outline, never a black fill, so it never looks like the primary; the 270 line is a plain black tick. **Red never means bad**: red and blue are the default player colors. A player's color as *text* goes through `Kit.playerText(view, p)` (`Colors.textOn`: the color itself if it reads at 4.5:1 on a card's lit top, else the same hue darkened on the light board, then tinted toward `text` only as far as needed; every marker ink already reads, so they stay as they are); fills, dots, bars and rings keep the base color.
 
 **Orange never carries meaning alone** (audit rule `lossText`): an orange tag or number of one or two words carries a sign ("−", "▼", "lost", "behind") or sits under attribute `Warn` (the status line's warn and bad tones, the timer, a danger button). A battleground is good news: an outlined ★ tag, never orange.
 
 Rules: one accent-filled thing per screen (the primary button). Selection is an accent outline, never a fill. Data colors (map fills, feed-row tints, EV bars) come from `Colors.stateFill` / `Colors.tint` / `Kit.playerColor` and their container is marked `Kit.dataColor(inst)`. Status lines are `muted` unless they report a gain or a problem.
 
-**Depth (D-053, D-056).** Cards (`Kit.card`) fill with `surfaceTop` and carry a vertical `UIGradient` ("Depth") down to `surface`. Every card, button, sheet and the action-bar plate has an "Edge" (`Kit.bevel`): a border in its base color (a 1 px `line` hairline at 0.5, the primary's 2 px `accentEdge`) lit from the top: the stroke is `text` and its own `UIGradient` "EdgeLight" fades it into the base over the top 30 %, which draws the top highlight without an extra frame (a frame would be moved by a list layout). Buttons shade to 80 % at the bottom. Shadows (`Kit.shadow`) sit beside free-standing objects (the action-bar plate, sheets, toasts, positioned tips, the spotlight); an object inside a list or grid gets no shadow (the layout would move it), its bevel carries the depth. Elevation 4 (the election spotlight, the results banner) is `Kit.depth(panel, Kit.colors.raisedTop, Kit.colors.raised)` plus a stroke in the moment's color and a glow.
+**Depth (D-053, D-056).** Cards (`Kit.card`) fill with `surfaceTop` and carry a vertical `UIGradient` ("Depth") down to `surface`. Every card, button, sheet and the action-bar plate has an "Edge" (`Kit.bevel`): a border in its base color (a 1 px `line` hairline at 0.5, the primary's 2 px `accentEdge`) lit from the top: the stroke is `text` and its own `UIGradient` "EdgeLight" fades it into the base over the top 30 %, which draws the top highlight without an extra frame (a frame would be moved by a list layout). On the board (D-102) edges are flat marker (no lit top), buttons shade to 96 % (nearly flat magnets) and a secondary has a 2 px black marker outline. Shadows (`Kit.shadow`) sit beside free-standing objects (the action-bar plate, sheets, toasts, positioned tips, the spotlight); an object inside a list or grid gets no shadow (the layout would move it), its bevel carries the depth. Elevation 4 (the election spotlight, the results banner) is `Kit.depth(panel, Kit.colors.raisedTop, Kit.colors.raised)` plus a stroke in the moment's color and a glow.
 
 **Map bands (D-053, display only).** `Colors.band(margin)` returns the band for a poll margin in points (`Colors.BANDS`: toss-up < 3, lean < 8, likely < 15, safe), and `Colors.bandFill(support, colors)` is the stepped twin of `stateFill`: neutral, then 60 / 82 / 100 % of the leader's color (D-067, was 45 / 75: a lean reads as a deep version of the color, not a grey pastel). `stateFill` eases in the same way (`FILL_CURVE` 0.6).
 
@@ -128,9 +130,9 @@ Five tokens plus the Lobby's wordmark; **a screen shows at most four** (`Kit.MAX
 | `hero` | 48 | `display` | "You won" / "You lost", the private code. Lobby and Results only |
 | `wordmark` | 72 | `display` | the Lobby's "LANDSLIDE" only (`Kit.wordmark`, scaled down to fit a phone; the audit allows it on a text with attribute `Wordmark`, and the Lobby drops `title` for it) |
 
-**Hero numbers are display type.** Fredoka One for vote totals, the timer, stamps, the wordmark and the primary's label; Builder Sans for everything you read. `Kit.eyebrow(text)` is a caption in upper case and medium weight over a title ("JUST CALLED", "WEEK 3 RESULTS"); Roblox has no letter spacing, upper case alone gives the broadcast feel. Display text on a colored fill (a stamp, the wordmark) gets a 2-3 px `Contextual` outline in the fill's edge color; display text on the navy gets none.
+**Handwriting for the board, a clean font for reading (D-102).** `Kit.font.display` is **Permanent Marker**: headings that are a few words, the primary's label, stamps (CALLED, LANDSLIDE, You won), the wordmark, the TRACKER heading and the map's state codes. `Kit.font.hand` is **Patrick Hand**: big numbers (vote totals, scores, the timer, the leaderboard's ratings, the Daily rank, gains), and short hand-lettered lines (the TRACKER rows, the tagline). Everything longer than a few words, the state card, tips and sentences stay in Builder Sans at 14 px or more. Numbers on the map itself are Builder Sans Bold: Patrick Hand's digits read too small there (Studio, Oct 29). `Kit.eyebrow(text)` is a caption in upper case and medium weight over a title ("JUST CALLED"). Text on the board gets no outline.
 
-**Fonts (D-053).** Always `Kit.font.*`, never an `Enum.Font` literal (`Tokens.spec`). `body`/`medium`/`bold` are Builder Sans (Gotham where it is missing), `display` is Fredoka One (falls back to Builder Sans ExtraBold, then Gotham Black), `mono` stays Code (the match code). The snapshot draws all of them as Helvetica (Fredoka as bold), so check counters and "Lock in" in Studio.
+**Fonts (D-053, D-102).** Always `Kit.font.*`, never an `Enum.Font` literal (`Tokens.spec`). `body`/`medium`/`bold` are Builder Sans (Gotham where it is missing), `display` is Permanent Marker (falls back to Fredoka One, Builder Sans ExtraBold, Gotham Black), `hand` is Patrick Hand (falls back to Builder Sans Bold), `mono` stays Code. The snapshot draws Builder Sans as Helvetica and embeds Permanent Marker and Patrick Hand from `tests/lib/fonts`, so the handwriting shows in the shots; line breaks are still estimates, so check in Studio.
 
 **Big screens.** `App.client` puts a `UIScale` ("BoardScale") on the board: `clamp(min(w / 1024, h / 768), 1, 1.35)`. Phones, a 1024x768 iPad and 1280x720 stay at 1 (every snapshot size). Don't `TextScaled` body text, so `GuiService.PreferredTextSize` keeps working.
 
@@ -145,7 +147,7 @@ Five tokens plus the Lobby's wordmark; **a screen shows at most four** (`Kit.MAX
 
 | Level | Kit | Look | Use |
 |---|---|---|---|
-| Primary | `variant = "primary"` in the `ActionBar` | solid white (accent) face, navy Fredoka 20 label, 2 px lit grey edge, 4 px slate `accentLip` below; pinned bottom; a light band sweeps it every 4.5 s | the one thing to do next: "Lock in", "Next", "Skip", "Play again". Disabled = says what is missing |
+| Primary | `variant = "primary"` in the `ActionBar` | solid black marker (accent) face, board-colored Permanent Marker 20 label, 2 px black edge, 4 px `accentLip` shadow below; pinned bottom; a light band sweeps it every 4.5 s | the one thing to do next: "Lock in", "Next", "Skip", "Play again". Disabled = says what is missing |
 | Secondary | `variant = "secondary"` | raised face, 44 px, lit hairline, 3 px `raisedLip` | a real alternative: "+15 s", "Back to lobby", "Find match" |
 | Tertiary | `variant = "ghost"` | no fill, text color, 44 px | "More", "Why?", "Show all states", "Got it" |
 | Destructive | `variant = "danger"` | `loss` label and 1 px `loss` outline, no lip (attribute `Warn`) | "Cancel", "Clear", "Leave match" |
@@ -165,7 +167,7 @@ Labels: a verb or a noun, at most 8 words (`labelWords`), no numbers the player 
 - **Expander** (`UI/Collapsible`): a card-lit panel whose 44 px title row ("Why? +" / "Why? −") shows a details body. Collapsed by default unless it holds the screen's main decision.
 - **Sheet** (`UI/Sheet`): bottom sheet on a phone (with a 36 x 4 drag handle), centered panel (≤ 560 px) on wide screens that scales in from 0.96; radius 16, lit 1 px line, shadow, scrim 0.3, × to close. Never holds the primary action.
 - **Coach tip** (`UI/CoachTip`): §3.4. Raised, 2 px `muted` outline (its only stroke; white would read as selected), md padding, "Got it" a lipless secondary button; a positioned tip casts a shadow.
-- **Header** (`UI/Header`): title, short subtitle, sound button, `?` (both lipped icon buttons, 8 px apart), timer (Fredoka); `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 4 px rounded time bar under the title, stopping short of the buttons, with a glowing white (accent) dot at its end. The timer is white (accent), `loss` under 10 s (attribute `Warn`), with a pop and a "tick" each second under 5 s; the bar turns `loss` under 5 s.
+- **Header** (`UI/Header`): title, short subtitle, sound button, `?` (both lipped icon buttons, 8 px apart), timer (Patrick Hand); `now = true` adds the "what to do now" line; `setTimer(left, warn, total)` adds a 4 px rounded time bar under the title, stopping short of the buttons, with a black (accent) dot at its end. The timer is black (accent), `loss` under 10 s (attribute `Warn`), with a pop and a "tick" each second under 5 s; the bar turns `loss` under 5 s.
 - **Action bar** (`UI/ActionBar`): a lit `surface` plate ("Plate", decor) reaching 8 px past the bar left, right and up, with a shadow cast upward: the one persistent bottom bar. Status (left), opponent (right), secondary + primary. `bar:setProgress(fraction?)` shows the time left as a veil inside the primary; a primary that becomes a disabled "Locked in…" flashes and plays `lockIn`.
 - **Toast** (`UI/Toast`): raised, 2 px stroke (`loss` for a rejection, `muted` for a notice), shadow.
 
@@ -175,11 +177,11 @@ Every one is in the `00-kit` snap. Signatures in the header of `Kit.luau`.
 
 - `Kit.shadow(inst, { dy 4, spread 12, transparency 0.45 })`: a 9-slice soft shadow (`Assets.shadow`) as a sibling one ZIndex under `inst`, following its size, place, Visible and fade. Nil when `inst` has no parent or its parent lays children out.
 - `Kit.glow(parent, color, { scale, px, transparency 0.6, stretch })`: a radial glow (`Assets.glow`) centered in `parent` under its other children (ZIndex 0). Behind the map, a selected node, a stamp, the wordmark, the results banner, the 270 tick. Nil in a list or grid.
-- `Kit.stamp(text, color, { size })`: the big moments only (CALLED, 270!, You won / You lost, the debate headline). A plate of `color` tilted −6°, Fredoka label in its readable color with an outline, 2 px edge, glow; `Overhang`. `Motion.stamp` lands it from 1.6.
+- `Kit.stamp(text, color, { size })`: the big moments only (CALLED, 270!, You won / You lost, the debate headline). Marker writing boxed on the board (D-102): a light wash of `color` (0.86 transparent) tilted −6°, a 3 px marker outline in `color`, the word in Permanent Marker in its readable ink, no glow; `Overhang`. `Motion.stamp` lands it from 1.6.
 - `Kit.monogram(name, color, px)`: initials on a lit circle (gradient, darker edge, sheen): 24 on Select's color line, 36 in the color sheet and the Color Pass swatches (a color, not a face).
 - `Kit.portrait(id, name, px, { ring?, fade? })` (D-068): a candidate's illustrated bust on a round neutral plate, ringed in a player color when it is someone's: 56 on Select cards (40 on a phone; free candidates have no ring), 64 on Results, 44 in the election spotlight and the debate face-off, 32 in reveal heads, 24 on the strongholds card, 22 in the Campaign header (wide screens), 40 on How to play's first page. Initials on the plate until the image is uploaded.
 - `Kit.raceBar(parent, { h, mark, caption })`: the race to 270: a raised track, each player's segment from their end, the tick (3 px, overhanging 4 px each way) and an optional caption. `bar:set(l, r)`, `bar:setColors(l, r)`, `bar:cross()` (tick flash + glow pulse).
-- `Kit.wordmark(px?, props?, opts?)`: the game's lockup (D-064). "LANDSLIDE" in Fredoka (up to `px`, scaled down to fit a narrow column), lit from the top, 3 px slate `accentLip` outline, 6 px `line` drop, a soft white glow; under it, riding up over the name's foot, the tagline "RACE TO 270" on a ribbon tilted −3°, split Cobalt | Crimson (the two default player colors: the race), Fredoka at heading size with a navy outline and edge and a shadow. The ribbon carries attribute `Lockup`: its text size does not count toward the screen's four. `Kit.wordmarkHeight(px?, tagline?)` gives its height.
+- `Kit.wordmark(px?, props?, opts?)`: the game's lockup (D-064). "LANDSLIDE" in red marker (Permanent Marker in Crimson, up to `px`, scaled down to fit a narrow column; D-102), no glow or outline; under it a blue marker underline (Cobalt, 6 px, tilted −2°, drawn on with `Motion.drawOn`) and the tagline "RACE TO 270" in Patrick Hand ink. The ribbon carries attribute `Lockup`: its text size does not count toward the screen's four. `Kit.wordmarkHeight(px?, tagline?)` gives its height.
 - `Kit.iconPlate(name, px?)`: an icon in a round `field` plate (state-card actions, help rows, settings chips).
 - `Kit.eyebrow`, `Kit.bevel`, `Kit.paintPill`, `Kit.playerText`, `Kit.textColor`, `Kit.outer`: above.
 
@@ -487,11 +489,11 @@ phone                                   wide
 
 - Nodes never overlap their neighbours' labels: re-place the Northeast column (`Shared/UI/MapLayout.luau`) and put the EV number inside the node (two lines: code over number) instead of a badge at its corner.
 - One extra mark per node at most in any lens: Votes → number; Issues → two 3-letter codes, yours filled; Polls → one lead pill ("+3" in the leader's color; your poll and ground game go in the state sheet); Money → "$2.5".
-- The real map (D-070) replaces the circles once its images are uploaded: true state shapes tinted like the circles, navy borders, Northeast callout chips at the right edge, codes on each state's anchor, the lens value under the code where the state has 24 px of room. Selection, owner rings and moved states are outlines (white for the selection). Polls is the one lens with more than one mark: the lead, ▲ momentum in the leader's color, ground-game dots (yours filled, theirs hollow, only as your polls saw them) and a legend row under the map. Candidate pins (face, "You" or the rival's name) show in every lens. While you draft, the plan preview (D-071) puts a faint signed tag under each state the plan moves (green gain, orange loss with its minus) on top of every lens, and "Plan: 268 → 281 votes" under the map.
+- The real map (D-070) replaces the circles once its images are uploaded: true state shapes tinted like the circles, black marker borders (D-102: the scribbled fills and ink overlay, `Assets.mapStates1a`…`mapInk`), Northeast callout chips at the right edge, codes on each state's anchor, the lens value under the code where the state has 24 px of room. Selection, owner rings and moved states are outlines (a 4 px black marker outline for the selection, drawn over everything; D-102). Polls is the one lens with more than one mark: the lead, ▲ momentum in the leader's color, ground-game dots (yours filled, theirs hollow, only as your polls saw them) and a legend row under the map. Candidate pins (face, "You" or the rival's name) show in every lens. While you draft, the plan preview (D-071) puts a faint signed tag under each state the plan moves (green gain, orange loss with its minus) on top of every lens, and "Plan: 268 → 281 votes" under the map.
 - Reveal marks (resolve, debate, stances): flips are a 3 px outline in the new leader's color, the 5 biggest by votes with a ▲ (your way) or ▼ (away) tag; then the biggest moves; the rest get a soft glow. Never more than 8 tags on the map at once (`SwingMarks.LABELS`, D-079).
 - Labels (D-079): every state with a lens value wears one plate, its code then its value right after it ("PA 19", "PA +8 ▲ ●●", "PA [symbol]", "PA $$"), the same text size for every state on a map (14, else 13, else 12) at every size, chips and insets included; a plate that does not fit moves whole with a leader. In portrait the map stands up (1.1, the chips in two rows under the land). Pins are faces at rest, named in week 1 and when their state is selected. One bracket ties the chips to the coast; a chip's leader shows while it is selected. A "Close" chip fades the states more than 8 points from close.
 - Selection: the tapped state gets a 3 px accent ring and its card opens; tapping it again closes the card.
-- Front-page map (D-056): a navy stage glow behind the board; each node a lit token (a lip in its ring's color toward the background, a contact shadow, the circle 22 % see-through at the bottom over the lip); lens values on a `field` plate in Fredoka 14 with a hairline, a battleground "★13" outlined in `text` (no white fill: that means selected; the ★ drops on a circle under 40 px, the outline stays), Polls leads filled in the leader's color; map marks: badges filled in their color (a loss `loss` with `onLoss` text), FLIP a `field` tag with a 2 px edge in the new leader's color, a moved state an aura disc plus a soft bloom under every node; the selection (and any accent ring a screen sets) blooms in the accent, the selection's breathing. Glows and shadows live in the `Shadows` layer under the nodes, so they never tint a neighbour. On a map narrower than `MapLayout.PHONE_WIDTH` the drawn circle keeps its layout size inside its grown 36 px target.
+- Front-page map (D-056; on the whiteboard, D-102, the glows are a faint wash and the map is scribbled marker): a stage glow behind the board; each node a lit token (a lip in its ring's color toward the background, a contact shadow, the circle 22 % see-through at the bottom over the lip); lens values on a `field` plate in Fredoka 14 with a hairline, a battleground "★13" outlined in `text` (no white fill: that means selected; the ★ drops on a circle under 40 px, the outline stays), Polls leads filled in the leader's color; map marks: badges filled in their color (a loss `loss` with `onLoss` text), FLIP a `field` tag with a 2 px edge in the new leader's color, a moved state an aura disc plus a soft bloom under every node; the selection (and any accent ring a screen sets) blooms in the accent, the selection's breathing. Glows and shadows live in the `Shadows` layer under the nodes, so they never tint a neighbour. On a map narrower than `MapLayout.PHONE_WIDTH` the drawn circle keeps its layout size inside its grown 36 px target.
 
 ### 4.7 Reveal: resolve and debate (WP-C, inside Campaign)
 

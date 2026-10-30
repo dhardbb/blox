@@ -1439,3 +1439,15 @@ After uploading `assets/map/map-states-1a.png`, `map-states-2a.png`, `map-states
 5. Start a practice match. **Expect:** states colored in with marker scribble; your states' strokes slant one way (`/` for the first seat), your rival's the other (`\`); toss-ups blank board; leans lighter than safe states. Black wobbly marker lines for every border and the coast; Alaska and Hawaii outlined in their boxes.
 6. Turn on a greyscale filter (Mac: System Settings, Accessibility, Display, Color filters, Grayscale). **Expect:** who leads each state still reads from the slant alone.
 7. **Send back:** screenshots, and whether the scribble reads as marker or as a pattern.
+
+## Whiteboard look, every screen (D-102)
+
+The whole game as a whiteboard. Look in Studio at phone (Test → Device → an iPhone, upright), iPad (1024 x 768) and desktop (1280 x 720), and on a real phone if you can. Send back a screenshot of anything hard to read.
+
+1. Lobby. **Expect:** an off-white board; LANDSLIDE in red marker with a blue underline that draws itself in once; black "Play vs Bot" button; other buttons are pale magnets with a black outline; the Daily Race button is highlighter yellow with black writing; card shadows are faint (no grey smear).
+2. Tap Find match, then go back. **Expect:** each new screen arrives with an eraser wiping across it once (about half a second). Turn on Reduce motion (Settings) and repeat. **Expect:** no eraser, no underline drawing in.
+3. Start a practice match and play a week. **Expect:** coach tips and the week's event are yellow sticky notes; the map is scribbled marker (yours one slant, the rival's the other); state codes in marker capitals, numbers in a plain bold font; the side chips (VT, NH…) pale with black writing. **Send back:** any text you had to squint at.
+4. Debate, then Election night. **Expect:** stamps (CALLED, the verdict) are marker writing in a hand-drawn box, not glowing slabs; election night's calls are a hand-written TRACKER list under a TRACKER heading, each call in the winner's color over a thin line; the state just called is highlighter yellow.
+5. Results. **Expect:** LANDSLIDE / You won in a marker box; vote totals hand-lettered; no colored smudge behind the banner.
+6. Colorblind check: in Studio, take a screenshot of the Plan map and turn it grey (any photo app). **Expect:** your states and the rival's still tell apart by the slant of their scribble.
+7. Losses: find an orange number (a minus on the state card or a lost state). **Expect:** it is a dark burnt orange, readable on white, and always has a minus or arrow.
