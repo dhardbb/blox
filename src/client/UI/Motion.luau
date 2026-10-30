@@ -38,10 +38,12 @@
 --   Motion.shake(inst, px?, seconds?)                  ±4 px, 3 swings, 0.18 s (errors only)
 --   Motion.confetti(parent, colors, n?) -> Frame?      up to 60 pieces fall for 1.2 s
 --   Motion.typewriter(label, cps?) -> skip()           reveals text at 50 chars/s
+--   Motion.drawOn(inst, delay?)                        a marker line draws out to its width (0.35 s)
+--   Motion.erase(parent, board, felt) -> Frame?        an eraser wipes across a new screen (0.4 s)
 --
 -- Rules. Nothing waits on Tween.Completed while the player plans: every effect
 -- starts and returns at once, and input is never blocked. Decorative effects
--- (press, pop, ring, shake, confetti) do nothing under reduced motion.
+-- (press, pop, ring, shake, confetti, drawOn, erase) do nothing under reduced motion.
 -- Informational ones (tween, countTo, flash, typewriter) jump to their end
 -- state; enter and exit keep a 0.1 s fade with no slide. Without a
 -- TweenService (Motion.headless) everything lands on its end state at once.
@@ -683,6 +685,57 @@ local function fadeTargets(inst: Instance): { { inst: any, props: { [string]: nu
 		end
 	end
 	return out
+end
+
+Motion.DRAW_ON = 0.35 -- s, a marker line drawing itself out (D-102)
+Motion.ERASE = 0.4 -- s, the eraser wiping across a new screen (D-102)
+Motion.ERASER_W = 56 -- px, the eraser's felt block at the wipe's leading edge
+
+-- A line (an underline, a stroke) drawn on: its width grows from nothing to
+-- what it is now, once. Decorative.
+function Motion.drawOn(inst: GuiObject, delay: number?)
+	if Motion.headless or Motion.reduced() then
+		return
+	end
+	local size = inst.Size
+	inst.Size = UDim2.new(0, 0, size.Y.Scale, size.Y.Offset)
+	play(inst, { Size = size }, Motion.DRAW_ON, Motion.ease.out, nil, delay)
+end
+
+-- The board wiped clean as a new screen arrives: a panel in `board` with an
+-- eraser in `felt` at its leading edge slides off to the right, uncovering
+-- the screen under it, then goes. Decorative; input is never blocked (the
+-- panel takes no input and is gone in Motion.ERASE).
+function Motion.erase(parent: Instance, board: Color3, felt: Color3): Frame?
+	if Motion.headless or Motion.reduced() then
+		return nil
+	end
+	local wipe = Instance.new("Frame")
+	wipe.Name = "EraserWipe"
+	wipe.Size = UDim2.fromScale(1, 1)
+	wipe.BackgroundColor3 = board
+	wipe.BorderSizePixel = 0
+	wipe.Active = false
+	wipe.ZIndex = 1000
+	wipe:SetAttribute("Decor", true)
+	local eraser = Instance.new("Frame")
+	eraser.Name = "Eraser"
+	eraser.AnchorPoint = Vector2.new(0.5, 0.5)
+	eraser.Position = UDim2.fromScale(0, 0.5)
+	eraser.Size = UDim2.new(0, Motion.ERASER_W, 0.3, 0)
+	eraser.BackgroundColor3 = felt
+	eraser.BorderSizePixel = 0
+	eraser.ZIndex = 1001
+	eraser:SetAttribute("Decor", true)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = eraser
+	eraser.Parent = wipe
+	wipe.Parent = parent
+	play(wipe, { Position = UDim2.fromScale(1.05, 0) }, Motion.ERASE, Motion.ease.soft, function()
+		wipe:Destroy()
+	end)
+	return wipe
 end
 
 function Motion.stamp(inst: Instance, delay: number?)

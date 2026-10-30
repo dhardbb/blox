@@ -8,7 +8,8 @@
 -- and its UI: two live screens would share element names), and the new one
 -- fades in and slides up (Motion.enter) inside a CanvasGroup "ScreenFade" that
 -- exists only for the transition; when it ends the screen moves back under the
--- container. Under reduced motion it is a 0.1 s fade; headless, instant.
+-- container, while an eraser wipes across it (Motion.erase, D-102). Under
+-- reduced motion it is a 0.1 s fade with no eraser; headless, instant.
 --
 -- The tutorial (D-080) runs on its own short schedule (Config.tutorial): while
 -- a tutorial match is on screen, ctx.config is that config (so "Week 2 of 4",
@@ -22,6 +23,7 @@ local ConfigModule = require(ReplicatedStorage.Shared.Sim.Config)
 
 local Audit = require(script.Parent.UI.Audit)
 local CoachTip = require(script.Parent.UI.CoachTip)
+local Kit = require(script.Parent.UI.Kit)
 local Motion = require(script.Parent.UI.Motion)
 local Types = require(script.Parent.Screens.Types)
 
@@ -144,6 +146,8 @@ function Router.start(
 		frame.Parent = group
 		fade = group
 		Motion.enter(group, Motion.ENTER_DY)
+		-- The board wiped clean as the new screen arrives (D-102; off under reduced motion).
+		Motion.erase(container, Kit.colors.background, Kit.colors.muted)
 		task.delay(if Motion.reduced() then Motion.REDUCED_FADE else Motion.t.enter, function()
 			if fade == group then
 				if frame.Parent == group then

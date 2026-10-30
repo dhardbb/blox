@@ -83,30 +83,42 @@ describe("Reduced motion", function()
 		Rig.noErrors(world)
 	end)
 
-	it("drops the front-page effects: stamp, shine, breathe, pulse (D-056)", function()
-		local world, peer = Rig.fixture("Select", nil, { reducedMotion = true })
-		local Kit = load(world, peer, "src/client/UI/Kit.luau")
-		local Motion = load(world, peer, "src/client/UI/Motion.luau")
-		world.current = peer
-		local stage = Kit.box({ Name = "Stage", Parent = Kit.new("ScreenGui", { Name = "TestGui" }) })
-		local button = Kit.button("Go", function() end, { variant = "primary", Parent = stage })
-		local stamp = Kit.stamp("CALLED", Kit.colors.accent, { Parent = stage })
-		Motion.stamp(stamp)
-		local stopShine = Motion.shine(button)
-		local glow = Kit.glow(stage, Kit.colors.accent, { transparency = 0.65 })
-		local stopBreathe = Motion.breathe(glow, "ImageTransparency", 0.65, 0.72, 2.4)
-		Motion.pulseOnce(button)
-		world.current = nil
-		FakeRoblox.run(world, 0.5)
-		check(stamp:FindFirstChild("MotionScale") == nil, "a stamp scaled under reduced motion")
-		check((stamp:FindFirstChild("Label", true).TextTransparency or 0) == 0, "a stamp must still show")
-		check(button:FindFirstChild("Shine") == nil, "a shine under reduced motion")
-		expect(glow.ImageTransparency):toBe(0.65)
-		check(button:FindFirstChild("MotionScale") == nil, "a pulse under reduced motion")
-		stopShine()
-		stopBreathe()
-		Rig.noErrors(world)
-	end)
+	it(
+		"drops the front-page effects: stamp, shine, breathe, pulse, draw-on, eraser (D-056, D-102)",
+		function()
+			local world, peer = Rig.fixture("Select", nil, { reducedMotion = true })
+			local Kit = load(world, peer, "src/client/UI/Kit.luau")
+			local Motion = load(world, peer, "src/client/UI/Motion.luau")
+			world.current = peer
+			local stage = Kit.box({ Name = "Stage", Parent = Kit.new("ScreenGui", { Name = "TestGui" }) })
+			local button = Kit.button("Go", function() end, { variant = "primary", Parent = stage })
+			local stamp = Kit.stamp("CALLED", Kit.colors.accent, { Parent = stage })
+			Motion.stamp(stamp)
+			local stopShine = Motion.shine(button)
+			local glow = Kit.glow(stage, Kit.colors.accent, { transparency = 0.65 })
+			local stopBreathe = Motion.breathe(glow, "ImageTransparency", 0.65, 0.72, 2.4)
+			Motion.pulseOnce(button)
+			local line =
+				Kit.box({ Name = "Line", Size = FakeRoblox.types.UDim2.new(0, 120, 0, 6), Parent = stage })
+			Motion.drawOn(line)
+			local wipe = Motion.erase(stage, Kit.colors.background, Kit.colors.muted)
+			world.current = nil
+			FakeRoblox.run(world, 0.5)
+			check(stamp:FindFirstChild("MotionScale") == nil, "a stamp scaled under reduced motion")
+			check((stamp:FindFirstChild("Label", true).TextTransparency or 0) == 0, "a stamp must still show")
+			check(button:FindFirstChild("Shine") == nil, "a shine under reduced motion")
+			expect(glow.ImageTransparency):toBe(0.65)
+			check(button:FindFirstChild("MotionScale") == nil, "a pulse under reduced motion")
+			expect(line.Size.X.Offset):toBe(120) -- no draw-on (D-102)
+			check(
+				wipe == nil and stage:FindFirstChild("EraserWipe") == nil,
+				"an eraser wipe under reduced motion"
+			)
+			stopShine()
+			stopBreathe()
+			Rig.noErrors(world)
+		end
+	)
 
 	it("lands the informational effects on their end state at once", function()
 		local world, peer = Rig.fixture("Select", nil, { reducedMotion = true })

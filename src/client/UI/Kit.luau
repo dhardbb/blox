@@ -1556,6 +1556,7 @@ local RIBBON_TILT = -2 -- degrees: a hand-drawn underline is never level
 local RIBBON_OVERLAP = 12 -- px the ribbon rides up over the name's (empty) foot
 local RIBBON_SLACK = 6 -- px under the ribbon: room for its tilt and shadow
 local UNDERLINE_PX = 6 -- px, the blue marker stroke under the wordmark (D-102)
+local UNDERLINE_DELAY = 0.15 -- s before the underline draws itself on
 local ICON_PLATE = 24 -- px, an icon plate's default size
 
 -- Whether `parent` lays its children out (a list or a grid moves every child).
@@ -2248,6 +2249,7 @@ function Kit.wordmark(px: number?, props: { [string]: any }?, opts: { tagline: b
 	}))
 	underline:SetAttribute("Decor", true)
 	Kit.corner(UNDERLINE_PX).Parent = underline
+	Motion.drawOn(underline, UNDERLINE_DELAY)
 	Kit.text(text, {
 		Name = "Tagline",
 		Position = UDim2.fromOffset(0, UNDERLINE_PX),
