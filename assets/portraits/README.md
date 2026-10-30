@@ -17,6 +17,16 @@ One 512x512 PNG per candidate in `src/shared/Sim/Candidates.luau`, named by cand
 
 `sheet.png` is for people only; it is not uploaded.
 
+## The whiteboard look: photos taped up at run time
+
+The whiteboard restyle (`docs/proposals/whiteboard.md`) keeps these images unchanged; there is nothing to re-upload. `UI/Board.photo(face, px, { tilt = ... })` puts a face in a white instant-photo card (7% border, a thicker chin), turns it a few degrees and tapes it on with `assets/ui/tape.png`. We picked that over baking a polaroid into new PNGs because, at the sizes the game shows faces (48 to 96 px):
+
+- the face stays big: a baked polaroid with its tilt and tape fits a 512 image only at about 65% of the width, so a 64 px slot would show a 40 px face; at run time the card is the slot and the face fills 86% of it;
+- each photo can lean its own way (a row of eight identical tilts looks printed, not taped), and the card's border and tilt can be tuned in code without new uploads;
+- the 8 uploaded ids keep working, and the tape is the only new image (shared with every other taped thing).
+
+The cost is a few more GuiObjects per face, and a rotated frame can't clip its children (Roblox's `Rotation` ignores `ClipsDescendants`), so the card relies on none. `python3 assets/portraits/make.py --photos PATH` writes a review sheet: each face as `Board.photo` draws it at 48, 72 and 96 px, and the baked alternative below it.
+
 ## Uploading
 
 Upload each PNG as an image (Studio MCP `upload_image`, or Creator Hub: Create, Development items, Images), then put each number in `src/client/UI/Assets.luau` under `portraits`:

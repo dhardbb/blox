@@ -1,34 +1,34 @@
-"""Draws the experience page art: the icon (three variants) and the thumbnails.
+"""Draws the experience page art in the whiteboard look: the icon (three
+variants) and the four thumbnails (docs/proposals/whiteboard.md).
 
 Run from the repository root:  python3 assets/promo/make.py [--sheet PATH]
-Needs Pillow 11 (PIL). On a Mac it also uses `lune` (tests/ui/snap.luau) and
-`qlmanage` for the gameplay thumbnails: they are the game's own headless UI
-snapshots (desktop, 1280x720), rendered again at 2x so they stay sharp, with
-the snapshot-only marks (the Roblox top-bar stand-ins and the "+N px below"
-scroll markers) taken out. Nothing is downloaded.
+Needs Pillow 11 (PIL). Everything is drawn here; nothing is downloaded and
+no snapshot is taken. Run assets/ui/make.py and assets/icons/make.py first:
+this reads their PNGs (the board, sticky note, magnet, tape, circle and the
+marker icons) as well as the portraits (assets/portraits/<id>.png) and the
+real map's shapes and marker ink from scripts/mapgen (states colored in with
+the game's own scribble, slanted / for blue and \\ for red like the seats).
 
 Writes, next to this script:
   icon-map.png, icon-faceoff.png, icon-stamp.png   512x512 icon variants
   icon.png                                         the recommended one (a copy)
-  thumb-1-hero.png      the two candidates over an election-night map
-  thumb-2-campaign.png  a real campaign week, "Race to 270 in 12 weeks"
-  thumb-3-debate.png    a real debate round, "Live debates"
-  thumb-4-landslide.png the win: "Win by a LANDSLIDE"
+  thumb-1-hero.png      the two candidates taped up either side of the map
+  thumb-2-campaign.png  the week's plan on sticky notes, "Race to 270 in 12 weeks"
+  thumb-3-debate.png    a debate round on the board, "Win the live debates"
+  thumb-4-landslide.png the win: the map gone blue, "Win by a LANDSLIDE"
 --sheet PATH also writes a contact sheet: every icon at 512, 150 and 50 px and
 every thumbnail at full width and at Home-page card size.
 
 Roblox's rules (create.roblox.com, checked Oct 24, 2026): icon square, at
 least 512x512, shown as small as about 150x150; thumbnails 16:9, 1920x1080,
-PNG or JPG, under 3 MB for Home-page uploads, up to 10, keep nothing that
-matters at the bottom (the player count covers it). Everything here is
-fictional: the two candidates are the game's own (assets/portraits), the map
-is the game's map with a made-up result, and the only words are the game's.
+PNG or JPG, under 3 MB, keep nothing that matters at the bottom (the player
+count covers it). Everything is fictional: the candidates are the game's own,
+the map shows a made-up result, the issue is one of the game's neutral eight,
+and the only words are the game's.
 
-The palette is copied from src/shared/UI/Colors.luau and the wordmark follows
-Kit.wordmark (D-064): keep them in sync. Fonts: Fredoka One (the game's
-display face, SIL OFL) and Builder Sans, read from the Roblox Studio app (or
-assets/promo/fonts/ if someone drops them there); without them the script
-falls back to Arial Rounded Bold and Helvetica.
+Fonts (in tests/lib/fonts; Permanent Marker is Apache 2.0, Patrick Hand SIL OFL): Permanent Marker for the wordmark and
+headings, Patrick Hand for hand-lettered labels (the game's two whiteboard
+fonts). Colors copy src/shared/UI/Colors.luau (keep in sync).
 """
 
 from __future__ import annotations
@@ -37,309 +37,270 @@ import importlib.util
 import math
 import os
 import random
-import re
 import shutil
-import subprocess
 import sys
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
-WORK = os.path.join(ROOT, "build", "promo")  # scratch (gitignored)
+UI = os.path.join(ROOT, "assets", "ui")
+sys.path.insert(0, UI)
+
+import marker  # noqa: E402  (assets/ui/marker.py)
 
 # ---------------------------------------------------------------- palette
 # From src/shared/UI/Colors.luau (keep in sync).
-BACKGROUND = (11, 16, 34)
-FIELD = (16, 23, 44)
-SURFACE = (22, 30, 55)
-SURFACE_TOP = (29, 38, 68)
-RAISED = (36, 47, 80)
-RAISED_TOP = (44, 56, 93)
-LINE = (68, 81, 124)
-TEXT = (240, 243, 250)
-MUTED = (156, 168, 204)
-ACCENT_EDGE = (196, 204, 224)
-ACCENT_LIP = (110, 122, 158)
-NEUTRAL = (70, 78, 104)
-GOOD = (80, 212, 96)
-GOOD_EDGE = (50, 140, 66)
-GLOW = (40, 60, 136)
-COBALT = (34, 98, 228)
-CRIMSON = (212, 28, 66)
-WORDMARK_BOTTOM = (232, 236, 248)  # Kit WORDMARK_BOTTOM
-PLATE_TOP = (104, 118, 156)  # Kit.portrait's plate
-PLATE_BOTTOM = (66, 76, 108)
+BOARD = (243, 241, 234)  # background
+CARD = (255, 254, 250)  # surfaceTop: photo paper
+RAISED = (236, 232, 222)  # raised: behind a face
+LINE = (143, 139, 128)  # line
+INK = (29, 29, 31)  # text: black marker
+MUTED = (87, 84, 76)  # pencil grey
+STICKY = (255, 242, 168)  # sticky
+HIGHLIGHT = (255, 227, 71)  # highlighter
+BLUE = (31, 91, 208)  # Cobalt
+RED = (200, 20, 70)  # Crimson
+NOTE_BLUE = (205, 228, 255)  # a second sticky color (promo only)
+NOTE_GREEN = (214, 240, 200)  # a third (promo only)
+NOTE_PINK = (255, 214, 226)  # a fourth (promo only)
 
-BLUE, RED = COBALT, CRIMSON  # the two default player colors (D-055)
+NAMES = {"okafor": "Goldie", "calloway": "Buster", "hale": "Percy", "venkat": "Mavis"}  # display first names
 
-
-def tint(base, color, t):
-    return tuple(int(round(b + (c - b) * t)) for b, c in zip(base, color))
-
-
-def band(color, share):
-    """Colors.bandFill: neutral, then 60 / 82 / 100 % of the leader's color."""
-    return tint(NEUTRAL, color, share)
-
-
-def lighter(color, t):
-    return tint(color, (255, 255, 255), t)
-
-
-def darker(color, t):
-    return tint(color, (0, 0, 0), t)
-
-
-# ---------------------------------------------------------------- fonts
-
-STUDIO_FONTS = "/Applications/RobloxStudio.app/Contents/Resources/content/fonts"
-FONT_FILES = {
-    "display": [
-        os.path.join(HERE, "fonts", "FredokaOne-Regular.ttf"),
-        os.path.join(STUDIO_FONTS, "FredokaOne-Regular.ttf"),
-        "/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf",
-    ],
-    "bold": [
-        os.path.join(HERE, "fonts", "BuilderSans-ExtraBold.otf"),
-        os.path.join(STUDIO_FONTS, "BuilderSans-ExtraBold.otf"),
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    ],
-}
-_fonts: dict = {}
+FONT_DIR = os.path.join(ROOT, "tests", "lib", "fonts")
+FONT_FILES = {"marker": "PermanentMarker-Regular.ttf", "hand": "PatrickHand-Regular.ttf"}
 
 
 def font(kind: str, px: float) -> ImageFont.FreeTypeFont:
-    key = (kind, int(px))
-    if key not in _fonts:
-        for path in FONT_FILES[kind]:
-            if os.path.exists(path):
-                _fonts[key] = ImageFont.truetype(path, int(px))
-                break
-        else:
-            raise SystemExit(f"no font for {kind}: tried {FONT_FILES[kind]}")
-    return _fonts[key]
+    return ImageFont.truetype(os.path.join(FONT_DIR, FONT_FILES[kind]), max(1, int(px)))
 
 
-def font_used(kind: str) -> str:
-    return next(p for p in FONT_FILES[kind] if os.path.exists(p))
+def tint(base, color, t):
+    return tuple(round(b + (c - b) * t) for b, c in zip(base, color))
 
 
-# ---------------------------------------------------------------- basics
+# ---------------------------------------------------------------- image helpers
 
 
-def solid(size, color, alpha=255):
-    return Image.new("RGBA", size, tuple(color) + (alpha,))
+def load(path: str) -> Image.Image:
+    return Image.open(path).convert("RGBA")
 
 
-def vgrad(size, top, bottom):
-    w, h = size
-    g = Image.linear_gradient("L").resize((max(1, w), max(1, h)))
-    return Image.composite(solid(size, bottom), solid(size, top), g)
-
-
-def with_alpha(img: Image.Image, mask: Image.Image) -> Image.Image:
-    out = img.copy()
-    out.putalpha(ImageChops.multiply(img.getchannel("A"), mask))
+def colored(img: Image.Image, color) -> Image.Image:
+    """`img` multiplied by `color` (ImageColor3), alpha kept."""
+    rgb = ImageChops.multiply(img.convert("RGB"), Image.new("RGB", img.size, tuple(color)))
+    out = rgb.convert("RGBA")
+    out.putalpha(img.getchannel("A"))
     return out
 
 
-def scale_alpha(img: Image.Image, k: float) -> Image.Image:
-    out = img.copy()
-    out.putalpha(img.getchannel("A").point(lambda v: int(v * k)))
+def solid(mask: Image.Image, color, alpha=1.0) -> Image.Image:
+    out = Image.new("RGBA", mask.size, tuple(color) + (0,))
+    out.putalpha(mask.point(lambda v: int(v * alpha)) if alpha != 1.0 else mask)
     return out
 
 
-def colored(mask: Image.Image, color, alpha=1.0) -> Image.Image:
-    """A layer of `color` shaped by the L mask."""
-    layer = solid(mask.size, color)
-    layer.putalpha(mask.point(lambda v: int(v * alpha)) if alpha < 1 else mask)
-    return layer
-
-
-def radial(size, center, radius, color, alpha):
-    """A soft round glow (alpha at the center, fading to 0 at `radius`)."""
-    layer = Image.new("RGBA", size, (0, 0, 0, 0))
-    d = int(radius * 2)
-    if d < 2:
-        return layer
-    # PIL's radial gradient is 0 at the center and 255 in the corners (181 at
-    # the middle of each edge): rescale so the glow ends inside the square.
-    g = Image.radial_gradient("L").resize((d, d))
-    a = g.point(lambda v: int(max(0.0, 1 - v / 180) ** 1.6 * 255 * alpha))
-    blob = solid((d, d), color)
-    blob.putalpha(a)
-    layer.alpha_composite(blob, (int(center[0] - radius), int(center[1] - radius)))
-    return layer
-
-
-def paste(base: Image.Image, img: Image.Image, center, anchor=(0.5, 0.5)):
-    x = int(round(center[0] - img.width * anchor[0]))
-    y = int(round(center[1] - img.height * anchor[1]))
-    base.alpha_composite(img, (x, y)) if x >= 0 and y >= 0 else _paste_clip(base, img, x, y)
-
-
-def _paste_clip(base, img, x, y):
+def paste(base: Image.Image, img: Image.Image, at, anchor=(0.5, 0.5)):
+    x = int(round(at[0] - img.width * anchor[0]))
+    y = int(round(at[1] - img.height * anchor[1]))
     layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
     layer.paste(img, (x, y))
     base.alpha_composite(layer)
 
 
-def shadow_of(img: Image.Image, blur, alpha, color=(0, 0, 0), grow=0) -> Image.Image:
-    pad = int(blur * 3 + grow)
-    a = img.getchannel("A")
-    canvas = Image.new("L", (img.width + 2 * pad, img.height + 2 * pad), 0)
-    canvas.paste(a, (pad, pad))
-    if grow:
-        canvas = canvas.filter(ImageFilter.MaxFilter(int(grow) * 2 + 1))
-    canvas = canvas.filter(ImageFilter.GaussianBlur(blur))
-    return colored(canvas, color, alpha)
+def shadow(img: Image.Image, blur: float, alpha: float, dx=0.0, dy=0.0) -> Image.Image:
+    pad = int(blur * 3)
+    out = Image.new("RGBA", (img.width + 2 * pad, img.height + 2 * pad), (0, 0, 0, 0))
+    mask = Image.new("L", out.size, 0)
+    mask.paste(img.getchannel("A"), (pad + int(dx), pad + int(dy)))
+    mask = mask.filter(ImageFilter.GaussianBlur(blur)).point(lambda v: int(v * alpha))
+    out.putalpha(mask)
+    return out
 
 
-def rounded(size, radius, fill) -> Image.Image:
-    img = Image.new("RGBA", size, (0, 0, 0, 0))
-    ImageDraw.Draw(img).rounded_rectangle((0, 0, size[0] - 1, size[1] - 1), radius=radius, fill=tuple(fill) + (255,))
-    return img
+def with_shadow(img: Image.Image, blur: float, alpha: float, dx: float, dy: float) -> Image.Image:
+    sh = shadow(img, blur, alpha, dx, dy)
+    pad = (sh.width - img.width) // 2
+    sh.alpha_composite(img, (pad, pad))
+    return sh
 
 
-def rounded_mask(size, radius) -> Image.Image:
-    m = Image.new("L", size, 0)
-    ImageDraw.Draw(m).rounded_rectangle((0, 0, size[0] - 1, size[1] - 1), radius=radius, fill=255)
-    return m
+def rotated(img: Image.Image, degrees: float) -> Image.Image:
+    return img.rotate(degrees, expand=True, resample=Image.Resampling.BICUBIC)
 
 
-def finish(img: Image.Image, size) -> Image.Image:
-    """Down to the shipped size (the supersampled drawing gives clean edges)."""
-    return img.resize(size, Image.Resampling.LANCZOS)
-
-
-# ---------------------------------------------------------------- type
-
-
-def text_mask(text: str, f: ImageFont.FreeTypeFont, stroke=0) -> Image.Image:
-    """The text (with an outer stroke of `stroke` px) as an L mask, tightly cropped
-    to the font's line box so different words line up."""
-    asc, desc = f.getmetrics()
-    w = int(f.getlength(text)) + 2 * stroke + 4
-    h = asc + desc + 2 * stroke
-    m = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(m).text((stroke + 2, stroke), text, font=f, fill=255, stroke_width=stroke, stroke_fill=255)
-    return m
-
-
-def label(text, kind, px, color, outline=0, outline_color=BACKGROUND, shadow=0) -> Image.Image:
-    """Plain display text, optionally outlined and with a drop shadow."""
-    f = font(kind, px)
-    pad = outline + shadow * 3
-    fill = text_mask(text, f, outline)
-    img = Image.new("RGBA", (fill.width + 2 * pad, fill.height + 2 * pad + shadow), (0, 0, 0, 0))
-    if shadow:
-        sh = Image.new("L", img.size, 0)
-        sh.paste(fill if outline else text_mask(text, f, 0), (pad, pad + shadow))
-        img.alpha_composite(colored(sh.filter(ImageFilter.GaussianBlur(shadow)), (0, 0, 0), 0.55))
-    if outline:
-        img.alpha_composite(colored(_place(fill, img.size, pad), outline_color))
-    inner = text_mask(text, f, 0)
-    m = Image.new("L", img.size, 0)
-    m.paste(inner, (pad + outline, pad + outline))
-    img.alpha_composite(colored(m, color))
-    return img
-
-
-def _place(mask, size, at):
-    m = Image.new("L", size, 0)
-    m.paste(mask, (at, at))
-    return m
-
-
-def trim(img: Image.Image, pad=0) -> Image.Image:
+def trim(img: Image.Image) -> Image.Image:
     box = img.getchannel("A").getbbox()
-    if not box:
-        return img
-    x0, y0, x1, y1 = box
-    return img.crop((max(0, x0 - pad), max(0, y0 - pad), min(img.width, x1 + pad), min(img.height, y1 + pad)))
+    return img.crop(box) if box else img
 
 
-def wordmark(px: float, tagline=True, ribbon_scale=0.34, glow=True) -> Image.Image:
-    """Kit.wordmark drawn large: "LANDSLIDE" in Fredoka One, lit from the top
-    (text -> WORDMARK_BOTTOM), an accentLip outline, a `line` drop under it and a
-    soft white glow; the "RACE TO 270" ribbon split Cobalt | Crimson, tilted -3°."""
-    f = font("display", px)
-    stroke = max(2, int(px * 0.055))
-    drop = max(3, int(px * 0.085))
-    outer = text_mask("LANDSLIDE", f, stroke)
-    inner = text_mask("LANDSLIDE", f, 0)
-    pad = int(px * 0.9)
-    W = outer.width + 2 * pad
-    H = outer.height + drop + 2 * pad + (int(px * 0.6) if tagline else 0)
-    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ox, oy = pad, pad
-    if glow:
-        # An oval glow that fades out inside the canvas (no hard edge when trimmed).
-        oval = radial((H, H), (H / 2, H / 2), H / 2, (255, 255, 255), 0.18).resize((W, H), Image.Resampling.BICUBIC)
-        img.alpha_composite(oval)
-    # The drop: the whole outlined word again, `drop` px lower, in `line`.
-    img.alpha_composite(colored(_at(outer, (W, H), ox, oy + drop), LINE))
-    img.alpha_composite(colored(_at(outer, (W, H), ox, oy), ACCENT_LIP))
-    face = vgrad((W, H), TEXT, TEXT)
-    asc, _ = f.getmetrics()
-    lit = vgrad((W, int(asc * 0.9)), TEXT, WORDMARK_BOTTOM)
-    face.paste(lit, (0, oy + stroke))
-    face.paste(solid((W, H), WORDMARK_BOTTOM).crop((0, 0, W, H - (oy + stroke + lit.height))), (0, oy + stroke + lit.height))
-    img.alpha_composite(with_alpha(face, _at(inner, (W, H), ox + stroke, oy + stroke)))
-    if tagline:
-        rib = ribbon("RACE TO 270", px * ribbon_scale)
-        cy = oy + asc * 1.02 + stroke + rib.height * 0.3
-        sh = shadow_of(rib, px * 0.05, 0.5)
-        paste(img, sh, (W / 2, cy + px * 0.05))
-        paste(img, rib, (W / 2, cy))
-    return trim(img, int(px * 0.05))
+def board(w: int, h: int, scale: float) -> Image.Image:
+    """The board texture (assets/ui/board.png) tiled at `scale`, with a soft
+    light from the upper left so it reads as a real surface."""
+    tile = load(os.path.join(UI, "board.png")).convert("RGB")
+    n = max(1, int(round(512 * scale)))
+    tile = tile.resize((n, n), Image.Resampling.LANCZOS)
+    out = Image.new("RGB", (w, h))
+    for x in range(0, w, n):
+        for y in range(0, h, n):
+            out.paste(tile, (x, y))
+    light = Image.radial_gradient("L").resize((w * 2, h * 2)).crop((int(w * 0.6), int(h * 0.6), int(w * 1.6), int(h * 1.6)))
+    shade = Image.new("RGB", (w, h), (205, 200, 188))
+    out = Image.composite(shade, out, light.point(lambda v: int(v * 0.10)))
+    return out.convert("RGBA")
 
 
-def _at(mask, size, x, y):
-    m = Image.new("L", size, 0)
-    m.paste(mask, (int(x), int(y)))
-    return m
+# ---------------------------------------------------------------- marker drawing
 
 
-def ribbon(text: str, px: float, tilt=3.0, left=BLUE, right=RED) -> Image.Image:
-    """The tagline ribbon: a rounded plate split left | right, a navy edge,
-    white Fredoka with a navy outline (Kit.wordmark's Ribbon)."""
-    f = font("display", px)
-    edge = max(2, int(px * 0.1))
-    tw = f.getlength(text)
-    asc, desc = f.getmetrics()
-    w = int(tw + px * 1.5)
-    h = int(px * 1.55)
-    r = int(px * 0.4)
-    plate = Image.new("RGBA", (w + 2 * edge, h + 2 * edge), (0, 0, 0, 0))
-    plate.alpha_composite(rounded(plate.size, r + edge, BACKGROUND))
-    face = Image.new("RGBA", (w, h))
-    face.paste(vgrad((w // 2, h), lighter(left, 0.12), darker(left, 0.1)), (0, 0))
-    face.paste(vgrad((w - w // 2, h), lighter(right, 0.12), darker(right, 0.1)), (w // 2, 0))
-    plate.alpha_composite(with_alpha(face, rounded_mask((w, h), r)), (edge, edge))
-    t = label(text, "display", px, TEXT, outline=max(2, int(px * 0.07)), outline_color=BACKGROUND)
-    # Center the glyphs' cap height in the plate.
-    paste(plate, t, (plate.width / 2, plate.height / 2 + (desc - (asc - px * 0.72)) * 0.0 + px * 0.06))
-    return plate.rotate(tilt, resample=Image.Resampling.BICUBIC, expand=True)
+def text(s: str, kind: str, px: float, color, tilt: float = 0.0) -> Image.Image:
+    f = font(kind, px)
+    x0, y0, x1, y1 = f.getbbox(s)
+    pad = int(px * 0.2)
+    img = Image.new("RGBA", (x1 - x0 + 2 * pad, y1 - y0 + 2 * pad), tuple(color) + (0,))
+    ImageDraw.Draw(img).text((pad - x0, pad - y0), s, font=f, fill=tuple(color) + (255,))
+    return trim(rotated(img, tilt)) if tilt else trim(img)
 
 
-def stamp(text: str, color, px: float, tilt=6.0, text_color=TEXT) -> Image.Image:
-    """Kit.stamp: a plate in `color`, an edge a little darker, Fredoka text with
-    an outline in the edge color, tilted -6°."""
-    f = font("display", px)
-    edge_c = darker(color, 0.3)
-    edge = max(3, int(px * 0.07))
-    tw = f.getlength(text)
-    w = int(tw + px * 0.9)
-    h = int(px * 1.35)
-    r = int(px * 0.28)
-    plate = Image.new("RGBA", (w + 2 * edge, h + 2 * edge), (0, 0, 0, 0))
-    plate.alpha_composite(rounded(plate.size, r + edge, edge_c))
-    plate.alpha_composite(with_alpha(vgrad((w, h), lighter(color, 0.14), darker(color, 0.08)), rounded_mask((w, h), r)), (edge, edge))
-    t = label(text, "display", px, text_color, outline=max(2, int(px * 0.05)), outline_color=edge_c)
-    paste(plate, t, (plate.width / 2, plate.height / 2 + px * 0.04))
-    return plate.rotate(tilt, resample=Image.Resampling.BICUBIC, expand=True)
+def line_img(size, pts, width, color, seed, amp=None, taper=0.4) -> Image.Image:
+    rng = random.Random(seed)
+    mask = Image.new("L", size, 0)
+    path = marker.wobble(pts, rng, amp if amp is not None else width * 0.25, width * 8)
+    marker.stroke(ImageDraw.Draw(mask), path, width, 255, taper=taper)
+    return solid(mask, color)
+
+
+def underline(w: float, width: float, color, seed: str, rise=0.06) -> Image.Image:
+    """A fast marker swoosh `w` long, rising a little to the right."""
+    h = int(w * rise + width * 4)
+    pts = [(width * 2, h - width * 2), (w * 0.5, h - width * 2 - w * rise * 0.35), (w - width * 2, width * 2)]
+    pts = marker.resample(pts, width * 0.5)
+    return line_img((int(w), h), pts, width, color, seed, amp=width * 0.15, taper=0.7)
+
+
+def arrow(size, pts, width, color, seed) -> Image.Image:
+    """A hand-drawn arrow along `pts` with an open head at the end."""
+    img = line_img(size, marker.resample(pts, width * 0.5), width, color, seed, taper=0.2)
+    (ax, ay), (bx, by) = pts[-2], pts[-1]
+    a = math.atan2(by - ay, bx - ax)
+    d = ImageDraw.Draw(img)
+    for turn in (2.55, -2.55):
+        tip = (bx + math.cos(a + turn) * width * 5, by + math.sin(a + turn) * width * 5)
+        marker.stroke(d, marker.resample([(bx, by), tip], width * 0.5), width, tuple(color) + (255,), taper=0.3)
+    return img
+
+
+def circled(w: int, h: int, color) -> Image.Image:
+    """scribble-circle.png stretched to w x h and tinted."""
+    return colored(load(os.path.join(UI, "scribble-circle.png")).resize((w, h), Image.Resampling.LANCZOS), color)
+
+
+def highlight(w: int, h: int, seed: str) -> Image.Image:
+    """A highlighter band: flat, translucent yellow, slightly uneven ends."""
+    rng = random.Random(seed)
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).polygon(
+        [(rng.uniform(0, h * 0.3), 0), (w - rng.uniform(0, h * 0.3), rng.uniform(0, h * 0.1)), (w - rng.uniform(0, h * 0.2), h), (rng.uniform(0, h * 0.2), h - rng.uniform(0, h * 0.1))],
+        fill=200,
+    )
+    return solid(mask, HIGHLIGHT)
+
+
+def wordmark(px: float, tagline: bool = True) -> Image.Image:
+    """LANDSLIDE in red marker, a blue swoosh under it, and "RACE TO 270"
+    hand-lettered under the swoosh's right end."""
+    word = text("LANDSLIDE", "marker", px, RED)
+    swoosh = underline(word.width * 1.02, px * 0.11, BLUE, "wordmark-underline")
+    tag = text("RACE TO 270", "hand", px * 0.42, INK) if tagline else None
+    w = int(word.width * 1.06)
+    sy = int(word.height * 0.98 - swoosh.height * 0.35)  # the swoosh's top
+    ty = int(word.height + px * 0.12)  # the tagline's top: just under the swoosh's right end
+    h = max(sy + swoosh.height, ty + (tag.height if tag else 0))
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.alpha_composite(word, ((w - word.width) // 2, 0))
+    out.alpha_composite(swoosh, ((w - swoosh.width) // 2, sy))
+    if tag:
+        out.alpha_composite(tag, (w - tag.width - int(px * 0.15), ty))
+    return trim(out)
+
+
+# ---------------------------------------------------------------- props
+
+
+def nine_slice(img: Image.Image, center, w: int, h: int, scale: float) -> Image.Image:
+    """A PIL 9-slice like ImageLabel ScaleType.Slice with SliceScale `scale`."""
+    l, t, r, b = center
+    iw, ih = img.size
+    cols = [(0, l), (l, r), (r, iw)]
+    rows = [(0, t), (t, b), (b, ih)]
+    out_cols = [int(l * scale), w - int(l * scale) - int((iw - r) * scale), int((iw - r) * scale)]
+    out_rows = [int(t * scale), h - int(t * scale) - int((ih - b) * scale), int((ih - b) * scale)]
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    y = 0
+    for (y0, y1), oh in zip(rows, out_rows):
+        x = 0
+        for (x0, x1), ow in zip(cols, out_cols):
+            if ow > 0 and oh > 0:
+                out.paste(img.crop((x0, y0, x1, y1)).resize((ow, oh), Image.Resampling.LANCZOS), (x, y))
+            x += ow
+        y += oh
+    return out
+
+
+def sticky(w: int, h: int, color, lines=(), px: float = 0, tilt: float = 0.0, ink=INK, kind="hand") -> Image.Image:
+    """A sticky note (assets/ui/sticky.png, tinted) w x h of paper, with
+    hand-lettered `lines`, turned `tilt` degrees."""
+    s = h / 112 * 0.6  # the slice's corners grow with the note
+    pad_l, pad_t, pad_r, pad_b = 4 * s, 4 * s, 12 * s, 12 * s
+    note = nine_slice(load(os.path.join(UI, "sticky.png")), (32, 32, 88, 88), int(w + pad_l + pad_r), int(h + pad_t + pad_b), s)
+    note = colored(note, color)
+    if lines:
+        size = px or h * 0.22
+        imgs = [text(line, kind, size, ink) for line in lines]
+        gap = size * 0.25
+        total = sum(i.height for i in imgs) + gap * (len(imgs) - 1)
+        y = pad_t + (h - total) / 2
+        for img in imgs:
+            note.alpha_composite(img, (int(pad_l + (w - img.width) / 2), int(y)))
+            y += img.height + gap
+    return rotated(note, tilt) if tilt else note
+
+
+def magnet(px: int, color) -> Image.Image:
+    return colored(load(os.path.join(UI, "magnet.png")).resize((px, px), Image.Resampling.LANCZOS), color)
+
+
+def tape(w: int, tilt: float) -> Image.Image:
+    t = load(os.path.join(UI, "tape.png"))
+    return rotated(t.resize((w, int(w * t.height / t.width)), Image.Resampling.LANCZOS), tilt)
+
+
+def icon(name: str, px: int, color) -> Image.Image:
+    return colored(load(os.path.join(ROOT, "assets", "icons", f"{name}.png")).resize((px, px), Image.Resampling.LANCZOS), color)
+
+
+def photo(cid: str, px: int, tilt: float, ink=None, label: str | None = None) -> Image.Image:
+    """A candidate's portrait as UI/Board.photo draws it: a paper card, the face
+    in a square window, a thick chin (here with the name in the player's ink),
+    tape on top, turned `tilt` degrees, with a soft shadow."""
+    m = round(px * 0.07)
+    win = px - 2 * m
+    chin = round(px * 0.2)
+    w, h = px, m + win + chin
+    top = int(px * 0.12)  # room for the tape
+    card = Image.new("RGBA", (w, h + top), (0, 0, 0, 0))
+    d = ImageDraw.Draw(card)
+    d.rectangle((0, top, w - 1, top + h - 1), fill=CARD + (255,), outline=LINE + (102,), width=max(1, px // 160))
+    d.rectangle((m, top + m, m + win - 1, top + m + win - 1), fill=RAISED + (255,))
+    face = load(os.path.join(ROOT, "assets", "portraits", f"{cid}.png")).resize((win, win), Image.Resampling.LANCZOS)
+    card.alpha_composite(face, (m, top + m))
+    if label:
+        name = text(label, "marker", chin * 0.62, ink or INK)
+        card.alpha_composite(name, ((w - name.width) // 2, top + m + win + (chin - m - name.height) // 2 + m // 2))
+    strip = tape(int(px * 0.55), 4)
+    card.alpha_composite(strip, ((w - strip.width) // 2, max(0, top - strip.height // 2)))
+    out = rotated(card, tilt)
+    return with_shadow(out, px * 0.02, 0.28, px * 0.012, px * 0.025)
 
 
 # ---------------------------------------------------------------- the map
@@ -354,49 +315,42 @@ def _load_module(name, path):
     return mod
 
 
-_states = None
+_mapgen = None
+_loaded = None
 
 
-def states():
-    """{id: [[outer, hole...], ...]} in the map generator's frame (Albers, 975x610
-    units, Alaska and Hawaii moved under the West as in the game), and the order."""
-    global _states
-    if _states is None:
-        mapgen = _load_module("mapgen_make", os.path.join(ROOT, "scripts", "mapgen", "make.py"))
-        shapes, order, _borders = mapgen.load_states()
-        _states = (shapes, order)
-    return _states
+def mapgen():
+    global _mapgen, _loaded
+    if _mapgen is None:
+        _mapgen = _load_module("mapgen_make", os.path.join(ROOT, "scripts", "mapgen", "make.py"))
+        _loaded = _mapgen.load_states()
+    return _mapgen, _loaded
 
 
-def land_bbox(ids=None):
-    shapes, order = states()
-    pts = [p for sid in (ids or order) for poly in shapes[sid] for p in poly[0]]
-    xs = [p[0] for p in pts]
-    ys = [p[1] for p in pts]
-    return min(xs), min(ys), max(xs), max(ys)
+LOWER48_SKIP = ("AK", "HI")
 
 
 def centroid(sid):
-    shapes, _ = states()
+    _, (shapes, _order, _b, _i) = mapgen()
     ring = max((poly[0] for poly in shapes[sid]), key=lambda r: abs(_area(r)))
-    xs = [p[0] for p in ring]
-    ys = [p[1] for p in ring]
-    return sum(xs) / len(xs), sum(ys) / len(ys)
+    return sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
 
 
 def _area(ring):
     return sum(ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1] for i in range(len(ring) - 1)) / 2
 
 
-def draw_map(width: int, fills: dict, border_px: float, border=BACKGROUND, outlines=None, skip=(), light=0.16):
-    """The US map `width` px wide: every state filled from `fills` (id -> RGB),
-    borders in `border`, a top light like the game's Depth gradient, optional
-    `outlines` (id -> (RGB, px)) drawn on top. Returns (image, project) where
-    project(x, y) maps frame units to image px."""
-    shapes, order = states()
-    ids = [s for s in order if s not in skip]
-    x0, y0, x1, y1 = land_bbox(ids)
-    pad = border_px * 2 + 4
+def draw_map(width: int, fills: dict, ink_scale: float = 1.0):
+    """The lower 48 on the board, `width` px wide: each state in `fills`
+    (id -> (color, strength 0..1, slant "/" or "\\")) colored in with the
+    game's scribble (scripts/mapgen scribble, at this size), every border in
+    the game's wobbly marker ink. Returns (image, project) where project(x, y)
+    maps map units to image px."""
+    mg, (shapes, order, _borders, ink_lines) = mapgen()
+    pts = [p for line, _ in ink_lines for p in line]
+    x0, y0 = min(p[0] for p in pts), min(p[1] for p in pts)
+    x1, y1 = max(p[0] for p in pts), max(p[1] for p in pts)
+    pad = 8
     k = (width - 2 * pad) / (x1 - x0)
     height = int((y1 - y0) * k + 2 * pad)
 
@@ -404,237 +358,85 @@ def draw_map(width: int, fills: dict, border_px: float, border=BACKGROUND, outli
         return (x - x0) * k + pad, (y - y0) * k + pad
 
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    land = Image.new("L", (width, height), 0)
-    dl = ImageDraw.Draw(land)
-    for sid in ids:
-        for poly in shapes[sid]:
-            pts = [project(x, y) for x, y in poly[0]]
-            d.polygon(pts, fill=tuple(fills.get(sid, NEUTRAL)) + (255,))
-            dl.polygon(pts, fill=255)
-    if light:
-        sheen = vgrad((width, height), (255, 255, 255), (255, 255, 255))
-        a = Image.linear_gradient("L").resize((width, height)).point(lambda v: int((1 - v / 255) * 255 * light))
-        sheen.putalpha(ImageChops.multiply(a, land))
-        img.alpha_composite(sheen)
-    for sid in ids:
-        for poly in shapes[sid]:
-            pts = [project(x, y) for x, y in poly[0]]
-            d.line(pts + [pts[0]], fill=tuple(border) + (255,), width=max(1, int(round(border_px))), joint="curve")
-    for sid, (color, px) in (outlines or {}).items():
-        for poly in shapes[sid]:
-            pts = [project(x, y) for x, y in poly[0]]
-            d.line(pts + [pts[0]], fill=tuple(color) + (255,), width=int(px), joint="curve")
+    # The scribble at this scale: the game's hatch pitch is in atlas px at
+    # RES 1.3; keep the same look relative to the map.
+    f = k / 1.3
+    mg.RES = k
+    mg.HATCH_PITCH, mg.HATCH_W, mg.HATCH_WOBBLE = 9.0 * f * 0.75, 6.2 * f * 0.75, 0.7 * f
+    for sid in order:
+        if sid in LOWER48_SKIP or sid not in fills:
+            continue
+        color, strength, slant = fills[sid]
+        polys = shapes[sid]
+        sp = [p for poly in polys for ring in poly for p in ring]
+        sx0, sy0 = min(p[0] for p in sp), min(p[1] for p in sp)
+        sx1, sy1 = max(p[0] for p in sp), max(p[1] for p in sp)
+        w, h = int(math.ceil((sx1 - sx0) * k)) + 4, int(math.ceil((sy1 - sy0) * k)) + 4
+        sprite = mg.mask(polys, sx0 - 2 / k, sy0 - 2 / k, w, h)
+        hatch = mg.scribble(sprite, slant, sid)
+        layer = colored(hatch, tint(BOARD, color, strength))
+        px, py = project(sx0 - 2 / k, sy0 - 2 / k)
+        img.alpha_composite(layer, (int(round(px)), int(round(py))))
+    # Line widths as in map-ink.png, whose scale fits the lower 48 (plus the
+    # ink's pad) in mapgen.ATLAS px.
+    span = max(x1 - x0, y1 - y0) + 2 * mg.INK_PAD
+    native = mg.ATLAS / span
+    big = 2
+    mask = Image.new("L", (width * big, height * big), 0)
+    d = ImageDraw.Draw(mask)
+    for index, (line, coast) in enumerate(ink_lines):
+        rng = random.Random(f"ink:{index}")
+        bent = mg.wobbly(line, rng)
+        base = (mg.INK_COAST_PX if coast else mg.INK_INNER_PX) / native * k * ink_scale
+        for start in range(0, len(bent) - 1, 12):
+            piece = bent[start : start + 13]
+            if len(piece) < 2:
+                continue
+            wpx = max(1, round(base * rng.uniform(0.85, 1.15) * big))
+            value = int(255 * rng.uniform(0.9, 1.0))
+            d.line([((x - x0) * k * big + pad * big, (y - y0) * k * big + pad * big) for x, y in piece], fill=value, width=wpx, joint="curve")
+    mask = mask.resize((width, height), Image.Resampling.LANCZOS)
+    img.alpha_composite(solid(mask, INK))
     return img, project
 
 
-def map_glow(m: Image.Image, color, blur, alpha, grow=0):
-    return shadow_of(m, blur, alpha, color, grow)
+def lower48():
+    _, (_shapes, order, _b, _i) = mapgen()
+    return [s for s in order if s not in LOWER48_SKIP]
 
 
-def result_fills(seed: int, blue_share: float, keep=None):
-    """A made-up night: each state goes blue or red with a lean / likely / safe
-    shade (stepped like Colors.bandFill); `keep` fixes some (still counting)."""
-    rng = random.Random(seed)
-    _, order = states()
+def split_fills(tilt=0.35, blank=()):
+    """Blue west, red east along a slanted line (the race, not a real result);
+    states near the line are leans, `blank` ones toss-ups (no fill)."""
+    ids = lower48()
+    cs = {sid: centroid(sid) for sid in ids}
+    xs = [c[0] for c in cs.values()]
+    ys = [c[1] for c in cs.values()]
+    mid, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    span = max(xs) - min(xs)
     fills = {}
-    for sid in order:
-        if keep and sid in keep:
-            fills[sid] = keep[sid]
+    for sid in ids:
+        if sid in blank:
             continue
-        color = BLUE if rng.random() < blue_share else RED
-        fills[sid] = band(color, rng.choice((0.6, 0.82, 1.0, 1.0)))
+        cx, cy = cs[sid]
+        v = cx + (cy - my) * tilt - mid
+        side = v < 0
+        strength = 1.0 if abs(v) > span * 0.12 else 0.6
+        fills[sid] = (BLUE, strength, "/") if side else (RED, strength, "\\")
     return fills
 
 
-def split_fills(tilt=0.35, shares=(1.0, 0.82)):
-    """Blue west, red east, along a slanted line through the middle (the race,
-    not a real result)."""
-    _, order = states()
-    x0, y0, x1, y1 = land_bbox([s for s in order if s not in ("AK", "HI")])
-    mid = (x0 + x1) / 2
-    fills = {}
-    for sid in order:
-        cx, cy = centroid(sid)
-        if sid in ("AK", "HI"):
-            side = sid == "AK"
-        else:
-            side = cx + (cy - (y0 + y1) / 2) * tilt < mid
-        dist = abs(cx + (cy - (y0 + y1) / 2) * tilt - mid) / (x1 - x0)
-        share = shares[0] if dist > 0.12 else shares[1]
-        fills[sid] = band(BLUE if side else RED, share)
-    return fills
-
-
-# ---------------------------------------------------------------- people
-
-_busts: dict = {}
-
-
-def bust(cid: str) -> Image.Image:
-    """The candidate's portrait (assets/portraits/make.py) at full drawing
-    resolution (1744 px square, transparent, shoulders run off the bottom)."""
-    if cid not in _busts:
-        mod = _load_module("portraits_make", os.path.join(ROOT, "assets", "portraits", "make.py"))
-
-        def full(self):
-            x0, y0, side = mod.CROP
-            return self.img.crop((int(mod.s(x0)), int(mod.s(y0)), int(mod.s(x0 + side)), int(mod.s(y0 + side))))
-
-        mod.Canvas.result = full
-        _busts[cid] = mod.PORTRAITS[cid]()
-    return _busts[cid]
-
-
-def rim_bust(cid: str, size: int, color, rim: float) -> Image.Image:
-    """A bust `size` px wide with a `rim` px outline in `color` (a sticker edge,
-    so dark hair reads on the navy stage) and a white inner hairline."""
-    b = bust(cid).resize((size, size), Image.Resampling.LANCZOS)
-    pad = int(rim * 2)
-    out = Image.new("RGBA", (size + 2 * pad, size + 2 * pad), (0, 0, 0, 0))
-    a = Image.new("L", out.size, 0)
-    a.paste(b.getchannel("A"), (pad, pad))
-    grow = a.filter(ImageFilter.MaxFilter(int(rim) * 2 + 1)).filter(ImageFilter.GaussianBlur(rim * 0.15))
-    out.alpha_composite(colored(grow, color))
-    out.alpha_composite(b, (pad, pad))
-    # Cut the bottom flat (the shoulders end at the image's bottom edge).
-    cut = Image.new("L", out.size, 255)
-    ImageDraw.Draw(cut).rectangle((0, pad + size - 2, out.width, out.height), fill=0)
-    out.putalpha(ImageChops.multiply(out.getchannel("A"), cut))
-    return out
-
-
-def plate(cid: str, d: int, color, ring_k=0.06) -> Image.Image:
-    """Kit.portrait at size `d`: the bust on a round plate tinted toward the
-    player's color, a ring in that color and a thin navy edge."""
-    ring = int(d * ring_k)
-    edge = max(2, int(d * 0.018))
-    full = d + 2 * edge
-    img = Image.new("RGBA", (full, full), (0, 0, 0, 0))
-    ImageDraw.Draw(img).ellipse((0, 0, full - 1, full - 1), fill=BACKGROUND + (255,))
-    ImageDraw.Draw(img).ellipse((edge, edge, edge + d - 1, edge + d - 1), fill=color + (255,))
-    inner = d - 2 * ring
-    disc = Image.new("L", (inner, inner), 0)
-    ImageDraw.Draw(disc).ellipse((0, 0, inner - 1, inner - 1), fill=255)
-    bg = vgrad((inner, inner), tint(PLATE_TOP, color, 0.25), tint(PLATE_BOTTOM, color, 0.3))
-    face = bust(cid).resize((inner, inner), Image.Resampling.LANCZOS)
-    bg.alpha_composite(face)
-    img.alpha_composite(with_alpha(bg, disc), (edge + ring, edge + ring))
-    # A soft top light on the ring.
-    hl = Image.new("L", (full, full), 0)
-    ImageDraw.Draw(hl).arc((edge, edge, edge + d - 1, edge + d - 1), 200, 340, fill=110, width=max(2, ring // 2))
-    img.alpha_composite(colored(hl.filter(ImageFilter.GaussianBlur(ring * 0.3)), (255, 255, 255)))
-    return img
-
-
-# ---------------------------------------------------------------- pieces
-
-
-def race_bar(w: int, h: int, left: float, right: float, total=538, tick=270):
-    """Kit.raceBar: a rounded track, blue from the left and red from the right
-    (they never meet), the white 270 tick overhanging it."""
-    over = int(h * 0.45)
-    img = Image.new("RGBA", (w, h + 2 * over), (0, 0, 0, 0))
-    track = with_alpha(vgrad((w, h), RAISED_TOP, RAISED), rounded_mask((w, h), h // 2))
-    img.alpha_composite(track, (0, over))
-    lw = int(w * left / total)
-    rw = int(w * right / total)
-    if lw > h:
-        img.alpha_composite(with_alpha(vgrad((lw, h), lighter(BLUE, 0.15), darker(BLUE, 0.12)), rounded_mask((lw, h), h // 2)), (0, over))
-    if rw > h:
-        img.alpha_composite(with_alpha(vgrad((rw, h), lighter(RED, 0.15), darker(RED, 0.12)), rounded_mask((rw, h), h // 2)), (w - rw, over))
-    tx = int(w * tick / total)
-    tw = max(4, int(h * 0.28))
-    ImageDraw.Draw(img).rounded_rectangle((tx - tw // 2, 0, tx + tw // 2, h + 2 * over), radius=tw // 2, fill=TEXT + (255,))
-    return img
-
-
-def confetti(size, n, seed, area=None, colors=(BLUE, RED, TEXT), scale=1.0, avoid=()):
-    """Paper confetti in the players' colors and white; none lands in `avoid`
-    (boxes x0, y0, x1, y1), so it never sits on the type."""
+def result_fills(seed: int, blue_share: float, blank=()):
+    """A made-up result: each state blue or red, safe or lean."""
     rng = random.Random(seed)
-    layer = Image.new("RGBA", size, (0, 0, 0, 0))
-    x0, y0, x1, y1 = area or (0, 0, size[0], size[1])
-    for _ in range(n):
-        w = int(rng.uniform(10, 22) * scale)
-        h = int(rng.uniform(22, 40) * scale)
-        piece = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        c = rng.choice(colors)
-        ImageDraw.Draw(piece).rounded_rectangle((0, 0, w - 1, h - 1), radius=max(1, w // 4), fill=c + (255,))
-        piece = piece.rotate(rng.uniform(0, 360), resample=Image.Resampling.BICUBIC, expand=True)
-        if rng.random() < 0.4:
-            piece = scale_alpha(piece, 0.7)
-        x, y = int(rng.uniform(x0, x1)), int(rng.uniform(y0, y1))
-        if any(a <= x + piece.width / 2 <= c and b <= y + piece.height / 2 <= d for a, b, c, d in avoid):
+    fills = {}
+    for sid in lower48():
+        roll = rng.random()
+        strength = rng.choice((0.6, 0.85, 1.0, 1.0))
+        if sid in blank:
             continue
-        layer.alpha_composite(piece, (x, y))
-    return layer
-
-
-def stage(size, glow_center, glow_r, glow_alpha=0.75, vignette=0.4):
-    """The navy stage: background, the map's backdrop glow, a dark vignette."""
-    w, h = size
-    img = vgrad(size, tint(BACKGROUND, GLOW, 0.12), BACKGROUND)
-    img.alpha_composite(radial(size, glow_center, glow_r, GLOW, glow_alpha))
-    if vignette:
-        v = Image.radial_gradient("L").resize((w, h))
-        a = v.point(lambda x: int(max(0, (x / 255 - 0.55) / 0.45) ** 1.5 * 255 * vignette))
-        img.alpha_composite(colored(a, (0, 0, 0)))
-    return img
-
-
-# ---------------------------------------------------------------- snapshots
-
-
-def snapshot(name: str, k=2) -> Image.Image:
-    """The game's own UI snapshot `name` (tests/ui/snap.luau, desktop 1280x720),
-    rendered at k x with qlmanage. Snapshot-only marks are removed first: the two
-    dim circles standing in for the Roblox top bar, and the purple "+N px below"
-    scroll markers (Studio shows neither)."""
-    svg = os.path.join(ROOT, "build", "snaps", "desktop", f"{name}.svg")
-    # Draw it fresh from the current UI code (lune needs to be on PATH; see
-    # CLAUDE.md). Without lune, an earlier build/snaps copy is used.
-    if shutil.which("lune"):
-        subprocess.run(
-            ["lune", "run", "tests/ui/snap.luau", "--", name, "--size", "desktop", "--no-png"],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-        )
-    assert os.path.exists(svg), f"no snapshot {svg}: install lune (rokit install) and run again"
-    src = open(svg, encoding="utf-8").read()
-    src = re.sub(r'<rect x="(12|64)" y="[^"]*" width="44" height="44" rx="22" fill="#000000" fill-opacity="0.45"/>\n?', "", src)
-    src = re.sub(r'<rect [^>]*fill="#6b5cff"[^>]*/>\n?', "", src)
-    src = re.sub(r"<text [^>]*>\+\d+ px below ▼</text>\n?", "", src)
-    m = re.match(r'<svg[^>]*width="(\d+)" height="(\d+)"[^>]*>', src)
-    w, h = int(m.group(1)), int(m.group(2))
-    side = max(w, h)
-    head = (
-        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
-        f'width="{side * k}" height="{side * k}" viewBox="0 {-(side - h) / 2} {side} {side}">'
-    )
-    src = src.replace(m.group(0), head, 1)
-    os.makedirs(WORK, exist_ok=True)
-    tmp = os.path.join(WORK, f"{name}-sq.svg")
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(src)
-    subprocess.run(["qlmanage", "-t", "-s", str(side * k), "-o", WORK, tmp], check=True, capture_output=True)
-    sq = Image.open(tmp + ".png").convert("RGBA")
-    top = (sq.height - h * k) // 2
-    return sq.crop((0, top, w * k, top + h * k))
-
-
-def screen_card(shot: Image.Image, width: int, radius: int) -> Image.Image:
-    """A screenshot as a floating card: rounded corners, a hairline edge lit from
-    the top (Kit.bevel), no device frame."""
-    h = int(shot.height * width / shot.width)
-    img = shot.resize((width, h), Image.Resampling.LANCZOS)
-    edge = max(2, radius // 8)
-    card = Image.new("RGBA", (width + 2 * edge, h + 2 * edge), (0, 0, 0, 0))
-    rim = vgrad(card.size, lighter(LINE, 0.55), LINE)
-    card.alpha_composite(with_alpha(rim, rounded_mask(card.size, radius + edge)))
-    card.alpha_composite(with_alpha(img, rounded_mask((width, h), radius)), (edge, edge))
-    return card
+        fills[sid] = (BLUE, strength, "/") if roll < blue_share else (RED, strength, "\\")
+    return fills
 
 
 # ---------------------------------------------------------------- icons
@@ -643,79 +445,52 @@ ICON = 512
 S = 4  # icon supersampling
 
 
-def icon_backdrop(n):
-    img = stage((n, n), (n * 0.5, n * 0.42), n * 0.62, 0.9, vignette=0.55)
-    return img
+def finish(img: Image.Image, size) -> Image.Image:
+    return img.convert("RGB").resize(size, Image.Resampling.LANCZOS)
 
 
 def icon_map() -> Image.Image:
-    """The US split blue | red under a big "270", "LANDSLIDE" on the ribbon."""
+    """The US scribbled blue | red, a big "270" circled in red marker under it."""
     n = ICON * S
-    img = icon_backdrop(n)
-    m, _ = draw_map(int(n * 0.94), split_fills(), border_px=n * 0.006, skip=("AK", "HI"), light=0.2)
-    paste(img, map_glow(m, (120, 150, 255), n * 0.03, 0.55, grow=n * 0.004), (n * 0.5, n * 0.36))
-    paste(img, shadow_of(m, n * 0.012, 0.6), (n * 0.5, n * 0.375))
-    paste(img, m, (n * 0.5, n * 0.36))
-    big = numeral("270", n * 0.40)
-    paste(img, big, (n * 0.5, n * 0.6))
-    rib = ribbon("LANDSLIDE", n * 0.085, tilt=3)
-    paste(img, shadow_of(rib, n * 0.01, 0.6), (n * 0.5, n * 0.86 + n * 0.012))
-    paste(img, rib, (n * 0.5, n * 0.86))
+    img = board(n, n, S)
+    m, _ = draw_map(int(n * 0.94), split_fills(), ink_scale=1.6)
+    paste(img, m, (n * 0.5, n * 0.33))
+    big = text("270", "marker", n * 0.36, INK, tilt=-3)
+    ring = circled(int(big.width * 1.55), int(big.height * 1.6), RED)
+    paste(img, ring, (n * 0.5, n * 0.74))
+    paste(img, big, (n * 0.5, n * 0.74))
     return finish(img, (ICON, ICON))
 
 
-def numeral(text: str, px: float) -> Image.Image:
-    """Big Fredoka white numerals with the wordmark's outline, drop and light."""
-    f = font("display", px)
-    stroke = max(3, int(px * 0.06))
-    drop = int(px * 0.07)
-    outer = text_mask(text, f, stroke)
-    inner = text_mask(text, f, 0)
-    W, H = outer.width + 8, outer.height + drop + 8
-    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    img.alpha_composite(colored(_at(outer, (W, H), 4, 4 + drop), BACKGROUND, 0.9))
-    img.alpha_composite(colored(_at(outer, (W, H), 4, 4 + drop * 0.55), LINE))
-    img.alpha_composite(colored(_at(outer, (W, H), 4, 4), ACCENT_LIP))
-    face = vgrad((W, H), (255, 255, 255), WORDMARK_BOTTOM)
-    img.alpha_composite(with_alpha(face, _at(inner, (W, H), 4 + stroke, 4 + stroke)))
-    return trim(img)
-
-
 def icon_faceoff() -> Image.Image:
-    """Two candidates face off on plates, blue and red, with "270" between."""
+    """Two candidates taped up, blue and red magnets, "VS" between them."""
     n = ICON * S
-    img = icon_backdrop(n)
-    img.alpha_composite(radial((n, n), (n * 0.2, n * 0.4), n * 0.5, BLUE, 0.55))
-    img.alpha_composite(radial((n, n), (n * 0.8, n * 0.4), n * 0.5, RED, 0.55))
-    d = int(n * 0.52)
-    left = plate("okafor", d, BLUE)
-    right = plate("calloway", d, RED)
-    paste(img, shadow_of(left, n * 0.015, 0.6), (n * 0.29, n * 0.40 + n * 0.015))
-    paste(img, left, (n * 0.29, n * 0.40))
-    paste(img, shadow_of(right, n * 0.015, 0.6), (n * 0.71, n * 0.40 + n * 0.015))
-    paste(img, right, (n * 0.71, n * 0.40))
-    big = numeral("270", n * 0.30)
-    paste(img, big, (n * 0.5, n * 0.75))
-    rib = ribbon("LANDSLIDE", n * 0.075, tilt=3)
-    paste(img, shadow_of(rib, n * 0.01, 0.6), (n * 0.5, n * 0.915 + n * 0.01))
-    paste(img, rib, (n * 0.5, n * 0.915))
+    img = board(n, n, S)
+    left = photo("okafor", int(n * 0.44), 5, BLUE, None)
+    right = photo("calloway", int(n * 0.44), -4, RED, None)
+    paste(img, left, (n * 0.27, n * 0.42))
+    paste(img, right, (n * 0.73, n * 0.46))
+    paste(img, with_shadow(magnet(int(n * 0.11), BLUE), n * 0.006, 0.3, 0, n * 0.006), (n * 0.27, n * 0.16))
+    paste(img, with_shadow(magnet(int(n * 0.11), RED), n * 0.006, 0.3, 0, n * 0.006), (n * 0.73, n * 0.2))
+    vs = text("VS", "marker", n * 0.16, INK, tilt=-6)
+    paste(img, vs, (n * 0.5, n * 0.5))
+    tag = text("270", "marker", n * 0.2, INK, tilt=-2)
+    paste(img, underline(tag.width * 1.4, n * 0.022, RED, "icon-faceoff-underline"), (n * 0.5, n * 0.93))
+    paste(img, tag, (n * 0.5, n * 0.84))
     return finish(img, (ICON, ICON))
 
 
 def icon_stamp() -> Image.Image:
-    """The game's lockup over the split map: "LANDSLIDE" with "RACE TO 270"."""
+    """The wordmark over a faded scribbled map."""
     n = ICON * S
-    img = icon_backdrop(n)
-    m, _ = draw_map(int(n * 1.02), split_fills(), border_px=n * 0.006, skip=("AK", "HI"), light=0.2)
-    paste(img, map_glow(m, (120, 150, 255), n * 0.03, 0.5, grow=n * 0.004), (n * 0.5, n * 0.42))
-    paste(img, m, (n * 0.5, n * 0.42))
-    shade = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    shade.alpha_composite(radial((n, n), (n * 0.5, n * 0.5), n * 0.62, BACKGROUND, 0.55))
-    img.alpha_composite(shade)
-    wm = wordmark(n * 0.19, ribbon_scale=0.42, glow=False)
-    wm = wm.resize((int(n * 0.94), int(wm.height * n * 0.94 / wm.width)), Image.Resampling.LANCZOS)
-    paste(img, shadow_of(wm, n * 0.02, 0.7), (n * 0.5, n * 0.52 + n * 0.012))
-    paste(img, wm, (n * 0.5, n * 0.52))
+    img = board(n, n, S)
+    m, _ = draw_map(int(n * 1.0), split_fills(), ink_scale=1.4)
+    faded = m.copy()
+    faded.putalpha(m.getchannel("A").point(lambda v: int(v * 0.45)))
+    paste(img, faded, (n * 0.5, n * 0.5))
+    wm = wordmark(n * 0.2)
+    wm = wm.resize((int(n * 0.92), int(wm.height * n * 0.92 / wm.width)), Image.Resampling.LANCZOS)
+    paste(img, wm, (n * 0.5, n * 0.5))
     return finish(img, (ICON, ICON))
 
 
@@ -727,184 +502,263 @@ SAFE_X = 96  # px: text and faces stay inside this side margin
 SAFE_BOTTOM = 150  # px: nothing that matters in the bottom strip (player count)
 
 
-def caption(text: str, px: float) -> Image.Image:
-    return label(text, "display", px * T, TEXT, outline=int(px * T * 0.06), outline_color=BACKGROUND, shadow=int(px * T * 0.05))
+def heading(s: str, px: float, color=INK, tilt=-2.0) -> Image.Image:
+    return text(s, "marker", px * T, color, tilt=tilt)
 
 
 def thumb_hero() -> Image.Image:
-    """Two candidates face off over an election-night map; the lockup on top."""
+    """The two candidates taped up either side of the scribbled map, the
+    wordmark on top, a sticky note pointing at the deciding state."""
     w, h = TW * T, TH * T
-    img = stage((w, h), (w * 0.5, h * 0.6), w * 0.5, 0.95)
-    img.alpha_composite(radial((w, h), (w * 0.1, h * 0.8), w * 0.34, BLUE, 0.7))
-    img.alpha_composite(radial((w, h), (w * 0.9, h * 0.8), w * 0.34, RED, 0.7))
-    # Election night: most states called, a few still counting, one deciding.
+    img = board(w, h, T)
     decider = "MO"
-    counting = {s: NEUTRAL for s in ("MO", "WI", "NV", "NC", "NH")}
-    fills = result_fills(270, 0.5, keep=counting)
-    m, project = draw_map(int(w * 0.62), fills, border_px=3 * T, outlines={decider: (TEXT, 6 * T)}, light=0.18)
-    cx, cy = w * 0.5, h * 0.6
-    paste(img, map_glow(m, (110, 140, 255), 40 * T, 0.45, grow=4 * T), (cx, cy))
-    paste(img, shadow_of(m, 10 * T, 0.6), (cx, cy + 10 * T))
+    blank = ("MO", "WI", "NV", "NC", "PA")
+    m, project = draw_map(int(w * 0.5), result_fills(270, 0.5, blank=blank))
+    cx, cy = w * 0.5, h * 0.56
     paste(img, m, (cx, cy))
-    px, py = project(*centroid(decider))
     mx, my = cx - m.width / 2, cy - m.height / 2
-    img.alpha_composite(radial((w, h), (mx + px, my + py), 150 * T, (255, 255, 255), 0.3))
-    # The candidates rise from the bottom corners, facing the map.
-    size = int(h * 0.64)
-    left = rim_bust("okafor", size, BLUE, 7 * T)
-    right = rim_bust("calloway", size, RED, 7 * T)
-    paste(img, shadow_of(left, 24 * T, 0.6), (w * 0.135, h + 20 * T), (0.5, 1))
-    paste(img, left, (w * 0.13, h + 2), (0.5, 1))
-    paste(img, shadow_of(right, 24 * T, 0.6), (w * 0.865, h + 20 * T), (0.5, 1))
-    paste(img, right, (w * 0.87, h + 2), (0.5, 1))
-    wm = wordmark(150 * T, ribbon_scale=0.36)
-    paste(img, wm, (w * 0.5, 34 * T), (0.5, 0))
+    px, py = project(*centroid(decider))
+    ring = circled(int(150 * T), int(120 * T), INK)
+    paste(img, ring, (mx + px, my + py))
+    note = sticky(250 * T, 150 * T, STICKY, ["Swing state!", "10 votes"], px=40 * T, tilt=4)
+    nx, ny = w * 0.62, h * 0.84 - SAFE_BOTTOM * T * 0.4
+    paste(img, with_shadow(note, 4 * T, 0.15, 0, 3 * T), (nx, ny))
+    paste(img, arrow((w, h), [(nx - 120 * T, ny - 50 * T), (nx - 170 * T, ny - 110 * T), (mx + px + 60 * T, my + py + 50 * T)], 6 * T, INK, "hero-arrow"), (w / 2, h / 2))
+    size = int(380 * T)
+    paste(img, photo("okafor", size, 4, BLUE, NAMES["okafor"]), (SAFE_X * T + size * 0.58, h * 0.53))
+    paste(img, photo("calloway", size, -3, RED, NAMES["calloway"]), (w - SAFE_X * T - size * 0.58, h * 0.55))
+    paste(img, with_shadow(magnet(54 * T, BLUE), 2 * T, 0.3, 0, 3 * T), (SAFE_X * T + size * 0.58, h * 0.53 - size * 0.62))
+    paste(img, with_shadow(magnet(54 * T, RED), 2 * T, 0.3, 0, 3 * T), (w - SAFE_X * T - size * 0.58, h * 0.55 - size * 0.62))
+    wm = wordmark(170 * T)
+    paste(img, wm, (w * 0.5, 40 * T), (0.5, 0))
     return finish(img, (TW, TH))
 
 
-def framed_shot(shot_name: str, text: str, sub_glow=BLUE, crop=None) -> Image.Image:
-    """A real screen from the game on the stage, a short caption above it and
-    the lockup in the corner."""
-    w, h = TW * T, TH * T
-    img = stage((w, h), (w * 0.5, h * 0.62), w * 0.55, 0.9, vignette=0.35)
-    img.alpha_composite(radial((w, h), (w * 0.05, h * 0.0), w * 0.35, sub_glow, 0.35))
-    shot = snapshot(shot_name)
-    if crop:
-        shot = shot.crop(crop)
-    card = screen_card(shot, int(w * 0.8), 22 * T)
-    top = 236 * T
-    paste(img, map_glow(card, (110, 140, 255), 50 * T, 0.35), (w * 0.5, top), (0.5, 0))
-    paste(img, shadow_of(card, 22 * T, 0.7), (w * 0.5, top + 16 * T), (0.5, 0))
-    paste(img, card, (w * 0.5, top), (0.5, 0))
-    cap = caption(text, 92)
-    paste(img, cap, (SAFE_X * T - 12 * T, 58 * T), (0, 0))
-    wm = wordmark(64 * T, ribbon_scale=0.4)
-    paste(img, wm, (w - (SAFE_X - 10) * T, 34 * T), (1, 0))
-    return finish(img, (TW, TH))
+def tracker(rows, w: int, title="TRACKER") -> Image.Image:
+    """A hand-ruled table: a title, then (label, value, color) rows."""
+    row_h = int(w * 0.2)
+    h = row_h * (len(rows) + 1) + int(w * 0.06)
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    t = text(title, "marker", row_h * 0.62, INK)
+    img.alpha_composite(t, (int(w * 0.04), int(row_h * 0.15)))
+    lw = max(2, w // 110)
+    d = ImageDraw.Draw(img)
+    rng = random.Random(f"tracker:{title}:{w}")
+    for i in range(len(rows) + 1):
+        y = row_h * (i + 1)
+        pts = marker.wobble([(w * 0.02, y), (w * 0.98, y)], rng, lw * 0.4, w * 0.3)
+        marker.stroke(d, pts, lw, INK + (255,), taper=0.3)
+    split = w * 0.58
+    pts = marker.wobble([(split, row_h * 1.05), (split, h - lw * 2)], rng, lw * 0.4, w * 0.3)
+    marker.stroke(d, pts, lw, INK + (255,), taper=0.3)
+    for i, (label, value, color) in enumerate(rows):
+        y = row_h * (i + 1)
+        a = text(label, "hand", row_h * 0.6, color)
+        b = text(value, "hand", row_h * 0.72, color)
+        img.alpha_composite(a, (int(w * 0.05), int(y + (row_h - a.height) / 2)))
+        img.alpha_composite(b, (int(split + (w - split - b.width) / 2), int(y + (row_h - b.height) / 2)))
+    return img
 
 
 def thumb_campaign() -> Image.Image:
-    # Drop the empty top inset (the Roblox top bar's strip, 58 px at 1x).
-    return framed_shot("10a-campaign-planned", "Race to 270 in 12 weeks", crop=(0, 116, 2560, 1440))
-
-
-def thumb_debate() -> Image.Image:
-    return framed_shot("08a-debate-round", "Win the live debates", sub_glow=RED, crop=(0, 116, 2560, 1440))
-
-
-def thumb_landslide() -> Image.Image:
-    """The win: the map gone blue, the winner, "Win by a LANDSLIDE"."""
+    """A campaign week planned on the board: the actions on sticky notes with
+    their marker icons, arrows to the states, the tracker, the heading."""
     w, h = TW * T, TH * T
-    img = stage((w, h), (w * 0.62, h * 0.55), w * 0.5, 0.9)
-    img.alpha_composite(radial((w, h), (w * 0.18, h * 0.75), w * 0.4, BLUE, 0.75))
-    fills = result_fills(386, 0.84)
-    m, _ = draw_map(int(w * 0.6), fills, border_px=3 * T, light=0.18)
-    cx = w * 0.64
-    paste(img, map_glow(m, (90, 130, 255), 40 * T, 0.45, grow=4 * T), (cx, h * 0.66))
-    paste(img, scale_alpha(m, 0.8), (cx, h * 0.66))
-    # Darken the map under the type so the stamp and the bar stand out.
-    img.alpha_composite(radial((w, h), (cx, h * 0.4), w * 0.4, BACKGROUND, 0.8))
-    img.alpha_composite(confetti(
-            (w, h),
-            110,
-            7,
-            area=(w * 0.0, -h * 0.05, w * 0.98, h * 0.62),
-            scale=T,
-            avoid=[(cx - w * 0.29, 30 * T, cx + w * 0.29, 700 * T)],
-        ))
-    size = int(h * 0.74)
-    winner = rim_bust("okafor", size, BLUE, 7 * T)
-    paste(img, shadow_of(winner, 24 * T, 0.6), (w * 0.185, h + 20 * T), (0.5, 1))
-    paste(img, winner, (w * 0.18, h + 2), (0.5, 1))
-    eyebrow = caption("Win by a", 80)
-    paste(img, eyebrow, (cx, 64 * T), (0.5, 0))
-    st = stamp("LANDSLIDE", BLUE, 150 * T)
-    sy = 330 * T
-    paste(img, radial((st.width * 2, st.height * 3), (st.width, st.height * 1.5), st.width * 0.7, (120, 160, 255), 0.45), (cx, sy))
-    paste(img, shadow_of(st, 18 * T, 0.7), (cx, sy + 14 * T))
-    paste(img, st, (cx, sy))
-    bw = int(w * 0.44)
-    bar = race_bar(bw, 26 * T, 386, 152)
-    by = 560 * T
-    paste(img, shadow_of(bar, 10 * T, 0.6), (cx, by + 6 * T))
-    paste(img, bar, (cx, by))
-    nl = label("386", "display", 80 * T, lighter(BLUE, 0.4), outline=5 * T, shadow=4 * T)
-    nr = label("152", "display", 80 * T, lighter(RED, 0.35), outline=5 * T, shadow=4 * T)
-    paste(img, nl, (cx - bw / 2, by + 84 * T), (0, 0.5))
-    paste(img, nr, (cx + bw / 2, by + 84 * T), (1, 0.5))
-    tick = label("270 TO WIN", "display", 34 * T, TEXT, outline=4 * T)
-    paste(img, tick, (cx - bw / 2 + int(bw * 270 / 538), by + 84 * T), (0.5, 0.5))
+    img = board(w, h, T)
+    blank = ("MO", "WI", "NV", "NC", "PA", "GA", "AZ", "MI", "VA", "NH")
+    fills = result_fills(12, 0.5, blank=blank)
+    for sid in list(fills):
+        if fills[sid][1] == 1.0 and random.Random(sid).random() < 0.2:
+            del fills[sid]  # still open this early
+    m, project = draw_map(int(w * 0.5), fills)
+    cx, cy = w * 0.6, h * 0.6
+    paste(img, m, (cx, cy))
+    mx, my = cx - m.width / 2, cy - m.height / 2
+    title = heading("Race to 270", 120)
+    hl = highlight(int(title.width * 0.36), int(title.height * 0.62), "campaign-hl")
+    tx, ty = SAFE_X * T, 50 * T
+    paste(img, hl, (tx + title.width * 0.82, ty + title.height * 0.58))
+    paste(img, title, (tx, ty), (0, 0))
+    sub = text("in 12 weeks", "hand", 72 * T, MUTED, tilt=-2)
+    paste(img, sub, (tx + title.width + 30 * T, ty + title.height * 0.75), (0, 0.5))
+    plans = [
+        ("megaphone", "Rally", STICKY, "MO", 3),
+        ("coins", "Fundraise", NOTE_GREEN, None, -3),
+        ("tv", "TV ad", NOTE_BLUE, None, 2),
+        ("footprints", "Ground game", NOTE_PINK, "GA", -2),
+    ]
+    nw, nh = 380 * T, 140 * T
+    for i, (name, label, color, target, tilt) in enumerate(plans):
+        note = sticky(nw, nh, color)
+        doodle = icon(name, int(72 * T), INK)
+        word = text(label, "hand", 50 * T, INK)
+        bx = int(nw * 0.08)
+        note.alpha_composite(doodle, (bx, (nh - doodle.height) // 2))
+        note.alpha_composite(word, (bx + doodle.width + int(18 * T), (nh - word.height) // 2))
+        note = rotated(note, tilt)
+        x, y = SAFE_X * T + nw * 0.5, 300 * T + i * 158 * T
+        paste(img, with_shadow(note, 4 * T, 0.15, 0, 3 * T), (x, y))
+        if target:
+            px, py = project(*centroid(target))
+            ex, ey = mx + px, my + py
+            sx, sy = x + nw * 0.55, y
+            dx, dy = ex - sx, ey - sy
+            dist = math.hypot(dx, dy)
+            end = (ex - dx / dist * 60 * T, ey - dy / dist * 60 * T)
+            mid = ((sx + end[0]) / 2, (sy + end[1]) / 2 - 70 * T)
+            pts = [(sx, sy), mid, end]
+            curve = [((1 - t) ** 2 * pts[0][0] + 2 * (1 - t) * t * pts[1][0] + t * t * pts[2][0], (1 - t) ** 2 * pts[0][1] + 2 * (1 - t) * t * pts[1][1] + t * t * pts[2][1]) for t in (i / 24 for i in range(25))]
+            paste(img, arrow((w, h), curve, 5 * T, INK, f"campaign-{name}"), (w / 2, h / 2))
+            paste(img, circled(int(96 * T), int(80 * T), INK), (ex, ey))
+    tr = tracker([("Blue", "212", BLUE), ("Red", "196", RED), ("Week", "7 / 12", INK)], int(320 * T))
+    paste(img, with_shadow(sticky(int(360 * T), int(tr.height + 30 * T), CARD), 4 * T, 0.12, 0, 3 * T), (w - SAFE_X * T, 30 * T), (1, 0))
+    paste(img, tr, (w - SAFE_X * T - 25 * T, 45 * T), (1, 0))
     return finish(img, (TW, TH))
 
 
-# ---------------------------------------------------------------- sheet
+def thumb_debate() -> Image.Image:
+    """A debate round: the two candidates, the question on a big note, the
+    three moves on sticky notes with one circled, a tally of rounds."""
+    w, h = TW * T, TH * T
+    img = board(w, h, T)
+    title = heading("Win the live debates", 112)
+    paste(img, title, (w / 2, 44 * T), (0.5, 0))
+    paste(img, underline(title.width * 0.5, 9 * T, BLUE, "debate-underline"), (w / 2 + title.width * 0.2, 44 * T + title.height + 10 * T))
+    size = int(360 * T)
+    paste(img, photo("hale", size, -4, BLUE, NAMES["hale"]), (SAFE_X * T + size * 0.56, h * 0.5))
+    paste(img, photo("venkat", size, 3, RED, NAMES["venkat"]), (w - SAFE_X * T - size * 0.56, h * 0.52))
+    q = sticky(640 * T, 230 * T, CARD, ["Roads & Transit:", "what's your plan?"], px=62 * T, tilt=-1)
+    paste(img, with_shadow(q, 5 * T, 0.15, 0, 4 * T), (w / 2, h * 0.39))
+    paste(img, with_shadow(magnet(46 * T, INK), 2 * T, 0.3, 0, 3 * T), (w / 2, h * 0.39 - 125 * T))
+    moves = [("DEFEND", NOTE_BLUE, -4), ("ATTACK", NOTE_PINK, 3), ("PIVOT", NOTE_GREEN, -2)]
+    for i, (word, color, tilt) in enumerate(moves):
+        note = sticky(250 * T, 130 * T, color, [word], px=48 * T, tilt=tilt, kind="marker")
+        x, y = w / 2 + (i - 1) * 285 * T, h * 0.66
+        paste(img, with_shadow(note, 4 * T, 0.15, 0, 3 * T), (x, y))
+        if word == "ATTACK":
+            paste(img, circled(int(330 * T), int(210 * T), RED), (x, y))
+    tally = text("Round 2 of 3", "hand", 54 * T, MUTED, tilt=-2)
+    paste(img, tally, (w / 2, h * 0.8), (0.5, 0.5))
+    return finish(img, (TW, TH))
+
+
+def stars(img: Image.Image, n: int, seed: str, area, colors, size, avoid=None):
+    """Little marker stars and dashes (hand-drawn celebration), none inside the
+    ellipses in `avoid` ((cx, cy, rx, ry), ...)."""
+    rng = random.Random(seed)
+    d = ImageDraw.Draw(img)
+    x0, y0, x1, y1 = area
+    placed = 0
+    while placed < n:
+        x, y = rng.uniform(x0, x1), rng.uniform(y0, y1)
+        if any(((x - ax) / rx) ** 2 + ((y - ay) / ry) ** 2 < 1.15 for ax, ay, rx, ry in avoid or ()):
+            continue
+        placed += 1
+        color = rng.choice(colors) + (255,)
+        r = size * rng.uniform(0.7, 1.2)
+        if rng.random() < 0.5:
+            for a in range(3):
+                t = a * math.pi / 3 + rng.uniform(-0.2, 0.2)
+                pts = [(x - math.cos(t) * r, y - math.sin(t) * r), (x + math.cos(t) * r, y + math.sin(t) * r)]
+                marker.stroke(d, marker.resample(pts, size * 0.1), size * 0.22, color, taper=0.4)
+        else:
+            t = rng.uniform(0, math.tau)
+            pts = [(x, y), (x + math.cos(t) * r * 1.4, y + math.sin(t) * r * 1.4)]
+            marker.stroke(d, marker.resample(pts, size * 0.1), size * 0.22, color, taper=0.5)
+
+
+def thumb_landslide() -> Image.Image:
+    """The win: the map scribbled almost all blue, the winner taped up,
+    LANDSLIDE circled, the tally 386 to 152 on a note under the photo."""
+    w, h = TW * T, TH * T
+    img = board(w, h, T)
+    m, _ = draw_map(int(w * 0.48), result_fills(386, 0.84))
+    cx = w * 0.64
+    paste(img, m, (cx, h * 0.64))
+    size = int(360 * T)
+    px, py = SAFE_X * T + size * 0.6, h * 0.4
+    paste(img, photo("okafor", size, -4, BLUE, NAMES["okafor"]), (px, py))
+    paste(img, with_shadow(magnet(54 * T, BLUE), 2 * T, 0.3, 0, 3 * T), (px, py - size * 0.66))
+    note = sticky(int(420 * T), int(130 * T), STICKY, tilt=2)
+    ny = py + size * 0.82
+    paste(img, with_shadow(note, 4 * T, 0.15, 0, 3 * T), (px, ny))
+    paste(img, text("386", "marker", 88 * T, BLUE, tilt=-2), (px - 120 * T, ny - 6 * T))
+    paste(img, text("to", "hand", 56 * T, MUTED), (px + 10 * T, ny))
+    paste(img, text("152", "marker", 66 * T, RED, tilt=-2), (px + 125 * T, ny - 2 * T))
+    word = text("LANDSLIDE!", "marker", 140 * T, BLUE, tilt=-3)
+    wy = 250 * T
+    ring = (int(word.width * 1.2), int(word.height * 2.0))
+    eyebrow = text("Win by a", "hand", 76 * T, INK, tilt=-3)
+    ex, ey = cx - word.width * 0.32, wy - ring[1] / 2 - 10 * T
+    paste(img, eyebrow, (ex, ey), (0.5, 0.5))
+    avoid = ((cx, wy, ring[0] * 0.56, ring[1] * 0.56), (ex, ey, eyebrow.width * 0.75, eyebrow.height * 0.9))
+    stars(img, 26, "landslide-stars", (w * 0.36, 20 * T, w - SAFE_X * T, wy + ring[1] * 0.6), (BLUE, RED, INK), 20 * T, avoid=avoid)
+    paste(img, circled(*ring, RED), (cx, wy))
+    paste(img, word, (cx, wy))
+    return finish(img, (TW, TH))
+
+
+# ---------------------------------------------------------------- sheet and main
 
 
 def contact_sheet(icons: dict, thumbs: dict, path: str):
     pad = 32
     card_w = 384  # about a Home-page card
-    cols_w = 512 + 150 + 50 + 4 * pad
-    sheet_w = max(cols_w + 960, 960 + card_w + 3 * pad + 200)
-    y = pad
-    sheet = Image.new("RGBA", (sheet_w, pad + len(icons) * (34 + 512 + pad) + len(thumbs) * (34 + 540 + pad)), BACKGROUND + (255,))
+    sheet_w = 960 + card_w + 3 * pad
+    rows = len(icons) * (34 + 512 + pad) + len(thumbs) * (34 + 540 + pad) + pad
+    sheet = Image.new("RGB", (sheet_w, rows), (60, 60, 64))
     d = ImageDraw.Draw(sheet)
-    small = font("bold", 22)
+    small = font("hand", 26)
+    y = pad
     for name, ic in icons.items():
-        d.text((pad, y), name, font=small, fill=MUTED)
+        d.text((pad, y), name, font=small, fill=(230, 230, 230))
         y += 34
         x = pad
         for px in (512, 150, 50):
-            im = ic.resize((px, px), Image.Resampling.LANCZOS)
-            mask = rounded_mask((px, px), max(4, px // 8))
-            sheet.paste(im, (x, y + 512 - px), mask)
+            sheet.paste(ic.resize((px, px), Image.Resampling.LANCZOS), (x, y + 512 - px))
             x += px + pad
         y += 512 + pad
     for name, th in thumbs.items():
-        d.text((pad, y), name, font=small, fill=MUTED)
+        d.text((pad, y), name, font=small, fill=(230, 230, 230))
         y += 34
-        big = th.resize((960, 540), Image.Resampling.LANCZOS)
-        sheet.paste(big, (pad, y))
-        card = th.resize((card_w, card_w * 9 // 16), Image.Resampling.LANCZOS)
-        sheet.paste(card, (pad * 2 + 960, y))
-        tiny = th.resize((192, 108), Image.Resampling.LANCZOS)
-        sheet.paste(tiny, (pad * 2 + 960, y + card_w * 9 // 16 + pad))
+        sheet.paste(th.resize((960, 540), Image.Resampling.LANCZOS), (pad, y))
+        sheet.paste(th.resize((card_w, card_w * 9 // 16), Image.Resampling.LANCZOS), (pad * 2 + 960, y))
         y += 540 + pad
-    sheet = sheet.crop((0, 0, sheet_w, y))
-    sheet.convert("RGB").save(path)
-
-
-# ---------------------------------------------------------------- main
+    sheet.save(path)
 
 
 def save(img: Image.Image, name: str):
     path = os.path.join(HERE, name)
-    img.convert("RGB").save(path, optimize=True)
+    img.save(path, optimize=True)
     kb = os.path.getsize(path) / 1024
     print(f"  assets/promo/{name}  {img.width}x{img.height}  {kb:.0f} KB")
     assert kb < 3 * 1024, f"{name} is over 3 MB"
 
 
-RECOMMENDED = "icon-map.png"  # reads at 50 px: the map, two colors, "270"
+RECOMMENDED = "icon-map.png"  # reads at 50 px: the scribbled map in two colors and a circled "270"
 
 
-def main():
-    print(f"display font: {font_used('display')}")
-    print(f"text font:    {font_used('bold')}")
+def build():
     icons = {
         "icon-map.png": icon_map(),
         "icon-faceoff.png": icon_faceoff(),
         "icon-stamp.png": icon_stamp(),
     }
-    for name, img in icons.items():
-        save(img, name)
-    shutil.copyfile(os.path.join(HERE, RECOMMENDED), os.path.join(HERE, "icon.png"))
-    print(f"  assets/promo/icon.png  = {RECOMMENDED}")
     thumbs = {
         "thumb-1-hero.png": thumb_hero(),
         "thumb-2-campaign.png": thumb_campaign(),
         "thumb-3-debate.png": thumb_debate(),
         "thumb-4-landslide.png": thumb_landslide(),
     }
+    return icons, thumbs
+
+
+def main():
+    icons, thumbs = build()
+    for name, img in icons.items():
+        save(img, name)
+    shutil.copyfile(os.path.join(HERE, RECOMMENDED), os.path.join(HERE, "icon.png"))
+    print(f"  assets/promo/icon.png  = {RECOMMENDED}")
     for name, img in thumbs.items():
         save(img, name)
     if "--sheet" in sys.argv:

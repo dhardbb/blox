@@ -71,18 +71,20 @@ Creator Dashboard → the experience → **Publish settings → Content rating �
 
 ## Images
 
+All of them are drawn in the whiteboard look (`docs/proposals/whiteboard.md`) by `assets/promo/make.py`: the board, the US map colored in with the game's own marker scribble (blue `/`, red `\`), LANDSLIDE in red marker with a blue underline, sticky notes, magnets and the candidates as taped-up photos. Fonts: Permanent Marker (Apache 2.0) and Patrick Hand (SIL OFL), both in `tests/lib/fonts`. Thumbnails stay 1920x1080 (Roblox's size for experience thumbnails; they are not in-game images).
+
 | File | Use |
 |---|---|
 | `icon.png` (= `icon-map.png`) | the experience icon (recommended) |
 | `icon-faceoff.png`, `icon-stamp.png` | the other icon variants, if you want to compare |
-| `thumb-1-hero.png` | thumbnail 1: the two candidates over election night |
-| `thumb-2-campaign.png` | thumbnail 2: a real campaign week, "Race to 270 in 12 weeks" |
-| `thumb-3-debate.png` | thumbnail 3: a real debate round, "Win the live debates" |
+| `thumb-1-hero.png` | thumbnail 1: the two candidates taped up either side of the map |
+| `thumb-2-campaign.png` | thumbnail 2: a week planned on sticky notes, "Race to 270 in 12 weeks" |
+| `thumb-3-debate.png` | thumbnail 3: a debate round on the board, "Win the live debates" |
 | `thumb-4-landslide.png` | thumbnail 4: the win, "Win by a LANDSLIDE" |
 
 Upload steps are in `docs/TESTING.md`, "Promo art". Alt text for each thumbnail (Experience Detail Page tab):
 
-1. "Two cartoon candidates face off over a US map of red and blue states, under the Landslide logo."
-2. "The campaign screen: a US map with each state's votes, the race bar to 270 and the week's actions."
-3. "A debate round: the question, the Defend, Attack and Pivot moves, and the states each move would swing."
-4. "A cheering candidate, confetti, and a blue map with the words Win by a Landslide and a 386 to 152 score."
+1. "Two cartoon candidates taped to a whiteboard either side of a hand-colored red and blue US map, under the Landslide logo."
+2. "A campaign planned on a whiteboard: sticky notes for Rally, Fundraise, TV ad and Ground game with arrows to states, and a vote tracker."
+3. "A debate round on a whiteboard: two candidates, the question on a note, and the Defend, Attack and Pivot moves with Attack circled."
+4. "A taped-up candidate photo, a US map colored almost all blue, and the words Win by a Landslide circled, with a 386 to 152 score."

@@ -1,8 +1,15 @@
 # Icons
 
-Fourteen [Lucide](https://lucide.dev) icons (ISC License, see `docs/CREDITS.md`), from the npm package `lucide-static@0.460.0`. Each PNG is 256x256, white (#FFFFFF) on transparent, with Lucide's 2 px stroke scaled up. The game tints them with `ImageColor3`.
+Sixteen [Lucide](https://lucide.dev) icons (ISC License, see `docs/CREDITS.md`), from the npm package `lucide-static@0.460.0`, redrawn as marker doodles for the whiteboard look (`docs/proposals/whiteboard.md`). Each PNG is 256x256, white (#FFFFFF) on transparent; the game tints them with `ImageColor3`.
 
-`src/` holds the original SVGs, unchanged. To rebuild a PNG: set `stroke="#FFFFFF"` and `width`/`height` to 256 in the SVG, then render it at 256x256 with a transparent background.
+`src/` holds the original SVGs, unchanged. `make.py` (Pillow) follows each SVG's paths and draws them again by hand, with the shared marker strokes in `assets/ui/marker.py`: lines wobble a little, closed shapes overshoot where they meet, circles are loose loops, each part sits a hair off its place. The stroke is 2.2 of 24 units (Lucide's is 2), so they still read at 20 to 24 px. Seeded by the icon's name, so a rerun gives the same bytes:
+
+```sh
+python3 assets/icons/make.py                     # rewrites every <name>.png
+python3 assets/icons/make.py --sheet build/icons.png   # plus a preview at 128, 48, 24, 20 px
+```
+
+**Re-upload needed (whiteboard):** all 16 PNGs changed. The ids below are the old drawings and keep working until each is replaced; upload the new PNGs and put each new id in `src/client/UI/Icons.luau`.
 
 ## Uploaded ids
 

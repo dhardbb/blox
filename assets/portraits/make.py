@@ -8,6 +8,12 @@ drawn 4x larger and scaled down for smooth edges. It also writes sheet.png,
 a labeled contact sheet of all eight. --preview DIR writes the same sheet
 without labels to DIR/portraits-preview.png.
 
+The whiteboard look (docs/proposals/whiteboard.md) keeps these same images:
+UI/Board.photo puts a face in a white instant-photo card, tilts it and tapes
+it to the board at run time (assets/portraits/README.md says why). --photos
+PATH writes a review sheet of that look at 48, 72 and 96 px, next to a
+baked-in polaroid for comparison; nothing it draws ships.
+
 The game shows each one inside a round plate (Kit.portrait), so every bust is
 centered and fits a circle of the image's full width: the head sits in the
 upper middle and the shoulders run off the bottom edge. Each sheet row shows
@@ -989,6 +995,71 @@ def preview(images: dict[str, Image.Image], labels: bool = False) -> Image.Image
     return sheet
 
 
+# The whiteboard photo (UI/Board.photo; keep in sync): a paper card px wide,
+# a 7% border at the sides and top, a 20% chin, the face in a square window on
+# the raised color, tape across the top, the whole card turned `tilt` degrees.
+BOARD = (243, 241, 234)  # Colors.background
+CARD = (255, 254, 250)  # Colors.surfaceTop
+WINDOW = (236, 232, 222)  # Colors.raised
+EDGE = (143, 139, 128, 102)  # Colors.line at 0.6 transparency
+PHOTO_MARGIN, PHOTO_CHIN, TAPE_W = 0.07, 0.2, 0.55
+
+
+def photo(img: Image.Image, px: int, tilt: float, tape: Image.Image | None) -> Image.Image:
+    """`img` as UI/Board.photo draws it, `px` wide (for the preview only)."""
+    k = 4
+    m = round(px * PHOTO_MARGIN)
+    win = px - 2 * m
+    chin = round(px * PHOTO_CHIN)
+    w, h = px * k, (m + win + chin) * k
+    pad = px * k // 2
+    card = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0))
+    d = ImageDraw.Draw(card)
+    d.rectangle((pad, pad, pad + w - 1, pad + h - 1), fill=CARD + (255,), outline=EDGE, width=k)
+    d.rectangle((pad + m * k, pad + m * k, pad + (m + win) * k - 1, pad + (m + win) * k - 1), fill=WINDOW + (255,))
+    face = img.resize((win * k, win * k), Image.Resampling.LANCZOS)
+    card.alpha_composite(face, (pad + m * k, pad + m * k))
+    if tape is not None:
+        tw = round(px * TAPE_W) * k
+        strip = tape.resize((tw, round(tw * tape.height / tape.width)), Image.Resampling.LANCZOS)
+        strip = strip.rotate(4, expand=True, resample=Image.Resampling.BICUBIC)
+        card.alpha_composite(strip, (pad + (w - strip.width) // 2, pad - strip.height // 2))
+    card = card.rotate(-tilt, expand=False, resample=Image.Resampling.BICUBIC)
+    card = card.crop(card.getbbox())
+    return card.resize((max(1, card.width // k), max(1, card.height // k)), Image.Resampling.LANCZOS)
+
+
+def baked(img: Image.Image, tape: Image.Image | None) -> Image.Image:
+    """The alternative not taken: the photo drawn into a 512x512 image."""
+    shot = photo(img, 400, 4.0, tape)
+    out = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    out.alpha_composite(shot, ((512 - shot.width) // 2, (512 - shot.height) // 2))
+    return out
+
+
+def photo_sheet(images: dict[str, Image.Image]) -> Image.Image:
+    """Each face as a run-time photo at 48, 72 and 96 px (top of each pair of
+    rows) and as a baked 512 image shown at the same sizes (below)."""
+    tape_path = os.path.join(HERE, "..", "ui", "tape.png")
+    tape = Image.open(tape_path).convert("RGBA") if os.path.exists(tape_path) else None
+    sizes = (48, 72, 96)
+    tilts = (-3.0, 2.0, -1.5, 3.0, -2.5, 1.5, -2.0, 2.5)
+    cell = 130
+    sheet = Image.new("RGBA", (cell * len(images) + 20, 130 * len(sizes) + 24 + sum(sizes) + 12 * len(sizes) + 10), BOARD + (255,))
+    for i, (name, img) in enumerate(images.items()):
+        y = 10
+        for px in sizes:
+            shot = photo(img, px, tilts[i], tape)
+            sheet.alpha_composite(shot, (10 + i * cell + (cell - shot.width) // 2, y))
+            y += 130
+        y += 24
+        for px in sizes:
+            shot = baked(img, tape).resize((px, px), Image.Resampling.LANCZOS)
+            sheet.alpha_composite(shot, (10 + i * cell + (cell - px) // 2, y))
+            y += px + 12
+    return sheet
+
+
 def main():
     images = {}
     for name, draw in PORTRAITS.items():
@@ -1001,6 +1072,10 @@ def main():
         out_dir = sys.argv[sys.argv.index("--preview") + 1]
         os.makedirs(out_dir, exist_ok=True)
         preview(images).save(os.path.join(out_dir, "portraits-preview.png"))
+    if "--photos" in sys.argv:
+        target = sys.argv[sys.argv.index("--photos") + 1]
+        photo_sheet(images).save(target)
+        print(f"wrote {target}")
     print(f"wrote {len(images)} portraits and sheet.png to {HERE}")
 
 
