@@ -72,14 +72,14 @@ local Assets: Assets = {
 	glow = { id = "rbxassetid://109577761634341", kind = "radial" },
 	dots = { id = "rbxassetid://77034414001634", kind = "tile" },
 	portraits = table.freeze({
-		okafor = 125434917567861, -- okafor.png
-		calloway = 136996676609904, -- calloway.png
-		venkat = 80486112194483, -- venkat.png
-		hale = 137090183313203, -- hale.png
-		alvarado = 83415943025124, -- alvarado.png
-		reyes = 104553481645494, -- reyes.png
-		strand = 105519082316345, -- strand.png
-		begay = 129888340974432, -- begay.png
+		okafor = 116339099383860, -- okafor.png
+		calloway = 137844509650332, -- calloway.png
+		venkat = 81257930945681, -- venkat.png
+		hale = 93092159390078, -- hale.png
+		alvarado = 110468128342710, -- alvarado.png
+		reyes = 132555127717680, -- reyes.png
+		strand = 113934734255738, -- strand.png
+		begay = 71577118715916, -- begay.png
 	}),
 	mapStates1 = { id = "rbxassetid://105693687672536", kind = "atlas" },
 	mapStates2 = { id = "rbxassetid://84531905119471", kind = "atlas" },
