@@ -72,24 +72,16 @@ local Pins = require(script.Parent.Pins)
 
 local KEY_GOLD = Kit.colors.keyGold -- a key state's highlighter band (D-101), the spotlight's fill
 
--- Patrick Hand for the codes and numbers written on the board (Kit.font.hand
--- on the whiteboard branch), Kit.font.bold where the engine lacks it.
-local function handFont(): Enum.Font
-	local hand = (Kit.font :: any).hand
-	if hand ~= nil then
-		return hand
-	end
-	local ok, font = pcall(function()
-		return (Enum.Font :: any).PatrickHand
-	end)
-	return if ok and font ~= nil then font else Kit.font.bold
-end
-local HAND = handFont()
-local HAND_MIN = 14 -- px, the smallest text written in Patrick Hand; a plate under it (a crowded phone map) uses Kit.font.bold
+-- A state's code is hand-lettered in marker on the board (Kit.font.display,
+-- Permanent Marker: big, clear capitals); its numbers stay in the clean bold
+-- font, since Patrick Hand's short digits read small on a map (D-102, from
+-- Studio screenshots). Under CODE_MIN px a code is bold too.
+local CODE = Kit.font.display
+local CODE_MIN = 14 -- px
 
--- The font of a code or a number written at `s` px (HAND_MIN).
-local function handAt(s: number): Enum.Font
-	return if s >= HAND_MIN then HAND else Kit.font.bold
+-- The font of a code written at `s` px.
+local function codeAt(s: number): Enum.Font
+	return if s >= CODE_MIN then CODE else Kit.font.bold
 end
 
 local ShapeMap = {}
@@ -107,7 +99,7 @@ ShapeMap.COMPACT_W = MapShape.TALL_BELOW -- px: a map narrower than this labels 
 local COMPACT_W = ShapeMap.COMPACT_W
 ShapeMap.LENS_ROOM = 24 -- px, the smallest inner circle that shows a value under (big map) or beside (compact) its code
 local LABEL_MIN, LABEL_MAX = 14, 22 -- px, the code label's height range on a big map
-local COMPACT_MIN, COMPACT_MAX = 14, 16 -- px, ... on a compact map (14: Patrick Hand's floor, was 12)
+local COMPACT_MIN, COMPACT_MAX = 14, 16 -- px, ... on a compact map (14: the marker codes' floor, was 12)
 local LABEL_SHARE = 0.4 -- the label's height, share of the state's inner circle
 local PART_H = Kit.size.caption + 2 -- px, a lens plate's height
 local DISC_ICON = 20 -- px, the icon on it
@@ -380,6 +372,13 @@ local function edgeOf(fill: Color3): Color3
 end
 
 -- The readable text on a solid `fill`.
+-- A callout chip's fill: the state's color halfway to the board, so its code
+-- and value read in ink on every color (D-102; a full ink fill hid them).
+local CHIP_PALE = 0.5
+local function chipTint(fill: Color3): Color3
+	return Kit.color(Colors.tint(Kit.rgb(fill), Colors.background, CHIP_PALE))
+end
+
 local function onFill(fill: Color3): Color3
 	if fill == Kit.colors.loss then
 		return Kit.colors.onLoss
@@ -517,7 +516,7 @@ local function newPart(row: Frame, k: number): Part
 		Size = UDim2.fromOffset(0, PART_H),
 		TextScaled = true,
 		TextSize = Kit.size.caption,
-		Font = HAND,
+		Font = Kit.font.bold,
 		BackgroundColor3 = Kit.colors.field,
 		BackgroundTransparency = PART_BG,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -920,7 +919,7 @@ function ShapeMap.new(): MapInterface.Map
 			Size = UDim2.new(1, 0, 0, LABEL_MIN),
 			TextScaled = true,
 			TextSize = Kit.size.heading,
-			Font = HAND,
+			Font = CODE,
 			TextStrokeColor3 = Kit.colors.background,
 			TextStrokeTransparency = LABEL_STROKE,
 			TextXAlignment = Enum.TextXAlignment.Center,
@@ -938,7 +937,7 @@ function ShapeMap.new(): MapInterface.Map
 			Size = UDim2.fromScale(0, 1),
 			TextScaled = true,
 			TextSize = Kit.size.heading,
-			Font = HAND,
+			Font = CODE,
 			TextStrokeColor3 = Kit.colors.background,
 			TextStrokeTransparency = LABEL_STROKE,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -1017,7 +1016,7 @@ function ShapeMap.new(): MapInterface.Map
 			Size = UDim2.fromOffset(0, TAG_H),
 			AnchorPoint = Vector2.new(0.5, 1),
 			TextSize = Kit.size.caption,
-			Font = HAND,
+			Font = Kit.font.bold,
 			TextColor3 = Kit.colors.onAccent,
 			BackgroundColor3 = Kit.colors.accent,
 			BackgroundTransparency = 0,
@@ -1649,12 +1648,17 @@ function ShapeMap.new(): MapInterface.Map
 	-- is `w` px wide at text size `s`, its letters centered in it), the code
 	-- and the asterisk in the hand font for that size.
 	local function placeStar(node: Node, s: number, w: number)
-		node.label.Font = handAt(s)
+		node.label.Font = codeAt(s)
 		local star = node.star
 		star.Font = node.label.Font
 		star.Visible = node.key
 		if node.key then
-			local letters = w - 2 * KEY_STAR_EM * s - (if node.arrow.Visible then ARROW_PX else 0)
+			-- The letters as drawn when the engine has measured them (codeW's
+			-- estimate is for bold capitals, not the marker's).
+			local estimate = w - 2 * KEY_STAR_EM * s - (if node.arrow.Visible then ARROW_PX else 0)
+			local bounds: Vector2? = (node.label :: any).TextBounds -- nil headless
+			local drawn = if bounds then bounds.X else 0
+			local letters = if drawn > 0 and drawn < estimate then drawn else estimate
 			star.Position = UDim2.new(0.5, letters / 2, 0.5, 0)
 			star.Size = UDim2.fromOffset(KEY_STAR_EM * s, s)
 		end
@@ -1714,7 +1718,7 @@ function ShapeMap.new(): MapInterface.Map
 		local rw, rh = measureRow(node, s)
 		node.lensRow.Size = UDim2.fromOffset(rw, rh)
 		for _, part in node.parts do
-			part.label.Font = handAt(s)
+			part.label.Font = Kit.font.bold
 			for _, glyph in part.glyphs do
 				glyph.Size = UDim2.fromOffset(s, s)
 			end
@@ -2027,10 +2031,11 @@ function ShapeMap.new(): MapInterface.Map
 		local scribbled = hatched and seat ~= nil
 		node.image:SetAttribute("Hatch", if scribbled and seat then ShapeMap.slant(seat) else "")
 		node.image.ImageTransparency = if hatched and seat == nil and not hollow then 1 else fade
+		node.image:SetAttribute("Fade", fade) -- dimmed or quieted, even where a blank toss-up draws nothing
 		if node.chip then
 			local chip = node.chip :: Frame
 			if tweening[node.id] == nil then
-				chip.BackgroundColor3 = shown
+				chip.BackgroundColor3 = chipTint(shown)
 			end
 			chip.BackgroundTransparency = fade
 		end
@@ -2195,7 +2200,7 @@ function ShapeMap.new(): MapInterface.Map
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromOffset(0, TAG_H),
 				TextSize = Kit.size.caption,
-				Font = HAND,
+				Font = Kit.font.bold,
 				BackgroundColor3 = Kit.colors.field,
 				BackgroundTransparency = PREVIEW_BG,
 				TextTransparency = PREVIEW_TEXT,
@@ -3354,7 +3359,7 @@ function ShapeMap.new(): MapInterface.Map
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromOffset(0, TAG_H),
 				TextSize = Kit.size.caption,
-				Font = HAND,
+				Font = Kit.font.bold,
 				TextColor3 = Kit.colors.text,
 				BackgroundColor3 = Kit.colors.field,
 				BackgroundTransparency = GHOST_BG,
@@ -3401,7 +3406,12 @@ function ShapeMap.new(): MapInterface.Map
 		fills[id] = color
 		Motion.tween(node.image, { ImageColor3 = color }, Motion.t.call, Motion.ease.soft)
 		if node.chip then
-			Motion.tween(node.chip :: Frame, { BackgroundColor3 = color }, Motion.t.call, Motion.ease.soft)
+			Motion.tween(
+				node.chip :: Frame,
+				{ BackgroundColor3 = chipTint(color) },
+				Motion.t.call,
+				Motion.ease.soft
+			)
 		end
 		Motion.ring(node.hit, color)
 	end

@@ -41,16 +41,29 @@ local function whiteboardAssets(world: FakeRoblox.World, peer: FakeRoblox.Peer):
 	return list
 end
 
+-- The whiteboard images missing (an id not set yet): the real ids with the
+-- scribbled atlases and the ink overlay blanked.
+local function flatAssets(world: FakeRoblox.World, peer: FakeRoblox.Peer): { [string]: any }
+	local Assets = FakeRoblox.require(world, peer, "src/client/UI/Assets.luau")
+	local list: { [string]: any } = table.clone(Assets)
+	for _, key in { "mapStates1a", "mapStates2a", "mapStates1b", "mapStates2b" } do
+		list[key] = { id = "", kind = "atlas" }
+	end
+	list.mapInk = { id = "", kind = "overlay" }
+	return list
+end
+
 -- The real map filling a `w` x `h` frame on a client (Rig turns NodeMap.preview
--- on); `whiteboard`: with the whiteboard's images as if uploaded.
-local function mount(w: number, h: number, whiteboard: boolean?): Mounted
+-- on); `whiteboard`: with stand-in ids for the whiteboard's images; `flat`:
+-- with them missing, as before they were uploaded.
+local function mount(w: number, h: number, whiteboard: boolean?, flat: boolean?): Mounted
 	local world, peer = Rig.fixture("Lobby", nil)
-	if whiteboard then
+	if whiteboard or flat then
 		FakeRoblox.setModuleField(
 			world,
 			"src/client/Map/ShapeMap.luau",
 			"assets",
-			whiteboardAssets(world, peer)
+			if flat then flatAssets(world, peer) else whiteboardAssets(world, peer)
 		)
 	end
 	local Kit = FakeRoblox.require(world, peer, "src/client/UI/Kit.luau")
@@ -122,9 +135,10 @@ describe("ShapeMap", function()
 			expect(image.ImageRectOffset.X):toBe(shape.ox)
 			expect(image.ImageRectSize.Y):toBe(shape.oh)
 		end
+		-- The uploaded marker ink overlay (D-102), in ink.
 		local borders = m.map.root.Borders.BorderLines
-		expect(borders:GetAttribute("Asset")):toBe("mapBorders")
-		expect(borders.ImageColor3):toBe(m.Kit.colors.background)
+		expect(borders:GetAttribute("Asset")):toBe("mapInk")
+		expect(borders.ImageColor3):toBe(m.Kit.colors.text)
 	end)
 
 	it("fills each state like the circles: poll leader's band, lean before polls", function()
@@ -155,7 +169,7 @@ describe("ShapeMap", function()
 	end)
 
 	it("picks the scribble by the leading seat: / for seat 1, \\ for seat 2, none for a toss-up", function()
-		local m = mount(390, 244)
+		local m = mount(390, 244, false, true)
 		local ShapeMap = FakeRoblox.require(m.world, m.peer, "src/client/Map/ShapeMap.luau")
 		expect(ShapeMap.leaderOf({ 52, 40 })):toBe(1)
 		expect(ShapeMap.leaderOf({ 40, 52 })):toBe(2)
@@ -219,11 +233,11 @@ describe("ShapeMap", function()
 		expect(borders.ImageColor3):toBe(wb.Kit.colors.text)
 		check(wb.map.root.Outlines:FindFirstChild("CoastAK") ~= nil, "no coast around Alaska")
 
-		-- Not uploaded yet (the real ids): the flat fills and the old borders.
+		-- An image missing (not uploaded): the flat fills and the old borders.
 		m.map:setView(view :: any, { blue, red })
 		local flat = m.map.root.Shapes
-		local Assets = FakeRoblox.require(m.world, m.peer, "src/client/UI/Assets.luau")
-		expect(flat.ShapeOH.Image):toBe((Assets :: any)[`mapStates{MapShape.get("OH").atlas}`].id)
+		local Assets = flatAssets(m.world, m.peer)
+		expect(flat.ShapeOH.Image):toBe(Assets[`mapStates{MapShape.get("OH").atlas}`].id)
 		expect(flat.ShapeOH:GetAttribute("Hatch")):toBe("")
 		expect(flat.ShapeVT.ImageTransparency):toBe(0)
 		expect(m.map.root.Borders.BorderLines:GetAttribute("Asset")):toBe("mapBorders")

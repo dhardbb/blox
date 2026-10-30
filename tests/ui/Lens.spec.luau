@@ -479,7 +479,7 @@ describe("Map lenses", function()
 		local shape = m.root.Shapes.ShapeOH
 		m:setLens({ OH = { parts = { { text = "$0.0" } }, dim = true } })
 		FakeRoblox.run(world, 0.05) -- the mark layout runs once a frame
-		check(shape.ImageTransparency > 0, "a drained state is not dimmed")
+		check(shape:GetAttribute("Fade") > 0, "a drained state is not dimmed")
 		expect(node.Lens.Visible):toBe(true)
 		local label, row = node.Label, node.Lens
 		-- Beside or under the code, never on it (D-070's mark layout).
@@ -495,7 +495,7 @@ describe("Map lenses", function()
 			"the value covers the code"
 		)
 		m:setLens({ OH = { parts = { { text = "17" } } } })
-		expect(shape.ImageTransparency):toBe(0)
+		expect(shape:GetAttribute("Fade")):toBe(0)
 		expect(node.Lens.Part1.Text):toBe("17")
 		m:setLens({})
 		expect(node.Lens.Visible):toBe(false)

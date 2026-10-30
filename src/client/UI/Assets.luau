@@ -65,11 +65,11 @@ local Assets: Assets = {
 	mapStates1 = { id = "rbxassetid://105693687672536", kind = "atlas" },
 	mapStates2 = { id = "rbxassetid://84531905119471", kind = "atlas" },
 	mapBorders = { id = "rbxassetid://127447041117262", kind = "overlay" },
-	mapStates1a = { id = "", kind = "atlas" }, -- map-states-1a.png (not uploaded yet)
-	mapStates2a = { id = "", kind = "atlas" }, -- map-states-2a.png
-	mapStates1b = { id = "", kind = "atlas" }, -- map-states-1b.png
-	mapStates2b = { id = "", kind = "atlas" }, -- map-states-2b.png
-	mapInk = { id = "", kind = "overlay" }, -- map-ink.png
+	mapStates1a = { id = "rbxassetid://90520641329820", kind = "atlas" }, -- map-states-1a.png
+	mapStates2a = { id = "rbxassetid://107187629382097", kind = "atlas" }, -- map-states-2a.png
+	mapStates1b = { id = "rbxassetid://127992949925508", kind = "atlas" }, -- map-states-1b.png
+	mapStates2b = { id = "rbxassetid://87162744091815", kind = "atlas" }, -- map-states-2b.png
+	mapInk = { id = "rbxassetid://72265671361806", kind = "overlay" }, -- map-ink.png
 }
 
 return table.freeze(Assets)

@@ -1525,8 +1525,8 @@ end
 -- ---------------------------------------------------------------- front page (D-056)
 
 local SHADOW_DY = 4 -- px a shadow drops below its object
-local SHADOW_SPREAD = 12 -- px a shadow reaches past its object on each side
-local SHADOW_TRANSPARENCY = 0.45
+local SHADOW_SPREAD = 8 -- px a shadow reaches past its object on each side (D-102: paper sits close to the board)
+local SHADOW_TRANSPARENCY = 0.85 -- D-102: a faint shadow on the white board (0.45 on the navy stage was a smear)
 local SHADOW_SLICE = Rect.new(40, 40, 56, 56) -- ui-shadow.png's stretchable middle
 local GLOW_TRANSPARENCY = 0.6
 local STAMP_TILT = -6 -- degrees

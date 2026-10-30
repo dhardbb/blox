@@ -166,9 +166,9 @@ describe("The Close filter (D-079)", function()
 		for _, s in view.states do
 			local shape = map.Shapes:FindFirstChild(`Shape{s.id}`)
 			if Lens.isClose(s) then
-				check(shape.ImageTransparency < 0.5, `{s.id} is close but faded`)
+				check(shape:GetAttribute("Fade") < 0.5, `{s.id} is close but faded`)
 			else
-				check(shape.ImageTransparency > 0.5, `{s.id} is safe but not faded`)
+				check(shape:GetAttribute("Fade") > 0.5, `{s.id} is safe but not faded`)
 				expect(map.Nodes:FindFirstChild(s.id).Lens.Visible):toBe(false)
 			end
 		end
