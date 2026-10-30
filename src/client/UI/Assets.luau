@@ -15,6 +15,19 @@
 --   mapStates1b, mapStates2b  ... slanted \ (seat 2)
 --   mapInk  assets/map/map-ink.png: every border and the coast in wobbly marker
 --
+-- The whiteboard set (docs/proposals/whiteboard.md), applied by UI/Board; each
+-- one is skipped (or drawn flat) while its id is "":
+--   board   board.png, 512x512: the board in full color with faint erased
+--           ghosts, tiled behind a screen (Board.texture)
+--   sticky  sticky.png, 128x128: a 9-slice sticky note in white, tinted to the
+--           note color, curled corner and shadow (Board.sticky)
+--   markerBox  marker-box.png, 128x128: a 9-slice wobbly marker rectangle,
+--           white, tinted to the ink, drawn at 2x (Board.markerBox)
+--   magnet  magnet.png, 128x128: a round glossy magnet in greys, tinted (Board.magnet)
+--   scribbleCircle  scribble-circle.png, 256x256: a loose marker circle, white,
+--           tinted (Board.circle)
+--   tape    tape.png, 128x48: a strip of masking tape in full color (Board.tape)
+--
 -- If a map id is ever emptied again, the game falls back to the circle map
 -- (Map/NodeMap) until all three are set. Until all four scribbled atlases are
 -- set the map keeps the flat fills, and until mapInk is set the old borders.
@@ -30,7 +43,7 @@
 
 export type Asset = {
 	id: string, -- "rbxassetid://…" or "" (not uploaded: draws nothing)
-	kind: string, -- "slice" | "radial" | "tile" | "atlas" | "overlay"
+	kind: string, -- "slice" | "radial" | "tile" | "atlas" | "overlay" | "sprite" (drawn whole, Fit or Stretch)
 }
 
 export type Assets = {
@@ -45,6 +58,12 @@ export type Assets = {
 	mapStates1b: Asset,
 	mapStates2b: Asset,
 	mapInk: Asset,
+	board: Asset,
+	sticky: Asset,
+	markerBox: Asset,
+	magnet: Asset,
+	scribbleCircle: Asset,
+	tape: Asset,
 	portraits: { [string]: number },
 }
 
@@ -70,6 +89,12 @@ local Assets: Assets = {
 	mapStates1b = { id = "rbxassetid://127992949925508", kind = "atlas" }, -- map-states-1b.png
 	mapStates2b = { id = "rbxassetid://87162744091815", kind = "atlas" }, -- map-states-2b.png
 	mapInk = { id = "rbxassetid://72265671361806", kind = "overlay" }, -- map-ink.png
+	board = { id = "", kind = "tile" }, -- assets/ui/board.png
+	sticky = { id = "", kind = "slice" }, -- assets/ui/sticky.png
+	markerBox = { id = "", kind = "slice" }, -- assets/ui/marker-box.png
+	magnet = { id = "", kind = "sprite" }, -- assets/ui/magnet.png
+	scribbleCircle = { id = "", kind = "sprite" }, -- assets/ui/scribble-circle.png
+	tape = { id = "", kind = "sprite" }, -- assets/ui/tape.png
 }
 
 return table.freeze(Assets)
