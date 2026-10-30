@@ -89,12 +89,12 @@ local Assets: Assets = {
 	mapStates1b = { id = "rbxassetid://127992949925508", kind = "atlas" }, -- map-states-1b.png
 	mapStates2b = { id = "rbxassetid://87162744091815", kind = "atlas" }, -- map-states-2b.png
 	mapInk = { id = "rbxassetid://72265671361806", kind = "overlay" }, -- map-ink.png
-	board = { id = "", kind = "tile" }, -- assets/ui/board.png
-	sticky = { id = "", kind = "slice" }, -- assets/ui/sticky.png
-	markerBox = { id = "", kind = "slice" }, -- assets/ui/marker-box.png
-	magnet = { id = "", kind = "sprite" }, -- assets/ui/magnet.png
-	scribbleCircle = { id = "", kind = "sprite" }, -- assets/ui/scribble-circle.png
-	tape = { id = "", kind = "sprite" }, -- assets/ui/tape.png
+	board = { id = "rbxassetid://121917939708312", kind = "tile" }, -- assets/ui/board.png
+	sticky = { id = "rbxassetid://102484225166509", kind = "slice" }, -- assets/ui/sticky.png
+	markerBox = { id = "rbxassetid://115137894993859", kind = "slice" }, -- assets/ui/marker-box.png
+	magnet = { id = "rbxassetid://78563398889611", kind = "sprite" }, -- assets/ui/magnet.png
+	scribbleCircle = { id = "rbxassetid://119619950771252", kind = "sprite" }, -- assets/ui/scribble-circle.png
+	tape = { id = "rbxassetid://78942161704546", kind = "sprite" }, -- assets/ui/tape.png
 }
 
 return table.freeze(Assets)

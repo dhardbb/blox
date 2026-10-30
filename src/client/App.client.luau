@@ -24,6 +24,7 @@ local _DebugPanel = require(script.Parent.DebugPanel) -- builds the hidden debug
 local Audio = require(script.Parent.UI.Audio)
 local BugSheet = require(script.Parent.UI.BugSheet)
 local FoundPrompt = require(script.Parent.UI.FoundPrompt)
+local Board = require(script.Parent.UI.Board)
 local Kit = require(script.Parent.UI.Kit)
 local Help = require(script.Parent.UI.Help)
 local LeaveMatch = require(script.Parent.UI.LeaveMatch)
@@ -63,6 +64,8 @@ local gui = Kit.new("ScreenGui", {
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 })
 local background = Kit.box({ Name = "Background", Parent = gui })
+-- The whiteboard (D-102): the board texture under every screen; flat while not uploaded.
+Board.texture(background)
 
 -- Big screens (an iPad Pro, a large Mac window) scale the whole board up, so
 -- text and buttons don't look tiny: min(width / 1024, height / 768), between

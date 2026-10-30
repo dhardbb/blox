@@ -185,6 +185,7 @@ local SetupWords = require(ReplicatedStorage.Shared.UI.Words.Setup)
 local Icons = require(script.Parent.Icons)
 local IssueIcons = require(script.Parent.IssueIcons)
 local Issues = require(ReplicatedStorage.Shared.Sim.Issues)
+local Board = require(script.Parent.Board)
 local Motion = require(script.Parent.Motion)
 
 local Kit = {}
@@ -1535,6 +1536,7 @@ local STAMP_PAD_X = 14 -- px
 local STAMP_PAD_Y = 8 -- px
 local STAMP_WASH = 0.86 -- a stamp's fill: a light wash of its color on the board (D-102)
 local STAMP_EDGE = 3 -- px, a stamp's marker outline (D-102)
+local STAMP_CIRCLE = 1.3 -- the marker circle around a stamp, x its size (D-102)
 local DISPLAY_EM = 0.66 -- Fredoka One's average advance, in em (a stamp's width estimate)
 local MONOGRAM_TEXT = 0.42 -- a monogram's initials, x its size
 local MONOGRAM_SHADE = 0.78 -- the bottom of a monogram's gradient
@@ -1821,13 +1823,19 @@ function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Fram
 		Parent = root,
 	}))
 	Kit.corner(STAMP_RADIUS).Parent = plate
-	Kit.new("UIStroke", {
+	local stampEdge = Kit.new("UIStroke", {
 		Name = "Edge",
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		Color = color,
 		Thickness = STAMP_EDGE,
 		Parent = plate,
-	})
+	}) :: UIStroke
+	-- Once the scribble circle is uploaded the word is circled in marker
+	-- instead of boxed (the brief's "circled, underlined marker writing").
+	if Board.circle(root, color, { scale = STAMP_CIRCLE }) then
+		stampEdge.Enabled = false
+		plate.BackgroundTransparency = 1
+	end
 	Kit.new("UIPadding", {
 		PaddingLeft = UDim.new(0, STAMP_PAD_X),
 		PaddingRight = UDim.new(0, STAMP_PAD_X),
