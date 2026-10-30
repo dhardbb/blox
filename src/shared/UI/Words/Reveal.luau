@@ -431,6 +431,9 @@ function Words.plain(text: string): string
 	return out
 end
 
+-- The heading over election night's calls, written on the board like a tally table (D-102).
+Words.TRACKER = "TRACKER"
+
 function Words.stateLine(id: string): string
 	return `{nameOf(id)} · {plural(evOf(id), "vote")}`
 end

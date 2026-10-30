@@ -117,7 +117,6 @@ local CALL_POP = 0.94 -- the spotlight's scale as a call lands (it springs to 1)
 local LINE_H = Kit.MIN_TOUCH -- px, smallest feed row
 local MAP_SHARE = 0.66 -- of the width, wide screens
 local MAP_SHARE_PORTRAIT = 0.43 -- of the height at most, phones (room for the tall map, D-079)
-local WINNER_TINT = 0.3 -- how far a feed row leans toward the winner's color
 local BANNER_GLOW = 0.9 -- the banner's glow in the winner's color (transparency; D-102: a faint wash on the board, was 0.65)
 
 local TOTAL_EV = 0 -- every electoral vote on the map; the bar fills against it
@@ -526,6 +525,16 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Parent = side,
 	})
 	Kit.list("Vertical", Kit.space.xs).Parent = feed
+	-- The table's heading, in marker over every call (and over the tip).
+	Kit.text(Words.TRACKER, {
+		Name = "TrackerTitle",
+		LayoutOrder = -2e6,
+		Size = UDim2.new(1, 0, 0, Kit.size.heading + 6),
+		Font = Kit.font.display,
+		TextSize = Kit.size.heading,
+		TextColor3 = Kit.colors.text,
+		Parent = feed,
+	})
 	-- Bottom padding so the oldest row is never clipped; room for the scroll bar.
 	Kit.new("UIPadding", {
 		PaddingBottom = UDim.new(0, Kit.space.sm),
@@ -755,23 +764,32 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		map:setMarks(marks)
 	end
 
-	-- One feed row: "Ohio · 17 votes" over "Goldie by 2.9 points", tinted by the winner.
+	-- One feed row: "Ohio · 17 votes" over "Goldie by 2.9 points". The feed is a
+	-- TRACKER table written on the board (D-102, was rows tinted by the winner):
+	-- the state line in the winner's marker ink, a pencil rule under each row.
 	local function addLine(k: number, live: boolean)
 		local result = results[k]
-		local color = Kit.colors.raised
-		if result.winner > 0 then
-			color = Kit.color(Colors.tint(Colors.raised, colors[result.winner], WINNER_TINT))
-		end
+		local ink = if result.winner > 0
+			then Kit.textColor(Kit.color(colors[result.winner]))
+			else Kit.colors.text
 		local line = Kit.dataColor(Kit.box({
 			Name = `Line{k}`,
 			Size = UDim2.new(1, 0, 0, LINE_H),
 			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 0,
-			BackgroundColor3 = color,
+			BackgroundTransparency = 1,
 			LayoutOrder = -k,
 			Parent = feed,
 		}))
-		Kit.corner(Kit.radius.control).Parent = line
+		local rule = Kit.new("Frame", {
+			Name = "Rule",
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.fromScale(0, 1),
+			Size = UDim2.new(1, 0, 0, 1),
+			BackgroundColor3 = Kit.colors.line,
+			BorderSizePixel = 0,
+			Parent = line,
+		})
+		rule:SetAttribute("Decor", true)
 		-- A left bar in the winner's base color (a dead heat has none).
 		if result.winner > 0 then
 			local bar = Kit.new("Frame", {
@@ -803,7 +821,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = "State",
 			LayoutOrder = 1,
 			Size = UDim2.new(1, 0, 0, Kit.size.body + 4),
-			Font = Kit.font.bold,
+			Font = Kit.font.hand,
+			TextColor3 = ink,
 			TextScaled = true,
 			Parent = words,
 		})
