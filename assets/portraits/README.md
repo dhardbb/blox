@@ -1,31 +1,33 @@
 # Candidate portraits
 
-Made by `make.py` (Pillow 11), run from the repository root: `python3 assets/portraits/make.py` (add `--preview DIR` for an unlabeled copy of the sheet). It also writes `sheet.png`: all eight on their plates at 40, 80 and 160 px, labeled. See `docs/DESIGN.md` D-068 and the names-only reskin D-097.
+Made by `make.py` (Pillow 11), run from the repository root: `python3 assets/portraits/make.py`. Options: `--review PATH` writes the review sheet (each at 512 with name and genre, a 32/48/72 px strip in color and in greyscale, and the round and taped crops; use `build/portraits-review.png`); `--photos PATH` writes how `Board.photo` tapes each one up at 48, 72 and 96 px; `--preview DIR` writes an unlabeled copy of the sheet. It always writes `sheet.png`: all eight in `Kit.portrait`'s round crop at 40, 80 and 160 px, labeled. See `docs/DESIGN.md` D-068, the names-only reskin D-097 and the whiteboard D-102.
 
-One 512x512 PNG per candidate in `src/shared/Sim/Candidates.luau`, named by candidate id (ids never change, D-097): a flat head-and-shoulders bust on a transparent background, drawn at 4x and scaled down. `Kit.portrait` puts it on a round neutral plate and clips it to the circle (a `UICorner` on the image), so each bust is centered and fits the image's inscribed circle.
+One 512x512 PNG per candidate in `src/shared/Sim/Candidates.luau`, named by candidate id (ids never change, D-097). Each is a **photograph, not a marker drawing**: the whiteboard tapes the faces up as instant photos, so they are full-bleed square snapshots taken on the campaign trail, with no outlines. Soft light from one side gives the face its form; the setting behind is out of focus; a color grade, a vignette and a little film grain finish it. Everything is painted at 4x and scaled down, and every random choice is seeded by the id, so the script always paints the same pictures.
 
-| File | Candidate | The look (the headwear sets the silhouette) |
-|---|---|---|
-| `okafor.png` | Goldie Pennywhistle, The Fundraiser | gold-trimmed tricorn, doubloon earrings and pendant |
-| `calloway.png` | Buster Cannonball, The Barnstormer | red stunt helmet with goggles, epaulettes |
-| `venkat.png` | Mavis Glimmer, The Ad Wizard | top hat, high-collared cape, sparkles |
-| `hale.png` | Percy Quibble, The Debater | beret, monocle, handlebar mustache, quill |
-| `alvarado.png` | Opal Crumpet, The Insider | lilac beehive, cat-eye glasses, pearls, gold key |
-| `reyes.png` | Dash Kickflip, The Insurgent | teal-tipped spikes, sweatband, bolt pin |
-| `strand.png` | Esme Moonbeam, The Pollster | starry headscarf, round glasses, crystal ball |
-| `begay.png` | Gus Bramble, The Organizer | ranger hat, bushy white beard, neckerchief, badges |
+`Kit.portrait` clips the same square to a circle (a `UICorner` on the image), so each face sits in the middle of the inscribed circle; `Board.photo` shows the whole square.
+
+## The eight: a genre of politician each
+
+Each is a believable person. The genre is carried by the setting, the light and the pose, not by a gag or a prop costume, and the faces differ through ordinary features (face shape, hair, age, glasses, clothes, expression). All are fictional; no real person, party, flag, seal, logo or slogan appears.
+
+| File | Candidate | Genre | The photo: setting, light, pose |
+|---|---|---|---|
+| `okafor.png` | Goldie Pennywhistle | The Fundraiser | a gala ballroom's warm golden bokeh; leaning in with a big welcoming smile; locs up in a high bun, gold hoops and pendant, an evening dress |
+| `calloway.png` | Buster Cannonball | The Barnstormer | an outdoor rally in daylight under mustard-and-cream bunting swags, the crowd behind; mid-speech, collar open, sleeve rolled, a fist up; copper hair, freckles |
+| `venkat.png` | Mavis Glimmer | The Ad Wizard | a dark TV studio with glowing monitors, a teal back light tracing her edge; a perfectly held, camera-ready smile; long glossy hair |
+| `hale.png` | Percy Quibble | The Debater | a debate stage's row of lights; squared up behind the lectern's edge and microphone, an open hand raised to take the floor; mustache, greying temples, dark suit |
+| `alvarado.png` | Opal Crumpet | The Insider | a wood-panelled hallway lit by a brass sconce, a marble column beside her; strong side light leaves half her face in shadow; a knowing half-smile; swept-back silver hair, pearls, a lapel pin |
+| `reyes.png` | Dash Kickflip | The Insurgent | a brick street at night caught in a camera flash; off-axis and turned away, a hand-lettered cardboard sign ("HEAR US!") pushing into frame; undercut, hoodie, a set jaw |
+| `strand.png` | Esme Moonbeam | The Pollster | an office wall papered with crosstabs, bar charts and trend lines under cool fluorescent light; round glasses, a pencil behind her ear, eyes on the numbers; short white hair, cardigan |
+| `begay.png` | Gus Bramble | The Organizer | a leafy street at golden hour, the background streaked as the camera pans to keep up; clipboard of sign-up checkboxes, lanyard and badge, a cap; white beard, a warm grin |
+
+At 48 px they part by setting (warm dark, bright sky, dark teal, steel-blue stage, brown wood and white column, night street and sign, pale paper wall, green leaves) and by hair and pose; the review sheet's greyscale strip checks that the values differ too.
 
 `sheet.png` is for people only; it is not uploaded.
 
-## The whiteboard look: photos taped up at run time
+## On the whiteboard: photos taped up at run time
 
-The whiteboard restyle (`docs/proposals/whiteboard.md`) keeps these images unchanged; there is nothing to re-upload. `UI/Board.photo(face, px, { tilt = ... })` puts a face in a white instant-photo card (7% border, a thicker chin), turns it a few degrees and tapes it on with `assets/ui/tape.png`. We picked that over baking a polaroid into new PNGs because, at the sizes the game shows faces (48 to 96 px):
-
-- the face stays big: a baked polaroid with its tilt and tape fits a 512 image only at about 65% of the width, so a 64 px slot would show a 40 px face; at run time the card is the slot and the face fills 86% of it;
-- each photo can lean its own way (a row of eight identical tilts looks printed, not taped), and the card's border and tilt can be tuned in code without new uploads;
-- the 8 uploaded ids keep working, and the tape is the only new image (shared with every other taped thing).
-
-The cost is a few more GuiObjects per face, and a rotated frame can't clip its children (Roblox's `Rotation` ignores `ClipsDescendants`), so the card relies on none. `python3 assets/portraits/make.py --photos PATH` writes a review sheet: each face as `Board.photo` draws it at 48, 72 and 96 px, and the baked alternative below it.
+`UI/Board.photo(face, px, { tilt = ... })` puts a face in a white instant-photo card (7% border, a thicker chin), turns it a few degrees and tapes it on with `assets/ui/tape.png`; the full-bleed photo fills the card's square window. Doing the card at run time rather than baking it into the PNG keeps the face big at the 48 to 96 px the game shows it, lets each photo lean its own way, and keeps the card's border and tilt tunable without new uploads. A rotated frame can't clip its children (Roblox's `Rotation` ignores `ClipsDescendants`), so the card relies on none.
 
 ## Uploading
 
