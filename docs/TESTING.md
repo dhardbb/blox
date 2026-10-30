@@ -1440,7 +1440,6 @@ After uploading `assets/map/map-states-1a.png`, `map-states-2a.png`, `map-states
 6. Turn on a greyscale filter (Mac: System Settings, Accessibility, Display, Color filters, Grayscale). **Expect:** who leads each state still reads from the slant alone.
 7. **Send back:** screenshots, and whether the scribble reads as marker or as a pattern.
 
-<<<<<<< HEAD
 ## Whiteboard look, every screen (D-102)
 
 The whole game as a whiteboard. Look in Studio at phone (Test → Device → an iPhone, upright), iPad (1024 x 768) and desktop (1280 x 720), and on a real phone if you can. Send back a screenshot of anything hard to read.
@@ -1452,7 +1451,6 @@ The whole game as a whiteboard. Look in Studio at phone (Test → Device → an 
 5. Results. **Expect:** LANDSLIDE / You won in a marker box; vote totals hand-lettered; no colored smudge behind the banner.
 6. Colorblind check: in Studio, take a screenshot of the Plan map and turn it grey (any photo app). **Expect:** your states and the rival's still tell apart by the slant of their scribble.
 7. Losses: find an orange number (a minus on the state card or a lost state). **Expect:** it is a dark burnt orange, readable on white, and always has a minus or arrow.
-=======
 ## Whiteboard art (images, icons, promo)
 
 The images for the whiteboard restyle (`docs/proposals/whiteboard.md`). Agents: `python3 assets/ui/make.py && python3 assets/icons/make.py && python3 assets/portraits/make.py && python3 assets/promo/make.py && python3 assets/sheet.py`, then open `build/art-sheet.png`; `lune run tests Board`.
@@ -1462,4 +1460,3 @@ The images for the whiteboard restyle (`docs/proposals/whiteboard.md`). Agents: 
 3. **Re-upload the 16 icons** in `assets/icons/` (same file names as before). **Send back:** the 16 new ids; an agent replaces them in `src/client/UI/Icons.luau`. The old ids keep showing the old icons until then.
 4. **Once a screen uses the props** (the screen restyle): at phone (390 x 844), iPad (1024 x 768) and desktop (1280 x 720). **Expect:** the board texture repeats without visible seams; text on it reads as easily as on the flat color; sticky notes and marker boxes keep their corners sharp at every size (no stretched curl or blurry box corners); the tape sits across the top of a photo. **Send back:** screenshots, and any prop that looks blurry or stretched.
 5. **Promo art.** Open `assets/promo/icon.png`, `icon-faceoff.png`, `icon-stamp.png` and the four `thumb-*.png`. **Expect:** the whiteboard look: a scribbled red and blue map, LANDSLIDE in red marker with a blue underline, sticky notes, magnets and taped photos; nothing important in the bottom strip. Upload them as in "Promo art" above. **Send back:** which icon you prefer (we recommend `icon.png`, the map one).
->>>>>>> wb-art
