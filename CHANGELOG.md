@@ -2,7 +2,7 @@
 
 Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`), and anything needed from the humans.
 
-## Unreleased
+## 0.18.0: the whiteboard, phones upright (Oct 29, 2026)
 
 ### The whiteboard (D-102)
 
