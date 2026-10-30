@@ -124,7 +124,7 @@ def main():
     sheet.add("assets/icons: marker doodles at 96, 48, 24 and 20 px", fit(icons(), WIDTH - 2 * PAD))
     portraits = module("portraits_make", "assets", "portraits", "make.py")
     faces = {cid: load("assets", "portraits", f"{cid}.png") for cid in portraits.PORTRAITS}
-    sheet.add("assets/portraits via Board.photo at 48, 72, 96 px (top) vs a baked 512 polaroid (below, not used)", fit(portraits.photo_sheet(faces), WIDTH - 2 * PAD))
+    sheet.add("assets/portraits taped up by Board.photo at 48, 72, 96 px", fit(portraits.photo_sheet(faces), WIDTH - 2 * PAD))
     promo_icons = [load("assets", "promo", n) for n in ("icon-map.png", "icon-faceoff.png", "icon-stamp.png")]
     small = [i.resize((150, 150), Image.Resampling.LANCZOS) for i in promo_icons] + [i.resize((50, 50), Image.Resampling.LANCZOS) for i in promo_icons]
     sheet.add("assets/promo: icon-map (= icon.png), icon-faceoff, icon-stamp at 512, 150 and 50 px", fit(row([*promo_icons, *small], gap=20), WIDTH - 2 * PAD))
