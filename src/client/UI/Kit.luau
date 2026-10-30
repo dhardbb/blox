@@ -1528,13 +1528,13 @@ local SHADOW_DY = 4 -- px a shadow drops below its object
 local SHADOW_SPREAD = 8 -- px a shadow reaches past its object on each side (D-102: paper sits close to the board)
 local SHADOW_TRANSPARENCY = 0.85 -- D-102: a faint shadow on the white board (0.45 on the navy stage was a smear)
 local SHADOW_SLICE = Rect.new(40, 40, 56, 56) -- ui-shadow.png's stretchable middle
-local GLOW_TRANSPARENCY = 0.6
+local GLOW_TRANSPARENCY = 0.85 -- D-102: a faint wash on the white board (0.6 on navy read as a smudge here)
 local STAMP_TILT = -6 -- degrees
 local STAMP_RADIUS = 10 -- px
 local STAMP_PAD_X = 14 -- px
 local STAMP_PAD_Y = 8 -- px
-local STAMP_GLOW = 1.8 -- the glow behind a stamp, x its size
-local STAMP_GLOW_TRANSPARENCY = 0.55
+local STAMP_WASH = 0.86 -- a stamp's fill: a light wash of its color on the board (D-102)
+local STAMP_EDGE = 3 -- px, a stamp's marker outline (D-102)
 local DISPLAY_EM = 0.66 -- Fredoka One's average advance, in em (a stamp's width estimate)
 local MONOGRAM_TEXT = 0.42 -- a monogram's initials, x its size
 local MONOGRAM_SHADE = 0.78 -- the bottom of a monogram's gradient
@@ -1808,23 +1808,23 @@ function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Fram
 		root.Size = UDim2.new(1, -2 * fit, 0, height)
 		Kit.new("UISizeConstraint", { MaxSize = Vector2.new(width, height), Parent = root })
 	end
-	Kit.glow(root, color, { scale = STAMP_GLOW, transparency = STAMP_GLOW_TRANSPARENCY })
-	local edge = edgeOf(color)
+	-- Marker writing boxed on the board (D-102, was a filled slab with a glow):
+	-- a light wash of the color, a thick marker outline in it, the word in its ink.
 	local plate = Kit.dataColor(Kit.new("Frame", {
 		Name = "Plate",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = color,
+		BackgroundTransparency = STAMP_WASH,
 		BorderSizePixel = 0,
 		ZIndex = 1,
 		Parent = root,
 	}))
 	Kit.corner(STAMP_RADIUS).Parent = plate
-	shade(plate)
 	Kit.new("UIStroke", {
 		Name = "Edge",
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = edge,
-		Thickness = 2,
+		Color = color,
+		Thickness = STAMP_EDGE,
 		Parent = plate,
 	})
 	Kit.new("UIPadding", {
@@ -1834,7 +1834,7 @@ function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Fram
 		PaddingBottom = UDim.new(0, STAMP_PAD_Y),
 		Parent = plate,
 	})
-	local label = Kit.text(text, {
+	Kit.text(text, {
 		Name = "Label",
 		Size = UDim2.fromScale(1, 1),
 		Font = Kit.font.display,
@@ -1842,16 +1842,8 @@ function Kit.stamp(text: string, color: Color3, props: { [string]: any }?): Fram
 		TextScaled = true,
 		TextWrapped = false,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextColor3 = Kit.color(Colors.onColor(Kit.rgb(color))),
+		TextColor3 = Kit.textColor(color),
 		Parent = plate,
-	})
-	Kit.new("UIStroke", {
-		Name = "Outline",
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		Color = edge,
-		Thickness = 2,
-		Transparency = 0.15,
-		Parent = label,
 	})
 	if parent then
 		root.Parent = parent

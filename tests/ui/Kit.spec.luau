@@ -734,10 +734,12 @@ describe("Kit foundation: orange losses and chunky buttons", function()
 		expect(label.TextSize):toBe(Kit.size.title)
 		expect(label.Font.Name):toBe("PermanentMarker")
 		local hero = Kit.stamp("You lost", Kit.colors.loss, { size = Kit.size.hero, Parent = c.stage })
+		-- Marker writing on a light wash (D-102): the word in the stamp's own ink.
 		check(
-			same(hero:FindFirstChild("Label", true).TextColor3, Kit.colors.onLoss),
-			"You lost is not dark on orange"
+			same(hero:FindFirstChild("Label", true).TextColor3, Kit.colors.loss),
+			"You lost is not in orange ink"
 		)
+		check(hero:FindFirstChild("Glow", true) == nil, "a stamp still glows")
 		local mono = Kit.monogram("Goldie Pennywhistle", cobalt, 56)
 		mono.Parent = c.stage
 		expect(mono:FindFirstChild("Initials").Text):toBe("GP")

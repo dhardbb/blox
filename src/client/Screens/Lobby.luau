@@ -468,7 +468,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 	local queueTime = Kit.text("", {
 		Name = "QueueTime",
 		Size = UDim2.fromScale(1, 1),
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextSize = Kit.size.heading,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextWrapped = false,
@@ -510,7 +510,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Font = Kit.font.display,
+		Font = Kit.font.hand,
 		TextSize = Kit.size.hero,
 		TextColor3 = Kit.colors.text,
 		TextXAlignment = Enum.TextXAlignment.Center,

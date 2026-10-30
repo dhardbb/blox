@@ -414,7 +414,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Name = "Gain",
 			LayoutOrder = 2,
 			Size = UDim2.new(1, 0, 0, Kit.size.heading + 8),
-			Font = Kit.font.display,
+			Font = Kit.font.hand,
 			TextSize = Kit.size.heading,
 			TextWrapped = false,
 			Parent = frame,

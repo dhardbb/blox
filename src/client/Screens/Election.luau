@@ -118,7 +118,7 @@ local LINE_H = Kit.MIN_TOUCH -- px, smallest feed row
 local MAP_SHARE = 0.66 -- of the width, wide screens
 local MAP_SHARE_PORTRAIT = 0.43 -- of the height at most, phones (room for the tall map, D-079)
 local WINNER_TINT = 0.3 -- how far a feed row leans toward the winner's color
-local BANNER_GLOW = 0.65 -- the banner's glow in the winner's color (transparency)
+local BANNER_GLOW = 0.9 -- the banner's glow in the winner's color (transparency; D-102: a faint wash on the board, was 0.65)
 
 local TOTAL_EV = 0 -- every electoral vote on the map; the bar fills against it
 for _, record in StateData.list do

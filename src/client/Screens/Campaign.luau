@@ -425,7 +425,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 			Position = UDim2.fromOffset(fromX, fromY),
 			Size = UDim2.fromOffset(0, Kit.size.heading + 8),
 			AutomaticSize = Enum.AutomaticSize.X,
-			Font = Kit.font.display,
+			Font = Kit.font.hand,
 			TextSize = Kit.size.heading,
 			TextColor3 = Kit.textColor(mine),
 			TextWrapped = false,
