@@ -31,10 +31,10 @@ local Icons: { [string]: Icon } = {
 	sparkles = { id = "rbxassetid://85604574793056", glyph = "☼" }, -- reduce motion
 	plane = { id = "rbxassetid://136061807700836", glyph = "✈" }, -- a flight
 	-- D-090: not uploaded yet (assets/icons/README.md); the glyph shows until then.
-	flame = { id = "", glyph = "♦" }, -- a Daily Race streak
-	bug = { id = "", glyph = "¤" }, -- Report a bug
-	scale = { id = "", glyph = "◊" }, -- the Issues map tab (D-092; to upload)
-	["chart-column"] = { id = "", glyph = "%" }, -- the Polls map tab (D-092; to upload)
+	flame = { id = "rbxassetid://78499241852859", glyph = "♦" }, -- a Daily Race streak
+	bug = { id = "rbxassetid://101977001168955", glyph = "¤" }, -- Report a bug
+	scale = { id = "rbxassetid://72936421925165", glyph = "◊" }, -- the Issues map tab (D-092)
+	["chart-column"] = { id = "rbxassetid://74425153139668", glyph = "%" }, -- the Polls map tab (D-092)
 }
 
 return Icons
