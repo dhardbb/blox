@@ -601,6 +601,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		return h
 	end
 
+	local placedPad: number? = nil -- the column's top padding as last set
 	local function relayout()
 		local size = parent.AbsoluteSize
 		local compact = Kit.compact(size)
@@ -625,7 +626,7 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- A phone's column starts below the corner toggles (the eyebrow and the
 		-- wordmark never sit under them); beside the card it is clear of them,
 		-- and so is a landscape phone's (the toggles are over the brand pane).
-		padding.PaddingTop = UDim.new(0, if phone and not compact then CORNER_CLEAR else 0)
+		local padTop = if phone and not compact then CORNER_CLEAR else 0
 		spacer.Visible = not phone
 		daily.setCompact(phone)
 		-- On a phone, Color, Review names and Bug reports share one row (D-090).
@@ -662,9 +663,15 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		-- A wide screen: the column from a fixed top (idleHeight), so nothing jumps.
 		if not phone then
 			list.VerticalAlignment = Enum.VerticalAlignment.Top
-			padding.PaddingTop = UDim.new(0, math.max(0, math.floor((size.Y - idleHeight()) / 2)))
+			padTop = math.max(0, math.floor((size.Y - idleHeight()) / 2))
 		else
 			list.VerticalAlignment = Enum.VerticalAlignment.Center
+		end
+		-- Once, and only on a change: this runs every tick, and writing 0 then
+		-- the real value re-laid out the whole column each time.
+		if placedPad ~= padTop then
+			placedPad = padTop
+			padding.PaddingTop = UDim.new(0, padTop)
 		end
 		-- The leaderboard: beside the column when there is room, else at its end.
 		local card = board.card

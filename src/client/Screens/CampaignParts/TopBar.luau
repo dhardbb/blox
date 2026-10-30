@@ -119,6 +119,7 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 	local header = Header.new(root, { title = "Week", name = "Header", onHelp = model.ctx.help, now = true })
 	header.title.Name = "WeekLabel"
 	header.subtitle.Name = "StageLabel"
+	header.subtitle.Visible = false
 	header.timer.Name = "Countdown"
 	local left = header.root:FindFirstChild("Left") :: Frame
 	-- The timer and the buttons at the right: header.rightWidth, read at each
@@ -456,8 +457,12 @@ function TopBar.new(parent: Instance, model: Model.Model): TopBar
 					else `Week {week} · Debate`
 			end
 			header:setTitle(title)
-			header:setSubtitle(stage)
-			header.subtitle.Visible = false
+			-- The stage word lives on the hidden StageLabel (read by the specs);
+			-- setSubtitle would show it and this line hide it again on every
+			-- tick, re-laying out the header four times a second.
+			if header.subtitle.Text ~= stage then
+				header.subtitle.Text = stage
+			end
 			-- Only an open input step warns: reveals end on their own. A step
 			-- without a deadline (the tutorial, D-075) says so instead.
 			local deadline = p.deadline

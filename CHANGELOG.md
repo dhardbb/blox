@@ -6,6 +6,8 @@ Newest first. Each entry lists what changed, what to test (see `docs/TESTING.md`
 
 - **The eight candidate portraits are remade as campaign-trail snapshots** (look only; ids, names, perks and numbers unchanged, D-097). Each is a believable person photographed in a setting for their genre of politician: the Fundraiser in a gala's warm glow, the Barnstormer mid-speech at an outdoor rally, the Ad Wizard in a TV studio's teal light, the Debater at a lectern with a hand raised, the Insider in a wood-panelled hallway beside a marble column and half in shadow, the Insurgent on a night street beside a hand-lettered sign, the Pollster before a wall of crosstabs, the Organizer on a leafy street with a clipboard and lanyard. Full-bleed square photos with no marker outlines (`Board.photo` tapes them up as instant photos; `Kit.portrait` crops them round). `python3 assets/portraits/make.py --review PATH` writes a review sheet. Test: `docs/TESTING.md`, "Candidate photos". Needed from the humans: upload the eight `assets/portraits/*.png` again and put the new ids in `src/client/UI/Assets.luau` (`portraits`).
 
+- **Fix: choppy play.** Four times a second the match screen rebuilt its plan slots and bounced the Lock in button's size, the top bar showed and hid a label, and the Lobby wrote its padding twice, each forcing Roblox to lay out the whole screen again; now each only changes when something changed. The selected state's glow and the LANDSLIDE glow no longer "breathe" forever (that redrew the map every frame), and glows too faint to see are not drawn at all.
+
 ### The whiteboard (D-102)
 
 Studio checklist: `docs/TESTING.md`, "Whiteboard look, every screen (D-102)". Look only: no rule, sim or Config changes; the balance report is unchanged.

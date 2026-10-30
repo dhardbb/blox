@@ -184,8 +184,6 @@ local STAGE_GLOW = 1.35 -- the board's backdrop glow, share of the map
 local STAGE_GLOW_FADE = 0.6 -- faint: an erased smudge on the board, no glow
 local SELECT_GLOW = 1.5 -- the smudge under the selected state, share of its rect (no dark shadow on the board)
 local SELECT_GLOW_FADE = 0.5
-local SELECT_GLOW_DIM = 0.7
-local SELECT_BREATH = 0.9 -- s, one breath of the selected glow (decorative)
 local HALO_PAD = 3 -- px, a moved callout state's plate around its chip
 local HALO_SOFT = 0.55 -- the plate's transparency for a state that moves
 local HALO_STRONG = 0.25 -- ... for a state whose poll leader changes
@@ -603,7 +601,6 @@ function ShapeMap.new(): MapInterface.Map
 		selectGlow.Name = "SelectGlow"
 		selectGlow.Visible = false
 	end
-	local stopBreath: () -> () = function() end
 
 	-- The borders: the whiteboard's ink overlay (every border and the coast,
 	-- tinted ink) once uploaded, else the old white-lines image over the land,
@@ -3240,21 +3237,13 @@ function ShapeMap.new(): MapInterface.Map
 					stroke.Thickness = 0
 					Motion.tween(stroke, { Thickness = SELECT_PX }, RING_DRAW)
 				end
-				stopBreath()
+				-- A still glow (D-102): a breathing one redrew the whole map every
+				-- frame for as long as a state stayed selected (choppy on phones).
 				if glow then
 					glow.ImageTransparency = SELECT_GLOW_FADE
-					stopBreath = Motion.breathe(
-						glow,
-						"ImageTransparency",
-						SELECT_GLOW_FADE,
-						SELECT_GLOW_DIM,
-						SELECT_BREATH
-					)
 				end
 			end
 		else
-			stopBreath()
-			stopBreath = function() end
 			if selectGlow then
 				selectGlow.Visible = false
 			end
@@ -3447,7 +3436,6 @@ function ShapeMap.new(): MapInterface.Map
 
 	function map.destroy(_self: any)
 		handlers = {}
-		stopBreath()
 		for _, connection in connections do
 			pcall(function()
 				connection:Disconnect()

@@ -69,6 +69,7 @@ function PlanSlots.new(parent: Instance, options: Options): PlanSlots
 	end
 	root:SetAttribute("Slots", true)
 
+	local lastSignature = "" -- what render drew last (it skips an unchanged list)
 	local function clear()
 		for _, child in root:GetChildren() do
 			if child:IsA("GuiObject") then
@@ -108,6 +109,17 @@ function PlanSlots.new(parent: Instance, options: Options): PlanSlots
 	local slots: PlanSlots = {
 		root = root,
 		render = function(_self: PlanSlots, list: { Words.Slot }, enabled: boolean)
+			-- The same slots as last time: keep them (the bar renders every
+			-- tick; rebuilding re-laid out the screen four times a second).
+			local parts = { tostring(enabled) }
+			for _, slot in list do
+				table.insert(parts, `{slot.kind or ""}:{slot.label}:{slot.count}:{slot.ap}:{slot.index or 0}`)
+			end
+			local signature = table.concat(parts, "|")
+			if signature == lastSignature then
+				return
+			end
+			lastSignature = signature
 			clear()
 			for k, slot in list do
 				if mini then

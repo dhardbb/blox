@@ -196,7 +196,7 @@ describe("Results: the Landslide stamp", function()
 		Rig.noErrors(world)
 	end)
 
-	it("stops the shine and the breathing glow when the screen goes", function()
+	it("stops the shine when the screen goes; the glow no longer breathes (D-102)", function()
 		local world = Rig.newWorld(3)
 		-- Stand-ins for the two loops (set before the client loads Motion), each
 		-- counting its stop. Only the stamp's: the action bar's primary has its own.
@@ -218,7 +218,7 @@ describe("Results: the Landslide stamp", function()
 		end
 		local peer = FakeRoblox.join(world, "P", { DebugScreen = "Landslide" })
 		FakeRoblox.run(world, 1.5)
-		check(started >= 2, `the winner's stamp did not shine and breathe ({started})`)
+		check(started >= 1, `the winner's stamp did not shine ({started})`)
 		expect(stopped):toBe(0)
 		Rig.tap(world, peer, "Results", "BackToLobby", 1)
 		expect(Rig.findIn(peer, "Results", "LandslideStamp")):toBe(nil)

@@ -192,14 +192,24 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		primary.TextColor3 = Kit.colors.text
 	end
 
+	-- Only on a change: the primary's size goes to its lipped holder (Kit.outer),
+	-- so setting it again re-lays out the bar; the screens call this every tick.
+	local placedSplit: boolean? = nil
+	local placedOpponent: boolean? = nil
 	local function layout()
 		-- The status line gives way to the opponent's line; the primary to the secondary.
-		status.Size = if opponent.Visible
-			then UDim2.new(0.6, -GAP, 0, STATUS_H)
-			else UDim2.new(1, 0, 0, STATUS_H)
-		primary.Size = if secondary.Visible
-			then UDim2.new(1 - SECONDARY_SHARE, 0, 0, Kit.PRIMARY_H)
-			else UDim2.new(1, 0, 0, Kit.PRIMARY_H)
+		if opponent.Visible ~= placedOpponent then
+			placedOpponent = opponent.Visible
+			status.Size = if opponent.Visible
+				then UDim2.new(0.6, -GAP, 0, STATUS_H)
+				else UDim2.new(1, 0, 0, STATUS_H)
+		end
+		if secondary.Visible ~= placedSplit then
+			placedSplit = secondary.Visible
+			primary.Size = if secondary.Visible
+				then UDim2.new(1 - SECONDARY_SHARE, 0, 0, Kit.PRIMARY_H)
+				else UDim2.new(1, 0, 0, Kit.PRIMARY_H)
+		end
 	end
 	layout()
 
@@ -211,6 +221,9 @@ function ActionBar.new(parent: Instance, options: Options): ActionBar
 		status = status,
 		opponent = opponent,
 		setPrimary = function(self: ActionBar, text: string, enabled: boolean)
+			if armed and text == self.primary.Text and enabled == wasEnabled then
+				return -- unchanged (the screens call this every tick)
+			end
 			local lockingIn = armed and wasEnabled and not enabled and string.sub(text, 1, #LOCKED) == LOCKED
 			self.primary.Text = text
 			Kit.setEnabled(self.primary, enabled)

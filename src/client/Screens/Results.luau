@@ -136,9 +136,6 @@ local LANDSLIDE_CONFETTI = 100 -- pieces on a landslide win (D-062)
 local LANDSLIDE_DELAY = 0.45 -- s after the banner's stamp, the LANDSLIDE stamp lands
 local LANDSLIDE_TILT = 4 -- degrees: the other way from the banner's −6, so the two read as two moments
 local LANDSLIDE_LINE_H = Kit.size.caption + 6 -- px, the votes line under it
-local LANDSLIDE_GLOW = 0.97 -- the glow behind the stamp, in the winner's color (transparency; D-102: a pink haze in Studio at 0.88, was 0.45)
-local LANDSLIDE_GLOW_W = 1.2 -- its width, a share of the column
-local LANDSLIDE_BREATHE = { 0.45, 0.65, 1.6 } -- the winner's glow breathes between these transparencies, s per breath
 local TAB_H = Kit.MIN_TOUCH -- px, the pinned tab row (D-073)
 -- Gold: the leaderboard's first medal (the Amber player color), the LANDSLIDE's
 -- edge and its light (D-098).
@@ -748,7 +745,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 		end
 
 		local slideStamp: Frame? = nil
-		local slideGlow: ImageLabel? = nil
 		if slide then
 			local box = Kit.box({
 				Name = "LandslideBox",
@@ -756,11 +752,6 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				Size = UDim2.new(1, 0, 0, stampRow + LANDSLIDE_LINE_H),
 				Parent = column,
 			})
-			slideGlow = Kit.glow(
-				box,
-				Kit.playerColor(view, slide.winner),
-				{ scale = LANDSLIDE_GLOW_W, stretch = true, transparency = LANDSLIDE_GLOW }
-			)
 			local made = Kit.stamp(slide.stamp, Kit.playerColor(view, slide.winner), {
 				size = Kit.size.hero,
 				Name = "LandslideStamp",
@@ -1079,11 +1070,8 @@ function Screen.mount(parent: Frame, ctx: Types.Ctx): Types.Screen
 				if band and band:IsA("Frame") then
 					band.BackgroundColor3 = GOLD
 				end
-				local glow = slideGlow
-				if glow then
-					local b = LANDSLIDE_BREATHE
-					table.insert(stops, Motion.breathe(glow, "ImageTransparency", b[1], b[2], b[3]))
-				end
+				-- No breathing glow (D-102): it looped forever on an idle screen
+				-- and faded a pink haze over the board.
 				task.delay(LANDSLIDE_DELAY, function()
 					if landslide.Parent ~= nil then
 						Audio.play("debateWin")
